@@ -15,6 +15,7 @@ import {
   MODAL_INPUT_NUMERIC_CLASS,
 } from "../../lib/design-system";
 import { Button } from "../../components/ui/button";
+import { Dialog, DialogContent, DialogHeader } from "@dayday/ui";
 
 type BankAccount = {
   id: string;
@@ -161,9 +162,9 @@ export function InternalTransferModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-2xl`} role="dialog" aria-modal="true">
-        <header className="flex items-start justify-between gap-2">
+    <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : undefined)}>
+      <DialogContent className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-2xl`}>
+        <DialogHeader className="shrink-0">
           <h3 className="m-0 flex-1 text-lg font-semibold text-[#34495E]">{t("banking.transfer.title")}</h3>
           <Button
             type="button"
@@ -174,7 +175,7 @@ export function InternalTransferModal({
           >
             <X className="h-4 w-4" />
           </Button>
-        </header>
+        </DialogHeader>
 
         <div className="mt-4 space-y-4">
           <div className="grid gap-2 md:grid-cols-3">
@@ -332,7 +333,7 @@ export function InternalTransferModal({
             {busy ? "…" : t("common.save")}
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

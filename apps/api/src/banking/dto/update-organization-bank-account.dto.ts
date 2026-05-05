@@ -4,3 +4,4 @@ import { CreateOrganizationBankAccountDto } from "./create-organization-bank-acc
 export class UpdateOrganizationBankAccountDto extends PartialType(
   CreateOrganizationBankAccountDto,
 ) {}
+

@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  ParseIntPipe,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -43,6 +51,15 @@ export class TreasuryController {
   @ApiOperation({ summary: "Активные физические кассы" })
   listCashDesks(@OrganizationId() organizationId: string) {
     return this.treasury.listCashDesks(organizationId);
+  }
+
+  @Get("cashflow-projection")
+  @ApiOperation({ summary: "Платёжный календарь: прогноз ликвидности по дням" })
+  cashflowProjection(
+    @OrganizationId() organizationId: string,
+    @Query("days", new ParseIntPipe({ optional: true })) days?: number,
+  ) {
+    return this.treasury.getCashflowProjection(organizationId, days ?? 30);
   }
 
   @Post("cash-desks")

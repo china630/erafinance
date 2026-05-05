@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../lib/api-client";
 import { EmptyState } from "../../components/empty-state";
 import { Button } from "../../components/ui/button";
+import { Dialog, DialogContent, DialogHeader } from "@dayday/ui";
 import {
   MODAL_CLOSE_BUTTON_CLASS,
   MODAL_DIALOG_CONTENT_CLASS,
@@ -56,9 +57,9 @@ export function BankingCreateAccountModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-      <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`} role="dialog" aria-modal="true">
-        <header className="flex shrink-0 items-start justify-between gap-3">
+    <Dialog open={true} onOpenChange={(next) => (!next ? onClose() : undefined)}>
+      <DialogContent className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`}>
+        <DialogHeader className="shrink-0">
           <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
             {t("banking.createBankAccountTitle")}
           </h3>
@@ -71,7 +72,7 @@ export function BankingCreateAccountModal({
           >
             <X className="h-4 w-4 shrink-0" aria-hidden />
           </Button>
-        </header>
+        </DialogHeader>
 
         <form className="mt-4 flex min-h-0 flex-1 flex-col" onSubmit={(e) => void submit(e)}>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
@@ -113,8 +114,8 @@ export function BankingCreateAccountModal({
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -180,9 +181,9 @@ export function BankStatementImportModal({
   if (!ready || !token) return null;
 
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/40 p-4">
-      <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-lg`} role="dialog" aria-modal="true">
-        <header className="flex shrink-0 items-start justify-between gap-3">
+    <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : undefined)}>
+      <DialogContent className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-lg`}>
+        <DialogHeader className="shrink-0">
           <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
             {t("banking.importStatementsTitle")}
           </h3>
@@ -195,7 +196,7 @@ export function BankStatementImportModal({
           >
             <X className="h-4 w-4 shrink-0" aria-hidden />
           </Button>
-        </header>
+        </DialogHeader>
 
         <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto">
           <p className="text-sm text-slate-600 m-0">{t("banking.importStatementsHint")}</p>
@@ -283,7 +284,7 @@ export function BankStatementImportModal({
             {t("common.cancel")}
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

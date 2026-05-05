@@ -65,3 +65,4 @@ export class CreateOrganizationBankAccountDto {
   @IsBoolean()
   isFrozen?: boolean;
 }
+

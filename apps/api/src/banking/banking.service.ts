@@ -28,8 +28,8 @@ import { parseBankStatementCsv } from "./csv/bank-csv.parser";
 import type { CreateBankConversionDto } from "./dto/create-bank-conversion.dto";
 import type { CreateCashDepositDto } from "./dto/create-cash-deposit.dto";
 import type { CreateInternalTransferDto } from "./dto/create-internal-transfer.dto";
-import type { CreateOrganizationBankAccountDto } from "../organizations/dto/create-organization-bank-account.dto";
-import type { UpdateOrganizationBankAccountDto } from "../organizations/dto/update-organization-bank-account.dto";
+import type { CreateOrganizationBankAccountDto } from "./dto/create-organization-bank-account.dto";
+import type { UpdateOrganizationBankAccountDto } from "./dto/update-organization-bank-account.dto";
 
 function matchesPrefix(accountCode: string, prefix: string): boolean {
   return accountCode === prefix || accountCode.startsWith(`${prefix}.`);

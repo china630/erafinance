@@ -13,7 +13,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
+} from "@dayday/ui";
 
 type BadgeVariant = "neutral" | "owner" | "admin" | "accountant" | "user";
 

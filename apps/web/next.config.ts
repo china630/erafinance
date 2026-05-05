@@ -20,6 +20,7 @@ function resolveSentryTunnelRoute(): string | boolean | undefined {
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  transpilePackages: ["@dayday/ui"],
   /** Клиент ходит на тот же origin (`/api/...`), Next проксирует на бэкенд — меньше проблем с CORS и блокировками. */
   async rewrites() {
     return [

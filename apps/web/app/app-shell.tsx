@@ -505,7 +505,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const navSections = useMemo(() => {
     const bankCashActive =
-      pathname.startsWith("/banking") || pathname.startsWith("/expenses");
+      pathname.startsWith("/banking") ||
+      pathname.startsWith("/expenses") ||
+      pathname.startsWith("/treasury/cash-flow");
     const salesActive =
       pathname.startsWith("/sales/invoices") ||
       pathname.startsWith("/sales/reconciliation");

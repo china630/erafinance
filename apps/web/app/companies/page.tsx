@@ -28,6 +28,7 @@ import { PageHeader } from "../../components/layout/page-header";
 import { CompanyCard, type CompanyCardItem } from "../../components/companies/company-card";
 import { Button } from "../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../../components/ui/select";
+import { Dialog, DialogContent, DialogHeader } from "@dayday/ui";
 import { X } from "lucide-react";
 
 type OrganizationsTree = {
@@ -361,9 +362,9 @@ export default function CompaniesPage() {
         }}
       />
       {attachDialogOrg ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`} role="dialog" aria-modal="true">
-            <header className="flex items-start justify-between gap-3">
+        <Dialog open={Boolean(attachDialogOrg)} onOpenChange={(next) => (!next ? setAttachDialogOrg(null) : undefined)}>
+          <DialogContent className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`}>
+            <DialogHeader>
               <div>
                 <h3 className="text-lg font-semibold text-[#34495E]">
                   {t("companiesPage.attachDialogTitle")}
@@ -379,7 +380,7 @@ export default function CompaniesPage() {
               >
                 <X className="h-4 w-4" aria-hidden />
               </Button>
-            </header>
+            </DialogHeader>
 
             <div className="mt-4 space-y-4">
               <label className={MODAL_FIELD_LABEL_CLASS}>
@@ -424,8 +425,8 @@ export default function CompaniesPage() {
                   : t("companiesPage.holdingAttach")}
               </Button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       ) : null}
     </div>
   );

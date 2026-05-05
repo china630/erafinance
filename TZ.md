@@ -485,6 +485,7 @@
 |--------------|------|----------------|
 | `GET /api/treasury/cash-desks` | JWT | Список **`isActive: true`**, сортировка по `name`. **Include:** `employee { id, firstName, lastName, finCode }` при наличии `employeeId`. |
 | `POST /api/treasury/cash-desks` | **Owner, Admin, Accountant** | **DTO `CreateCashDeskDto`:** `name` — string, 1…255 (обязательно); `employeeId` — optional UUID; `currencies` — optional `string[]` (ISO коды; если не передан или пустой — сохраняется **`[]`**). Ответ: созданная касса с тем же `include` по сотруднику. **400**, если `name` пустой после `trim`. |
+| `GET /api/treasury/cashflow-projection?days=30` | JWT | Платёжный календарь (liquidity forecast) по дням. Источники: текущий баланс по активным `OrganizationBankAccount` (через NAS account balances) + неоплаченные инвойсы с `dueDate` в горизонте (`DRAFT/SENT/PARTIALLY_PAID`): входящий поток для customer, исходящий для supplier. Ответ: `{ currency, horizonDays, openingBalance, points[] }`, где `points[] = { date, inflow, outflow, projectedBalance }`. |
 
 **Сервисные проверки (используются кассой/банком):**
 
@@ -1389,7 +1390,9 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 
 **UI холдинга (создание):** страница `/holding` содержит кнопку «Новый холдинг», открывающую модальную форму (поля: `name`, `baseCurrency`) и выполняющую `POST /api/holdings`.
 
-**UI `/companies` (v2026.05):** страница переведена на компонентный подход с переиспользуемой карточкой `CompanyCard`; структура — секции по холдингам + нижний блок `Sərbəst Şirkətlər` в grid-раскладке. Контекстные действия по компании (настройки, привязка, отвязка) вынесены в `DropdownMenu` на карточке для визуальной чистоты. Контракты API (`/api/organizations/tree`, `/api/holdings`, `POST/DELETE /api/holdings/:holdingId/organizations/:organizationId`) остаются без изменений.
+**[x] COMPLETED (companies-workspace-componentization, v2026.05):** страница `/companies` переведена на компонентный подход с переиспользуемой карточкой `CompanyCard`; структура — секции по холдингам + нижний блок `Sərbəst Şirkətlər` в grid-раскладке. Контекстные действия по компании (настройки, привязка, отвязка) вынесены в `DropdownMenu` на карточке для визуальной чистоты. Контракты API (`/api/organizations/tree`, `/api/holdings`, `POST/DELETE /api/holdings/:holdingId/organizations/:organizationId`) остаются без изменений.
+
+**[x] COMPLETED (ui-primitives-standard, v2026.05):** для нового и рефакторимого фронтенда обязательны общие примитивы из `@dayday/ui`: `Dialog`, `DropdownMenu`, `Popover`. Локальные ad-hoc оверлеи и кастомные dropdown-реализации в продуктовых экранах не добавляются; при рефакторинге заменяются на общий пакет. Базовые требования accessibility: trap focus + `Esc` в `Dialog`, keyboard navigation (`ArrowUp/ArrowDown`, `Esc`) в `DropdownMenu`.
 
 ### 13.3. Direct Banking (Pasha Bank, ABB и др.)
 

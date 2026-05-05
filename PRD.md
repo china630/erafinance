@@ -32,7 +32,7 @@
 
 **Иерархия холдинга:** организации могут быть объединены в холдинг через `Organization.holdingId` (nullable). UI показывает структуру **Holding → дочерние компании** и отдельную секцию «свободных компаний» (не входящих в холдинг). Внутри продукта предусмотрен отдельный дашборд `/holding` с агрегированными показателями по холдингу (cash/bank в базовой валюте) и модальным созданием холдинга (кнопка «Новый холдинг»).
 
-**UX-паттерн страницы `/companies` (v2026.05):** интерфейс переведён с двухколоночного списка на единый вертикальный поток рабочих пространств: секции по холдингам и блок **`Sərbəst Şirkətlər`** рендерятся в карточной grid-раскладке (`1/2/3/4` колонки по брейкпоинтам). Карточка компании стала основной единицей навигации и быстрого действия.
+**[x] COMPLETED (companies-workspace-ux, v2026.05):** интерфейс страницы `/companies` переведён с двухколоночного списка на единый вертикальный поток рабочих пространств: секции по холдингам и блок **`Sərbəst Şirkətlər`** рендерятся в карточной grid-раскладке (`1/2/3/4` колонки по брейкпоинтам). Карточка компании стала основной единицей навигации и быстрого действия.
 
 **Направление:** от надёжного ядра двойной записи и модулей учёта — к платформе, конкурентоспособной с классическими ERP за счёт скорости, соответствия локальным и при необходимости международным стандартам (МСФО), интеграций с госсервисами и банками Азербайджана.
 
@@ -227,8 +227,8 @@ At **data model and UX** level, sales and purchase documents must carry an expli
 - Импорт выписок MVP: **CSV / Excel**; прямые API банков — дорожная карта. Match (Invoicing match) — TZ.
 - [x] **COMPLETED (Direct Banking Outbound, v95+):** добавлен контур исходящих платёжных поручений (`BankPaymentDraft`: `PENDING -> SENT -> REJECTED|COMPLETED`) и отправка в банковские адаптеры из UI «Банк».
 - [x] **COMPLETED (E2E auto-matching, v95+):** выписки автоматически сопоставляются с отправленными исходящими платежами и salary registries по сумме; при уникальном совпадении статусы обновляются автоматически (`BankPaymentDraft -> COMPLETED`, `SalaryRegistry -> PAID`).
-- **Новая операция: Внутренний перевод** между своими банковскими счетами организации. Для исключения задвоения остатков и кассовых разрывов при задержках клиринга проводки выполняются через транзитный счёт **231** (*Yoldakı pul köçürmələri*).
-- **Новая операция: Конвертация** между своими валютными счетами. Система рассчитывает курсовую разницу между курсом сделки и официальным курсом ЦБА на дату операции; разница автоматически относится на **662** (доход) или **762** (расход), комиссия банка — на **731**.
+- [~] **PARTIAL (treasury-internal-transfer):** операция «Внутренний перевод» между своими банковскими счетами организации реализована (проводки через транзитный счёт **231**), но до полного завершения блока требуется довести контрольный контур качества/регрессии по унифицированному treasury API.
+- [~] **PARTIAL (treasury-conversion):** операция «Конвертация» между своими валютными счетами реализована (курсовая разница на **662/762**, комиссия на **731**), но до полного завершения блока требуется довести контрольный контур качества/регрессии по унифицированному treasury API.
 - **Новая операция: Взнос наличных (Cash Deposit)** на банковский счёт: Дт банковский субсчёт организации, Кт источника (`251` для инкассации из кассы или `545` для средств учредителя).
 
 **UX/UI — Smart Aliases (банк / финансовые счета организации):** для всех финансовых счетов в интерфейсе модуля Treasury (страница **Банк** и связанные формы) система применяет **Smart Aliases**: на первом плане отображается человекочитаемое название (алиас банка и валюта), а системный бухгалтерский код (**NAS**) выводится второстепенным бейджем. Это обеспечивает удобство для менеджмента при сохранении строгого контроля для бухгалтерии; идентификаторы и коды в API остаются источником правды там, где это зафиксировано в [TZ.md](./TZ.md) §6.0.
@@ -463,6 +463,17 @@ At **data model and UX** level, sales and purchase documents must carry an expli
 
 - All sums are calculated on the **API** using exact decimal arithmetic.
 - Heavy periods may be cached in Redis for short TTL (keyed by organization + params).
+
+### 4.14. Treasury: Cash Flow & Forecasting
+
+**[x] COMPLETED (cashflow-projection-v1):** Treasury includes a forecast layer where each day combines:
+
+- opening bank balance as of today (active organization bank accounts),
+- expected inflows from unpaid customer invoices by `dueDate`,
+- expected outflows from unpaid supplier invoices by `dueDate`.
+
+Output contract for UI timeline/table: `Date | ProjectedBalance | Inflow | Outflow` (default horizon 30 days).  
+If `ProjectedBalance` drops below zero on a date, UI marks it as **cash-gap risk** for proactive decisions.
 
 ## 5. Дорожная карта: расширения (v2 — конкурентный scope)
 
@@ -981,7 +992,7 @@ Product-approved **hybrid** integration with the **State Tax Service (DVX / e-ta
 | **Объектное хранилище (обязательно для приёмки прод-сборки)** | Логотипы организаций, PDF счетов и прочие вложения сохраняются через **`STORAGE_SERVICE`** с **`STORAGE_DRIVER=s3`** и настроенными переменными **`S3_*`** (bucket, region, credentials, при необходимости `S3_PUBLIC_BASE_URL`). Локальная разработка может использовать **`STORAGE_DRIVER=local`** и `STORAGE_LOCAL_ROOT` без облака. |
 | **Disaster Recovery (DR)** | Должны существовать регулярные резервные копии PostgreSQL (`pg_dump` + ротация), а также документированный runbook восстановления (`docs/DR_RUNBOOK.md`) с проверкой целостности, порядком восстановления и rollback-сценарием. |
 | **Профиль** | В карточке организации доступны: **юридический адрес**, **телефон**, **ФИО/наименование руководителя** (текст для печати), **логотип** (файл → URL в объектном хранилище), **VÖEN** и наименование (как сейчас). |
-| **Банковские реквизиты** | Управляются в выделенном реестре **`Settings → Bank Accounts`** (`/settings/bank-accounts`): банк, **IBAN**, SWIFT, валюта, тип счёта и NAS-субсчёт. Единый API-контур реестра: **`/api/banking/bank-accounts`**. Для IBAN применяется локальная проверка **MOD-97** (`AZ` + 26 символов) и серверная валидация `POST /api/banking/validate-iban`. |
+| **Банковские реквизиты** | [x] **COMPLETED (bank-accounts-registry-api-unified):** управляются в выделенном реестре **`Settings → Bank Accounts`** (`/settings/bank-accounts`): банк, **IBAN**, SWIFT, валюта, тип счёта и NAS-субсчёт. Единый API-контур реестра: **`/api/banking/bank-accounts`**. Для IBAN применяется локальная проверка **MOD-97** (`AZ` + 26 символов) и серверная валидация `POST /api/banking/validate-iban`. |
 | **Smart Aliases (banking)** | Для банковских счетов организации действует привязка **IBAN ↔ NAS account/subaccount** (`ledgerAccountCode`, например `222.01.01`): в UI показывается alias (банк/валюта), а код NAS остаётся источником правды для бухгалтерских операций и интеграций. |
 | **Статус блокировки счёта** | Атрибут `isFrozen` фиксирует налоговый арест/распоряжение. Заблокированный счёт отображается в реестре, но не используется как источник списания в платежах, переводах и конвертациях. |
 | **Классификация счетов** | Поле `BankAccountType`: `MAIN`, `SALARY`, `CARD`, `TENDER`, `CREDIT`, `VAT_DEPOSIT`; признак `isPrimary` задаёт счёт по умолчанию в платежных сценариях. |
@@ -1105,6 +1116,7 @@ DayDay ERP **не навязывает** обязательную синхрон
 | **2026.04.29** | Архив | **M6/M7 Integration:** Payroll department-level cost allocation and P&L departmental filtering. |
 | **2026.04.30** | Архив | **M9 Completion:** Dynamic FIFO/AVCO valuation toggle and Manufacturing Release workflow with automated ledger postings. |
 | **2026.05.01** | Текущая | **v2 Completion:** Full IFRS parallel reporting views (Trial Balance, P&L) and global NAS/IFRS UI toggle. |
+| **2026.05.05** | Текущая | **`v1.0.0-RC2`**: Унификация UI-Kit (**`@dayday/ui`**), внедрение Платёжного календаря и Cash Flow прогнозирования. |
 | **2026.05.06** | Текущая | **PRD Synchronization (95%+ Push):** Unified documentation update covering CRM Merge, Netting, Hire-Gate, Outbound Banking, WMS Bins, and Audit Chain Verification. |
 | **2026.05.07** | Текущая | **Roadmap 95+ (Billing Pivot):** Transitioned to Post-Paid model, zero-friction module activation, and 1st-of-month invoice generation. |
 | **2026.05.08** | Текущая | **Billing Refinement:** Free first month logic, end-of-month pending deactivation, and 25th-day reminders. |

@@ -475,6 +475,14 @@ export function MainSidebar({
                 nested
                 onNavClick={onNavClick}
               />
+              <SideNavItem
+                href="/treasury/cash-flow"
+                label={t("nav.cashFlowProjection")}
+                isActive={pathname.startsWith("/treasury/cash-flow")}
+                icon={CalendarCheck}
+                nested
+                onNavClick={onNavClick}
+              />
             </>
           ) : null}
         </CollapsibleNavSection>

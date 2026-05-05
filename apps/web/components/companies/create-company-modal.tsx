@@ -18,6 +18,7 @@ import {
   MODAL_INPUT_CLASS,
 } from "../../lib/design-system";
 import { Button } from "../ui/button";
+import { Dialog, DialogContent, DialogHeader } from "@dayday/ui";
 
 export function CreateCompanyModal({
   open,
@@ -96,9 +97,9 @@ export function CreateCompanyModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-xl`} role="dialog" aria-modal="true">
-        <header className="flex shrink-0 items-start justify-between gap-3">
+    <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : undefined)}>
+      <DialogContent className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-xl`}>
+        <DialogHeader className="shrink-0">
           <div className="min-w-0 flex-1 pr-2">
             <h3 className="m-0 text-lg font-semibold leading-snug text-[#34495E]">{title}</h3>
             <p className="mb-0 mt-1 text-[13px] leading-snug text-[#7F8C8D]">
@@ -108,7 +109,7 @@ export function CreateCompanyModal({
           <Button type="button" variant="ghost" className={MODAL_CLOSE_BUTTON_CLASS} onClick={onClose} aria-label={t("common.close")}>
             <X className="h-4 w-4 shrink-0" aria-hidden />
           </Button>
-        </header>
+        </DialogHeader>
 
         <form className="mt-4 flex min-h-0 flex-1 flex-col" onSubmit={(e) => void onSubmit(e)}>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
@@ -178,7 +179,7 @@ export function CreateCompanyModal({
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
