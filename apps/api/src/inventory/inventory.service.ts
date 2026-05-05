@@ -23,11 +23,13 @@ import {
   INVENTORY_SURPLUS_INCOME_ACCOUNT_CODE,
   MISC_OPERATING_EXPENSE_ACCOUNT_CODE,
   PAYABLE_SUPPLIERS_ACCOUNT_CODE,
+  RECEIVABLE_ACCOUNT_CODE,
+  REVENUE_ACCOUNT_CODE,
   VAT_INPUT_ACCOUNT_CODE,
 } from "../ledger.constants";
 import { PrismaService } from "../prisma/prisma.service";
 import { StockService } from "../stock/stock.service";
-import type { PurchaseStockDto } from "./dto/purchase-stock.dto";
+import type { PurchaseLineDto, PurchaseStockDto } from "./dto/purchase-stock.dto";
 import type { TransferStockDto } from "./dto/transfer-stock.dto";
 import {
   mergeInventorySettings,
@@ -39,6 +41,9 @@ import type { AdjustStockDto } from "./dto/adjust-stock.dto";
 import type { CreateInventoryAdjustmentDto } from "./dto/create-inventory-adjustment.dto";
 import type { CreateWarehouseDto } from "./dto/create-warehouse.dto";
 import type { CreateWarehouseBinDto } from "./dto/create-warehouse-bin.dto";
+import type { CreateWarehouseReceiptDto } from "./dto/create-warehouse-receipt.dto";
+import type { CreateWarehouseShipmentDto } from "./dto/create-warehouse-shipment.dto";
+import type { CreateTransferDto, TransferLineDto } from "./dto/create-transfer.dto";
 
 type Decimal = Prisma.Decimal;
 const Decimal = Prisma.Decimal;
@@ -213,6 +218,97 @@ export class InventoryService {
     });
   }
 
+  /**
+   * Anbar qalığı: balances from `stock_movements` (SUM(IN) − SUM(OUT)) per warehouse, bin, product.
+   * Rows with quantity ≤ 0 are excluded. Goods only (`Product.isService = false`).
+   */
+  async listMovementBalances(
+    organizationId: string,
+    filters?: { warehouseId?: string; search?: string; take?: number },
+  ): Promise<
+    Array<{
+      warehouseId: string;
+      warehouseName: string;
+      binId: string | null;
+      binCode: string | null;
+      productId: string;
+      productName: string;
+      productSku: string;
+      quantity: string;
+    }>
+  > {
+    const take = Math.min(Math.max(filters?.take ?? 4000, 1), 5000);
+    const wh = filters?.warehouseId?.trim();
+    const search = filters?.search?.trim();
+    const uuidRe =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (wh && !uuidRe.test(wh)) {
+      throw new BadRequestException("Invalid warehouseId");
+    }
+
+    const warehouseClause = wh
+      ? Prisma.sql`AND m.warehouse_id = ${wh}::uuid`
+      : Prisma.empty;
+
+    let searchClause = Prisma.empty;
+    if (search && search.length > 0) {
+      const escaped = search
+        .replace(/\\/g, "\\\\")
+        .replace(/%/g, "\\%")
+        .replace(/_/g, "\\_");
+      const pattern = `%${escaped}%`;
+      searchClause = Prisma.sql`AND (p.name ILIKE ${pattern} ESCAPE '\\' OR p.sku ILIKE ${pattern} ESCAPE '\\')`;
+    }
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        warehouse_id: string;
+        warehouse_name: string;
+        bin_id: string | null;
+        bin_code: string | null;
+        product_id: string;
+        product_name: string;
+        product_sku: string;
+        quantity: unknown;
+      }>
+    >(Prisma.sql`
+      SELECT
+        m.warehouse_id,
+        w.name AS warehouse_name,
+        m.bin_id,
+        b.code AS bin_code,
+        m.product_id,
+        p.name AS product_name,
+        p.sku AS product_sku,
+        COALESCE(SUM(CASE WHEN m.type::text = 'IN' THEN m.quantity ELSE 0 END), 0)
+          - COALESCE(SUM(CASE WHEN m.type::text = 'OUT' THEN m.quantity ELSE 0 END), 0) AS quantity
+      FROM stock_movements m
+      INNER JOIN products p ON p.id = m.product_id AND p.organization_id = m.organization_id
+      INNER JOIN warehouses w ON w.id = m.warehouse_id AND w.organization_id = m.organization_id
+      LEFT JOIN warehouse_bins b ON b.id = m.bin_id AND b.organization_id = m.organization_id
+      WHERE m.organization_id = ${organizationId}::uuid
+        AND p.is_service = false
+        ${warehouseClause}
+        ${searchClause}
+      GROUP BY m.warehouse_id, w.name, m.bin_id, b.code, m.product_id, p.name, p.sku
+      HAVING COALESCE(SUM(CASE WHEN m.type::text = 'IN' THEN m.quantity ELSE 0 END), 0)
+           - COALESCE(SUM(CASE WHEN m.type::text = 'OUT' THEN m.quantity ELSE 0 END), 0) > 0
+      ORDER BY w.name ASC, b.code ASC NULLS LAST, p.name ASC
+      LIMIT ${take}
+    `);
+
+    return rows.map((r) => ({
+      warehouseId: r.warehouse_id,
+      warehouseName: r.warehouse_name,
+      binId: r.bin_id,
+      binCode: r.bin_code,
+      productId: r.product_id,
+      productName: r.product_name,
+      productSku: r.product_sku,
+      quantity: String(r.quantity),
+    }));
+  }
+
   listMovements(
     organizationId: string,
     filters?: {
@@ -263,39 +359,94 @@ export class InventoryService {
     return enteredUnit.div(denom);
   }
 
-  async recordPurchase(organizationId: string, dto: PurchaseStockDto) {
-    const kind = dto.kind ?? "goods";
-    const pricesIncludeVat = Boolean(dto.pricesIncludeVat);
-    if (kind === "services") {
-      return this.recordServicePurchase(organizationId, dto, pricesIncludeVat);
+  /** Effective VAT % for a purchase line (UI vatMode overrides product catalog). */
+  private purchaseLineVatRatePercent(
+    line: Pick<PurchaseLineDto, "vatMode">,
+    productVatRate: unknown,
+  ): Decimal {
+    const m = line.vatMode;
+    if (m === "18") return new Decimal(18);
+    if (m === "0" || m === "exempt" || m === "not_applicable") {
+      return new Decimal(0);
     }
-    if (!dto.warehouseId) {
-      throw new BadRequestException(
-        "Для закупки товаров укажите склад (warehouseId)",
-      );
-    }
-    return this.recordGoodsPurchase(organizationId, dto, pricesIncludeVat);
+    return new Decimal(productVatRate != null ? Number(productVatRate) : 0);
   }
 
-  private async recordGoodsPurchase(
+  private normalizePurchaseSplit(dto: PurchaseStockDto): {
+    goodsLines: PurchaseLineDto[];
+    serviceLines: PurchaseLineDto[];
+  } {
+    const gl = dto.goodsLines;
+    const sl = dto.serviceLines;
+    if ((gl && gl.length > 0) || (sl && sl.length > 0)) {
+      return { goodsLines: gl ?? [], serviceLines: sl ?? [] };
+    }
+    if (dto.lines?.length) {
+      const kind = dto.kind ?? "goods";
+      if (kind === "services") {
+        return { goodsLines: [], serviceLines: dto.lines };
+      }
+      return { goodsLines: dto.lines, serviceLines: [] };
+    }
+    return { goodsLines: [], serviceLines: [] };
+  }
+
+  async recordPurchase(organizationId: string, dto: PurchaseStockDto) {
+    const pricesIncludeVat = Boolean(dto.pricesIncludeVat);
+    const { goodsLines, serviceLines } = this.normalizePurchaseSplit(dto);
+    if (goodsLines.length === 0 && serviceLines.length === 0) {
+      throw new BadRequestException("At least one purchase line is required");
+    }
+    if (goodsLines.length > 0 && serviceLines.length > 0) {
+      return this.recordDualPurchaseInvoice(
+        organizationId,
+        dto,
+        goodsLines,
+        serviceLines,
+        pricesIncludeVat,
+      );
+    }
+    if (serviceLines.length > 0) {
+      return this.recordServicePurchase(
+        organizationId,
+        { ...dto, lines: serviceLines },
+        pricesIncludeVat,
+      );
+    }
+    return this.recordGoodsPurchase(organizationId, { ...dto, lines: goodsLines }, pricesIncludeVat);
+  }
+
+  /**
+   * Single journal: Дт 201 (goods net) + Дт 731 (services net) + Дт 241 (VAT if prices include VAT) — Кт 531.
+   * Amounts converted to AZN using fxRateToAzn (1 for AZN).
+   */
+  private async recordDualPurchaseInvoice(
     organizationId: string,
     dto: PurchaseStockDto,
+    goodsLines: PurchaseLineDto[],
+    serviceLines: PurchaseLineDto[],
     pricesIncludeVat: boolean,
   ) {
-    const warehouseId = dto.warehouseId!;
-    const wh = await this.prisma.warehouse.findFirst({
-      where: { id: warehouseId, organizationId },
-    });
-    if (!wh) throw new NotFoundException("Warehouse not found");
-
     return this.prisma.$transaction(async (tx) => {
-      const documentDate = new Date();
-      let totalNet = new Decimal(0);
+      const documentDate = dto.documentDate ? new Date(dto.documentDate) : new Date();
+      if (Number.isNaN(documentDate.getTime())) {
+        throw new BadRequestException("Invalid documentDate");
+      }
+
+      let totalNetGoods = new Decimal(0);
+      let totalNetSvc = new Decimal(0);
       let totalVat = new Decimal(0);
       let totalGross = new Decimal(0);
+      const snapshotLines: Array<{
+        kind: "goods" | "services";
+        productId: string;
+        quantity: number;
+        productName: string;
+        sku: string;
+      }> = [];
 
-      for (let lineIndex = 0; lineIndex < dto.lines.length; lineIndex++) {
-        const line = dto.lines[lineIndex];
+      for (let lineIndex = 0; lineIndex < goodsLines.length; lineIndex++) {
+        const line = goodsLines[lineIndex];
         const p = await tx.product.findFirst({
           where: { id: line.productId, organizationId },
         });
@@ -304,12 +455,212 @@ export class InventoryService {
         }
         if (p.isService) {
           throw new BadRequestException(
-            `Строка ${lineIndex + 1}: услуга не может быть оприходована на склад; выберите тип закупки «Услуги»`,
+            `Mallar sətri ${lineIndex + 1}: gözlənilən məhsul (isService=false)`,
           );
         }
+        snapshotLines.push({
+          kind: "goods",
+          productId: line.productId,
+          quantity: Number(line.quantity),
+          productName: p.name,
+          sku: typeof p.sku === "string" ? p.sku : String(p.sku ?? ""),
+        });
         const qty = new Decimal(line.quantity);
         const grossUnit = new Decimal(line.unitPrice);
-        const vatRate = new Decimal(p.vatRate ?? 0);
+        const vatRate = this.purchaseLineVatRatePercent(line, p.vatRate);
+        const netUnit = this.purchaseNetUnit(grossUnit, vatRate, pricesIncludeVat);
+        const lineNet = qty.mul(netUnit);
+        const lineGross = pricesIncludeVat ? qty.mul(grossUnit) : lineNet;
+        const lineVat = lineGross.sub(lineNet);
+        totalNetGoods = totalNetGoods.add(lineNet);
+        totalVat = totalVat.add(lineVat);
+        totalGross = totalGross.add(lineGross);
+      }
+
+      for (let lineIndex = 0; lineIndex < serviceLines.length; lineIndex++) {
+        const line = serviceLines[lineIndex];
+        const p = await tx.product.findFirst({
+          where: { id: line.productId, organizationId },
+        });
+        if (!p) {
+          throw new NotFoundException(`Product ${line.productId} not found`);
+        }
+        if (!p.isService) {
+          throw new BadRequestException(
+            `Xidmətlər sətiri ${lineIndex + 1}: gözlənilən xidmət (isService=true)`,
+          );
+        }
+        snapshotLines.push({
+          kind: "services",
+          productId: line.productId,
+          quantity: Number(line.quantity),
+          productName: p.name,
+          sku: typeof p.sku === "string" ? p.sku : String(p.sku ?? ""),
+        });
+        const qty = new Decimal(line.quantity);
+        const grossUnit = new Decimal(line.unitPrice);
+        const vatRate = this.purchaseLineVatRatePercent(line, p.vatRate);
+        const netUnit = this.purchaseNetUnit(grossUnit, vatRate, pricesIncludeVat);
+        const lineNet = qty.mul(netUnit);
+        const lineGross = pricesIncludeVat ? qty.mul(grossUnit) : lineNet;
+        const lineVat = lineGross.sub(lineNet);
+        totalNetSvc = totalNetSvc.add(lineNet);
+        totalVat = totalVat.add(lineVat);
+        totalGross = totalGross.add(lineGross);
+      }
+
+      const cur = (dto.currency ?? "AZN").toUpperCase();
+      let fx = new Decimal(dto.fxRateToAzn ?? 1);
+      if (cur === "AZN") {
+        fx = new Decimal(1);
+      }
+      if (fx.lte(0)) {
+        throw new BadRequestException("fxRateToAzn must be greater than 0");
+      }
+
+      const gAz = totalNetGoods.mul(fx);
+      const sAz = totalNetSvc.mul(fx);
+      const vAz = totalVat.mul(fx);
+      const grAz = totalGross.mul(fx);
+
+      const lines =
+        vAz.gt(0) && pricesIncludeVat
+          ? [
+              ...(gAz.gt(0)
+                ? [
+                    {
+                      accountCode: INVENTORY_GOODS_ACCOUNT_CODE,
+                      debit: gAz.toString(),
+                      credit: 0,
+                    },
+                  ]
+                : []),
+              ...(sAz.gt(0)
+                ? [
+                    {
+                      accountCode: MISC_OPERATING_EXPENSE_ACCOUNT_CODE,
+                      debit: sAz.toString(),
+                      credit: 0,
+                    },
+                  ]
+                : []),
+              {
+                accountCode: VAT_INPUT_ACCOUNT_CODE,
+                debit: vAz.toString(),
+                credit: 0,
+              },
+              {
+                accountCode: PAYABLE_SUPPLIERS_ACCOUNT_CODE,
+                debit: 0,
+                credit: grAz.toString(),
+              },
+            ]
+          : [
+              ...(gAz.gt(0)
+                ? [
+                    {
+                      accountCode: INVENTORY_GOODS_ACCOUNT_CODE,
+                      debit: gAz.toString(),
+                      credit: 0,
+                    },
+                  ]
+                : []),
+              ...(sAz.gt(0)
+                ? [
+                    {
+                      accountCode: MISC_OPERATING_EXPENSE_ACCOUNT_CODE,
+                      debit: sAz.toString(),
+                      credit: 0,
+                    },
+                  ]
+                : []),
+              {
+                accountCode: PAYABLE_SUPPLIERS_ACCOUNT_CODE,
+                debit: 0,
+                credit: grAz.toString(),
+              },
+            ];
+
+      const journalRef = dto.reference?.trim() || "PURCHASE_INVOICE";
+      const desc = pricesIncludeVat
+        ? `Alış fakturası — mallar və xidmətlər (${cur}, fx=${fx.toString()}, qiymətlər ƏDV daxil)`
+        : `Alış fakturası — mallar və xidmətlər (${cur}, fx=${fx.toString()})`;
+
+      const { transactionId } = await this.accounting.postJournalInTransaction(tx, {
+        organizationId,
+        date: documentDate,
+        reference: journalRef,
+        description: desc,
+        counterpartyId: dto.counterpartyId ?? null,
+        lines,
+      });
+      await tx.transaction.update({
+        where: { id: transactionId, organizationId },
+        data: {
+          purchaseSnapshot: { version: 1, lines: snapshotLines } as Prisma.InputJsonValue,
+        },
+      });
+
+      return {
+        totalAmount: totalGross.toString(),
+        netAmount: totalNetGoods.add(totalNetSvc).toString(),
+        vatAmount: totalVat.toString(),
+        lines: goodsLines.length + serviceLines.length,
+      };
+    });
+  }
+
+  /**
+   * Purchase invoice (goods): GL only (201 / 241 / 531). No StockMovement — warehouse receipt is a separate future document.
+   */
+  private async recordGoodsPurchase(
+    organizationId: string,
+    dto: PurchaseStockDto,
+    pricesIncludeVat: boolean,
+  ) {
+    const purchaseLines = dto.lines;
+    if (!purchaseLines?.length) {
+      throw new BadRequestException("At least one purchase line is required");
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const documentDate = dto.documentDate ? new Date(dto.documentDate) : new Date();
+      if (Number.isNaN(documentDate.getTime())) {
+        throw new BadRequestException("Invalid documentDate");
+      }
+      let totalNet = new Decimal(0);
+      let totalVat = new Decimal(0);
+      let totalGross = new Decimal(0);
+      const snapshotLines: Array<{
+        kind: "goods";
+        productId: string;
+        quantity: number;
+        productName: string;
+        sku: string;
+      }> = [];
+
+      for (let lineIndex = 0; lineIndex < purchaseLines.length; lineIndex++) {
+        const line = purchaseLines[lineIndex];
+        const p = await tx.product.findFirst({
+          where: { id: line.productId, organizationId },
+        });
+        if (!p) {
+          throw new NotFoundException(`Product ${line.productId} not found`);
+        }
+        if (p.isService) {
+          throw new BadRequestException(
+            `Строка ${lineIndex + 1}: услуга не может быть в alış fakturası (товары); выберите тип «Услуги»`,
+          );
+        }
+        snapshotLines.push({
+          kind: "goods",
+          productId: line.productId,
+          quantity: Number(line.quantity),
+          productName: p.name,
+          sku: typeof p.sku === "string" ? p.sku : String(p.sku ?? ""),
+        });
+        const qty = new Decimal(line.quantity);
+        const grossUnit = new Decimal(line.unitPrice);
+        const vatRate = this.purchaseLineVatRatePercent(line, p.vatRate);
         const netUnit = this.purchaseNetUnit(grossUnit, vatRate, pricesIncludeVat);
         const lineNet = qty.mul(netUnit);
         const lineGross = pricesIncludeVat ? qty.mul(grossUnit) : lineNet;
@@ -317,130 +668,990 @@ export class InventoryService {
         totalNet = totalNet.add(lineNet);
         totalVat = totalVat.add(lineVat);
         totalGross = totalGross.add(lineGross);
-
-        if (line.binId) {
-          const bin = await tx.warehouseBin.findFirst({
-            where: { id: line.binId, organizationId, warehouseId },
-            select: { id: true },
-          });
-          if (!bin) {
-            throw new BadRequestException(
-              `Bin ${line.binId} not found for selected warehouse`,
-            );
-          }
-        }
-
-        const existing = await tx.stockItem.findUnique({
-          where: {
-            organizationId_warehouseId_productId: {
-              organizationId,
-              warehouseId,
-              productId: line.productId,
-            },
-          },
-        });
-
-        let newQty: Decimal;
-        let newAvg: Decimal;
-        if (!existing || existing.quantity.lte(0)) {
-          newQty = qty;
-          newAvg = netUnit;
-        } else {
-          const q0 = existing.quantity;
-          const c0 = existing.averageCost;
-          const sumCost = q0.mul(c0).add(qty.mul(netUnit));
-          newQty = q0.add(qty);
-          newAvg = sumCost.div(newQty);
-        }
-
-        await tx.stockItem.upsert({
-          where: {
-            organizationId_warehouseId_productId: {
-              organizationId,
-              warehouseId,
-              productId: line.productId,
-            },
-          },
-          create: {
-            organizationId,
-            warehouseId,
-            productId: line.productId,
-            ...(line.binId ? { binId: line.binId } : {}),
-            quantity: newQty,
-            averageCost: newAvg,
-          },
-          update: {
-            quantity: newQty,
-            averageCost: newAvg,
-            ...(line.binId ? { binId: line.binId } : {}),
-          },
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            organizationId,
-            warehouseId,
-            productId: line.productId,
-            type: StockMovementType.IN,
-            reason: StockMovementReason.PURCHASE,
-            quantity: qty,
-            price: netUnit,
-            binId: line.binId ?? null,
-            note: dto.reference ?? null,
-            documentDate,
-          },
-        });
       }
 
-      const lines =
+      const cur = (dto.currency ?? "AZN").toUpperCase();
+      let fx = new Decimal(dto.fxRateToAzn ?? 1);
+      if (cur === "AZN") {
+        fx = new Decimal(1);
+      }
+      if (fx.lte(0)) {
+        throw new BadRequestException("fxRateToAzn must be greater than 0");
+      }
+      const nAz = totalNet.mul(fx);
+      const vAz = totalVat.mul(fx);
+      const gAz = totalGross.mul(fx);
+
+      const journalLines =
         totalVat.gt(0) && pricesIncludeVat
           ? [
               {
                 accountCode: INVENTORY_GOODS_ACCOUNT_CODE,
-                debit: totalNet.toString(),
+                debit: nAz.toString(),
                 credit: 0,
               },
               {
                 accountCode: VAT_INPUT_ACCOUNT_CODE,
-                debit: totalVat.toString(),
+                debit: vAz.toString(),
                 credit: 0,
               },
               {
                 accountCode: PAYABLE_SUPPLIERS_ACCOUNT_CODE,
                 debit: 0,
-                credit: totalGross.toString(),
+                credit: gAz.toString(),
               },
             ]
           : [
               {
                 accountCode: INVENTORY_GOODS_ACCOUNT_CODE,
-                debit: totalNet.toString(),
+                debit: nAz.toString(),
                 credit: 0,
               },
               {
                 accountCode: PAYABLE_SUPPLIERS_ACCOUNT_CODE,
                 debit: 0,
-                credit: totalGross.toString(),
+                credit: gAz.toString(),
               },
             ];
 
-      await this.accounting.postJournalInTransaction(tx, {
+      const journalRef = dto.reference?.trim() || "PURCHASE_INVOICE";
+      const { transactionId } = await this.accounting.postJournalInTransaction(tx, {
         organizationId,
         date: documentDate,
-        reference: dto.reference ?? "PURCHASE",
+        reference: journalRef,
         description: pricesIncludeVat
-          ? "Закупка товара на склад (цены с НДС)"
-          : "Закупка товара на склад",
+          ? `Alış fakturası — mallar (${cur}, fx=${fx.toString()}, qiymətlər ƏDV daxil)`
+          : `Alış fakturası — mallar (${cur}, fx=${fx.toString()})`,
         counterpartyId: dto.counterpartyId ?? null,
-        lines,
+        lines: journalLines,
+      });
+      await tx.transaction.update({
+        where: { id: transactionId, organizationId },
+        data: {
+          purchaseSnapshot: { version: 1, lines: snapshotLines } as Prisma.InputJsonValue,
+        },
       });
 
       return {
         totalAmount: totalGross.toString(),
         netAmount: totalNet.toString(),
         vatAmount: totalVat.toString(),
-        lines: dto.lines.length,
+        lines: purchaseLines.length,
       };
+    });
+  }
+
+  /** GL-backed purchase invoices (no per-line product breakdown in this list). */
+  async listPurchaseInvoices(organizationId: string, take = 400) {
+    const rows = await this.prisma.transaction.findMany({
+      where: {
+        organizationId,
+        OR: [
+          { reference: "PURCHASE_INVOICE" },
+          {
+            AND: [
+              { reference: "WEB" },
+              {
+                OR: [
+                  { description: { contains: "Закупка товара" } },
+                  { description: { contains: "Закупка услуги" } },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      include: {
+        journalEntries: { include: { account: { select: { code: true } } } },
+      },
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      take,
+    });
+
+    const movements = await this.prisma.stockMovement.findMany({
+      where: {
+        organizationId,
+        reason: StockMovementReason.RECEIPT,
+        note: { contains: "BASIS_TX:" },
+      },
+      select: { note: true },
+    });
+    const receivedTxIds = new Set<string>();
+    for (const m of movements) {
+      const parts = (m.note ?? "").split("|");
+      const basis = parts.find((p) => p.startsWith("BASIS_TX:"));
+      if (basis) {
+        receivedTxIds.add(basis.slice("BASIS_TX:".length));
+      }
+    }
+
+    return rows.map((tr) => {
+      let credit531 = new Decimal(0);
+      for (const je of tr.journalEntries) {
+        if (je.account.code === PAYABLE_SUPPLIERS_ACCOUNT_CODE) {
+          credit531 = credit531.add(je.credit);
+        }
+      }
+      const desc = tr.description ?? "";
+      let kind: "goods" | "services" | "dual" = "goods";
+      if (desc.includes("mallar və xidmətlər")) {
+        kind = "dual";
+      } else if (
+        desc.includes("xidmət") ||
+        desc.includes("услуг") ||
+        desc.toLowerCase().includes("service")
+      ) {
+        kind = "services";
+      }
+
+      let receiptStatus: "pending" | "received" | "na" = "na";
+      if (kind === "goods" || kind === "dual") {
+        receiptStatus = receivedTxIds.has(tr.id) ? "received" : "pending";
+      }
+
+      return {
+        id: tr.id,
+        documentDate: tr.date.toISOString(),
+        createdAt: tr.createdAt.toISOString(),
+        description: tr.description,
+        reference: tr.reference,
+        kind,
+        receiptStatus,
+        totalGross: credit531.toString(),
+      };
+    });
+  }
+
+  /**
+   * Posted alış fakturası: line snapshot for warehouse receipt autofill (`purchaseSnapshot`).
+   */
+  async getPurchaseInvoiceDetail(organizationId: string, transactionId: string) {
+    const tr = await this.prisma.transaction.findFirst({
+      where: { id: transactionId, organizationId },
+      select: {
+        id: true,
+        date: true,
+        description: true,
+        reference: true,
+        purchaseSnapshot: true,
+      },
+    });
+    if (!tr) {
+      throw new NotFoundException("Purchase invoice not found");
+    }
+    const desc = tr.description ?? "";
+    const isPurchase =
+      tr.reference === "PURCHASE_INVOICE" ||
+      (tr.reference === "WEB" &&
+        (desc.includes("Закупка товара") ||
+          desc.includes("Закупка услуги") ||
+          desc.includes("xidmət")));
+    if (!isPurchase) {
+      throw new BadRequestException("Not a purchase invoice transaction");
+    }
+    const kind = this.purchaseDocumentKindFromDescription(desc);
+    const lines = this.parsePurchaseSnapshotLines(tr.purchaseSnapshot);
+    return {
+      id: tr.id,
+      documentDate: tr.date.toISOString(),
+      kind,
+      lines,
+    };
+  }
+
+  private purchaseDocumentKindFromDescription(desc: string): "goods" | "services" | "dual" {
+    if (desc.includes("mallar və xidmətlər")) {
+      return "dual";
+    }
+    if (
+      desc.includes("xidmət") ||
+      desc.includes("услуг") ||
+      desc.toLowerCase().includes("service")
+    ) {
+      return "services";
+    }
+    return "goods";
+  }
+
+  private parsePurchaseSnapshotLines(
+    raw: Prisma.JsonValue | null | undefined,
+  ): Array<{
+    kind: "goods" | "services";
+    productId: string;
+    quantity: number;
+    productName: string;
+    sku: string;
+  }> {
+    if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+      return [];
+    }
+    const obj = raw as Record<string, unknown>;
+    const arr = obj.lines;
+    if (!Array.isArray(arr)) {
+      return [];
+    }
+    const out: Array<{
+      kind: "goods" | "services";
+      productId: string;
+      quantity: number;
+      productName: string;
+      sku: string;
+    }> = [];
+    for (const row of arr) {
+      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+      const r = row as Record<string, unknown>;
+      const productId = typeof r.productId === "string" ? r.productId : "";
+      const kind: "goods" | "services" =
+        r.kind === "services" ? "services" : r.kind === "goods" ? "goods" : "goods";
+      const qty = typeof r.quantity === "number" ? r.quantity : Number(r.quantity);
+      if (!productId || !Number.isFinite(qty) || qty <= 0) continue;
+      out.push({
+        kind,
+        productId,
+        quantity: qty,
+        productName: typeof r.productName === "string" ? r.productName : "",
+        sku: typeof r.sku === "string" ? r.sku : "",
+      });
+    }
+    return out;
+  }
+
+  private isSalesRevenueDescription(description: string | null | undefined): boolean {
+    const d = description ?? "";
+    return d.includes("Отгрузка / выручка по");
+  }
+
+  private parseSalesSnapshotBody(raw: Prisma.JsonValue | null | undefined): {
+    invoiceId?: string;
+    lines: Array<{
+      kind: "goods";
+      productId: string;
+      quantity: number;
+      productName: string;
+      sku: string;
+    }>;
+  } {
+    if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+      return { lines: [] };
+    }
+    const obj = raw as Record<string, unknown>;
+    const invoiceId = typeof obj.invoiceId === "string" ? obj.invoiceId : undefined;
+    const arr = obj.lines;
+    if (!Array.isArray(arr)) {
+      return { invoiceId, lines: [] };
+    }
+    const lines: Array<{
+      kind: "goods";
+      productId: string;
+      quantity: number;
+      productName: string;
+      sku: string;
+    }> = [];
+    for (const row of arr) {
+      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+      const r = row as Record<string, unknown>;
+      const productId = typeof r.productId === "string" ? r.productId : "";
+      const qty = typeof r.quantity === "number" ? r.quantity : Number(r.quantity);
+      if (!productId || !Number.isFinite(qty) || qty <= 0) continue;
+      lines.push({
+        kind: "goods",
+        productId,
+        quantity: qty,
+        productName: typeof r.productName === "string" ? r.productName : "",
+        sku: typeof r.sku === "string" ? r.sku : "",
+      });
+    }
+    return { invoiceId, lines };
+  }
+
+  /**
+   * Revenue recognition journal (Dt 211 / Ct 601) + `sales_snapshot` on the created transaction.
+   * Physical stock issue + COGS are performed by `recordWarehouseShipment`.
+   */
+  async applyRevenueRecognitionWithSalesSnapshot(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    invoiceId: string,
+    totalAmount: Decimal,
+  ): Promise<{ transactionId: string }> {
+    const full = await tx.invoice.findFirst({
+      where: { id: invoiceId, organizationId },
+      include: {
+        items: {
+          include: {
+            product: { select: { id: true, name: true, sku: true, isService: true } },
+          },
+        },
+      },
+    });
+    if (!full) {
+      throw new NotFoundException("Invoice not found");
+    }
+
+    const { transactionId } = await this.accounting.postJournalInTransaction(tx, {
+      organizationId,
+      date: new Date(),
+      reference: full.number,
+      description: `Отгрузка / выручка по ${full.number} (Дт ${RECEIVABLE_ACCOUNT_CODE} Кт ${REVENUE_ACCOUNT_CODE})`,
+      lines: [
+        {
+          accountCode: RECEIVABLE_ACCOUNT_CODE,
+          debit: totalAmount.toString(),
+          credit: 0,
+        },
+        {
+          accountCode: REVENUE_ACCOUNT_CODE,
+          debit: 0,
+          credit: totalAmount.toString(),
+        },
+      ],
+    });
+
+    const snapshotLines: Array<{
+      kind: "goods";
+      productId: string;
+      quantity: number;
+      productName: string;
+      sku: string;
+    }> = [];
+
+    for (const item of full.items) {
+      if (!item.productId || !item.product) {
+        continue;
+      }
+      if (item.product.isService) {
+        continue;
+      }
+      snapshotLines.push({
+        kind: "goods",
+        productId: item.productId,
+        quantity: Number(item.quantity),
+        productName: item.product.name,
+        sku:
+          typeof item.product.sku === "string"
+            ? item.product.sku
+            : String(item.product.sku ?? ""),
+      });
+    }
+
+    await tx.transaction.update({
+      where: { id: transactionId, organizationId },
+      data: {
+        salesSnapshot: {
+          version: 1,
+          invoiceId: full.id,
+          lines: snapshotLines,
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    if (snapshotLines.length === 0) {
+      await tx.invoice.update({
+        where: { id: full.id },
+        data: { inventorySettled: true },
+      });
+    }
+
+    return { transactionId };
+  }
+
+  /** Posted Satış revenue transactions for outbound order basis picker. */
+  async listSalesInvoices(organizationId: string, take = 400) {
+    const rows = await this.prisma.transaction.findMany({
+      where: {
+        organizationId,
+        description: { contains: "Отгрузка / выручка по" },
+      },
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      take,
+      select: {
+        id: true,
+        date: true,
+        createdAt: true,
+        description: true,
+        reference: true,
+        salesSnapshot: true,
+      },
+    });
+
+    const refs = [...new Set(rows.map((r) => r.reference).filter((x): x is string => !!x?.trim()))];
+    const invoices =
+      refs.length > 0
+        ? await this.prisma.invoice.findMany({
+            where: { organizationId, number: { in: refs } },
+            select: {
+              number: true,
+              inventorySettled: true,
+              id: true,
+              items: {
+                select: {
+                  productId: true,
+                  product: { select: { isService: true } },
+                },
+              },
+            },
+          })
+        : [];
+    const invByNumber = new Map(invoices.map((i) => [i.number, i]));
+
+    const movements = await this.prisma.stockMovement.findMany({
+      where: {
+        organizationId,
+        reason: StockMovementReason.SHIPMENT,
+        note: { contains: "BASIS_TX:" },
+      },
+      select: { note: true },
+    });
+    const shippedTxIds = new Set<string>();
+    for (const m of movements) {
+      const parts = (m.note ?? "").split("|");
+      const basis = parts.find((p) => p.startsWith("BASIS_TX:"));
+      if (basis) {
+        shippedTxIds.add(basis.slice("BASIS_TX:".length));
+      }
+    }
+
+    return rows.map((tr) => {
+      const inv = tr.reference ? invByNumber.get(tr.reference) : undefined;
+      let kind: "goods" | "services" | "dual" = "goods";
+      if (inv?.items?.length) {
+        let hasG = false;
+        let hasS = false;
+        for (const it of inv.items) {
+          if (!it.productId) continue;
+          if (it.product?.isService) hasS = true;
+          else hasG = true;
+        }
+        if (hasG && hasS) kind = "dual";
+        else if (hasS && !hasG) kind = "services";
+        else kind = "goods";
+      }
+
+      let shipmentStatus: "pending" | "shipped" | "na" = "na";
+      if (kind === "goods" || kind === "dual") {
+        if (inv?.inventorySettled) {
+          shipmentStatus = "shipped";
+        } else if (shippedTxIds.has(tr.id)) {
+          shipmentStatus = "shipped";
+        } else {
+          shipmentStatus = "pending";
+        }
+      }
+
+      const snapLines = this.parseSalesSnapshotBody(tr.salesSnapshot).lines;
+      let totalGoods = new Decimal(0);
+      for (const ln of snapLines) {
+        totalGoods = totalGoods.add(ln.quantity);
+      }
+
+      return {
+        id: tr.id,
+        documentDate: tr.date.toISOString(),
+        createdAt: tr.createdAt.toISOString(),
+        description: tr.description,
+        reference: tr.reference,
+        kind,
+        shipmentStatus,
+        invoiceNumber: tr.reference ?? null,
+        goodsLineCount: snapLines.length,
+        goodsQuantity: totalGoods.toString(),
+      };
+    });
+  }
+
+  /**
+   * Posted Satış fakturası (revenue `Transaction.id`): goods lines from `sales_snapshot`
+   * (fallback: live `Invoice` lines for legacy postings).
+   */
+  async getSalesInvoiceDetail(organizationId: string, transactionId: string) {
+    const tr = await this.prisma.transaction.findFirst({
+      where: { id: transactionId, organizationId },
+      select: {
+        id: true,
+        date: true,
+        description: true,
+        reference: true,
+        salesSnapshot: true,
+      },
+    });
+    if (!tr) {
+      throw new NotFoundException("Sales invoice not found");
+    }
+    if (!this.isSalesRevenueDescription(tr.description)) {
+      throw new BadRequestException("Not a sales revenue transaction");
+    }
+
+    const parsed = this.parseSalesSnapshotBody(tr.salesSnapshot);
+    let lines = parsed.lines;
+    let invoiceId = parsed.invoiceId;
+
+    if ((!lines.length || !invoiceId) && tr.reference) {
+      const inv = await this.prisma.invoice.findFirst({
+        where: { organizationId, number: tr.reference },
+        include: {
+          items: {
+            include: {
+              product: { select: { id: true, name: true, sku: true, isService: true } },
+            },
+          },
+        },
+      });
+      if (inv) {
+        invoiceId = invoiceId ?? inv.id;
+        if (!lines.length) {
+          for (const item of inv.items) {
+            if (!item.productId || !item.product || item.product.isService) continue;
+            lines.push({
+              kind: "goods",
+              productId: item.productId,
+              quantity: Number(item.quantity),
+              productName: item.product.name,
+              sku:
+                typeof item.product.sku === "string"
+                  ? item.product.sku
+                  : String(item.product.sku ?? ""),
+            });
+          }
+        }
+      }
+    }
+
+    let kind: "goods" | "services" | "dual" = "goods";
+    if (invoiceId) {
+      const inv = await this.prisma.invoice.findFirst({
+        where: { id: invoiceId, organizationId },
+        include: {
+          items: {
+            include: {
+              product: { select: { isService: true } },
+            },
+          },
+        },
+      });
+      if (inv?.items?.length) {
+        let hasG = false;
+        let hasS = false;
+        for (const it of inv.items) {
+          if (!it.productId) continue;
+          if (it.product?.isService) hasS = true;
+          else hasG = true;
+        }
+        if (hasG && hasS) kind = "dual";
+        else if (hasS && !hasG) kind = "services";
+        else kind = "goods";
+      }
+    }
+
+    return {
+      id: tr.id,
+      invoiceId: invoiceId ?? null,
+      documentDate: tr.date.toISOString(),
+      kind,
+      lines,
+    };
+  }
+
+  /**
+   * Anbar məxarici orderi: physical goods issue + COGS (701/201). Optional link to revenue transaction.
+   */
+  async recordWarehouseShipment(organizationId: string, dto: CreateWarehouseShipmentDto) {
+    if (!dto.basisTransactionId) {
+      throw new BadRequestException("basisTransactionId is required for warehouse shipment");
+    }
+    const documentDate = new Date(dto.date);
+    if (Number.isNaN(documentDate.getTime())) {
+      throw new BadRequestException("Invalid document date");
+    }
+
+    const productIds = dto.lines.map((l) => l.productId);
+    if (new Set(productIds).size !== productIds.length) {
+      throw new BadRequestException("Duplicate productId in shipment lines");
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const wh = await tx.warehouse.findFirst({
+        where: { id: dto.warehouseId, organizationId },
+        select: { id: true },
+      });
+      if (!wh) {
+        throw new NotFoundException("Warehouse not found");
+      }
+
+      const basisId = dto.basisTransactionId;
+      const tr = await tx.transaction.findFirst({
+        where: { id: basisId, organizationId },
+        select: { id: true, description: true, reference: true, salesSnapshot: true },
+      });
+      if (!tr) {
+        throw new NotFoundException("Basis transaction not found");
+      }
+      if (!this.isSalesRevenueDescription(tr.description)) {
+        throw new BadRequestException(
+          "Basis must be a posted sales revenue transaction (Satış fakturası)",
+        );
+      }
+
+      const parsed = this.parseSalesSnapshotBody(tr.salesSnapshot);
+      let invoiceId = parsed.invoiceId;
+      if (!invoiceId && tr.reference) {
+        const invByNum = await tx.invoice.findFirst({
+          where: { organizationId, number: tr.reference },
+          select: { id: true },
+        });
+        invoiceId = invByNum?.id;
+      }
+      if (!invoiceId) {
+        throw new BadRequestException("Cannot resolve invoice for this revenue transaction");
+      }
+
+      const inv = await tx.invoice.findFirst({
+        where: { id: invoiceId, organizationId },
+        include: {
+          items: {
+            include: {
+              product: { select: { isService: true } },
+            },
+          },
+        },
+      });
+      if (!inv) {
+        throw new NotFoundException("Invoice not found");
+      }
+      if (inv.inventorySettled) {
+        throw new BadRequestException(
+          "Warehouse shipment for this invoice is already recorded",
+        );
+      }
+
+      const maxQtyByProduct = new Map<string, Decimal>();
+      for (const it of inv.items) {
+        if (!it.productId || it.product?.isService) continue;
+        const prev = maxQtyByProduct.get(it.productId) ?? new Decimal(0);
+        maxQtyByProduct.set(it.productId, prev.add(it.quantity));
+      }
+
+      if (maxQtyByProduct.size === 0) {
+        throw new BadRequestException("Invoice has no goods lines to ship");
+      }
+
+      const invGoodsIds = new Set(maxQtyByProduct.keys());
+      const shipIds = new Set(dto.lines.map((l) => l.productId));
+      if (shipIds.size !== invGoodsIds.size) {
+        throw new BadRequestException("Shipment lines must include exactly all goods invoice lines");
+      }
+      for (const pid of invGoodsIds) {
+        if (!shipIds.has(pid)) {
+          throw new BadRequestException("Shipment lines must include exactly all goods invoice lines");
+        }
+      }
+      for (const line of dto.lines) {
+        const maxQty = maxQtyByProduct.get(line.productId);
+        if (!maxQty || !new Decimal(line.quantity).eq(maxQty)) {
+          throw new BadRequestException(
+            "Each shipment line quantity must match the invoiced quantity for that product",
+          );
+        }
+      }
+
+      const binIds = [
+        ...new Set(dto.lines.map((l) => l.binId).filter((id): id is string => !!id)),
+      ];
+      if (binIds.length > 0) {
+        const bins = await tx.warehouseBin.findMany({
+          where: { organizationId, id: { in: binIds } },
+          select: { id: true, warehouseId: true },
+        });
+        const binMap = new Map(bins.map((b) => [b.id, b]));
+        for (const id of binIds) {
+          const b = binMap.get(id);
+          if (!b) {
+            throw new NotFoundException(`Bin ${id} not found`);
+          }
+          if (b.warehouseId !== dto.warehouseId) {
+            throw new BadRequestException("Bin does not belong to the selected warehouse");
+          }
+        }
+      }
+
+      let totalCogs = new Decimal(0);
+
+      for (let i = 0; i < dto.lines.length; i++) {
+        const line = dto.lines[i];
+        const pid = line.productId;
+        const need = new Decimal(line.quantity);
+
+        const p = await tx.product.findFirst({
+          where: { id: pid, organizationId },
+          select: { isService: true },
+        });
+        if (!p) {
+          throw new NotFoundException(`Product ${pid} not found`);
+        }
+        if (p.isService) {
+          throw new BadRequestException(
+            `Line ${i + 1}: service items cannot be shipped from stock`,
+          );
+        }
+
+        const si = await tx.stockItem.findUnique({
+          where: {
+            organizationId_warehouseId_productId: {
+              organizationId,
+              warehouseId: dto.warehouseId,
+              productId: pid,
+            },
+          },
+        });
+        const avail = si?.quantity ?? new Decimal(0);
+        const avg = si?.averageCost ?? new Decimal(0);
+        const invLine = inv.items.find((it) => it.productId === pid && !it.product?.isService);
+        const fallbackPrice = invLine ? new Decimal(invLine.unitPrice) : new Decimal(0);
+        const unitCost = await this.stock.computeIssueUnitCost(
+          tx,
+          organizationId,
+          dto.warehouseId,
+          pid,
+          need,
+          avg,
+          fallbackPrice.gt(0) ? fallbackPrice : avg,
+        );
+
+        if (avail.lt(need)) {
+          throw new BadRequestException(`Insufficient stock for shipment (product ${pid})`);
+        }
+
+        const lineCogs = need.mul(unitCost);
+        totalCogs = totalCogs.add(lineCogs);
+        const newQty = avail.sub(need);
+
+        await tx.stockItem.upsert({
+          where: {
+            organizationId_warehouseId_productId: {
+              organizationId,
+              warehouseId: dto.warehouseId,
+              productId: pid,
+            },
+          },
+          create: {
+            organizationId,
+            warehouseId: dto.warehouseId,
+            productId: pid,
+            quantity: newQty,
+            averageCost: unitCost,
+          },
+          update: {
+            quantity: newQty,
+          },
+        });
+
+        const noteParts = ["SHIPMENT", `BASIS_TX:${basisId}`];
+        await tx.stockMovement.create({
+          data: {
+            organizationId,
+            warehouseId: dto.warehouseId,
+            productId: pid,
+            binId: line.binId ?? null,
+            type: StockMovementType.OUT,
+            reason: StockMovementReason.SHIPMENT,
+            quantity: need,
+            price: unitCost,
+            invoiceId: inv.id,
+            note: noteParts.join("|"),
+            documentDate,
+          },
+        });
+      }
+
+      if (totalCogs.gt(0)) {
+        await this.accounting.postJournalInTransaction(tx, {
+          organizationId,
+          date: documentDate,
+          reference: inv.number,
+          description: `Себестоимость (məxaric) по инвойсу ${inv.number}`,
+          lines: [
+            {
+              accountCode: COGS_ACCOUNT_CODE,
+              debit: totalCogs.toString(),
+              credit: 0,
+            },
+            {
+              accountCode: INVENTORY_GOODS_ACCOUNT_CODE,
+              debit: 0,
+              credit: totalCogs.toString(),
+            },
+          ],
+        });
+      }
+
+      await tx.invoice.update({
+        where: { id: inv.id },
+        data: { inventorySettled: true },
+      });
+
+      return { linesPosted: dto.lines.length };
+    });
+  }
+
+  /**
+   * Anbar mədaxil orderi: physical goods receipt (quantity only). No GL.
+   * Optional link to posted alış fakturası via `basisTransactionId` (stored in movement note).
+   */
+  async recordWarehouseReceipt(organizationId: string, dto: CreateWarehouseReceiptDto) {
+    const documentDate = new Date(dto.date);
+    if (Number.isNaN(documentDate.getTime())) {
+      throw new BadRequestException("Invalid document date");
+    }
+
+    const productIds = dto.lines.map((l) => l.productId);
+    if (new Set(productIds).size !== productIds.length) {
+      throw new BadRequestException("Duplicate productId in receipt lines");
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const wh = await tx.warehouse.findFirst({
+        where: { id: dto.warehouseId, organizationId },
+        select: { id: true },
+      });
+      if (!wh) {
+        throw new NotFoundException("Warehouse not found");
+      }
+
+      if (dto.basisTransactionId) {
+        const tr = await tx.transaction.findFirst({
+          where: { id: dto.basisTransactionId, organizationId },
+          select: { id: true, reference: true, description: true },
+        });
+        if (!tr) {
+          throw new NotFoundException("Basis transaction not found");
+        }
+        const desc = tr.description ?? "";
+        const isPurchase =
+          tr.reference === "PURCHASE_INVOICE" ||
+          (tr.reference === "WEB" &&
+            (desc.includes("Закупка товара") ||
+              desc.includes("Закупка услуги") ||
+              desc.includes("xidmət")));
+        if (!isPurchase) {
+          throw new BadRequestException(
+            "Basis must be a posted purchase invoice (alış fakturası)",
+          );
+        }
+        const isDualOrGoods =
+          desc.includes("mallar") ||
+          desc.includes("Mallar") ||
+          desc.includes("товар");
+        const isServicesOnly =
+          !isDualOrGoods &&
+          (desc.includes("xidmət") ||
+            desc.includes("услуг") ||
+            desc.toLowerCase().includes("service"));
+        if (isServicesOnly) {
+          throw new BadRequestException(
+            "Basis for warehouse receipt must include goods (mallar) lines",
+          );
+        }
+      }
+
+      const binIds = [
+        ...new Set(dto.lines.map((l) => l.binId).filter((id): id is string => !!id)),
+      ];
+      if (binIds.length > 0) {
+        const bins = await tx.warehouseBin.findMany({
+          where: { organizationId, id: { in: binIds } },
+          select: { id: true, warehouseId: true },
+        });
+        const binMap = new Map(bins.map((b) => [b.id, b]));
+        for (const id of binIds) {
+          const b = binMap.get(id);
+          if (!b) {
+            throw new NotFoundException(`Bin ${id} not found`);
+          }
+          if (b.warehouseId !== dto.warehouseId) {
+            throw new BadRequestException("Bin does not belong to the selected warehouse");
+          }
+        }
+      }
+
+      for (let i = 0; i < dto.lines.length; i++) {
+        const line = dto.lines[i];
+        const p = await tx.product.findFirst({
+          where: { id: line.productId, organizationId },
+          select: { isService: true },
+        });
+        if (!p) {
+          throw new NotFoundException(`Product ${line.productId} not found`);
+        }
+        if (p.isService) {
+          throw new BadRequestException(
+            `Line ${i + 1}: service items cannot be received on stock`,
+          );
+        }
+
+        const qty = new Decimal(line.quantity);
+        const unit = new Decimal(0);
+
+        const existing = await tx.stockItem.findUnique({
+          where: {
+            organizationId_warehouseId_productId: {
+              organizationId,
+              warehouseId: dto.warehouseId,
+              productId: line.productId,
+            },
+          },
+        });
+
+        const q0 = existing?.quantity ?? new Decimal(0);
+        const c0 = existing?.averageCost ?? new Decimal(0);
+        const q1 = q0.add(qty);
+        const c1 = q1.lte(0)
+          ? new Decimal(0)
+          : q0.lte(0)
+            ? unit
+            : q0.mul(c0).add(qty.mul(unit)).div(q1);
+
+        await tx.stockItem.upsert({
+          where: {
+            organizationId_warehouseId_productId: {
+              organizationId,
+              warehouseId: dto.warehouseId,
+              productId: line.productId,
+            },
+          },
+          create: {
+            organizationId,
+            warehouseId: dto.warehouseId,
+            productId: line.productId,
+            quantity: q1,
+            averageCost: c1,
+          },
+          update: {
+            quantity: q1,
+            averageCost: c1,
+          },
+        });
+
+        const noteParts = ["RECEIPT"];
+        if (dto.basisTransactionId) {
+          noteParts.push(`BASIS_TX:${dto.basisTransactionId}`);
+        }
+
+        await tx.stockMovement.create({
+          data: {
+            organizationId,
+            warehouseId: dto.warehouseId,
+            productId: line.productId,
+            binId: line.binId ?? null,
+            type: StockMovementType.IN,
+            reason: StockMovementReason.RECEIPT,
+            quantity: qty,
+            price: unit,
+            note: noteParts.join("|"),
+            documentDate,
+          },
+        });
+      }
+
+      return { linesPosted: dto.lines.length };
     });
   }
 
@@ -450,14 +1661,28 @@ export class InventoryService {
     dto: PurchaseStockDto,
     pricesIncludeVat: boolean,
   ) {
+    const purchaseLines = dto.lines;
+    if (!purchaseLines?.length) {
+      throw new BadRequestException("At least one purchase line is required");
+    }
     return this.prisma.$transaction(async (tx) => {
-      const documentDate = new Date();
+      const documentDate = dto.documentDate ? new Date(dto.documentDate) : new Date();
+      if (Number.isNaN(documentDate.getTime())) {
+        throw new BadRequestException("Invalid documentDate");
+      }
       let totalNet = new Decimal(0);
       let totalVat = new Decimal(0);
       let totalGross = new Decimal(0);
+      const snapshotLines: Array<{
+        kind: "services";
+        productId: string;
+        quantity: number;
+        productName: string;
+        sku: string;
+      }> = [];
 
-      for (let lineIndex = 0; lineIndex < dto.lines.length; lineIndex++) {
-        const line = dto.lines[lineIndex];
+      for (let lineIndex = 0; lineIndex < purchaseLines.length; lineIndex++) {
+        const line = purchaseLines[lineIndex];
         const p = await tx.product.findFirst({
           where: { id: line.productId, organizationId },
         });
@@ -469,9 +1694,16 @@ export class InventoryService {
             `Строка ${lineIndex + 1}: для закупки услуг выберите номенклатуру-услугу (isService)`,
           );
         }
+        snapshotLines.push({
+          kind: "services",
+          productId: line.productId,
+          quantity: Number(line.quantity),
+          productName: p.name,
+          sku: typeof p.sku === "string" ? p.sku : String(p.sku ?? ""),
+        });
         const qty = new Decimal(line.quantity);
         const grossUnit = new Decimal(line.unitPrice);
-        const vatRate = new Decimal(p.vatRate ?? 0);
+        const vatRate = this.purchaseLineVatRatePercent(line, p.vatRate);
         const netUnit = this.purchaseNetUnit(grossUnit, vatRate, pricesIncludeVat);
         const lineNet = qty.mul(netUnit);
         const lineGross = pricesIncludeVat ? qty.mul(grossUnit) : lineNet;
@@ -481,54 +1713,73 @@ export class InventoryService {
         totalGross = totalGross.add(lineGross);
       }
 
-      const lines =
+      const cur = (dto.currency ?? "AZN").toUpperCase();
+      let fx = new Decimal(dto.fxRateToAzn ?? 1);
+      if (cur === "AZN") {
+        fx = new Decimal(1);
+      }
+      if (fx.lte(0)) {
+        throw new BadRequestException("fxRateToAzn must be greater than 0");
+      }
+      const nAz = totalNet.mul(fx);
+      const vAz = totalVat.mul(fx);
+      const gAz = totalGross.mul(fx);
+
+      const journalLines =
         totalVat.gt(0) && pricesIncludeVat
           ? [
               {
                 accountCode: MISC_OPERATING_EXPENSE_ACCOUNT_CODE,
-                debit: totalNet.toString(),
+                debit: nAz.toString(),
                 credit: 0,
               },
               {
                 accountCode: VAT_INPUT_ACCOUNT_CODE,
-                debit: totalVat.toString(),
+                debit: vAz.toString(),
                 credit: 0,
               },
               {
                 accountCode: PAYABLE_SUPPLIERS_ACCOUNT_CODE,
                 debit: 0,
-                credit: totalGross.toString(),
+                credit: gAz.toString(),
               },
             ]
           : [
               {
                 accountCode: MISC_OPERATING_EXPENSE_ACCOUNT_CODE,
-                debit: totalNet.toString(),
+                debit: nAz.toString(),
                 credit: 0,
               },
               {
                 accountCode: PAYABLE_SUPPLIERS_ACCOUNT_CODE,
                 debit: 0,
-                credit: totalGross.toString(),
+                credit: gAz.toString(),
               },
             ];
 
-      await this.accounting.postJournalInTransaction(tx, {
+      const journalRef = dto.reference?.trim() || "PURCHASE_INVOICE";
+      const { transactionId } = await this.accounting.postJournalInTransaction(tx, {
         organizationId,
         date: documentDate,
-        reference: dto.reference ?? "PURCHASE_SVC",
+        reference: journalRef,
         description: pricesIncludeVat
-          ? "Закупка услуги (цены с НДС)"
-          : "Закупка услуги",
+          ? `Alış fakturası — xidmətlər (${cur}, fx=${fx.toString()}, qiymətlər ƏDV daxil)`
+          : `Alış fakturası — xidmətlər (${cur}, fx=${fx.toString()})`,
         counterpartyId: dto.counterpartyId ?? null,
-        lines,
+        lines: journalLines,
+      });
+      await tx.transaction.update({
+        where: { id: transactionId, organizationId },
+        data: {
+          purchaseSnapshot: { version: 1, lines: snapshotLines } as Prisma.InputJsonValue,
+        },
       });
 
       return {
         totalAmount: totalGross.toString(),
         netAmount: totalNet.toString(),
         vatAmount: totalVat.toString(),
-        lines: dto.lines.length,
+        lines: purchaseLines.length,
       };
     });
   }
@@ -678,6 +1929,301 @@ export class InventoryService {
       });
 
       return { transferBatchId: batch };
+    });
+  }
+
+  /**
+   * Available quantity by movement ledger for one warehouse + bin + product (matches Anbar qalığı).
+   */
+  private async movementBinAvailable(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    warehouseId: string,
+    productId: string,
+    binId: string | null,
+  ): Promise<Decimal> {
+    if (binId) {
+      const rows = await tx.$queryRaw<Array<{ q: unknown }>>(
+        Prisma.sql`
+          SELECT
+            COALESCE(SUM(CASE WHEN m.type::text = 'IN' THEN m.quantity ELSE 0 END), 0)
+            - COALESCE(SUM(CASE WHEN m.type::text = 'OUT' THEN m.quantity ELSE 0 END), 0) AS q
+          FROM stock_movements m
+          INNER JOIN products p ON p.id = m.product_id AND p.organization_id = m.organization_id
+          WHERE m.organization_id = ${organizationId}::uuid
+            AND m.warehouse_id = ${warehouseId}::uuid
+            AND m.product_id = ${productId}::uuid
+            AND m.bin_id = ${binId}::uuid
+            AND p.is_service = false
+        `,
+      );
+      return new Decimal(String(rows[0]?.q ?? 0));
+    }
+    const rows = await tx.$queryRaw<Array<{ q: unknown }>>(
+      Prisma.sql`
+        SELECT
+          COALESCE(SUM(CASE WHEN m.type::text = 'IN' THEN m.quantity ELSE 0 END), 0)
+          - COALESCE(SUM(CASE WHEN m.type::text = 'OUT' THEN m.quantity ELSE 0 END), 0) AS q
+        FROM stock_movements m
+        INNER JOIN products p ON p.id = m.product_id AND p.organization_id = m.organization_id
+        WHERE m.organization_id = ${organizationId}::uuid
+          AND m.warehouse_id = ${warehouseId}::uuid
+          AND m.product_id = ${productId}::uuid
+          AND m.bin_id IS NULL
+          AND p.is_service = false
+      `,
+    );
+    return new Decimal(String(rows[0]?.q ?? 0));
+  }
+
+  private normalizeTransferLineBins(line: TransferLineDto): {
+    sourceBinId: string | null;
+    targetBinId: string | null;
+  } {
+    const s =
+      line.sourceBinId != null && String(line.sourceBinId).trim() !== ""
+        ? String(line.sourceBinId).trim()
+        : null;
+    const t =
+      line.targetBinId != null && String(line.targetBinId).trim() !== ""
+        ? String(line.targetBinId).trim()
+        : null;
+    return { sourceBinId: s, targetBinId: t };
+  }
+
+  /**
+   * Yerdəyişmə: for each line, OUT from source warehouse/bin and IN to target warehouse/bin in one DB transaction.
+   * Updates `StockItem` per warehouse (valuation unchanged from issue unit cost). No GL.
+   */
+  async recordInventoryTransfers(organizationId: string, dto: CreateTransferDto) {
+    const documentDate = new Date(dto.date);
+    if (Number.isNaN(documentDate.getTime())) {
+      throw new BadRequestException("Invalid document date");
+    }
+
+    const lines = dto.lines;
+    const binIds = new Set<string>();
+    for (const line of lines) {
+      const { sourceBinId, targetBinId } = this.normalizeTransferLineBins(line);
+      if (sourceBinId) binIds.add(sourceBinId);
+      if (targetBinId) binIds.add(targetBinId);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      if (binIds.size > 0) {
+        const bins = await tx.warehouseBin.findMany({
+          where: { organizationId, id: { in: [...binIds] } },
+          select: { id: true, warehouseId: true },
+        });
+        const binMap = new Map(bins.map((b) => [b.id, b]));
+        for (const id of binIds) {
+          if (!binMap.has(id)) {
+            throw new NotFoundException(`Bin ${id} not found`);
+          }
+        }
+      }
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const { sourceBinId, targetBinId } = this.normalizeTransferLineBins(line);
+
+        if (
+          line.sourceWarehouseId === line.targetWarehouseId &&
+          (sourceBinId ?? null) === (targetBinId ?? null)
+        ) {
+          throw new BadRequestException(
+            `Line ${i + 1}: source and target warehouse/bin must differ`,
+          );
+        }
+
+        const fromW = await tx.warehouse.findFirst({
+          where: { id: line.sourceWarehouseId, organizationId },
+          select: { id: true },
+        });
+        const toW = await tx.warehouse.findFirst({
+          where: { id: line.targetWarehouseId, organizationId },
+          select: { id: true },
+        });
+        if (!fromW || !toW) {
+          throw new NotFoundException("Warehouse not found");
+        }
+        if (sourceBinId) {
+          const b = await tx.warehouseBin.findFirst({
+            where: { id: sourceBinId, organizationId },
+            select: { warehouseId: true },
+          });
+          if (!b || b.warehouseId !== line.sourceWarehouseId) {
+            throw new BadRequestException(
+              `Line ${i + 1}: source bin does not belong to the source warehouse`,
+            );
+          }
+        }
+        if (targetBinId) {
+          const b = await tx.warehouseBin.findFirst({
+            where: { id: targetBinId, organizationId },
+            select: { warehouseId: true },
+          });
+          if (!b || b.warehouseId !== line.targetWarehouseId) {
+            throw new BadRequestException(
+              `Line ${i + 1}: target bin does not belong to the target warehouse`,
+            );
+          }
+        }
+
+        const prod = await tx.product.findFirst({
+          where: { id: line.productId, organizationId },
+          select: { isService: true },
+        });
+        if (!prod) {
+          throw new NotFoundException(`Product ${line.productId} not found`);
+        }
+        if (prod.isService) {
+          throw new BadRequestException(`Line ${i + 1}: service products cannot be transferred`);
+        }
+
+        const qty = new Decimal(line.quantity);
+        const availBin = await this.movementBinAvailable(
+          tx,
+          organizationId,
+          line.sourceWarehouseId,
+          line.productId,
+          sourceBinId,
+        );
+        if (availBin.lt(qty)) {
+          throw new BadRequestException(
+            `Line ${i + 1}: insufficient quantity at source warehouse/bin for this product`,
+          );
+        }
+      }
+
+      const docBatch = randomUUID();
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const { sourceBinId, targetBinId } = this.normalizeTransferLineBins(line);
+        const qty = new Decimal(line.quantity);
+
+        const src = await tx.stockItem.findUnique({
+          where: {
+            organizationId_warehouseId_productId: {
+              organizationId,
+              warehouseId: line.sourceWarehouseId,
+              productId: line.productId,
+            },
+          },
+        });
+        const availWh = src?.quantity ?? new Decimal(0);
+        const avgFrom = src?.averageCost ?? new Decimal(0);
+        if (availWh.lt(qty)) {
+          throw new BadRequestException(
+            `Line ${i + 1}: insufficient warehouse-level stock for this product`,
+          );
+        }
+
+        const unitOut = await this.stock.computeIssueUnitCost(
+          tx,
+          organizationId,
+          line.sourceWarehouseId,
+          line.productId,
+          qty,
+          avgFrom,
+          avgFrom,
+        );
+
+        const qSrcNew = availWh.sub(qty);
+        await tx.stockItem.upsert({
+          where: {
+            organizationId_warehouseId_productId: {
+              organizationId,
+              warehouseId: line.sourceWarehouseId,
+              productId: line.productId,
+            },
+          },
+          create: {
+            organizationId,
+            warehouseId: line.sourceWarehouseId,
+            productId: line.productId,
+            quantity: qSrcNew,
+            averageCost: avgFrom,
+          },
+          update: {
+            quantity: qSrcNew,
+          },
+        });
+
+        const dst = await tx.stockItem.findUnique({
+          where: {
+            organizationId_warehouseId_productId: {
+              organizationId,
+              warehouseId: line.targetWarehouseId,
+              productId: line.productId,
+            },
+          },
+        });
+        const qDst0 = dst?.quantity ?? new Decimal(0);
+        const cDst0 = dst?.averageCost ?? new Decimal(0);
+        const qDst1 = qDst0.add(qty);
+        const cDst1 =
+          qDst1.lte(0)
+            ? new Decimal(0)
+            : qDst0.lte(0)
+              ? unitOut
+              : qDst0.mul(cDst0).add(qty.mul(unitOut)).div(qDst1);
+
+        await tx.stockItem.upsert({
+          where: {
+            organizationId_warehouseId_productId: {
+              organizationId,
+              warehouseId: line.targetWarehouseId,
+              productId: line.productId,
+            },
+          },
+          create: {
+            organizationId,
+            warehouseId: line.targetWarehouseId,
+            productId: line.productId,
+            quantity: qDst1,
+            averageCost: cDst1,
+          },
+          update: {
+            quantity: qDst1,
+            averageCost: cDst1,
+          },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            organizationId,
+            warehouseId: line.sourceWarehouseId,
+            productId: line.productId,
+            binId: sourceBinId,
+            type: StockMovementType.OUT,
+            reason: StockMovementReason.TRANSFER,
+            quantity: qty,
+            price: unitOut,
+            transferBatchId: docBatch,
+            note: "TRANSFER_OUT",
+            documentDate,
+          },
+        });
+        await tx.stockMovement.create({
+          data: {
+            organizationId,
+            warehouseId: line.targetWarehouseId,
+            productId: line.productId,
+            binId: targetBinId,
+            type: StockMovementType.IN,
+            reason: StockMovementReason.TRANSFER,
+            quantity: qty,
+            price: unitOut,
+            transferBatchId: docBatch,
+            note: "TRANSFER_IN",
+            documentDate,
+          },
+        });
+      }
+
+      return { transferBatchId: docBatch, linesPosted: lines.length };
     });
   }
 

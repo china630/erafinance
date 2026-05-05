@@ -149,7 +149,7 @@ export default function LoginPage() {
             {t("auth.needAccount")}
           </Link>
         </p>
-        <p className="mt-3 rounded-[2px] border border-[#D5DADF] bg-[#EBEDF0] px-3 py-2.5 text-sm text-center">
+        <p className="mt-3 rounded-lg border border-[#D5DADF] bg-[#EBEDF0] px-3 py-2.5 text-sm text-center">
           <Link href="/register-org" className={LINK_ACCENT_CLASS}>
             {t("auth.registerOrgLink")}
           </Link>

@@ -60,16 +60,26 @@ export class InvoicesService {
       include: {
         counterparty: { select: { id: true, name: true, taxId: true } },
         _count: { select: { items: true } },
+        items: {
+          select: {
+            productId: true,
+            product: { select: { isService: true } },
+          },
+        },
       },
     });
     return rows.map((inv) => {
       const paidTotal = inv.paidAmount ?? new Decimal(0);
       const remaining = inv.totalAmount.sub(paidTotal);
-      const { ...rest } = inv;
+      const hasGoodsLines = inv.items.some(
+        (it) => it.productId != null && it.product && !it.product.isService,
+      );
+      const { items: _items, ...rest } = inv;
       return {
         ...rest,
         paidTotal: paidTotal.toFixed(4),
         remaining: remaining.toFixed(4),
+        hasGoodsLines,
       };
     });
   }
@@ -226,13 +236,18 @@ export class InvoicesService {
 
       if (status === InvoiceStatus.SENT) {
         if (!existing.revenueRecognized) {
-          await this.postRevenueRecognition(tx, organizationId, existing);
+          const { transactionId } = await this.postRevenueRecognition(
+            tx,
+            organizationId,
+            existing,
+          );
           await tx.invoice.update({
             where: { id: existing.id },
             data: {
               status: InvoiceStatus.SENT,
               revenueRecognized: true,
               recognizedAt: existing.recognizedAt ?? new Date(),
+              revenuePostedTransactionId: transactionId,
             },
           });
         } else {
@@ -246,9 +261,12 @@ export class InvoicesService {
 
       if (status === InvoiceStatus.PAID) {
         let recognizedAt = existing.recognizedAt;
+        let revenuePostedTransactionId: string | undefined =
+          existing.revenuePostedTransactionId ?? undefined;
         if (!existing.revenueRecognized) {
-          await this.postRevenueRecognition(tx, organizationId, existing);
+          const posted = await this.postRevenueRecognition(tx, organizationId, existing);
           recognizedAt = recognizedAt ?? new Date();
+          revenuePostedTransactionId = posted.transactionId;
         }
         const remaining = this.remainingForInvoice(
           existing.totalAmount,
@@ -289,6 +307,9 @@ export class InvoicesService {
             revenueRecognized: true,
             recognizedAt: recognizedAt ?? undefined,
             paymentReceived,
+            ...(revenuePostedTransactionId
+              ? { revenuePostedTransactionId }
+              : {}),
           },
         });
         return;
@@ -617,13 +638,18 @@ export class InvoicesService {
     }
 
     if (!existing.revenueRecognized) {
-      await this.postRevenueRecognition(tx, organizationId, existing);
+      const { transactionId } = await this.postRevenueRecognition(
+        tx,
+        organizationId,
+        existing,
+      );
       await tx.invoice.update({
         where: { id: existing.id },
         data: {
           revenueRecognized: true,
           recognizedAt: existing.recognizedAt ?? new Date(),
           status: InvoiceStatus.SENT,
+          revenuePostedTransactionId: transactionId,
         },
       });
     }
@@ -918,29 +944,12 @@ export class InvoicesService {
     tx: Prisma.TransactionClient,
     organizationId: string,
     inv: { id: string; number: string; totalAmount: Decimal },
-  ) {
-    await this.accounting.postJournalInTransaction(tx, {
-      organizationId,
-      date: new Date(),
-      reference: inv.number,
-      description: `Отгрузка / выручка по ${inv.number} (Дт ${RECEIVABLE_ACCOUNT_CODE} Кт ${REVENUE_ACCOUNT_CODE})`,
-      lines: [
-        {
-          accountCode: RECEIVABLE_ACCOUNT_CODE,
-          debit: inv.totalAmount.toString(),
-          credit: 0,
-        },
-        {
-          accountCode: REVENUE_ACCOUNT_CODE,
-          debit: 0,
-          credit: inv.totalAmount.toString(),
-        },
-      ],
-    });
-    await this.inventory.postSaleInventoryInTransaction(
+  ): Promise<{ transactionId: string }> {
+    return this.inventory.applyRevenueRecognitionWithSalesSnapshot(
       tx,
       organizationId,
       inv.id,
+      inv.totalAmount,
     );
   }
 

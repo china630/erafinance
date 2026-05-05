@@ -9,6 +9,7 @@ import type { SupportedCurrency } from "../../../lib/currencies";
 import {
   MODAL_FIELD_LABEL_CLASS,
   MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
   MODAL_INPUT_CLASS,
   MODAL_INPUT_MONO_CLASS,
 } from "../../../lib/design-system";
@@ -141,12 +142,13 @@ export function CounterpartyBankAccountsModal({
       maxWidthClass="max-w-lg"
       footer={
         <div className={MODAL_FOOTER_ACTIONS_CLASS}>
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="outline" className={MODAL_FOOTER_BUTTON_CLASS} onClick={onClose}>
             {t("common.close")}
           </Button>
           <Button
             type="submit"
             variant="primary"
+            className={MODAL_FOOTER_BUTTON_CLASS}
             form="counterparty-bank-add-form"
             disabled={addBusy}
           >
@@ -164,11 +166,11 @@ export function CounterpartyBankAccountsModal({
           {loadBusy ? (
             <p className="text-[13px] text-[#7F8C8D]">{t("common.loading")}</p>
           ) : rows.length === 0 ? (
-            <p className="rounded-[2px] border border-[#D5DADF] bg-[#EBEDF0]/40 p-3 text-[13px] text-[#7F8C8D]">
+            <p className="rounded-lg border border-[#D5DADF] bg-[#EBEDF0]/40 p-3 text-[13px] text-[#7F8C8D]">
               {t("counterparties.bankAccounts_empty")}
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-[2px] border border-[#D5DADF] bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-2xl border border-[#D5DADF] bg-white shadow-sm">
               <table className="w-full text-left text-[13px]">
                 <thead>
                   <tr className="border-b border-[#D5DADF] bg-[#F8FAFC]">
@@ -210,11 +212,7 @@ export function CounterpartyBankAccountsModal({
           )}
         </div>
 
-        <form
-          id="counterparty-bank-add-form"
-          className="space-y-4 border-t border-[#D5DADF] pt-4 mt-4"
-          onSubmit={(e) => void onAdd(e)}
-        >
+        <form id="counterparty-bank-add-form" className="mt-6 space-y-4" onSubmit={(e) => void onAdd(e)}>
           <div>
             <span className={lbl}>{t("counterparties.bankAccounts_colBank")}</span>
             <input

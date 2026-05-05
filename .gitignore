@@ -1,10 +1,13 @@
 node_modules
 dist
+**/dist
 **/.next
+**/node_modules
 .env
 .env.local
 *.log
 *.tsbuildinfo
+coverage
 .DS_Store
 screens
 bats

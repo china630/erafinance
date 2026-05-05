@@ -9,13 +9,23 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { MODAL_INPUT_CLASS } from "../../lib/design-system";
 
-const TRIGGER_BASE =
-  "flex w-full min-w-0 items-center gap-2 rounded-[2px] border border-[#D5DADF] bg-white px-3 py-2 text-left text-[13px] text-[#34495E] shadow-sm outline-none transition focus:ring-2 focus:ring-offset-1 focus:ring-[#2980B9] disabled:bg-[#F4F5F7] disabled:text-[#7F8C8D]";
+/** DESIGN.md § Form elements — same tokens as {@link MODAL_INPUT_CLASS}; flex + chevron padding. */
+const TRIGGER_INPUT_CLASS = [
+  MODAL_INPUT_CLASS,
+  "flex min-w-0 items-center gap-2 text-left pr-9 outline-none transition",
+].join(" ");
 
-const LIST_PANEL =
-  "absolute left-0 right-0 top-full z-[80] mt-1 max-h-60 overflow-y-auto rounded-[2px] border border-[#D5DADF] bg-white py-1 text-[13px] text-[#34495E] shadow-md";
+/** Popover list shell: DESIGN.md outer chrome `!rounded-2xl`, inner padding `p-1`. */
+const LIST_PANEL_SHELL =
+  "max-h-60 overflow-y-auto !rounded-2xl border border-[#D5DADF] bg-white p-1 text-[13px] text-[#34495E] shadow-md";
+
+const LIST_PANEL_INLINE = `absolute left-0 right-0 top-full z-[80] mt-1 ${LIST_PANEL_SHELL}`;
+
+const LIST_PANEL_PORTAL = `fixed z-[200] ${LIST_PANEL_SHELL}`;
 
 export type AsyncComboboxFetcher<T extends { id: string }> = (query: string) => Promise<T[]>;
 
@@ -34,6 +44,8 @@ export type AsyncComboboxProps<T extends { id: string }> = {
   "aria-invalid"?: boolean | "true" | "false";
   /** Дополнительный класс для выпадающего списка (например, в таблице). */
   listClassName?: string;
+  /** Render list in `document.body` (fixed layer) to avoid `overflow` clipping in dense tables/modals. */
+  portaled?: boolean;
 };
 
 export function AsyncCombobox<T extends { id: string }>(props: AsyncComboboxProps<T>) {
@@ -50,6 +62,7 @@ export function AsyncCombobox<T extends { id: string }>(props: AsyncComboboxProp
     id: idProp,
     "aria-invalid": ariaInvalid,
     listClassName = "",
+    portaled = false,
   } = props;
   const { t } = useTranslation();
   const autoId = useId();
@@ -57,7 +70,11 @@ export function AsyncCombobox<T extends { id: string }>(props: AsyncComboboxProp
   const inputId = idProp ?? `${autoId}-input`;
 
   const rootRef = useRef<HTMLDivElement>(null);
+  const listPortalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [portalRect, setPortalRect] = useState<{ top: number; left: number; width: number } | null>(
+    null,
+  );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestSeq = useRef(0);
   const wasOpenRef = useRef(false);
@@ -104,16 +121,38 @@ export function AsyncCombobox<T extends { id: string }>(props: AsyncComboboxProp
     }
   }, [value, picked]);
 
+  const updatePortalRect = useCallback(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPortalRect({ top: r.bottom + 4, left: r.left, width: r.width });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open || !portaled) {
+      setPortalRect(null);
+      return;
+    }
+    updatePortalRect();
+    window.addEventListener("scroll", updatePortalRect, true);
+    window.addEventListener("resize", updatePortalRect);
+    return () => {
+      window.removeEventListener("scroll", updatePortalRect, true);
+      window.removeEventListener("resize", updatePortalRect);
+    };
+  }, [open, portaled, updatePortalRect]);
+
   useLayoutEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      const el = rootRef.current;
-      if (!el || el.contains(e.target as Node)) return;
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t)) return;
+      if (portaled && listPortalRef.current?.contains(t)) return;
       setOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
+  }, [open, portaled]);
 
   const scheduleFetch = useCallback(
     (query: string) => {
@@ -158,6 +197,37 @@ export function AsyncCombobox<T extends { id: string }>(props: AsyncComboboxProp
     setItems([]);
     inputRef.current?.blur();
   }
+
+  const listInner = (
+    <>
+      {loading && items.length === 0 ? (
+        <div className="flex items-center gap-2 rounded-lg px-2 py-2 text-[13px] text-[#7F8C8D]">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+          {t("ui.asyncComboboxSearching")}
+        </div>
+      ) : null}
+      {!loading && items.length === 0 ? (
+        <div className="rounded-lg px-2 py-2 text-[13px] text-[#7F8C8D]">{t("ui.asyncComboboxEmpty")}</div>
+      ) : null}
+      {items.map((item, idx) => (
+        <button
+          key={item.id}
+          type="button"
+          role="option"
+          aria-selected={item.id === value}
+          className={[
+            "flex w-full cursor-pointer rounded-lg px-2 py-2 text-left text-[13px] text-[#34495E]",
+            "hover:bg-slate-100 focus:bg-slate-100 focus:outline-none",
+            idx === highlight ? "bg-slate-100" : "",
+          ].join(" ")}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => pick(item)}
+        >
+          {getOptionLabel(item)}
+        </button>
+      ))}
+    </>
+  );
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (!open) {
@@ -213,8 +283,7 @@ export function AsyncCombobox<T extends { id: string }>(props: AsyncComboboxProp
           }}
           onKeyDown={onKeyDown}
           className={[
-            TRIGGER_BASE,
-            "pr-9",
+            TRIGGER_INPUT_CLASS,
             ariaInvalid === true || ariaInvalid === "true" ? "border-red-500 ring-2 ring-red-500/25" : "",
           ]
             .filter(Boolean)
@@ -231,39 +300,33 @@ export function AsyncCombobox<T extends { id: string }>(props: AsyncComboboxProp
           </span>
         ) : null}
       </div>
-      {open ? (
+      {open && !portaled ? (
         <div
           id={listboxId}
           role="listbox"
-          className={[LIST_PANEL, listClassName].filter(Boolean).join(" ")}
+          className={[LIST_PANEL_INLINE, listClassName].filter(Boolean).join(" ")}
         >
-          {loading && items.length === 0 ? (
-            <div className="flex items-center gap-2 px-3 py-2 text-[13px] text-[#7F8C8D]">
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
-              {t("ui.asyncComboboxSearching")}
-            </div>
-          ) : null}
-          {!loading && items.length === 0 ? (
-            <div className="px-3 py-2 text-[13px] text-[#7F8C8D]">{t("ui.asyncComboboxEmpty")}</div>
-          ) : null}
-          {items.map((item, idx) => (
-            <button
-              key={item.id}
-              type="button"
-              role="option"
-              aria-selected={item.id === value}
-              className={[
-                "flex w-full cursor-pointer px-3 py-2 text-left text-[13px] hover:bg-[#F4F5F7]",
-                idx === highlight ? "bg-[#EBEDF0]" : "",
-              ].join(" ")}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => pick(item)}
-            >
-              {getOptionLabel(item)}
-            </button>
-          ))}
+          {listInner}
         </div>
       ) : null}
+      {open && portaled && portalRect && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={listPortalRef}
+              id={listboxId}
+              role="listbox"
+              style={{
+                top: portalRect.top,
+                left: portalRect.left,
+                width: portalRect.width,
+              }}
+              className={[LIST_PANEL_PORTAL, listClassName].filter(Boolean).join(" ")}
+            >
+              {listInner}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

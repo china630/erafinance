@@ -1,13 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
 import { formatMoneyAzn } from "../../../lib/format-money";
 import { ledgerQueryParam, useLedger } from "../../../lib/ledger-context";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { PageHeader } from "../../../components/layout/page-header";
-import { BORDER_MUTED_CLASS, PRIMARY_BUTTON_CLASS } from "../../../lib/design-system";
+import { Button } from "../../../components/ui/button";
+import {
+  BORDER_MUTED_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
+  MODAL_FIELD_LABEL_CLASS,
+  MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
+  MODAL_INPUT_NUMERIC_CLASS,
+  PRIMARY_BUTTON_CLASS,
+} from "../../../lib/design-system";
 
 type Cp = { id: string; name: string; taxId: string };
 
@@ -319,7 +330,7 @@ export default function ReconciliationPage() {
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className={`rounded-[2px] border bg-white px-2 py-1.5 text-sm ${BORDER_MUTED_CLASS}`}
+            className={`rounded-lg border bg-white px-2 py-1.5 text-sm ${BORDER_MUTED_CLASS}`}
           />
         </label>
         <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
@@ -328,7 +339,7 @@ export default function ReconciliationPage() {
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className={`rounded-[2px] border bg-white px-2 py-1.5 text-sm ${BORDER_MUTED_CLASS}`}
+            className={`rounded-lg border bg-white px-2 py-1.5 text-sm ${BORDER_MUTED_CLASS}`}
           />
         </label>
         <button
@@ -374,61 +385,79 @@ export default function ReconciliationPage() {
       {err && <p className="text-red-600 text-sm">{err}</p>}
 
       {nettingOpen && nettingPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-200"
-          >
-            <h2 className="text-lg font-semibold text-gray-900">{t("reconciliation.nettingModalTitle")}</h2>
-            <p className="text-sm text-slate-600">{t("reconciliation.nettingHint")}</p>
-            <p className="text-sm">
-              <span className="text-slate-500">{t("reconciliation.nettingDr")}:</span>{" "}
-              <span className="font-mono font-medium">{formatMoneyAzn(nettingPreview.receivable)}</span>
-            </p>
-            <p className="text-sm">
-              <span className="text-slate-500">{t("reconciliation.nettingCr")}:</span>{" "}
-              <span className="font-mono font-medium">{formatMoneyAzn(nettingPreview.payable531)}</span>
-            </p>
-            <p className="text-sm">
-              <span className="text-slate-500">{t("reconciliation.nettingSuggested")}:</span>{" "}
-              <span className="font-mono font-semibold text-primary">
-                {formatMoneyAzn(nettingPreview.suggestedAmount)}
-              </span>
-            </p>
-            <label className="block text-sm font-medium text-slate-700">
-              {t("reconciliation.nettingAmount")}
-              <input
-                type="number"
-                min={0.0001}
-                step="any"
-                value={nettingAmount}
-                onChange={(e) => setNettingAmount(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2"
-              />
-            </label>
-            {nettingErr && <p className="text-red-600 text-sm">{nettingErr}</p>}
-            <div className="flex flex-wrap gap-2 justify-end pt-2">
-              <button
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div role="dialog" aria-modal="true" className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`}>
+            <header className="flex shrink-0 items-start justify-between gap-3">
+              <h2 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
+                {t("reconciliation.nettingModalTitle")}
+              </h2>
+              <Button
                 type="button"
+                variant="ghost"
+                className={MODAL_CLOSE_BUTTON_CLASS}
                 disabled={nettingBusy}
                 onClick={() => {
                   setNettingOpen(false);
                   setNettingPreview(null);
                   setNettingErr(null);
                 }}
-                className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
+                aria-label={t("common.close")}
+              >
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+              </Button>
+            </header>
+            <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto">
+              <p className="m-0 text-[13px] text-[#7F8C8D]">{t("reconciliation.nettingHint")}</p>
+              <p className="m-0 text-[13px] text-[#34495E]">
+                <span className="text-[#7F8C8D]">{t("reconciliation.nettingDr")}:</span>{" "}
+                <span className="font-mono font-medium tabular-nums">{formatMoneyAzn(nettingPreview.receivable)}</span>
+              </p>
+              <p className="m-0 text-[13px] text-[#34495E]">
+                <span className="text-[#7F8C8D]">{t("reconciliation.nettingCr")}:</span>{" "}
+                <span className="font-mono font-medium tabular-nums">{formatMoneyAzn(nettingPreview.payable531)}</span>
+              </p>
+              <p className="m-0 text-[13px] text-[#34495E]">
+                <span className="text-[#7F8C8D]">{t("reconciliation.nettingSuggested")}:</span>{" "}
+                <span className="font-mono font-semibold tabular-nums text-[#2980B9]">
+                  {formatMoneyAzn(nettingPreview.suggestedAmount)}
+                </span>
+              </p>
+              <label className={MODAL_FIELD_LABEL_CLASS}>
+                {t("reconciliation.nettingAmount")}
+                <input
+                  type="number"
+                  min={0.0001}
+                  step="any"
+                  value={nettingAmount}
+                  onChange={(e) => setNettingAmount(e.target.value)}
+                  className={`mt-1 block w-full ${MODAL_INPUT_NUMERIC_CLASS}`}
+                />
+              </label>
+              {nettingErr ? <p className="m-0 text-[13px] text-red-600">{nettingErr}</p> : null}
+            </div>
+            <div className={MODAL_FOOTER_ACTIONS_CLASS}>
+              <Button
+                type="button"
+                variant="outline"
+                className={MODAL_FOOTER_BUTTON_CLASS}
+                disabled={nettingBusy}
+                onClick={() => {
+                  setNettingOpen(false);
+                  setNettingPreview(null);
+                  setNettingErr(null);
+                }}
               >
                 {t("reconciliation.nettingClose")}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="primary"
+                className={MODAL_FOOTER_BUTTON_CLASS}
                 disabled={nettingBusy}
                 onClick={() => void submitNetting()}
-                className="px-4 py-2 rounded-lg bg-action text-white text-sm font-medium hover:bg-action-hover disabled:opacity-50"
               >
                 {nettingBusy ? t("reconciliation.nettingBusy") : t("reconciliation.nettingSubmit")}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -32,7 +32,7 @@ export type DatePickerProps = {
   id?: string;
   /** Если `false`, не блокируем даты по Period Lock (например, экран настройки самого lock). */
   respectPeriodLock?: boolean;
-  /** `form` — триггер как поле на страницах кассы/отчётов (`FORM_INPUT_CLASS`). */
+  /** `form` — страницы кассы/отчётов (`FORM_INPUT_CLASS`); `modal` — токены модалок (`MODAL_INPUT_CLASS`). */
   fieldVariant?: "modal" | "form";
   /** Если задан — полностью заменяет базовые классы триггера (например настройки орг.: `INPUT_BORDERED_CLASS`). */
   triggerClassName?: string;
@@ -112,7 +112,7 @@ export function DatePicker({
         <Popover.Content
           sideOffset={4}
           align="start"
-          className="z-[200] rounded-[2px] border border-[#D5DADF] bg-white p-2 shadow-md"
+          className="z-[200] !rounded-2xl border border-[#D5DADF] bg-white p-2 shadow-md"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DayPicker

@@ -99,10 +99,14 @@ export class ProductsController {
       }
     }
 
+    const baseName = dto.name.trim();
+    const uom = dto.unitOfMeasure?.trim();
+    const displayName = uom ? `${baseName} (${uom})` : baseName;
+
     return this.prisma.product.create({
       data: {
         organizationId: orgId,
-        name: dto.name,
+        name: displayName,
         sku,
         price: dto.price,
         vatRate: dto.vatRate,

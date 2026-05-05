@@ -257,12 +257,7 @@ export function CreateCounterpartyModal({
       onClose={onClose}
       maxWidthClass="max-w-xl"
       footer={
-        <SalesModalFooter
-          onCancel={onClose}
-          busy={busy}
-          formId="create-counterparty-form"
-          cancelVariant="ghost"
-        />
+        <SalesModalFooter onCancel={onClose} busy={busy} formId="create-counterparty-form" />
       }
     >
       <form
@@ -321,7 +316,6 @@ export function CreateCounterpartyModal({
             key={i18n.language}
             value={legalForm}
             onValueChange={(v) => setLegalForm(v as CounterpartyLegalForm)}
-            className={MODAL_INPUT_CLASS}
           >
             <SelectTrigger className="" />
             <SelectContent>
@@ -341,18 +335,21 @@ export function CreateCounterpartyModal({
           <span>{t("counterparties.vatPayerCheckbox")}</span>
         </label>
         {isRiskyTaxpayer === true ? (
-          <div className="inline-flex items-center rounded-[2px] border border-amber-300 bg-amber-100 px-2.5 py-1 text-[13px] font-semibold text-amber-900">
+          <div className="inline-flex items-center rounded-lg border border-amber-300 bg-amber-100 px-2.5 py-1 text-[13px] font-semibold text-amber-900">
             {t("counterparties.riskyTaxpayerBadge")}
           </div>
         ) : null}
         <div>
           <span className={lbl}>{t("counterparties.role")}</span>
-          <select value={role} onChange={(e) => setRole(e.target.value as typeof role)} className={MODAL_INPUT_CLASS}>
-            <option value="CUSTOMER">{t("counterparties.roleCustomer")}</option>
-            <option value="SUPPLIER">{t("counterparties.roleSupplier")}</option>
-            <option value="BOTH">{t("counterparties.roleTradingPartner")}</option>
-            <option value="OTHER">{t("counterparties.roleOther")}</option>
-          </select>
+          <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
+            <SelectTrigger className="" />
+            <SelectContent>
+              <SelectItem value="CUSTOMER">{t("counterparties.roleCustomer")}</SelectItem>
+              <SelectItem value="SUPPLIER">{t("counterparties.roleSupplier")}</SelectItem>
+              <SelectItem value="BOTH">{t("counterparties.roleBoth")}</SelectItem>
+              <SelectItem value="OTHER">{t("counterparties.roleOther")}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <span className={lbl}>{t("counterparties.address")}</span>

@@ -94,7 +94,7 @@ export function AuditHistoryModal({
       )}
 
       {!loading && rows.length > 0 && (
-        <div className={`overflow-x-auto rounded-[2px] border border-[#D5DADF] bg-white shadow-sm`}>
+        <div className={`overflow-x-auto rounded-2xl border border-[#D5DADF] bg-white shadow-sm`}>
           <table className="min-w-full text-[13px]">
             <thead>
               <tr className="border-b border-[#EBEDF0]">

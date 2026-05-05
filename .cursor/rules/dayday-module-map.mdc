@@ -1,0 +1,82 @@
+---
+description: DayDay ERP — карта модулей (якорь API ↔ Web ↔ Prisma); для @ и навигации по репо
+globs:
+  - apps/api/**
+  - apps/web/**
+  - packages/database/**
+alwaysApply: false
+---
+
+# Карта модулей (якорь — `apps/api/src`)
+
+Источник правды по **коду** — папка в **`apps/api/src/<module>/`**. В колонке Web указаны типичные экраны Next.js (`apps/web/app/...`). Если модуля нет в таблице «только инфра», смотри раздел внизу.
+
+### Как называть модуль в чате (язык)
+
+В первом столбце: **русское продуктовое имя** и **английский slug** в скобках (как папка в API). Так удобно писать и по-русски («модуль Склад»), и по-английски для совпадения с репо (`inventory`). **AZ** в таблице не дублируем — в интерфейсе те же модули, что и в RU; при желании добавь азербайджанское имя в скобках во второй строке ячейки вручную.
+
+## Доменные модули (API ↔ Web)
+
+| Модуль (к чату) | API `apps/api/src/…` | Web `apps/web/app/…` | Примечание |
+|-----------------|----------------------|----------------------|------------|
+| Бухгалтерия (`accounting`) | `accounting/` | `accounting/` | IFRS-связка частично с `accounts` |
+| План счетов и маппинг (`accounts`) | `accounts/` | `accounting/chart/`, `accounting/mapping/`, `accounting/ifrs-mapping/` | IFRS-правила |
+| Админка (`admin`) | `admin/` | `admin/`, `super-admin/` | орг. админка и супер-админ |
+| Журнал аудита (`audit`) | `audit/` | `settings/audit/` | |
+| Авторизация и сессии (`auth`) | `auth/` | `login/`, `register/`, `register-org/`, `(public)/` | публичные маршруты |
+| Банк (`banking`) | `banking/` | `banking/`, `(app)/banking/` | часть экранов в route groups |
+| Оплата подписки / checkout (`billing`) | `billing/` | `billing/` | успех оплаты и т.п. |
+| Контрагенты (`counterparties`) | `counterparties/` | `crm/counterparties/` | CRM |
+| Финансы продаж/закупок (`finance`) | `finance/` | `sales/`, `purchases/`, `sales/reconciliation/` | на web нет папки `finance/` |
+| Основные средства (`fixed-assets`) | `fixed-assets/` | `fixed-assets/` | ОС |
+| Курсы валют (`fx`) | `fx/` | — | UI может быть в банке/отчётах |
+| Глобальный справочник компаний (`global-directory`) | `global-directory/` | `companies/`, `crm/counterparties/`, `settings/organization/` | вместе с орг. и CRM |
+| HR и зарплата (`hr`) | `hr/` | `hr/`, `employees/`, `payroll/` | расчёт ЗП на API внутри `hr`; `apps/api/src/payroll/` — вспомогательный код |
+| Интеграции (`integrations`) | `integrations/` | `admin/integrations/` | health и проч. |
+| Склад (`inventory`, `stock`) | `inventory/` + `stock/` | `inventory/` | `stock` — подмодуль Nest |
+| Счета продаж (`invoices`) | `invoices/` | `sales/invoices/` | |
+| Касса и денежные средства (`kassa`, `treasury`) | `kassa/` + `treasury/` | `(app)/banking/cash/`, `(app)/banking/money/`, `banking/` | кассы и денежные потоки |
+| Производство (`manufacturing`) | `manufacturing/` | `manufacturing/` | |
+| Миграция данных (`migration`) | `migration/` | `settings/migration/` | |
+| Компании и холдинг (`organizations`) | `organizations/` | `companies/`, `holding/`, `settings/organization/` | |
+| Каталог / номенклатура (`products`) | `products/` | `catalog/products/` | |
+| Отчётность и аналитика (`reporting`) | `reporting/` | `reporting/` | |
+| Регламентированные отчёты (`reports`) | `reports/` | `reports/` | баланс, ДДС и т.д. |
+| Налоговый экспорт (`tax`) | `tax/` | `reporting/tax-export/` | |
+| Доступ и роли (`access`) | `access/` | `settings/team/` | ACL, без отдельного раздела «access» на web |
+| Подписка и квоты (`subscription`, `quota`) | `subscription/` + `quota/` | `settings/subscription/`, `admin/billing/` | |
+
+## Инфраструктура и поперечные слои (в основном только API)
+
+| API / пакет | Web | Примечание |
+|-------------|-----|------------|
+| `prisma/` | — | Nest + Prisma tenant; схема в `packages/database/prisma/` |
+| `common/`, `constants/`, `utils/` | общие импорты в `apps/web/lib/` и т.п. | без единого «модуля» на web |
+| `mail/`, `storage/`, `queue/` | — | фоновые/технические сервисы |
+| `privacy/` | — | маскирование и проч.; UI может быть размазан |
+| `signature/` | — | подписи, в основном backend |
+| `scripts/` | — | не подключается как Nest-модуль приложения |
+| `system-config/` | `settings/` (частично) | привязка к настройкам по фиче |
+
+## Prisma и данные
+
+- **Схема и миграции:** `packages/database/prisma/` (`schema.prisma`, `migrations/`, скрипты `prisma/*.ts`).
+- При задаче «и БД» добавляй в контекст **`@packages/database/prisma`** или конкретный файл.
+
+## Web-разделы без одноимённой папки в `apps/api/src`
+
+Имеют смысл в UI, но маппятся на **несколько** API-модулей:
+
+| Web `apps/web/app/…` | Связь с API (ориентир) |
+|----------------------|-------------------------|
+| `purchases/` | `finance`, `invoices`, `counterparties`, `accounting` — по фиче |
+| `expenses/` | `accounting`, `kassa` / `treasury` |
+| `verify/` | `auth` |
+| `settings/` (кроме перечисленных подпутей) | `organizations`, `subscription`, `auth`, `integrations` |
+| `(app)/`, `(dashboard)/`, `(public)/` | группы маршрутов Next; не домены сами по себе |
+
+## Как использовать
+
+1. **В промпте по имени из таблицы:** «задача в модуле **Склад**» или «в **`inventory`**» — по первому столбцу возьми API- и Web-пути и подставь **`@apps/api/src/<slug>`** и **`@apps/web/app/...`** (для двойных модулей — оба slug, напр. `kassa` и `treasury`).
+2. **Точечно:** если в строке несколько web-путей — в контекст только тот, где правка UI.
+3. **Обновление карты:** новый домен в API → новая строка: модуль (RU + slug), API, Web, примечание.

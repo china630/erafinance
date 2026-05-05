@@ -24,6 +24,7 @@ import {
   DATA_TABLE_TH_RIGHT_CLASS,
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
+  MODAL_INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
   TABLE_ROW_ICON_BTN_CLASS,
 } from "../../lib/design-system";
@@ -148,7 +149,7 @@ function FixedAssetsPageContent() {
               max={2100}
               value={depYear}
               onChange={(e) => setDepYear(e.target.value)}
-              className="h-10 w-24 rounded-md border border-slate-300 px-2 text-sm"
+              className={`${MODAL_INPUT_CLASS} !w-24`}
             />
             <input
               type="number"
@@ -156,7 +157,7 @@ function FixedAssetsPageContent() {
               max={12}
               value={depMonth}
               onChange={(e) => setDepMonth(e.target.value)}
-              className="h-10 w-16 rounded-md border border-slate-300 px-2 text-sm"
+              className={`${MODAL_INPUT_CLASS} !w-16`}
             />
             <button
               type="button"
@@ -186,7 +187,7 @@ function FixedAssetsPageContent() {
           <button
             type="button"
             onClick={() => void load()}
-            className="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-red-200 text-sm font-medium text-red-900 hover:bg-red-50"
+            className="shrink-0 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[13px] font-medium text-red-900 hover:bg-red-50"
           >
             {t("common.retryCheck")}
           </button>

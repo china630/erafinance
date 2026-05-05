@@ -5,7 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   CARD_CONTAINER_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
   MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
 } from "../../lib/design-system";
 import { apiFetch } from "../../lib/api-client";
 import { Button } from "../ui/button";
@@ -125,21 +128,17 @@ export function EmployeeAbsencesModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div
-        className={`${CARD_CONTAINER_CLASS} flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden bg-white p-6`}
-        role="dialog"
-        aria-modal="true"
-      >
+      <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-3xl`} role="dialog" aria-modal="true">
         <header className="flex shrink-0 items-start justify-between gap-3">
           <div className="min-w-0 flex-1 pr-2">
-            <h3 className="m-0 text-[13px] font-semibold leading-snug text-[#34495E]">
+            <h3 className="m-0 text-lg font-semibold leading-snug text-[#34495E]">
               {employee ? `${employee.lastName} ${employee.firstName}` : employeeLabel || t("common.emptyValue")}
             </h3>
             <p className="mb-0 mt-1 text-[13px] leading-snug text-[#7F8C8D]">
               {t("payroll.employeeAbsencesSubtitle", { period: periodLabel })}
             </p>
           </div>
-          <Button type="button" variant="ghost" className="!px-2" onClick={onClose} aria-label={t("common.close")}>
+          <Button type="button" variant="ghost" className={MODAL_CLOSE_BUTTON_CLASS} onClick={onClose} aria-label={t("common.close")}>
             <X className="h-4 w-4" aria-hidden />
           </Button>
         </header>
@@ -180,7 +179,7 @@ export function EmployeeAbsencesModal({
         </div>
 
         <div className={MODAL_FOOTER_ACTIONS_CLASS}>
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="outline" className={MODAL_FOOTER_BUTTON_CLASS} onClick={onClose}>
             {t("common.close")}
           </Button>
         </div>

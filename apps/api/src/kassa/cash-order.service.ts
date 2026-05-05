@@ -183,9 +183,26 @@ export class CashOrderService {
     return out;
   }
 
-  listOrders(organizationId: string) {
+  listOrders(
+    organizationId: string,
+    opts?: { dateFrom?: string; dateTo?: string },
+  ) {
+    const from = opts?.dateFrom?.trim();
+    const to = opts?.dateTo?.trim();
+    const dateRange =
+      from &&
+      to &&
+      /^\d{4}-\d{2}-\d{2}$/.test(from) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(to)
+        ? {
+            date: {
+              gte: new Date(`${from}T00:00:00.000Z`),
+              lte: new Date(`${to}T23:59:59.999Z`),
+            },
+          }
+        : {};
     return this.prisma.cashOrder.findMany({
-      where: { organizationId },
+      where: { organizationId, ...dateRange },
       orderBy: [{ date: "desc" }, { orderNumber: "desc" }],
       include: {
         counterparty: { select: { id: true, name: true, taxId: true } },

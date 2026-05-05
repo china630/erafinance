@@ -28,6 +28,7 @@ import {
   Gavel,
   History,
   Home,
+  Inbox,
   Landmark,
   Link2,
   Network,
@@ -562,6 +563,20 @@ export function MainSidebar({
             onNavClick={onNavClick}
           />
           <SideNavSubItem
+            href="/inventory/balances"
+            label={t("inventory.balancesReportNav")}
+            isActive={pathname.startsWith("/inventory/balances")}
+            icon={BarChart3}
+            onNavClick={onNavClick}
+          />
+          <SideNavSubItem
+            href="/inventory/receipts"
+            label={t("inventory.receiptNav")}
+            isActive={pathname.startsWith("/inventory/receipts")}
+            icon={Inbox}
+            onNavClick={onNavClick}
+          />
+          <SideNavSubItem
             href="/inventory/transfers"
             label={t("inventory.transferNav")}
             isActive={pathname.startsWith("/inventory/transfers")}
@@ -815,6 +830,14 @@ export function MainSidebar({
                       label={t("nav.orgCompany")}
                       isActive={pathname.startsWith("/settings/organization")}
                       icon={Briefcase}
+                      nested
+                      onNavClick={onNavClick}
+                    />
+                    <SideNavItem
+                      href="/settings/bank-accounts"
+                      label={t("nav.settingsBankAccounts")}
+                      isActive={pathname.startsWith("/settings/bank-accounts")}
+                      icon={Landmark}
                       nested
                       onNavClick={onNavClick}
                     />

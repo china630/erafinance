@@ -131,7 +131,7 @@ export default function IntegrationsHealthPage() {
                     <td className={DATA_TABLE_TD_CENTER_CLASS}>
                       <span
                         className={[
-                          "inline-flex rounded-[2px] px-2 py-0.5 text-xs font-semibold",
+                          "inline-flex rounded-lg px-2 py-0.5 text-xs font-semibold",
                           row.currentStatus === "Up"
                             ? "bg-emerald-100 text-emerald-700"
                             : row.currentStatus === "Degraded"

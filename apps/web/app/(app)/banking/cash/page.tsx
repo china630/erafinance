@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { CheckCircle2, Eye, Printer, Wallet } from "lucide-react";
+import { CheckCircle2, Eye, Printer, Wallet, X } from "lucide-react";
 import { toast } from "sonner";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,6 +9,13 @@ import { KO1PrintForm, type KO1PrintOrder } from "../../../../components/print/K
 import { apiFetch } from "../../../../lib/api-client";
 import {
   CARD_CONTAINER_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
+  MODAL_FIELD_LABEL_CLASS,
+  MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
+  MODAL_INPUT_CLASS,
+  MODAL_TEXTAREA_CLASS,
   DATA_TABLE_CLASS,
   DATA_TABLE_HEAD_ROW_CLASS,
   DATA_TABLE_TD_CLASS,
@@ -23,11 +29,12 @@ import {
   SECONDARY_BUTTON_CLASS,
   TABLE_ROW_ICON_BTN_CLASS,
 } from "../../../../lib/design-system";
-import { FORM_INPUT_CLASS, FORM_TEXTAREA_CLASS } from "../../../../lib/form-styles";
+import { TOOLBAR_MONTH_INPUT_CLASS } from "../../../../lib/form-styles";
 import { ledgerQueryParam, useLedger } from "../../../../lib/ledger-context";
 import { useRequireAuth } from "../../../../lib/use-require-auth";
 import { SubscriptionPaywall } from "../../../../components/subscription-paywall";
 import { PageHeader } from "../../../../components/layout/page-header";
+import { Button } from "../../../../components/ui/button";
 import { AsyncCombobox } from "../../../../components/ui/async-combobox";
 import { CurrencySelect } from "../../../../components/ui/currency-select";
 import { DatePicker } from "../../../../components/ui/date-picker";
@@ -147,6 +154,22 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function defaultYearMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** `ym` = `YYYY-MM` (локальный календарь). */
+function monthDateRange(ym: string): { from: string; to: string } {
+  const parts = ym.split("-");
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const from = `${y}-${String(m).padStart(2, "0")}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const to = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to };
+}
+
 export default function BankingCashPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
@@ -215,6 +238,7 @@ export default function BankingCashPage() {
 
   const [ko1PrintOrder, setKo1PrintOrder] = useState<KO1PrintOrder | null>(null);
   const [viewOrder, setViewOrder] = useState<CashOrderRow | null>(null);
+  const [yearMonth, setYearMonth] = useState(defaultYearMonth);
 
   const fetchCashCounterpartiesIncoming = useCallback(async (search: string) => {
     const q = new URLSearchParams();
@@ -244,9 +268,11 @@ export default function BankingCashPage() {
     if (!token) return;
     setLoading(true);
     setErr(null);
+    const { from, to } = monthDateRange(yearMonth);
+    const ordersQuery = `dateFrom=${encodeURIComponent(from)}&dateTo=${encodeURIComponent(to)}`;
     const [b, o, e, chart, cf, desks] = await Promise.all([
       apiFetch(`/api/banking/cash/balances?${lq}`),
-      apiFetch("/api/banking/cash/orders"),
+      apiFetch(`/api/banking/cash/orders?${ordersQuery}`),
       apiFetch("/api/hr/employees?page=1&pageSize=100"),
       apiFetch("/api/accounts/chart/cash-catalog"),
       apiFetch("/api/treasury/cash-flow-items"),
@@ -283,7 +309,7 @@ export default function BankingCashPage() {
       setAccountable((await accRes.json()) as AccountableRow[]);
     }
     setLoading(false);
-  }, [token, t, lq]);
+  }, [token, t, lq, yearMonth]);
 
   const loadAccountable = useCallback(async () => {
     if (!token) return;
@@ -591,18 +617,24 @@ export default function BankingCashPage() {
         <section className="space-y-6 max-w-7xl mx-auto">
         <PageHeader
           title={t("banking.cash.pageTitle")}
-          subtitle={
-            <Link
-              href="/banking"
-              className="text-[13px] text-action hover:opacity-90 inline-block"
-            >
-              {t("banking.cash.backLink")}
-            </Link>
-          }
           actions={
             <>
+              <div className="flex h-8 items-center gap-2">
+                <span className="shrink-0 text-sm leading-none text-slate-700">
+                  {t("banking.monthPickerToolbarLabel")}
+                </span>
+                <input
+                  type="month"
+                  value={yearMonth}
+                  disabled={loading}
+                  onChange={(e) => setYearMonth(e.target.value)}
+                  className={TOOLBAR_MONTH_INPUT_CLASS}
+                  aria-label={t("banking.monthPickerLabel")}
+                />
+              </div>
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => setPkoOpen(true)}
                 className={PRIMARY_BUTTON_CLASS}
               >
@@ -610,6 +642,7 @@ export default function BankingCashPage() {
               </button>
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => setRkoOpen(true)}
                 className={SECONDARY_BUTTON_CLASS}
               >
@@ -617,6 +650,7 @@ export default function BankingCashPage() {
               </button>
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => setAdvOpen(true)}
                 className={SECONDARY_BUTTON_CLASS}
               >
@@ -624,6 +658,7 @@ export default function BankingCashPage() {
               </button>
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => setQuickOpen(true)}
                 className={SECONDARY_BUTTON_CLASS}
               >
@@ -644,7 +679,6 @@ export default function BankingCashPage() {
           <>
             {loading && <p className="text-[#7F8C8D] text-[13px]">{t("common.loading")}</p>}
 
-            <div className="space-y-4 w-full">
             <div className={`${CARD_CONTAINER_CLASS} p-5`}>
               <h2 className="text-base font-semibold text-[#34495E] m-0">{t("banking.cash.balanceTitle")}</h2>
               {balances && (
@@ -667,7 +701,7 @@ export default function BankingCashPage() {
 
             <div className="space-y-2">
               <h2 className="m-0 text-base font-semibold text-[#34495E]">
-                {t("banking.cash.journalTitle")}
+                {t("banking.cash.journalTitle")} · {yearMonth}
               </h2>
               <div className={DATA_TABLE_VIEWPORT_CLASS}>
                 <table className={`${DATA_TABLE_CLASS} min-w-full`}>
@@ -752,41 +786,47 @@ export default function BankingCashPage() {
 
             {viewOrder ? (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold m-0">
+                <div
+                  className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-lg`}
+                  role="dialog"
+                  aria-modal="true"
+                >
+                  <header className="flex shrink-0 items-start justify-between gap-3">
+                    <div className="min-w-0 pr-2">
+                      <h3 className="m-0 text-lg font-semibold leading-snug text-[#34495E]">
                         {viewOrder.orderNumber}
                       </h3>
-                      <p className="mb-0 mt-1 text-xs text-slate-600">
+                      <p className="mb-0 mt-1 text-[13px] text-[#7F8C8D]">
                         {viewOrder.date?.slice?.(0, 10) ?? "—"} · {typeLabel(viewOrder)} ·{" "}
                         {statusLabel(viewOrder.status)}
                       </p>
                     </div>
-                    <button
+                    <Button
                       type="button"
-                      className={SECONDARY_BUTTON_CLASS}
+                      variant="ghost"
+                      className={MODAL_CLOSE_BUTTON_CLASS}
                       onClick={() => setViewOrder(null)}
+                      aria-label={t("common.close")}
                     >
-                      {t("common.close")}
-                    </button>
-                  </div>
+                      <X className="h-4 w-4 shrink-0" aria-hidden />
+                    </Button>
+                  </header>
 
-                  <div className="mt-4 space-y-2 text-sm text-slate-800">
+                  <div className="mt-4 space-y-2 text-[13px] text-[#34495E]">
                     <div>
-                      <span className="text-xs font-medium text-slate-500">
+                      <span className="text-[13px] font-semibold text-[#7F8C8D]">
                         {t("banking.cash.colParty")}
                       </span>
                       <div className="mt-0.5">{partyLabel(viewOrder)}</div>
                     </div>
                     <div>
-                      <span className="text-xs font-medium text-slate-500">
+                      <span className="text-[13px] font-semibold text-[#7F8C8D]">
                         {t("banking.cash.colPurpose")}
                       </span>
                       <div className="mt-0.5">{viewOrder.purpose}</div>
                     </div>
                     <div>
-                      <span className="text-xs font-medium text-slate-500">
+                      <span className="text-[13px] font-semibold text-[#7F8C8D]">
                         {t("banking.cash.colAmount")}
                       </span>
                       <div className="mt-0.5 tabular-nums">
@@ -795,15 +835,16 @@ export default function BankingCashPage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 flex justify-end gap-2">
-                    <button
+                  <div className={MODAL_FOOTER_ACTIONS_CLASS}>
+                    <Button
                       type="button"
-                      className="inline-flex items-center gap-2 rounded-[2px] border border-[#D5DADF] bg-white px-3 py-2 text-[13px] font-medium text-[#34495E] hover:bg-[#F4F5F7]"
+                      variant="outline"
+                      className={`${MODAL_FOOTER_BUTTON_CLASS} inline-flex items-center gap-2`}
                       onClick={() => printKo1ForRow(viewOrder)}
                     >
-                      <Printer className="h-4 w-4" aria-hidden />
+                      <Printer className="h-4 w-4 shrink-0" aria-hidden />
                       {t("banking.cash.print")}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -836,63 +877,66 @@ export default function BankingCashPage() {
                 <p className="text-xs text-slate-500 mt-2 mb-0">{t("banking.cash.accountableEmpty")}</p>
               )}
             </div>
-        </div>
           </>
         )}
 
         {quickOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-              <div>
-                <h3 className="text-lg font-semibold m-0">{t("banking.cash.quickCashOutTitle")}</h3>
-                <p className="mb-0 mt-1 text-xs text-slate-600">{t("banking.cash.quickCashOutHint")}</p>
-              </div>
+            <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-lg`} role="dialog" aria-modal="true">
+              <header className="flex shrink-0 items-start justify-between gap-3">
+                <div className="min-w-0 pr-2">
+                  <h3 className="m-0 text-lg font-semibold leading-snug text-[#34495E]">
+                    {t("banking.cash.quickCashOutTitle")}
+                  </h3>
+                  <p className="mb-0 mt-1 text-[13px] text-[#7F8C8D]">{t("banking.cash.quickCashOutHint")}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={MODAL_CLOSE_BUTTON_CLASS}
+                  onClick={() => setQuickOpen(false)}
+                  aria-label={t("common.close")}
+                >
+                  <X className="h-4 w-4 shrink-0" aria-hidden />
+                </Button>
+              </header>
 
-              <form className="space-y-3 mt-4" onSubmit={submitQuickCashOut}>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div>
-                    <p className="mb-1 text-xs font-medium text-[#34495E]">{t("banking.cash.outAmount")}</p>
+              <form className="mt-4 flex min-h-0 flex-1 flex-col space-y-4" onSubmit={submitQuickCashOut}>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className={MODAL_FIELD_LABEL_CLASS}>
+                    {t("banking.cash.outAmount")}
                     <NumericAmountInput
-                      fieldVariant="form"
-                      className="mt-1"
+                      fieldVariant="modal"
+                      className="mt-1 block w-full"
                       value={quickAmount}
                       onValueChange={setQuickAmount}
                       required
                     />
-                  </div>
-                  <div>
-                    <p className="mb-1 text-xs font-medium text-[#34495E]">{t("banking.cash.currency")}</p>
-                    <CurrencySelect
-                      value={quickCurrency}
-                      onValueChange={setQuickCurrency}
-                      className={FORM_INPUT_CLASS}
-                    />
-                  </div>
-                  <div>
-                    <p className="mb-1 text-xs font-medium text-[#34495E]">{t("banking.cash.outDate")}</p>
+                  </label>
+                  <label className={MODAL_FIELD_LABEL_CLASS}>
+                    {t("banking.cash.currency")}
+                    <span className="mt-1 block">
+                      <CurrencySelect value={quickCurrency} onValueChange={setQuickCurrency} />
+                    </span>
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className={MODAL_FIELD_LABEL_CLASS}>
+                    {t("banking.cash.outDate")}
                     <DatePicker
-                      fieldVariant="form"
-                      className="mt-1"
+                      fieldVariant="modal"
+                      className="mt-1 block w-full"
                       value={quickDate}
                       onChange={setQuickDate}
                       required
                     />
-                  </div>
-                  <div className="sm:col-span-2 lg:col-span-1">
-                    <p className="mb-1 text-xs font-medium text-[#34495E]">{t("banking.cash.outDesc")}</p>
-                    <input
-                      className={FORM_INPUT_CLASS}
-                      value={quickPurpose}
-                      onChange={(e) => setQuickPurpose(e.target.value)}
-                      placeholder={t("banking.cash.outDescPh")}
-                      required
-                    />
-                  </div>
+                  </label>
+                  <div aria-hidden="true" className="min-h-0" />
                 </div>
-                <div>
-                  <p className="mb-1 text-xs font-medium text-[#34495E]">{t("banking.cash.cashFlowItem")}</p>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.cashFlowItem")}
                   <select
-                    className={FORM_INPUT_CLASS}
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
                     value={quickCfId}
                     onChange={(e) => setQuickCfId(e.target.value)}
                     required
@@ -903,18 +947,24 @@ export default function BankingCashPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div className="flex gap-2 justify-end pt-2">
-                  <button
-                    type="button"
-                    className={SECONDARY_BUTTON_CLASS}
-                    onClick={() => setQuickOpen(false)}
-                  >
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.outDesc")}
+                  <input
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
+                    value={quickPurpose}
+                    onChange={(e) => setQuickPurpose(e.target.value)}
+                    placeholder={t("banking.cash.outDescPh")}
+                    required
+                  />
+                </label>
+                <div className={MODAL_FOOTER_ACTIONS_CLASS}>
+                  <Button type="button" variant="outline" className={MODAL_FOOTER_BUTTON_CLASS} onClick={() => setQuickOpen(false)}>
                     {t("common.cancel")}
-                  </button>
-                  <button type="submit" disabled={quickBusy} className={PRIMARY_BUTTON_CLASS}>
+                  </Button>
+                  <Button type="submit" variant="primary" className={MODAL_FOOTER_BUTTON_CLASS} disabled={quickBusy}>
                     {quickBusy ? "…" : t("banking.cash.quickCashOutSubmit")}
-                  </button>
+                  </Button>
                 </div>
               </form>
             </div>
@@ -923,17 +973,29 @@ export default function BankingCashPage() {
 
         {advOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-              <div>
-                <h3 className="text-lg font-semibold m-0">{t("banking.cash.btnAdvanceTop")}</h3>
-                <p className="mb-0 mt-1 text-xs text-slate-600">{t("banking.cash.advanceHint")}</p>
-              </div>
+            <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-lg`} role="dialog" aria-modal="true">
+              <header className="flex shrink-0 items-start justify-between gap-3">
+                <div className="min-w-0 pr-2">
+                  <h3 className="m-0 text-lg font-semibold leading-snug text-[#34495E]">{t("banking.cash.btnAdvanceTop")}</h3>
+                  <p className="mb-0 mt-1 text-[13px] text-[#7F8C8D]">{t("banking.cash.advanceHint")}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={MODAL_CLOSE_BUTTON_CLASS}
+                  onClick={() => setAdvOpen(false)}
+                  disabled={advSaving}
+                  aria-label={t("common.close")}
+                >
+                  <X className="h-4 w-4 shrink-0" aria-hidden />
+                </Button>
+              </header>
 
-              <form className="space-y-3 mt-4" onSubmit={submitAdvanceDraft}>
-                <div>
-                  <label className="block text-xs font-medium text-[#34495E]">{t("banking.cash.advanceEmployee")}</label>
+              <form className="mt-4 flex min-h-0 flex-1 flex-col space-y-4" onSubmit={submitAdvanceDraft}>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.advanceEmployee")}
                   <select
-                    className={FORM_INPUT_CLASS}
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
                     value={advEmployeeId}
                     onChange={(e) => setAdvEmployeeId(e.target.value)}
                     required
@@ -949,22 +1011,23 @@ export default function BankingCashPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-[#34495E]">{t("banking.cash.advanceReportDate")}</label>
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.advanceReportDate")}
                   <DatePicker
-                    fieldVariant="form"
+                    fieldVariant="modal"
+                    className="mt-1 block w-full"
                     value={advDate}
                     onChange={setAdvDate}
                     required
                   />
-                </div>
-                <div>
-                  <p className="mb-2 text-xs font-medium text-[#34495E]">{t("banking.cash.advanceLines")}</p>
+                </label>
+                <div className="flex flex-col gap-1.5">
+                  <div className="text-[13px] font-semibold text-[#34495E]">{t("banking.cash.advanceLines")}</div>
                   {advLines.map((line, i) => (
-                    <div key={i} className="flex flex-wrap gap-2 mb-2">
+                    <div key={i} className="mb-2 flex flex-wrap gap-2">
                       <NumericAmountInput
-                        fieldVariant="form"
+                        fieldVariant="modal"
                         className="max-w-[140px]"
                         placeholder={t("banking.cash.amount")}
                         value={line.amount}
@@ -975,7 +1038,7 @@ export default function BankingCashPage() {
                         }}
                       />
                       <input
-                        className={FORM_INPUT_CLASS + " flex-1 min-w-0"}
+                        className={`${MODAL_INPUT_CLASS} min-w-0 flex-1`}
                         placeholder={t("banking.cash.description")}
                         value={line.description}
                         onChange={(e) => {
@@ -988,42 +1051,44 @@ export default function BankingCashPage() {
                   ))}
                   <button
                     type="button"
-                    className="text-xs text-primary hover:underline"
+                    className="text-[13px] font-medium text-[#2980B9] hover:underline"
                     onClick={() => setAdvLines([...advLines, { amount: "", description: "" }])}
                   >
                     {t("banking.cash.advanceAddLine")}
                   </button>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-[#34495E]">{t("banking.cash.purpose")}</label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.purpose")}
                   <input
-                    className={FORM_INPUT_CLASS}
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
                     value={advPurpose}
                     onChange={(e) => setAdvPurpose(e.target.value)}
                   />
-                </div>
-                <div className="flex flex-wrap gap-2 justify-end pt-2">
-                  <button
+                </label>
+                <div className={`${MODAL_FOOTER_ACTIONS_CLASS} flex-wrap`}>
+                  <Button
                     type="button"
-                    className={SECONDARY_BUTTON_CLASS}
+                    variant="outline"
+                    className={MODAL_FOOTER_BUTTON_CLASS}
                     onClick={() => setAdvOpen(false)}
                     disabled={advSaving}
                   >
                     {t("common.cancel")}
-                  </button>
-                  <button type="submit" disabled={advSaving} className={PRIMARY_BUTTON_CLASS}>
+                  </Button>
+                  <Button type="submit" variant="primary" className={MODAL_FOOTER_BUTTON_CLASS} disabled={advSaving}>
                     {t("banking.cash.advanceSubmitDraft")}
-                  </button>
-                  {advDraftId && (
-                    <button
+                  </Button>
+                  {advDraftId ? (
+                    <Button
                       type="button"
+                      variant="primary"
+                      className={MODAL_FOOTER_BUTTON_CLASS}
                       disabled={advSaving}
                       onClick={() => void postAdvance()}
-                      className="rounded-lg bg-action px-3 py-1.5 text-xs font-medium text-white hover:bg-action-hover"
                     >
                       {t("banking.cash.advancePost")}
-                    </button>
-                  )}
+                    </Button>
+                  ) : null}
                 </div>
               </form>
             </div>
@@ -1032,83 +1097,104 @@ export default function BankingCashPage() {
 
         {pkoOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-              <h3 className="text-lg font-semibold m-0">{t("banking.cash.pkoTitle")}</h3>
-              <form className="mt-4 space-y-3" onSubmit={submitPko}>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.date")}</label>
+            <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-lg`} role="dialog" aria-modal="true">
+              <header className="flex shrink-0 items-start justify-between gap-3">
+                <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
+                  {t("banking.cash.pkoTitle")}
+                </h3>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={MODAL_CLOSE_BUTTON_CLASS}
+                  onClick={() => setPkoOpen(false)}
+                  aria-label={t("common.close")}
+                >
+                  <X className="h-4 w-4 shrink-0" aria-hidden />
+                </Button>
+              </header>
+              <form className="mt-4 flex min-h-0 flex-1 flex-col space-y-4" onSubmit={submitPko}>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.date")}
                   <DatePicker
-                    fieldVariant="form"
+                    fieldVariant="modal"
+                    className="mt-1 block w-full"
                     value={pkoDate}
                     onChange={setPkoDate}
                     required
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.pkoSubtype")}</label>
-                  <Select
-                    className={FORM_INPUT_CLASS}
-                    value={pkoSubtype}
-                    onValueChange={(v) => setPkoSubtype(v as PkoSubtype)}
-                  >
-                    <SelectTrigger className="" />
-                    <SelectContent>
-                      <SelectItem value="INCOME_FROM_CUSTOMER">
-                        {t("banking.cash.subtypeIncomeCustomer")}
-                      </SelectItem>
-                      <SelectItem value="RETURN_FROM_ACCOUNTABLE">
-                        {t("banking.cash.subtypeReturnAccountable")}
-                      </SelectItem>
-                      <SelectItem value="WITHDRAWAL_FROM_BANK">
-                        {t("banking.cash.subtypeBankWithdrawal")}
-                      </SelectItem>
-                      <SelectItem value="OTHER">{t("banking.cash.subtypeOther")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600">{t("banking.cash.amount")}</label>
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.pkoSubtype")}
+                  <span className="mt-1 block">
+                    <Select value={pkoSubtype} onValueChange={(v) => setPkoSubtype(v as PkoSubtype)}>
+                      <SelectTrigger className="" />
+                      <SelectContent>
+                        <SelectItem value="INCOME_FROM_CUSTOMER">
+                          {t("banking.cash.subtypeIncomeCustomer")}
+                        </SelectItem>
+                        <SelectItem value="RETURN_FROM_ACCOUNTABLE">
+                          {t("banking.cash.subtypeReturnAccountable")}
+                        </SelectItem>
+                        <SelectItem value="WITHDRAWAL_FROM_BANK">
+                          {t("banking.cash.subtypeBankWithdrawal")}
+                        </SelectItem>
+                        <SelectItem value="OTHER">{t("banking.cash.subtypeOther")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </span>
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className={MODAL_FIELD_LABEL_CLASS}>
+                    {t("banking.cash.amount")}
                     <NumericAmountInput
-                      fieldVariant="form"
+                      fieldVariant="modal"
+                      className="mt-1 block w-full"
                       value={pkoAmount}
                       onValueChange={setPkoAmount}
                       required
                     />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600">{t("banking.cash.currency")}</label>
-                    <CurrencySelect
-                      className={FORM_INPUT_CLASS}
-                      value={pkoCurrency}
-                      onValueChange={setPkoCurrency}
-                    />
-                  </div>
+                  </label>
+                  <label className={MODAL_FIELD_LABEL_CLASS}>
+                    {t("banking.cash.currency")}
+                    <span className="mt-1 block">
+                      <CurrencySelect value={pkoCurrency} onValueChange={setPkoCurrency} />
+                    </span>
+                  </label>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.purpose")}</label>
-                  <input className={FORM_INPUT_CLASS} value={pkoPurpose} onChange={(e) => setPkoPurpose(e.target.value)} required />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.cashAccount")}</label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.purpose")}
+                  <input
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
+                    value={pkoPurpose}
+                    onChange={(e) => setPkoPurpose(e.target.value)}
+                    required
+                  />
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.cashAccount")}
                   <CashAccountSelect
-                    className={FORM_INPUT_CLASS}
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
                     currency={pkoCurrency}
                     catalog={cashCatalog}
                     value={pkoCash}
                     onChange={setPkoCash}
                   />
-                </div>
+                </label>
                 {(pkoSubtype === "OTHER" || pkoSubtype === "RETURN_FROM_ACCOUNTABLE") && (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600">{t("banking.cash.offsetAccount")}</label>
-                    <input className={FORM_INPUT_CLASS} value={pkoOffset} onChange={(e) => setPkoOffset(e.target.value)} />
-                  </div>
+                  <label className={MODAL_FIELD_LABEL_CLASS}>
+                    {t("banking.cash.offsetAccount")}
+                    <input
+                      className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
+                      value={pkoOffset}
+                      onChange={(e) => setPkoOffset(e.target.value)}
+                    />
+                  </label>
                 )}
                 {pkoSubtype === "INCOME_FROM_CUSTOMER" && (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600">{t("banking.cash.counterparty")}</label>
+                  <label className={MODAL_FIELD_LABEL_CLASS}>
+                    {t("banking.cash.counterparty")}
                     <AsyncCombobox<CounterpartySearchRow>
+                      className="mt-1 w-full"
                       value={pkoCpId}
                       onChange={(id, item) => {
                         setPkoCpId(id);
@@ -1122,15 +1208,14 @@ export default function BankingCashPage() {
                       getOptionLabel={(c) => `${c.name}${c.taxId ? ` (${String(c.taxId)})` : ""}`}
                       placeholder="—"
                       selectedLabel={pkoCpLabel}
-                      className={FORM_INPUT_CLASS}
                     />
-                  </div>
+                  </label>
                 )}
                 {pkoSubtype === "RETURN_FROM_ACCOUNTABLE" && (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600">{t("banking.cash.employee")}</label>
+                  <label className={MODAL_FIELD_LABEL_CLASS}>
+                    {t("banking.cash.employee")}
                     <select
-                      className={FORM_INPUT_CLASS}
+                      className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
                       value={pkoEmpId}
                       onChange={(e) => setPkoEmpId(e.target.value)}
                     >
@@ -1141,12 +1226,12 @@ export default function BankingCashPage() {
                         </option>
                       ))}
                     </select>
-                  </div>
+                  </label>
                 )}
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.cashFlowItem")}</label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.cashFlowItem")}
                   <select
-                    className={FORM_INPUT_CLASS}
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
                     value={pkoCfId}
                     onChange={(e) => setPkoCfId(e.target.value)}
                     required
@@ -1157,11 +1242,11 @@ export default function BankingCashPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.cashDeskOptional")}</label>
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.cashDeskOptional")}
                   <select
-                    className={FORM_INPUT_CLASS}
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
                     value={pkoDeskId}
                     onChange={(e) => setPkoDeskId(e.target.value)}
                   >
@@ -1172,22 +1257,23 @@ export default function BankingCashPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.notes")}</label>
-                  <textarea className={FORM_TEXTAREA_CLASS} value={pkoNotes} onChange={(e) => setPkoNotes(e.target.value)} rows={2} />
-                </div>
-                <div className="flex gap-2 justify-end pt-2">
-                  <button
-                    type="button"
-                    className={SECONDARY_BUTTON_CLASS}
-                    onClick={() => setPkoOpen(false)}
-                  >
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.notes")}
+                  <textarea
+                    className={`mt-1 block w-full ${MODAL_TEXTAREA_CLASS}`}
+                    value={pkoNotes}
+                    onChange={(e) => setPkoNotes(e.target.value)}
+                    rows={2}
+                  />
+                </label>
+                <div className={MODAL_FOOTER_ACTIONS_CLASS}>
+                  <Button type="button" variant="outline" className={MODAL_FOOTER_BUTTON_CLASS} onClick={() => setPkoOpen(false)}>
                     {t("common.cancel")}
-                  </button>
-                  <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                  </Button>
+                  <Button type="submit" variant="primary" className={MODAL_FOOTER_BUTTON_CLASS}>
                     {t("banking.cash.saveDraft")}
-                  </button>
+                  </Button>
                 </div>
               </form>
             </div>
@@ -1196,89 +1282,111 @@ export default function BankingCashPage() {
 
         {rkoOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-              <h3 className="text-lg font-semibold m-0">{t("banking.cash.rkoTitle")}</h3>
-              <form className="mt-4 space-y-3" onSubmit={submitRko}>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.date")}</label>
+            <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-lg`} role="dialog" aria-modal="true">
+              <header className="flex shrink-0 items-start justify-between gap-3">
+                <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
+                  {t("banking.cash.rkoTitle")}
+                </h3>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={MODAL_CLOSE_BUTTON_CLASS}
+                  onClick={() => setRkoOpen(false)}
+                  aria-label={t("common.close")}
+                >
+                  <X className="h-4 w-4 shrink-0" aria-hidden />
+                </Button>
+              </header>
+              <form className="mt-4 flex min-h-0 flex-1 flex-col space-y-4" onSubmit={submitRko}>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.date")}
                   <DatePicker
-                    fieldVariant="form"
+                    fieldVariant="modal"
+                    className="mt-1 block w-full"
                     value={rkoDate}
                     onChange={setRkoDate}
                     required
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.rkoSubtype")}</label>
-                  <Select
-                    className={FORM_INPUT_CLASS}
-                    value={rkoSubtype}
-                    onValueChange={(v) => setRkoSubtype(v as RkoSubtype)}
-                  >
-                    <SelectTrigger className="" />
-                    <SelectContent>
-                      <SelectItem value="SALARY">{t("banking.cash.subtypeSalary")}</SelectItem>
-                      <SelectItem value="SUPPLIER_PAYMENT">{t("banking.cash.subtypeSupplier")}</SelectItem>
-                      <SelectItem value="ACCOUNTABLE_ISSUE">
-                        {t("banking.cash.subtypeAccountableIssue")}
-                      </SelectItem>
-                      <SelectItem value="BANK_DEPOSIT">{t("banking.cash.subtypeBankDeposit")}</SelectItem>
-                      <SelectItem value="OTHER">{t("banking.cash.subtypeOther")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600">{t("banking.cash.amount")}</label>
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.rkoSubtype")}
+                  <span className="mt-1 block">
+                    <Select value={rkoSubtype} onValueChange={(v) => setRkoSubtype(v as RkoSubtype)}>
+                      <SelectTrigger className="" />
+                      <SelectContent>
+                        <SelectItem value="SALARY">{t("banking.cash.subtypeSalary")}</SelectItem>
+                        <SelectItem value="SUPPLIER_PAYMENT">{t("banking.cash.subtypeSupplier")}</SelectItem>
+                        <SelectItem value="ACCOUNTABLE_ISSUE">
+                          {t("banking.cash.subtypeAccountableIssue")}
+                        </SelectItem>
+                        <SelectItem value="BANK_DEPOSIT">{t("banking.cash.subtypeBankDeposit")}</SelectItem>
+                        <SelectItem value="OTHER">{t("banking.cash.subtypeOther")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </span>
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className={MODAL_FIELD_LABEL_CLASS}>
+                    {t("banking.cash.amount")}
                     <NumericAmountInput
-                      fieldVariant="form"
+                      fieldVariant="modal"
+                      className="mt-1 block w-full"
                       value={rkoAmount}
                       onValueChange={setRkoAmount}
                       required
                     />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600">{t("banking.cash.currency")}</label>
-                    <CurrencySelect
-                      className={FORM_INPUT_CLASS}
-                      value={rkoCurrency}
-                      onValueChange={setRkoCurrency}
-                    />
-                  </div>
+                  </label>
+                  <label className={MODAL_FIELD_LABEL_CLASS}>
+                    {t("banking.cash.currency")}
+                    <span className="mt-1 block">
+                      <CurrencySelect value={rkoCurrency} onValueChange={setRkoCurrency} />
+                    </span>
+                  </label>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.withholdingTax")}</label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.withholdingTax")}
                   <NumericAmountInput
-                    fieldVariant="form"
+                    fieldVariant="modal"
+                    className="mt-1 block w-full"
                     value={rkoWithholding}
                     onValueChange={setRkoWithholding}
                     placeholder="0"
                   />
-                  <p className="mt-1 text-[11px] text-slate-500 m-0">{t("banking.cash.withholdingHint")}</p>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.purpose")}</label>
-                  <input className={FORM_INPUT_CLASS} value={rkoPurpose} onChange={(e) => setRkoPurpose(e.target.value)} required />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.cashAccount")}</label>
+                  <p className="mb-0 mt-1.5 text-[13px] text-[#7F8C8D]">{t("banking.cash.withholdingHint")}</p>
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.purpose")}
+                  <input
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
+                    value={rkoPurpose}
+                    onChange={(e) => setRkoPurpose(e.target.value)}
+                    required
+                  />
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.cashAccount")}
                   <CashAccountSelect
-                    className={FORM_INPUT_CLASS}
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
                     currency={rkoCurrency}
                     catalog={cashCatalog}
                     value={rkoCash}
                     onChange={setRkoCash}
                   />
-                </div>
+                </label>
                 {rkoSubtype === "OTHER" && (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600">{t("banking.cash.offsetAccount")}</label>
-                    <input className={FORM_INPUT_CLASS} value={rkoOffset} onChange={(e) => setRkoOffset(e.target.value)} />
-                  </div>
+                  <label className={MODAL_FIELD_LABEL_CLASS}>
+                    {t("banking.cash.offsetAccount")}
+                    <input
+                      className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
+                      value={rkoOffset}
+                      onChange={(e) => setRkoOffset(e.target.value)}
+                    />
+                  </label>
                 )}
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.counterparty")}</label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.counterparty")}
                   <AsyncCombobox<CounterpartySearchRow>
+                    className="mt-1 w-full"
                     value={rkoCpId}
                     onChange={(id, item) => {
                       setRkoCpId(id);
@@ -1290,12 +1398,15 @@ export default function BankingCashPage() {
                     getOptionLabel={(c) => `${c.name}${c.taxId ? ` (${String(c.taxId)})` : ""}`}
                     placeholder="—"
                     selectedLabel={rkoCpLabel}
-                    className={FORM_INPUT_CLASS}
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.employee")}</label>
-                  <select className={FORM_INPUT_CLASS} value={rkoEmpId} onChange={(e) => setRkoEmpId(e.target.value)}>
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.employee")}
+                  <select
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
+                    value={rkoEmpId}
+                    onChange={(e) => setRkoEmpId(e.target.value)}
+                  >
                     <option value="">—</option>
                     {employees.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -1303,11 +1414,11 @@ export default function BankingCashPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.cashFlowItem")}</label>
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.cashFlowItem")}
                   <select
-                    className={FORM_INPUT_CLASS}
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
                     value={rkoCfId}
                     onChange={(e) => setRkoCfId(e.target.value)}
                     required
@@ -1318,11 +1429,11 @@ export default function BankingCashPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.cashDeskOptional")}</label>
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.cashDeskOptional")}
                   <select
-                    className={FORM_INPUT_CLASS}
+                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
                     value={rkoDeskId}
                     onChange={(e) => setRkoDeskId(e.target.value)}
                   >
@@ -1333,22 +1444,23 @@ export default function BankingCashPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600">{t("banking.cash.notes")}</label>
-                  <textarea className={FORM_TEXTAREA_CLASS} value={rkoNotes} onChange={(e) => setRkoNotes(e.target.value)} rows={2} />
-                </div>
-                <div className="flex gap-2 justify-end pt-2">
-                  <button
-                    type="button"
-                    className={SECONDARY_BUTTON_CLASS}
-                    onClick={() => setRkoOpen(false)}
-                  >
+                </label>
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("banking.cash.notes")}
+                  <textarea
+                    className={`mt-1 block w-full ${MODAL_TEXTAREA_CLASS}`}
+                    value={rkoNotes}
+                    onChange={(e) => setRkoNotes(e.target.value)}
+                    rows={2}
+                  />
+                </label>
+                <div className={MODAL_FOOTER_ACTIONS_CLASS}>
+                  <Button type="button" variant="outline" className={MODAL_FOOTER_BUTTON_CLASS} onClick={() => setRkoOpen(false)}>
                     {t("common.cancel")}
-                  </button>
-                  <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                  </Button>
+                  <Button type="submit" variant="primary" className={MODAL_FOOTER_BUTTON_CLASS}>
                     {t("banking.cash.saveDraft")}
-                  </button>
+                  </Button>
                 </div>
               </form>
             </div>

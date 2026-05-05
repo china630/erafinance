@@ -48,7 +48,7 @@ type PlatformInvoiceRow = {
 
 function statusBadgeClass(status: string): string {
   const base =
-    "inline-flex items-center rounded-[2px] border px-2 py-0.5 text-[12px] font-semibold";
+    "inline-flex items-center rounded-lg border px-2 py-0.5 text-[12px] font-semibold";
   switch (status) {
     case "PAID":
       return `${base} border-[#A3D9A5] bg-[#E8F5E9] text-[#1B5E20]`;
@@ -193,7 +193,7 @@ export default function PaymentHistoryPage() {
       />
 
       {loadErr && (
-        <p className="text-[13px] text-[#B71C1C] bg-[#FFEBEE] border border-[#EF9A9A] rounded-[2px] px-3 py-2">
+        <p className="text-[13px] text-[#B71C1C] bg-[#FFEBEE] border border-[#EF9A9A] rounded-lg px-3 py-2">
           {t("paymentHistory.loadErr")}: {loadErr}
         </p>
       )}

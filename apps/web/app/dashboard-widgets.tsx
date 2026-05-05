@@ -375,7 +375,7 @@ export function DashboardWidgets() {
       {closePrompt?.show && closePrompt.periodKey ? (
         <div
           id="close-period-section"
-          className="mb-6 scroll-mt-24 rounded-[2px] border border-amber-100/90 bg-amber-50/85 px-4 py-3.5 shadow-sm"
+          className="mb-6 scroll-mt-24 rounded-lg border border-amber-100/90 bg-amber-50/85 px-4 py-3.5 shadow-sm"
         >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
@@ -769,7 +769,7 @@ export function DashboardWidgets() {
                       if (!active || !payload?.length) return null;
                       const value = (payload[0] as { value: number }).value;
                       return (
-                        <div className="rounded-[2px] border border-[#D5DADF] bg-white px-3 py-2 text-[13px] shadow-sm">
+                        <div className="rounded-lg border border-[#D5DADF] bg-white px-3 py-2 text-[13px] shadow-sm">
                           <div className="text-[#7F8C8D]">
                             {t("dashboard.dateLabel")} {label}
                           </div>

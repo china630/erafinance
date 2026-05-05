@@ -34,18 +34,18 @@ export default function Home() {
       </div>
 
       {!ready ? null : !token ? (
-        <div className="rounded-[2px] border border-[#D5DADF] bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-[#D5DADF] bg-white p-6 shadow-sm">
           <p className="mb-4 text-[13px] text-[#7F8C8D]">{t("home.loginPrompt")}</p>
           <div className="flex flex-wrap gap-3">
             <Link
               href="/login"
-              className="inline-flex h-8 items-center justify-center rounded-[2px] bg-[#2980B9] px-4 text-[13px] font-semibold text-white shadow-sm transition hover:bg-[#2471A3]"
+              className="inline-flex h-8 items-center justify-center rounded-lg bg-[#2980B9] px-4 text-[13px] font-semibold text-white shadow-sm transition hover:bg-[#2471A3]"
             >
               {t("nav.login")}
             </Link>
             <Link
               href="/register"
-              className="inline-flex h-8 items-center justify-center rounded-[2px] border border-[#D5DADF] bg-white px-4 text-[13px] font-medium text-[#34495E] shadow-sm transition hover:bg-[#F4F5F7]"
+              className="inline-flex h-8 items-center justify-center rounded-lg border border-[#D5DADF] bg-white px-4 text-[13px] font-medium text-[#34495E] shadow-sm transition hover:bg-[#F4F5F7]"
             >
               {t("nav.register")}
             </Link>

@@ -109,6 +109,9 @@ export class SubscriptionReadOnlyGuard implements CanActivate {
     if (p === "/api/billing/checkout" && method === "POST") {
       return true;
     }
+    if (p.startsWith("/api/notifications") && method === "PATCH") {
+      return true;
+    }
     return false;
   }
 

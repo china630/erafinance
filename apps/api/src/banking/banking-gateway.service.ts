@@ -1,6 +1,11 @@
-import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { Inject } from "@nestjs/common";
-import { UserRole } from "@dayday/database";
+import { Decimal, UserRole } from "@dayday/database";
 import { AuditService } from "../audit/audit.service";
 import { assertMayAccessPayrollFinance } from "../auth/policies/hr-payroll.policy";
 import { PrismaService } from "../prisma/prisma.service";
@@ -302,6 +307,133 @@ export class BankingGatewayService {
       },
     });
     return updated;
+  }
+
+  private async resolveDefaultFromIban(organizationId: string): Promise<string | null> {
+    const acc = await this.prisma.organizationBankAccount.findFirst({
+      where: { organizationId, isArchived: false, isFrozen: false },
+      orderBy: { createdAt: "asc" },
+      select: { iban: true },
+    });
+    const iban = acc?.iban?.trim();
+    return iban && iban.length > 0 ? iban : null;
+  }
+
+  /**
+   * Отправка уже существующего черновика PENDING (без создания новой строки).
+   */
+  private async sendExistingPendingDraft(
+    organizationId: string,
+    draft: {
+      id: string;
+      organizationId: string;
+      status: string;
+      amount: unknown;
+      currency: string;
+      recipientIban: string;
+      purpose: string;
+      provider: string | null;
+    },
+    fromAccountIban: string,
+  ): Promise<void> {
+    if (draft.organizationId !== organizationId) {
+      throw new BadRequestException("draft organization mismatch");
+    }
+    if (draft.status !== "PENDING") {
+      throw new BadRequestException("draft is not PENDING");
+    }
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true },
+    });
+    const root = asRecord(org?.settings);
+    const direct = asRecord(root.bankingDirect);
+    const preferred =
+      normalizeProviderKey(draft.provider) ??
+      normalizeProviderKey(direct.primaryProvider) ??
+      normalizeProviderKey(root.bankKey) ??
+      normalizeProviderKey(root.bankingProvider) ??
+      "pasha";
+    const adapter = this.providers.getProvider(preferred);
+    this.assertCircuitClosed(preferred);
+    const amountStr = new Decimal(draft.amount).toFixed(4);
+    try {
+      const sent = await adapter.sendPaymentDraft({
+        fromAccountIban,
+        toIban: draft.recipientIban,
+        amount: amountStr,
+        currency: String(draft.currency || "AZN")
+          .trim()
+          .toUpperCase(),
+        purpose: draft.purpose,
+        reference: `bp-${draft.id.slice(0, 8)}`,
+      });
+      this.onProviderSuccess(preferred);
+      await (this.prisma as any).bankPaymentDraft.update({
+        where: { id: draft.id },
+        data: {
+          status: "SENT",
+          providerDraftId: sent.draftId ?? null,
+          sentAt: new Date(),
+        },
+      });
+    } catch (e) {
+      this.onProviderFailure(preferred, e);
+      const message = e instanceof Error ? e.message : String(e);
+      await (this.prisma as any).bankPaymentDraft.update({
+        where: { id: draft.id },
+        data: {
+          status: "REJECTED",
+          rejectionReason: message.slice(0, 500),
+        },
+      });
+      throw e;
+    }
+  }
+
+  async sendAllPendingPaymentDrafts(
+    organizationId: string,
+    fromAccountIbanOverride?: string,
+  ): Promise<{
+    fromAccountIban: string | null;
+    attempted: number;
+    sent: number;
+    failed: number;
+    results: Array<{ id: string; ok: boolean; error?: string }>;
+  }> {
+    const drafts = await (this.prisma as any).bankPaymentDraft.findMany({
+      where: { organizationId, status: "PENDING" },
+      orderBy: { createdAt: "asc" },
+    });
+    if (drafts.length === 0) {
+      return {
+        fromAccountIban: fromAccountIbanOverride?.trim() || null,
+        attempted: 0,
+        sent: 0,
+        failed: 0,
+        results: [],
+      };
+    }
+    const fromIban =
+      fromAccountIbanOverride?.trim() || (await this.resolveDefaultFromIban(organizationId));
+    if (!fromIban) {
+      throw new BadRequestException(
+        "fromAccountIban required: add an organization bank account with IBAN in settings, or pass fromAccountIban in the request body",
+      );
+    }
+    const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+    for (const d of drafts) {
+      try {
+        await this.sendExistingPendingDraft(organizationId, d, fromIban);
+        results.push({ id: d.id, ok: true });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        results.push({ id: d.id, ok: false, error: message });
+      }
+    }
+    const sent = results.filter((r) => r.ok).length;
+    const failed = results.filter((r) => !r.ok).length;
+    return { fromAccountIban: fromIban, attempted: drafts.length, sent, failed, results };
   }
 
   async sendPaymentDraft(

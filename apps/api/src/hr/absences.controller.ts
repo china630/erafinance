@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -23,6 +24,7 @@ import type { AuthUser } from "../auth/types/auth-user";
 import { OrganizationId } from "../common/org-id.decorator";
 import { DepartmentHeadScopeService } from "./department-head-scope.service";
 import { AbsencesService } from "./absences.service";
+import { ListAbsencesQueryDto } from "./dto/list-absences-query.dto";
 import { CreateAbsenceDto } from "./dto/create-absence.dto";
 import { SickPayCalcDto } from "./dto/sick-pay-calc.dto";
 import { UpdateAbsenceDto } from "./dto/update-absence.dto";
@@ -50,12 +52,28 @@ export class AbsencesController {
   async list(
     @OrganizationId() organizationId: string,
     @CurrentUser() user: AuthUser,
+    @Query() query: ListAbsencesQueryDto,
   ) {
     const role = requireOrgRole(user);
-    const departmentId = isDepartmentHeadRole(role)
-      ? await this.scope.resolveManagedDepartmentId(organizationId, user.userId)
+    let departmentId = query.departmentId;
+    if (isDepartmentHeadRole(role)) {
+      departmentId =
+        (await this.scope.resolveManagedDepartmentId(
+          organizationId,
+          user.userId,
+        )) ?? undefined;
+    }
+    const dateFrom = query.dateFrom
+      ? new Date(`${query.dateFrom.slice(0, 10)}T00:00:00.000Z`)
       : undefined;
-    return this.absences.list(organizationId, departmentId);
+    const dateTo = query.dateTo
+      ? new Date(`${query.dateTo.slice(0, 10)}T23:59:59.999Z`)
+      : undefined;
+    return this.absences.list(organizationId, {
+      departmentId,
+      dateFrom,
+      dateTo,
+    });
   }
 
   @Get(":id")

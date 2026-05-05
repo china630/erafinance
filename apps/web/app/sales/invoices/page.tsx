@@ -2,7 +2,16 @@
 
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { subscribeListRefresh } from "../../../lib/list-refresh-bus";
-import { CheckCircle2, Eye, FileStack, Loader2, Send, SendHorizontal, Wallet } from "lucide-react";
+import {
+  CheckCircle2,
+  Eye,
+  FileStack,
+  Loader2,
+  MoreHorizontal,
+  Send,
+  SendHorizontal,
+  Wallet,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "../../../lib/api-client";
@@ -28,6 +37,7 @@ import { useRequireAuth } from "../../../lib/use-require-auth";
 import { PageHeader } from "../../../components/layout/page-header";
 import { EmptyState } from "../../../components/empty-state";
 import { CreateInvoiceModal, ViewInvoiceModal } from "../../../components/sales/modals";
+import { CreateShipmentModal } from "../../../components/inventory/create-shipment-modal";
 
 type Row = {
   id: string;
@@ -38,7 +48,20 @@ type Row = {
   paidTotal?: string;
   remaining?: string;
   counterparty: { name: string };
+  revenueRecognized?: boolean;
+  inventorySettled?: boolean;
+  revenuePostedTransactionId?: string | null;
+  hasGoodsLines?: boolean;
 };
+
+function canCreateShipmentOrder(r: Row): boolean {
+  return !!(
+    r.revenueRecognized &&
+    !r.inventorySettled &&
+    r.hasGoodsLines &&
+    r.revenuePostedTransactionId
+  );
+}
 
 export default function InvoicesPage() {
   const { t } = useTranslation();
@@ -55,6 +78,9 @@ export default function InvoicesPage() {
   const [paySubmitting, setPaySubmitting] = useState(false);
   const [invoiceActionBusy, setInvoiceActionBusy] = useState<string | null>(null);
   const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
+  const [invoiceActionsMenuId, setInvoiceActionsMenuId] = useState<string | null>(null);
+  const [shipmentModalOpen, setShipmentModalOpen] = useState(false);
+  const [shipmentBasisTransactionId, setShipmentBasisTransactionId] = useState<string | undefined>();
 
   const invoiceFromUrl = search.get("invoice");
   useEffect(() => {
@@ -104,6 +130,23 @@ export default function InvoicesPage() {
     if (!ready || !token) return;
     return subscribeListRefresh("invoices", () => void load());
   }, [load, ready, token]);
+
+  useEffect(() => {
+    if (!invoiceActionsMenuId) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      const wraps = document.querySelectorAll<HTMLElement>(
+        `[data-invoice-actions-wrap="${invoiceActionsMenuId}"]`,
+      );
+      let inside = false;
+      wraps.forEach((el) => {
+        if (el.contains(t)) inside = true;
+      });
+      if (!inside) setInvoiceActionsMenuId(null);
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [invoiceActionsMenuId]);
 
   useEffect(() => {
     if (loading) return;
@@ -218,7 +261,7 @@ export default function InvoicesPage() {
             {rows.map((r) => (
               <div
                 key={r.id}
-                className="rounded-[2px] border border-[#D5DADF] bg-white p-4 shadow-sm text-[13px] space-y-2"
+                className="rounded-2xl border border-[#D5DADF] bg-white p-4 shadow-sm text-[13px] space-y-2"
               >
                 <div className="font-semibold text-[#34495E]">{r.number}</div>
                 <div className="text-[#34495E]">{r.counterparty.name}</div>
@@ -321,6 +364,42 @@ export default function InvoicesPage() {
                       <Send className="h-4 w-4 text-[#2980B9]" aria-hidden />
                     )}
                   </button>
+                  {canCreateShipmentOrder(r) ? (
+                    <div className="relative inline-block" data-invoice-actions-wrap={r.id}>
+                      <button
+                        type="button"
+                        disabled={invoiceActionBusy !== null}
+                        className="rounded-lg border border-[#D5DADF] bg-white px-2 py-1.5 text-[#34495E] hover:bg-[#F8F9FA]"
+                        aria-expanded={invoiceActionsMenuId === r.id}
+                        aria-haspopup="menu"
+                        aria-label={t("invoices.actionsMenuAria")}
+                        onClick={() =>
+                          setInvoiceActionsMenuId((cur) => (cur === r.id ? null : r.id))
+                        }
+                      >
+                        <MoreHorizontal className="h-4 w-4" aria-hidden />
+                      </button>
+                      {invoiceActionsMenuId === r.id ? (
+                        <div
+                          className="absolute right-0 z-50 mt-1 min-w-[12rem] rounded-lg border border-[#D5DADF] bg-white py-1 text-[13px] text-[#34495E] shadow-md"
+                          role="menu"
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="block w-full px-3 py-2 text-left hover:bg-[#F1F5F9]"
+                            onClick={() => {
+                              setInvoiceActionsMenuId(null);
+                              setShipmentBasisTransactionId(r.revenuePostedTransactionId ?? undefined);
+                              setShipmentModalOpen(true);
+                            }}
+                          >
+                            {t("invoices.createShipmentOrder")}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
                 {payForId === r.id && (
                   <div className="pt-3 border-t border-[#D5DADF] flex flex-wrap gap-2">
@@ -328,14 +407,14 @@ export default function InvoicesPage() {
                       type="text"
                       value={payAmount}
                       onChange={(e) => setPayAmount(e.target.value)}
-                      className="border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-[13px] w-28"
+                      className="border border-[#D5DADF] rounded-lg px-2 py-1.5 text-[13px] w-28"
                       placeholder={t("invoices.payAmount")}
                     />
                     <input
                       type="date"
                       value={payDate}
                       onChange={(e) => setPayDate(e.target.value)}
-                      className="border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-[13px]"
+                      className="border border-[#D5DADF] rounded-lg px-2 py-1.5 text-[13px]"
                     />
                     <button
                       type="button"
@@ -348,7 +427,7 @@ export default function InvoicesPage() {
                     <button
                       type="button"
                       onClick={() => setPayForId(null)}
-                      className="px-3 py-1.5 rounded-[2px] border border-[#D5DADF] text-[13px]"
+                      className="px-3 py-1.5 rounded-lg border border-[#D5DADF] text-[13px]"
                     >
                       {t("invoices.payCancel")}
                     </button>
@@ -376,7 +455,7 @@ export default function InvoicesPage() {
                     {t("invoices.remainingCol")}
                   </th>
                   <th
-                    className={`${DATA_TABLE_TH_RIGHT_CLASS} min-w-[200px] w-[200px]`}
+                    className={`${DATA_TABLE_TH_RIGHT_CLASS} min-w-[240px] w-[240px]`}
                   >
                     {t("invoices.actions")}
                   </th>
@@ -405,7 +484,7 @@ export default function InvoicesPage() {
                       <td className={`hidden xl:table-cell ${DATA_TABLE_TD_RIGHT_CLASS}`}>
                         {r.remaining != null ? formatMoneyAzn(r.remaining) : "—"}
                       </td>
-                      <td className={`${DATA_TABLE_ACTIONS_TD_CLASS} min-w-[200px] w-[200px]`}>
+                      <td className={`${DATA_TABLE_ACTIONS_TD_CLASS} min-w-[240px] w-[240px]`}>
                         <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
@@ -484,6 +563,44 @@ export default function InvoicesPage() {
                               <Send className="h-4 w-4 text-[#2980B9]" aria-hidden />
                             )}
                           </button>
+                          {canCreateShipmentOrder(r) ? (
+                            <div className="relative inline-block" data-invoice-actions-wrap={r.id}>
+                              <button
+                                type="button"
+                                disabled={invoiceActionBusy !== null}
+                                className="rounded-lg border border-[#D5DADF] bg-white px-2 py-1.5 text-[#34495E] hover:bg-[#F8F9FA]"
+                                aria-expanded={invoiceActionsMenuId === r.id}
+                                aria-haspopup="menu"
+                                aria-label={t("invoices.actionsMenuAria")}
+                                onClick={() =>
+                                  setInvoiceActionsMenuId((cur) => (cur === r.id ? null : r.id))
+                                }
+                              >
+                                <MoreHorizontal className="h-4 w-4" aria-hidden />
+                              </button>
+                              {invoiceActionsMenuId === r.id ? (
+                                <div
+                                  className="absolute right-0 z-50 mt-1 min-w-[12rem] rounded-lg border border-[#D5DADF] bg-white py-1 text-[13px] text-[#34495E] shadow-md"
+                                  role="menu"
+                                >
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="block w-full px-3 py-2 text-left hover:bg-[#F1F5F9]"
+                                    onClick={() => {
+                                      setInvoiceActionsMenuId(null);
+                                      setShipmentBasisTransactionId(
+                                        r.revenuePostedTransactionId ?? undefined,
+                                      );
+                                      setShipmentModalOpen(true);
+                                    }}
+                                  >
+                                    {t("invoices.createShipmentOrder")}
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -497,7 +614,7 @@ export default function InvoicesPage() {
                                 type="text"
                                 value={payAmount}
                                 onChange={(e) => setPayAmount(e.target.value)}
-                                className="border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-[13px] w-36"
+                                className="border border-[#D5DADF] rounded-lg px-2 py-1.5 text-[13px] w-36"
                               />
                             </label>
                             <label className="flex flex-col gap-1 text-xs font-semibold text-[#475569]">
@@ -506,7 +623,7 @@ export default function InvoicesPage() {
                                 type="date"
                                 value={payDate}
                                 onChange={(e) => setPayDate(e.target.value)}
-                                className="border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-[13px]"
+                                className="border border-[#D5DADF] rounded-lg px-2 py-1.5 text-[13px]"
                               />
                             </label>
                             <button
@@ -520,7 +637,7 @@ export default function InvoicesPage() {
                             <button
                               type="button"
                               onClick={() => setPayForId(null)}
-                              className="px-3 py-1.5 rounded-[2px] border border-[#D5DADF] text-[13px]"
+                              className="px-3 py-1.5 rounded-lg border border-[#D5DADF] text-[13px]"
                             >
                               {t("invoices.payCancel")}
                             </button>
@@ -542,6 +659,15 @@ export default function InvoicesPage() {
         invoiceId={viewInvoiceId}
         onClose={closeInvoiceView}
         onInvoicesUpdated={() => void load()}
+      />
+      <CreateShipmentModal
+        open={shipmentModalOpen}
+        initialBasisTransactionId={shipmentBasisTransactionId}
+        onClose={() => {
+          setShipmentModalOpen(false);
+          setShipmentBasisTransactionId(undefined);
+        }}
+        onSaved={() => void load()}
       />
     </div>
   );

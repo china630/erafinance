@@ -173,7 +173,7 @@ export default function EmployeesPage() {
             {rows.map((r) => (
               <div
                 key={r.id}
-                className="rounded-[2px] border border-[#D5DADF] bg-white p-4 shadow-sm text-[13px] space-y-1"
+                className="rounded-2xl border border-[#D5DADF] bg-white p-4 shadow-sm text-[13px] space-y-1"
               >
                 <div className="font-semibold text-[#34495E]">
                   {r.lastName} {r.firstName}

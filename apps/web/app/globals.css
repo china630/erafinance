@@ -25,7 +25,7 @@
     box-sizing: border-box;
     background-color: #ffffff;
     border: 1px solid #d5dadf; /* DESIGN — border-muted */
-    border-radius: 2px;
+    border-radius: 0.5rem; /* ~Tailwind rounded-lg — DESIGN.md */
     padding: 0.5rem 0.75rem; /* py-2 px-3 */
     min-width: 0;
   }
@@ -93,6 +93,22 @@
   width: max-content;
   min-width: 100%;
   max-width: none;
+}
+
+/* Severity tokens for in-app notifications (align with shadcn-style names) */
+@layer utilities {
+  .text-primary {
+    color: #2980b9;
+  }
+  .text-warning {
+    color: #d97706;
+  }
+  .text-destructive {
+    color: #dc2626;
+  }
+  .border-destructive {
+    border-color: #dc2626;
+  }
 }
 
 /* Thin scrollbars — all scrollable overflow (v8.6) */

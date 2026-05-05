@@ -2,25 +2,33 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, ChevronRight, Link2Off, Plus, Send, Unlink2 } from "lucide-react";
+import { Building2, Plus, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../lib/api-client";
-import { FORM_INPUT_CLASS } from "../../lib/form-styles";
-import type { AuthUser, OrgSummary } from "../../lib/auth-context";
+import type { OrgSummary } from "../../lib/auth-context";
 import { useAuth } from "../../lib/auth-context";
 import {
   CARD_CONTAINER_CLASS,
-  LINK_ACCENT_CLASS,
+  GHOST_BUTTON_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
+  MODAL_FIELD_LABEL_CLASS,
+  MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
+  MODAL_INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
   SECONDARY_BUTTON_CLASS,
 } from "../../lib/design-system";
 import { useRequireAuth } from "../../lib/use-require-auth";
-import { Badge } from "../../components/ui/badge";
 import { VoenRequestModal } from "../../components/companies/voen-request-modal";
 import { CreateCompanyModal } from "../../components/companies/create-company-modal";
 import { CreateHoldingModal } from "../../components/holding/create-holding-modal";
 import { PageHeader } from "../../components/layout/page-header";
+import { CompanyCard, type CompanyCardItem } from "../../components/companies/company-card";
+import { Button } from "../../components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "../../components/ui/select";
+import { X } from "lucide-react";
 
 type OrganizationsTree = {
   holdings: Array<{
@@ -45,8 +53,6 @@ type OrganizationsTree = {
 type HoldingListItem = {
   id: string;
   name: string;
-  baseCurrency?: string | null;
-  organizations?: unknown[];
 };
 
 export default function CompaniesPage() {
@@ -63,9 +69,8 @@ export default function CompaniesPage() {
   const [holdings, setHoldings] = useState<HoldingListItem[]>([]);
   const [holdingUiErr, setHoldingUiErr] = useState<string | null>(null);
   const [holdingBusyOrgId, setHoldingBusyOrgId] = useState<string | null>(null);
-  const [assignHoldingByOrg, setAssignHoldingByOrg] = useState<
-    Record<string, string>
-  >({});
+  const [attachDialogOrg, setAttachDialogOrg] = useState<CompanyCardItem | null>(null);
+  const [attachHoldingId, setAttachHoldingId] = useState("");
 
   const loadHoldingUi = useCallback(async () => {
     setHoldingUiErr(null);
@@ -99,13 +104,16 @@ export default function CompaniesPage() {
     return m;
   }, [organizations]);
 
-  const roleVariant = useCallback((role: string) => {
-    if (role === "OWNER") return "owner";
-    if (role === "ADMIN") return "admin";
-    if (role === "ACCOUNTANT") return "accountant";
-    if (role === "USER") return "user";
-    return "neutral";
-  }, []);
+  const roleVariant = useCallback(
+    (role: string): "neutral" | "owner" | "admin" | "accountant" | "user" => {
+      if (role === "OWNER") return "owner";
+      if (role === "ADMIN") return "admin";
+      if (role === "ACCOUNTANT") return "accountant";
+      if (role === "USER") return "user";
+      return "neutral";
+    },
+    [],
+  );
 
   const roleLabel = useCallback(
     (role: string) =>
@@ -123,14 +131,14 @@ export default function CompaniesPage() {
     [orgRoleById],
   );
 
-  async function attachToHolding(organizationId: string) {
-    const holdingId = (assignHoldingByOrg[organizationId] ?? "").trim();
-    if (!holdingId) return;
+  async function attachToHolding(organizationId: string, holdingId: string) {
+    const safeHoldingId = holdingId.trim();
+    if (!safeHoldingId) return;
     setHoldingBusyOrgId(organizationId);
     setHoldingUiErr(null);
     try {
       const res = await apiFetch(
-        `/api/holdings/${encodeURIComponent(holdingId)}/organizations/${encodeURIComponent(organizationId)}`,
+        `/api/holdings/${encodeURIComponent(safeHoldingId)}/organizations/${encodeURIComponent(organizationId)}`,
         { method: "POST" },
       );
       if (!res.ok) {
@@ -180,24 +188,54 @@ export default function CompaniesPage() {
     }
   }
 
-  const freeOrgs = tree?.freeOrganizations ?? [];
-  const freeOwned = freeOrgs.filter((o) => (orgRoleById.get(o.id) ?? "") === "OWNER");
-  const freeManaged = freeOrgs.filter((o) => (orgRoleById.get(o.id) ?? "") !== "OWNER");
+  const holdingSections = useMemo(
+    () =>
+      (tree?.holdings ?? []).map((h) => ({
+        id: h.holdingId,
+        name: h.holdingName,
+        organizations: h.organizations.map((o) => ({
+          ...o,
+          role: orgRoleById.get(o.id) ?? "",
+          holdingId: h.holdingId,
+          isCurrent: o.id === user?.organizationId,
+        })),
+      })),
+    [tree, orgRoleById, user?.organizationId],
+  );
+
+  const freeOrganizations = useMemo(
+    () =>
+      (tree?.freeOrganizations ?? []).map((o) => ({
+        ...o,
+        role: orgRoleById.get(o.id) ?? "",
+        holdingId: null,
+        isCurrent: o.id === user?.organizationId,
+      })),
+    [tree, orgRoleById, user?.organizationId],
+  );
+
+  async function openCompanySettings(org: CompanyCardItem) {
+    if (org.id !== user?.organizationId) {
+      await openOrg(org as OrgSummary);
+    }
+    router.push("/settings/organization");
+  }
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="max-w-7xl space-y-6">
       <PageHeader
-        title={t("companiesPage.title")}
+        title={t("companiesPage.workspaceTitle")}
         subtitle={t("companiesPage.subtitle")}
         actions={
           <>
             <button
               type="button"
-              className={SECONDARY_BUTTON_CLASS}
-              onClick={() => setVoenModalOpen(true)}
+              className={PRIMARY_BUTTON_CLASS}
+              onClick={() => setCreateModalOpen(true)}
+              aria-label={t("companiesPage.addCompanyAria")}
             >
-              <Send className="h-4 w-4" aria-hidden />
-              {t("companiesPage.joinTitle")}
+              <Plus className="h-4 w-4" aria-hidden />
+              {t("companiesPage.modals.createCompanyTitle")}
             </button>
             <button
               type="button"
@@ -209,12 +247,11 @@ export default function CompaniesPage() {
             </button>
             <button
               type="button"
-              className={PRIMARY_BUTTON_CLASS}
-              onClick={() => setCreateModalOpen(true)}
-              aria-label={t("companiesPage.addCompanyAria")}
+              className={GHOST_BUTTON_CLASS}
+              onClick={() => setVoenModalOpen(true)}
             >
-              <Plus className="h-4 w-4" aria-hidden />
-              {t("companiesPage.modals.createCompanyTitle")}
+              <Send className="h-4 w-4" aria-hidden />
+              {t("companiesPage.joinTitle")}
             </button>
           </>
         }
@@ -226,254 +263,93 @@ export default function CompaniesPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-lg font-medium text-gray-900">
-              {t("companiesPage.holdingTitle")}
+      <div className="space-y-7">
+        {holdingSections.map((holding) => (
+          <section key={holding.id} className={`${CARD_CONTAINER_CLASS} space-y-4 p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-[#34495E]">
+                <Building2 className="h-4 w-4" aria-hidden />
+                {holding.name}
+              </h2>
+              <Link
+                href={`/holding?id=${encodeURIComponent(holding.id)}`}
+                className={GHOST_BUTTON_CLASS}
+              >
+                {t("companiesPage.holdingSettings")}
+              </Link>
+            </div>
+            {holding.organizations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("companiesPage.holdingNoCompanies")}</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {holding.organizations.map((company) => (
+                  <CompanyCard
+                    key={company.id}
+                    company={company}
+                    roleLabel={roleLabel}
+                    roleVariant={roleVariant}
+                    settingsLabel={t("companiesPage.cardSettings")}
+                    attachLabel={t("companiesPage.cardAttach")}
+                    detachLabel={t("companiesPage.cardDetach")}
+                    workspaceLabel={t("companiesPage.workspaceLabel")}
+                    currentWorkspaceLabel={t("companiesPage.currentWorkspaceLabel")}
+                    canManageHolding={isOwnerOnly(company.id)}
+                    canDetachFromHolding={isOwnerOnly(company.id)}
+                    onOpen={() => void openOrg(company as OrgSummary)}
+                    onOpenSettings={() => void openCompanySettings(company)}
+                    onAttachHolding={() => {
+                      setAttachDialogOrg(company);
+                      setAttachHoldingId("");
+                    }}
+                    onDetachHolding={() => {
+                      if (company.holdingId) {
+                        void detachFromHolding(company.holdingId, company.id);
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
+
+        <section className={`${CARD_CONTAINER_CLASS} space-y-4 p-5`}>
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" aria-hidden />
+            <h2 className="text-lg font-semibold text-[#34495E]">
+              {t("companiesPage.freeSectionTitle")}
             </h2>
-            <Link href="/holding" className={LINK_ACCENT_CLASS}>
-              {t("companiesPage.holdingOpenDash")}
-            </Link>
           </div>
-          <p className="text-sm text-gray-600">{t("companiesPage.holdingHint")}</p>
-
-          <div className="space-y-3">
-            {(tree?.holdings ?? []).map((h) => (
-              <div key={h.holdingId} className={`${CARD_CONTAINER_CLASS} p-4`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-gray-900 truncate">
-                      {h.holdingName}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {t("companiesPage.holdingBase")}: {h.baseCurrency}
-                    </div>
-                  </div>
-                  <Link
-                    href={`/holding?id=${encodeURIComponent(h.holdingId)}`}
-                    className={`${LINK_ACCENT_CLASS} shrink-0`}
-                  >
-                    {t("companiesPage.holdingOpen")}
-                    <ChevronRight className="h-4 w-4" aria-hidden />
-                  </Link>
-                </div>
-
-                {h.organizations.length === 0 ? (
-                  <p className="mt-3 text-sm text-gray-500">
-                    {t("companiesPage.holdingNoCompanies")}
-                  </p>
-                ) : (
-                  <div className="mt-3 rounded-[2px] border border-[#D5DADF] bg-[#EBEDF0]/40">
-                    <ul className="divide-y divide-[#D5DADF]">
-                      {h.organizations.map((o) => {
-                        const role = orgRoleById.get(o.id) ?? "";
-                        return (
-                          <li
-                            key={o.id}
-                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-3 py-2 bg-white"
-                          >
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className="font-medium text-gray-900 truncate">
-                                  {o.name}
-                                </div>
-                                {role ? (
-                                  <Badge variant={roleVariant(role)} title={roleLabel(role)}>
-                                    {roleLabel(role)}
-                                  </Badge>
-                                ) : null}
-                                {o.id === user?.organizationId ? (
-                                  <Badge variant="neutral">{t("companiesPage.current")}</Badge>
-                                ) : null}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                VÖEN {o.taxId} · {o.currency}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 sm:shrink-0">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void openOrg({
-                                    id: o.id,
-                                    name: o.name,
-                                    taxId: o.taxId,
-                                    currency: o.currency,
-                                    role,
-                                  } as OrgSummary)
-                                }
-                                className={PRIMARY_BUTTON_CLASS}
-                              >
-                                {t("companiesPage.open")}
-                              </button>
-
-                              {isOwnerOnly(o.id) ? (
-                                <button
-                                  type="button"
-                                  disabled={holdingBusyOrgId === o.id}
-                                  onClick={() => void detachFromHolding(h.holdingId, o.id)}
-                                  className={`${SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
-                                  title={t("companiesPage.holdingDetach")}
-                                >
-                                  <Link2Off className="h-4 w-4" aria-hidden />
-                                  {holdingBusyOrgId === o.id
-                                    ? t("common.loading")
-                                    : t("companiesPage.holdingDetach")}
-                                </button>
-                              ) : null}
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-lg font-medium text-gray-900">
-            {t("orgSwitcher.freeCompanies")}
-          </h2>
-          <p className="text-sm text-gray-600">{t("companiesPage.freeHint")}</p>
-
-          <div className="space-y-3">
-            <div className={`${CARD_CONTAINER_CLASS} p-4`}>
-              <div className="font-semibold text-gray-900">
-                {t("companiesPage.ownedGroupTitle")}
-              </div>
-              {freeOwned.length === 0 ? (
-                <p className="mt-2 text-sm text-gray-500">{t("companiesPage.freeNone")}</p>
-              ) : (
-                <ul className="mt-3 divide-y divide-[#D5DADF]">
-                  {freeOwned.map((o) => (
-                    <li
-                      key={o.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="font-medium text-gray-900 truncate">{o.name}</div>
-                          <Badge variant="owner">{roleLabel("OWNER")}</Badge>
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          VÖEN {o.taxId} · {o.currency}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 sm:shrink-0">
-                        <button
-                          type="button"
-                          className={PRIMARY_BUTTON_CLASS}
-                          onClick={() =>
-                            void openOrg({
-                              id: o.id,
-                              name: o.name,
-                              taxId: o.taxId,
-                              currency: o.currency,
-                              role: "OWNER",
-                            } as OrgSummary)
-                          }
-                        >
-                          {t("companiesPage.open")}
-                        </button>
-                        <select
-                          className={`${FORM_INPUT_CLASS} !h-8 !min-h-8 text-sm`}
-                          value={assignHoldingByOrg[o.id] ?? ""}
-                          onChange={(e) =>
-                            setAssignHoldingByOrg((prev) => ({
-                              ...prev,
-                              [o.id]: e.target.value,
-                            }))
-                          }
-                        >
-                          <option value="">{t("companiesPage.chooseHolding")}</option>
-                          {holdings.map((h) => (
-                            <option key={h.id} value={h.id}>
-                              {h.name}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          disabled={!assignHoldingByOrg[o.id] || holdingBusyOrgId === o.id}
-                          onClick={() => void attachToHolding(o.id)}
-                          className={`${SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
-                          title={t("companiesPage.holdingAttach")}
-                        >
-                          <Unlink2 className="h-4 w-4" aria-hidden />
-                          {holdingBusyOrgId === o.id
-                            ? t("common.loading")
-                            : t("companiesPage.holdingAttach")}
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
+          {freeOrganizations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("companiesPage.freeNone")}</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {freeOrganizations.map((company) => (
+                <CompanyCard
+                  key={company.id}
+                  company={company}
+                  roleLabel={roleLabel}
+                  roleVariant={roleVariant}
+                  settingsLabel={t("companiesPage.cardSettings")}
+                  attachLabel={t("companiesPage.cardAttach")}
+                  detachLabel={t("companiesPage.cardDetach")}
+                  workspaceLabel={t("companiesPage.workspaceLabel")}
+                  currentWorkspaceLabel={t("companiesPage.currentWorkspaceLabel")}
+                  canManageHolding={isOwnerOnly(company.id)}
+                  canDetachFromHolding={false}
+                  onOpen={() => void openOrg(company as OrgSummary)}
+                  onOpenSettings={() => void openCompanySettings(company)}
+                  onAttachHolding={() => {
+                    setAttachDialogOrg(company);
+                    setAttachHoldingId("");
+                  }}
+                  onDetachHolding={() => void 0}
+                />
+              ))}
             </div>
-
-            <div className={`${CARD_CONTAINER_CLASS} p-4`}>
-              <div className="font-semibold text-gray-900">
-                {t("companiesPage.managedGroupTitle")}
-              </div>
-              {freeManaged.length === 0 ? (
-                <p className="mt-2 text-sm text-gray-500">{t("companiesPage.freeNone")}</p>
-              ) : (
-                <ul className="mt-3 divide-y divide-[#D5DADF]">
-                  {freeManaged.map((o) => {
-                    const role = orgRoleById.get(o.id) ?? "";
-                    return (
-                      <li
-                        key={o.id}
-                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-2"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="font-medium text-gray-900 truncate">{o.name}</div>
-                            {role ? (
-                              <Badge variant={roleVariant(role)} title={roleLabel(role)}>
-                                {roleLabel(role)}
-                              </Badge>
-                            ) : null}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            VÖEN {o.taxId} · {o.currency}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          className={PRIMARY_BUTTON_CLASS}
-                          onClick={() =>
-                            void openOrg({
-                              id: o.id,
-                              name: o.name,
-                              taxId: o.taxId,
-                              currency: o.currency,
-                              role,
-                            } as OrgSummary)
-                          }
-                        >
-                          {t("companiesPage.open")}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </div>
+          )}
         </section>
       </div>
-
-      <p className="text-sm">
-        <Link href="/" className={LINK_ACCENT_CLASS}>
-          {t("companiesPage.backHome")}
-        </Link>
-      </p>
 
       <VoenRequestModal open={voenModalOpen} onClose={() => setVoenModalOpen(false)} />
       <CreateCompanyModal open={createModalOpen} onClose={() => setCreateModalOpen(false)} />
@@ -484,6 +360,73 @@ export default function CompaniesPage() {
           void loadHoldingUi();
         }}
       />
+      {attachDialogOrg ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`} role="dialog" aria-modal="true">
+            <header className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-[#34495E]">
+                  {t("companiesPage.attachDialogTitle")}
+                </h3>
+                <p className="mt-1 text-[13px] text-[#7F8C8D]">{attachDialogOrg.name}</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                className={MODAL_CLOSE_BUTTON_CLASS}
+                onClick={() => setAttachDialogOrg(null)}
+                aria-label={t("common.close")}
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </Button>
+            </header>
+
+            <div className="mt-4 space-y-4">
+              <label className={MODAL_FIELD_LABEL_CLASS}>
+                {t("companiesPage.chooseHolding")}
+                <div className="mt-1">
+                  <Select value={attachHoldingId} onValueChange={setAttachHoldingId}>
+                    <SelectTrigger className={`w-full ${MODAL_INPUT_CLASS}`} />
+                    <SelectContent>
+                      <SelectItem value="">{t("companiesPage.chooseHolding")}</SelectItem>
+                      {holdings.map((h) => (
+                        <SelectItem key={h.id} value={h.id}>
+                          {h.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </label>
+            </div>
+            <div className={MODAL_FOOTER_ACTIONS_CLASS}>
+              <Button
+                type="button"
+                variant="outline"
+                className={MODAL_FOOTER_BUTTON_CLASS}
+                onClick={() => setAttachDialogOrg(null)}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                className={MODAL_FOOTER_BUTTON_CLASS}
+                disabled={!attachHoldingId || holdingBusyOrgId === attachDialogOrg.id}
+                onClick={async () => {
+                  await attachToHolding(attachDialogOrg.id, attachHoldingId);
+                  setAttachDialogOrg(null);
+                  setAttachHoldingId("");
+                }}
+              >
+                {holdingBusyOrgId === attachDialogOrg.id
+                  ? t("common.loading")
+                  : t("companiesPage.holdingAttach")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Package, Pencil } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
 import {
@@ -18,6 +18,9 @@ import {
   PRIMARY_BUTTON_CLASS,
   TABLE_ROW_ICON_BTN_CLASS,
 } from "../../../lib/design-system";
+
+const CATALOG_TOOLBAR_SEARCH_CLASS =
+  "h-8 w-72 shrink-0 rounded-lg border border-[#D5DADF] bg-white px-2 text-[13px] text-[#34495E] shadow-sm outline-none placeholder:text-[#7F8C8D] focus:border-[#2980B9] focus:ring-1 focus:ring-[#2980B9]/30";
 import { formatMoneyAzn } from "../../../lib/format-money";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { PageHeader } from "../../../components/layout/page-header";
@@ -46,6 +49,7 @@ export default function ProductsPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
   const [rows, setRows] = useState<Row[]>([]);
+  const [searchQ, setSearchQ] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [createProductOpen, setCreateProductOpen] = useState(false);
@@ -81,6 +85,16 @@ export default function ProductsPage() {
     if (el) el.open = false;
   }
 
+  const filteredRows = useMemo(() => {
+    const term = searchQ.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((r) => {
+      const name = String(r.name ?? "").toLowerCase();
+      const sku = String(r.sku ?? "").toLowerCase();
+      return name.includes(term) || sku.includes(term);
+    });
+  }, [rows, searchQ]);
+
   function openEdit(id: string) {
     setCreateProductOpen(false);
     setCreateServiceOpen(false);
@@ -98,10 +112,18 @@ export default function ProductsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title={t("products.catalogPageTitle")}
-        subtitle={t("products.subtitle")}
-        actions={
+      <PageHeader title={t("products.catalogPageTitle")} />
+
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+      <section>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+          <input
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            placeholder={t("products.catalogSearchPlaceholder")}
+            className={CATALOG_TOOLBAR_SEARCH_CLASS}
+            aria-label={t("products.catalogSearchPlaceholder")}
+          />
           <details ref={addMenuRef} className="relative inline-block text-left">
             <summary
               className={`${PRIMARY_BUTTON_CLASS} inline-flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden`}
@@ -109,7 +131,7 @@ export default function ProductsPage() {
               {t("products.addDropdownLabel")}
               <ChevronDown className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
             </summary>
-            <div className="absolute right-0 z-20 mt-1 min-w-[14rem] rounded-[2px] border border-[#D5DADF] bg-white py-1 shadow-md">
+            <div className="absolute right-0 z-20 mt-1 min-w-[14rem] rounded-2xl border border-[#D5DADF] bg-white py-1 shadow-md">
               <button
                 type="button"
                 className="flex w-full px-3 py-2 text-left text-sm text-[#34495E] hover:bg-[#F4F5F7]"
@@ -136,12 +158,7 @@ export default function ProductsPage() {
               </button>
             </div>
           </details>
-        }
-      />
-
-      {error && <p className="text-red-600 text-sm">{error}</p>}
-      <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-3">{t("products.list")}</h2>
+        </div>
         {loading && <p className="text-gray-600">{t("common.loading")}</p>}
         {!loading && rows.length === 0 && !error && (
           <EmptyState
@@ -156,7 +173,7 @@ export default function ProductsPage() {
                   {t("products.addDropdownLabel")}
                   <ChevronDown className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
                 </summary>
-                <div className="absolute left-0 z-20 mt-1 min-w-[14rem] rounded-[2px] border border-[#D5DADF] bg-white py-1 shadow-md">
+                <div className="absolute left-0 z-20 mt-1 min-w-[14rem] rounded-2xl border border-[#D5DADF] bg-white py-1 shadow-md">
                   <button
                     type="button"
                     className="flex w-full px-3 py-2 text-left text-sm text-[#34495E] hover:bg-[#F4F5F7]"
@@ -186,7 +203,14 @@ export default function ProductsPage() {
             }
           />
         )}
-        {!loading && rows.length > 0 && (
+        {!loading && rows.length > 0 && filteredRows.length === 0 && !error && (
+          <EmptyState
+            title={t("products.filteredEmptyTitle")}
+            description={t("products.searchNone")}
+            icon={<Package className="h-12 w-12 mx-auto stroke-[1.5] text-[#7F8C8D]" aria-hidden />}
+          />
+        )}
+        {!loading && filteredRows.length > 0 && (
           <div className={DATA_TABLE_VIEWPORT_CLASS}>
             <table className={DATA_TABLE_CLASS}>
               <thead>
@@ -199,7 +223,7 @@ export default function ProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {filteredRows.map((r) => (
                   <tr key={r.id} className={DATA_TABLE_TR_CLASS}>
                     <td className={`${DATA_TABLE_TD_CLASS} font-semibold text-[#34495E]`}>{r.name}</td>
                     <td className={DATA_TABLE_TD_CLASS}>{r.isService ? "—" : r.sku}</td>

@@ -16,6 +16,7 @@ import {
   DATA_TABLE_TH_RIGHT_CLASS,
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
+  MODAL_INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
   SECONDARY_BUTTON_CLASS,
   TABLE_ROW_ICON_BTN_CLASS,
@@ -206,7 +207,7 @@ export default function TaxExportPage() {
             {t("reporting.taxExportPeriod")}
             <input
               type="month"
-              className="block w-40 mt-1 rounded-md border border-slate-200 px-2 py-1.5"
+              className={`mt-1 ${MODAL_INPUT_CLASS} !w-40`}
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
             />
@@ -214,7 +215,7 @@ export default function TaxExportPage() {
           <label className="block text-sm font-medium text-gray-700">
             {t("reporting.taxExportType")}
             <select
-              className="block w-56 mt-1 rounded-md border border-slate-200 px-2 py-1.5"
+              className={`mt-1 ${MODAL_INPUT_CLASS} !w-56`}
               value={taxType}
               onChange={(e) => setTaxType(e.target.value)}
             >

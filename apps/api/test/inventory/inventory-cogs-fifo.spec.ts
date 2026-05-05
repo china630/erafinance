@@ -56,6 +56,9 @@ describe("Inventory COGS / FIFO hardening", () => {
         ]),
         create: jest.fn().mockResolvedValue({}),
       },
+      product: {
+        findFirst: jest.fn().mockResolvedValue({ isService: false }),
+      },
     };
     const prisma = {
       $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
@@ -84,6 +87,9 @@ describe("Inventory COGS / FIFO hardening", () => {
   it("transfer blocks negative inventory strictly", async () => {
     const prisma = {
       organization: { findUnique: jest.fn().mockResolvedValue({ id: "org-1" }) },
+      product: {
+        findFirst: jest.fn().mockResolvedValue({ id: "p1", isService: false }),
+      },
       warehouse: {
         findFirst: jest
           .fn()
@@ -92,6 +98,9 @@ describe("Inventory COGS / FIFO hardening", () => {
       },
       $transaction: jest.fn(async (fn: (tx: any) => Promise<unknown>) =>
         fn({
+          product: {
+            findFirst: jest.fn().mockResolvedValue({ isService: false }),
+          },
           stockItem: {
             findUnique: jest.fn().mockResolvedValue({
               quantity: new Prisma.Decimal(1),
@@ -156,6 +165,9 @@ describe("Inventory COGS / FIFO hardening", () => {
       stockMovement: {
         findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn().mockResolvedValue({}),
+      },
+      product: {
+        findFirst: jest.fn().mockResolvedValue({ isService: false }),
       },
     };
     const prisma = {

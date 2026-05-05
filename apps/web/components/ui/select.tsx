@@ -55,7 +55,7 @@ export type SelectProps = {
 
 /**
  * Design-system select: native `<select>` + compound API (`SelectTrigger`, `SelectContent`, `SelectItem`).
- * Styling: DESIGN.md — `rounded-[2px]`, `text-[13px]`, border `#D5DADF`.
+ * Styling: DESIGN.md — `rounded-lg` (via `MODAL_INPUT_CLASS`), `text-[13px]`, border `#D5DADF`.
  */
 export function Select({
   value,

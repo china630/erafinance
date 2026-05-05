@@ -16,6 +16,7 @@ export function MainHeader({
   user,
   ledgerToggle,
   quickActionsDropdown,
+  notificationsBell,
   orgSwitcher,
   onLogout,
 }: {
@@ -26,6 +27,7 @@ export function MainHeader({
   user: AuthUser | null;
   ledgerToggle: React.ReactNode;
   quickActionsDropdown: React.ReactNode;
+  notificationsBell?: React.ReactNode;
   orgSwitcher: React.ReactNode;
   onLogout: () => void | Promise<void>;
 }) {
@@ -52,6 +54,9 @@ export function MainHeader({
         </div>
 
         <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+          {ready && token && user && notificationsBell ? (
+            <div className="shrink-0">{notificationsBell}</div>
+          ) : null}
           {ready && token && user ? (
             <div className="hidden min-w-0 flex-1 flex-wrap items-center justify-end gap-3 sm:flex">
               {orgSwitcher}

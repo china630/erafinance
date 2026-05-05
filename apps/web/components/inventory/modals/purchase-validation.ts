@@ -1,19 +1,23 @@
 import type { TFunction } from "i18next";
 
-export type PurchaseKind = "goods" | "services";
+/** Line VAT mode; empty string = use product catalog (omit vatMode in API). */
+export type PurchaseLineVatMode = "" | "18" | "0" | "exempt" | "not_applicable";
 
 export type PurchaseLineFormValue = {
   productId: string;
   quantity: string;
   unitPrice: string;
-  binId: string;
+  vatMode: PurchaseLineVatMode;
 };
 
 export type PurchaseFormValues = {
-  kind: PurchaseKind;
-  warehouseId: string;
+  counterpartyId: string;
+  documentDate: string;
+  currency: string;
+  fxRateToAzn: string;
   pricesIncludeVat: boolean;
-  lines: PurchaseLineFormValue[];
+  goodsLines: PurchaseLineFormValue[];
+  serviceLines: PurchaseLineFormValue[];
 };
 
 export function numFromFormField(v: unknown): number {
@@ -29,46 +33,59 @@ function isRowEmpty(line: PurchaseLineFormValue): boolean {
   return (
     !line.productId?.trim() &&
     !String(line.quantity ?? "").trim() &&
-    !String(line.unitPrice ?? "").trim() &&
-    !line.binId?.trim()
+    !String(line.unitPrice ?? "").trim()
   );
 }
 
-/** Валидация без внешних зависимостей: только понятные сообщения и пути полей. */
 export function validatePurchaseForm(
   t: TFunction,
   data: PurchaseFormValues,
 ): { ok: true; values: PurchaseFormValues } | { ok: false; fieldErrors: Record<string, string> } {
   const fieldErrors: Record<string, string> = {};
-  const kind = data.kind ?? "goods";
 
-  if (kind === "goods" && !data.warehouseId?.trim()) {
-    fieldErrors.warehouseId = t("inventory.purchaseValidationWarehouse");
+  if (!data.counterpartyId?.trim()) {
+    fieldErrors.counterpartyId = t("inventory.purchaseValidationCounterparty");
   }
 
-  const meaningful = data.lines.filter((l) => !isRowEmpty(l));
-  if (meaningful.length === 0) {
-    fieldErrors["lines.0.productId"] = t("inventory.purchaseValidationMinLines");
+  if (!data.documentDate?.trim()) {
+    fieldErrors.documentDate = t("inventory.purchaseValidationDocumentDate");
+  }
+
+  const fx = numFromFormField(data.fxRateToAzn);
+  if (!Number.isFinite(fx) || fx <= 0) {
+    fieldErrors.fxRateToAzn = t("inventory.purchaseValidationFx");
+  }
+
+  const gMeaningful = data.goodsLines.filter((l) => !isRowEmpty(l));
+  const sMeaningful = data.serviceLines.filter((l) => !isRowEmpty(l));
+  if (gMeaningful.length === 0 && sMeaningful.length === 0) {
+    fieldErrors["goodsLines.0.productId"] = t("inventory.purchaseValidationMinLinesDual");
     return { ok: false, fieldErrors };
   }
 
-  data.lines.forEach((line, i) => {
-    if (isRowEmpty(line)) return;
-    const lineNo = i + 1;
-    const hasProduct = !!line.productId?.trim();
-    const q = numFromFormField(line.quantity);
-    const u = numFromFormField(line.unitPrice);
+  const validateBlock = (lines: PurchaseLineFormValue[], prefix: "goodsLines" | "serviceLines") => {
+    lines.forEach((line, i) => {
+      if (isRowEmpty(line)) return;
+      const lineNo = i + 1;
+      const hasProduct = !!line.productId?.trim();
+      const q = numFromFormField(line.quantity);
+      const u = numFromFormField(line.unitPrice);
+      if (!hasProduct) {
+        fieldErrors[`${prefix}.${i}.productId`] = t("inventory.purchaseValidationLineProduct", {
+          line: lineNo,
+        });
+      }
+      if (!Number.isFinite(q) || q <= 0) {
+        fieldErrors[`${prefix}.${i}.quantity`] = t("inventory.purchaseValidationLineQty", { line: lineNo });
+      }
+      if (!Number.isFinite(u) || u < 0) {
+        fieldErrors[`${prefix}.${i}.unitPrice`] = t("inventory.purchaseValidationLinePrice", { line: lineNo });
+      }
+    });
+  };
 
-    if (!hasProduct) {
-      fieldErrors[`lines.${i}.productId`] = t("inventory.purchaseValidationLineProduct", { line: lineNo });
-    }
-    if (!Number.isFinite(q) || q <= 0) {
-      fieldErrors[`lines.${i}.quantity`] = t("inventory.purchaseValidationLineQty", { line: lineNo });
-    }
-    if (!Number.isFinite(u) || u < 0) {
-      fieldErrors[`lines.${i}.unitPrice`] = t("inventory.purchaseValidationLinePrice", { line: lineNo });
-    }
-  });
+  validateBlock(data.goodsLines, "goodsLines");
+  validateBlock(data.serviceLines, "serviceLines");
 
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, fieldErrors };
@@ -76,32 +93,98 @@ export function validatePurchaseForm(
   return { ok: true, values: data };
 }
 
+function mapLine(
+  l: PurchaseLineFormValue,
+): { productId: string; quantity: number; unitPrice: number; vatMode?: "18" | "0" | "exempt" | "not_applicable" } {
+  const base: {
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+    vatMode?: "18" | "0" | "exempt" | "not_applicable";
+  } = {
+    productId: l.productId.trim(),
+    quantity: numFromFormField(l.quantity),
+    unitPrice: numFromFormField(l.unitPrice),
+  };
+  if (l.vatMode !== "") {
+    base.vatMode = l.vatMode as "18" | "0" | "exempt" | "not_applicable";
+  }
+  return base;
+}
+
 export function buildPurchasePayload(values: PurchaseFormValues): {
-  kind: PurchaseKind;
-  warehouseId?: string;
+  goodsLines: ReturnType<typeof mapLine>[];
+  serviceLines: ReturnType<typeof mapLine>[];
+  counterpartyId: string;
+  documentDate: string;
+  currency: string;
+  fxRateToAzn: number;
   pricesIncludeVat: boolean;
-  lines: { productId: string; quantity: number; unitPrice: number; binId?: string }[];
   reference: string;
 } {
-  const kind = values.kind ?? "goods";
-  const lines = values.lines
+  const goodsLines = values.goodsLines
     .filter(
       (l) =>
         l.productId?.trim() &&
         String(l.quantity ?? "").trim() &&
         String(l.unitPrice ?? "").trim(),
     )
-    .map((l) => ({
-      productId: l.productId.trim(),
-      quantity: numFromFormField(l.quantity),
-      unitPrice: numFromFormField(l.unitPrice),
-      ...(kind === "goods" && l.binId?.trim() ? { binId: l.binId.trim() } : {}),
-    }));
+    .map(mapLine);
+  const serviceLines = values.serviceLines
+    .filter(
+      (l) =>
+        l.productId?.trim() &&
+        String(l.quantity ?? "").trim() &&
+        String(l.unitPrice ?? "").trim(),
+    )
+    .map(mapLine);
+
+  const cur = (values.currency || "AZN").toUpperCase();
+  let fx = numFromFormField(values.fxRateToAzn);
+  if (cur === "AZN") {
+    fx = 1;
+  }
+
   return {
-    kind,
+    goodsLines,
+    serviceLines,
+    counterpartyId: values.counterpartyId.trim(),
+    documentDate: values.documentDate.trim(),
+    currency: cur,
+    fxRateToAzn: fx,
     pricesIncludeVat: values.pricesIncludeVat,
-    ...(kind === "goods" ? { warehouseId: values.warehouseId.trim() } : {}),
-    lines,
-    reference: "WEB",
+    reference: "PURCHASE_INVOICE",
   };
+}
+
+function effectiveVatPercent(vatMode: PurchaseLineVatMode, productVatPercent: number): number {
+  if (vatMode === "18") return 18;
+  if (vatMode === "0" || vatMode === "exempt" || vatMode === "not_applicable") return 0;
+  const p = productVatPercent === -1 ? 0 : productVatPercent;
+  return p;
+}
+
+/**
+ * Per-line net / vat / gross in document currency.
+ * `inputUnitPrice` is gross per unit when pricesIncludeVat, else net per unit.
+ */
+export function purchaseLineMoney(
+  qty: number,
+  inputUnitPrice: number,
+  vatMode: PurchaseLineVatMode,
+  productVatPercent: number,
+  pricesIncludeVat: boolean,
+): { net: number; vat: number; gross: number } {
+  const vatPct = effectiveVatPercent(vatMode, productVatPercent);
+  const r = vatPct / 100;
+  if (pricesIncludeVat) {
+    const rowGross = inputUnitPrice * qty;
+    const rowNet = rowGross / (1 + r);
+    const rowVat = rowGross - rowNet;
+    return { net: rowNet, vat: rowVat, gross: rowGross };
+  }
+  const rowNet = inputUnitPrice * qty;
+  const rowVat = rowNet * r;
+  const rowGross = rowNet + rowVat;
+  return { net: rowNet, vat: rowVat, gross: rowGross };
 }

@@ -6,7 +6,11 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { EmployeeKind, Prisma } from "@dayday/database";
+import {
+  EmployeeEmploymentStatus,
+  EmployeeKind,
+  Prisma,
+} from "@dayday/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateEmployeeDto } from "./dto/create-employee.dto";
 import { UpdateEmployeeDto } from "./dto/update-employee.dto";
@@ -19,11 +23,16 @@ export class EmployeesService {
 
   list(
     organizationId: string,
-    query?: { page?: number; pageSize?: number },
+    query?: { page?: number; pageSize?: number; departmentId?: string },
   ) {
     const page = Math.max(1, query?.page ?? 1);
-    const pageSize = Math.min(100, Math.max(1, query?.pageSize ?? 20));
-    const where = { organizationId };
+    const pageSize = Math.min(500, Math.max(1, query?.pageSize ?? 20));
+    const where = {
+      organizationId,
+      ...(query?.departmentId
+        ? { jobPosition: { departmentId: query.departmentId } }
+        : {}),
+    };
     return this.prisma.$transaction(async (tx) => {
       const total = await tx.employee.count({ where });
       const items = await tx.employee.findMany({
@@ -57,6 +66,7 @@ export class EmployeesService {
       where: {
         organizationId,
         positionId,
+        employmentStatus: EmployeeEmploymentStatus.ACTIVE,
         ...(excludeEmployeeId ? { id: { not: excludeEmployeeId } } : {}),
       },
     });

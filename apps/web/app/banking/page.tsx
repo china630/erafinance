@@ -1,17 +1,21 @@
 "use client";
 
-import Link from "next/link";
-import { Building2, GitMerge, Landmark, Loader2, Plus, Search, Wallet, X } from "lucide-react";
+import { Building2, Clock, GitMerge, Landmark, Loader2, Plus, Search, Wallet, X } from "lucide-react";
+import { BankStatementImportModal, BankingCreateAccountModal } from "./banking-modals";
+import { InternalTransferModal } from "./internal-transfer-modal";
+import { filterNasBankLedgerAccounts, NasBankAccountSelect, type NasBankAccountOption } from "./nas-bank-account-select";
 import { toast } from "sonner";
 import { PageHeader } from "../../components/layout/page-header";
 import { EmptyState } from "../../components/empty-state";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../lib/api-client";
 import { formatMoneyAzn } from "../../lib/format-money";
-import { FORM_INPUT_CLASS } from "../../lib/form-styles";
+import { TOOLBAR_MONTH_INPUT_CLASS } from "../../lib/form-styles";
 import {
   CARD_CONTAINER_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
   DATA_TABLE_CLASS,
   DATA_TABLE_HEAD_ROW_CLASS,
   DATA_TABLE_TD_CENTER_CLASS,
@@ -24,6 +28,7 @@ import {
   DATA_TABLE_VIEWPORT_CLASS,
   MODAL_FIELD_LABEL_CLASS,
   MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
   MODAL_INPUT_CLASS,
   MODAL_INPUT_NUMERIC_CLASS,
   PRIMARY_BUTTON_CLASS,
@@ -81,13 +86,6 @@ type Candidate = {
   counterparty: { name: string; taxId: string };
 };
 
-type SyncStatus = {
-  lastSyncAt: string | null;
-  lastSyncStatus: string | null;
-  lastSyncError: string | null;
-  webhookUrl: string | null;
-};
-
 type OutboundDraft = {
   id: string;
   amount: unknown;
@@ -109,9 +107,11 @@ function BankingQuickExpenseModal({
 }) {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
+  const { ledgerType, ready: ledgerReady } = useLedger();
   const [cfItems, setCfItems] = useState<{ id: string; code: string; name: string }[]>([]);
   const [amount, setAmount] = useState("");
-  const [bankAcc, setBankAcc] = useState("221.01");
+  const [bankAccountId, setBankAccountId] = useState("");
+  const [bankOptions, setBankOptions] = useState<NasBankAccountOption[]>([]);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [cfId, setCfId] = useState("");
   const [desc, setDesc] = useState("");
@@ -128,15 +128,55 @@ function BankingQuickExpenseModal({
     }
   }, [token]);
 
+  const loadBankAccounts = useCallback(
+    async (preferCode?: string) => {
+      if (!token || !ledgerReady) return;
+      const res = await apiFetch(`/api/accounts?${ledgerQueryParam(ledgerType)}`);
+      if (!res.ok) return;
+      const raw = (await res.json()) as {
+        id: string;
+        code: string;
+        displayName: string;
+        currency: string | null;
+      }[];
+      const mapped: NasBankAccountOption[] = filterNasBankLedgerAccounts(raw).map((r) => ({
+        id: r.id,
+        code: r.code,
+        displayName: r.displayName,
+        currency: (r.currency || "AZN").trim() || "AZN",
+      }));
+      setBankOptions(mapped);
+      setBankAccountId((prev) => {
+        if (preferCode) {
+          const byCode = mapped.find((m) => m.code === preferCode);
+          if (byCode) return byCode.id;
+        }
+        if (prev && mapped.some((m) => m.id === prev)) return prev;
+        return mapped[0]?.id ?? "";
+      });
+    },
+    [token, ledgerReady, ledgerType],
+  );
+
   useEffect(() => {
     if (!ready || !token) return;
     void loadCf();
   }, [ready, token, loadCf]);
 
+  useEffect(() => {
+    if (!ready || !token || !ledgerReady) return;
+    void loadBankAccounts();
+  }, [ready, token, ledgerReady, loadBankAccounts]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!token || !cfId) {
       toast.error(t("banking.cash.cashFlowRequired"));
+      return;
+    }
+    const row = bankOptions.find((a) => a.id === bankAccountId);
+    if (!row?.code?.trim()) {
+      toast.error(t("common.fillRequired"));
       return;
     }
     const amt = Number(amount.replace(",", "."));
@@ -151,7 +191,7 @@ function BankingQuickExpenseModal({
       body: JSON.stringify({
         type: "OUTFLOW",
         amount: amt,
-        bankAccountCode: bankAcc.trim(),
+        bankAccountCode: row.code.trim(),
         offsetAccountCode: "731",
         date,
         cashFlowItemId: cfId,
@@ -170,17 +210,13 @@ function BankingQuickExpenseModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div
-        className={`${CARD_CONTAINER_CLASS} flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden bg-white p-6`}
-        role="dialog"
-        aria-modal="true"
-      >
+      <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-lg`} role="dialog" aria-modal="true">
         <header className="flex shrink-0 items-start justify-between gap-3">
           <div className="min-w-0 pr-2">
             <h3 className="m-0 text-lg font-semibold leading-snug text-[#34495E]">{t("banking.quickExpense")}</h3>
             <p className="mb-0 mt-1 text-[13px] leading-snug text-[#7F8C8D]">{t("banking.manualEntryHint")}</p>
           </div>
-          <Button type="button" variant="ghost" className="!px-2" onClick={onClose} aria-label={t("common.close")}>
+          <Button type="button" variant="ghost" className={MODAL_CLOSE_BUTTON_CLASS} onClick={onClose} aria-label={t("common.close")}>
             <X className="h-4 w-4 shrink-0" aria-hidden />
           </Button>
         </header>
@@ -222,11 +258,16 @@ function BankingQuickExpenseModal({
               <label className={`${MODAL_FIELD_LABEL_CLASS} md:col-span-2`}>
                 {t("banking.manualEntryBankAcc")}
                 <div className="mt-1 flex items-center gap-2">
-                  <input
-                    className={`min-w-0 flex-1 ${MODAL_INPUT_CLASS}`}
-                    value={bankAcc}
-                    onChange={(e) => setBankAcc(e.target.value)}
-                  />
+                  <div className="min-w-0 flex-1">
+                    <NasBankAccountSelect
+                      value={bankAccountId}
+                      onChange={setBankAccountId}
+                      accounts={bankOptions}
+                      disabled={busy}
+                      placeholder={t("common.loading")}
+                      emptyLabel={t("banking.accountsEmpty")}
+                    />
+                  </div>
                   <Button
                     type="button"
                     variant="secondary"
@@ -250,122 +291,30 @@ function BankingQuickExpenseModal({
             </div>
           </div>
           <div className={MODAL_FOOTER_ACTIONS_CLASS}>
-            <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
+            <Button
+              type="button"
+              variant="outline"
+              className={MODAL_FOOTER_BUTTON_CLASS}
+              onClick={onClose}
+              disabled={busy}
+            >
               {t("common.cancel")}
             </Button>
-            <Button type="submit" variant="primary" disabled={busy}>
+            <Button type="submit" variant="primary" className={MODAL_FOOTER_BUTTON_CLASS} disabled={busy}>
               {busy ? t("banking.uploadHint") : t("banking.manualEntrySubmit")}
             </Button>
           </div>
         </form>
       </div>
       {createAccOpen ? (
-        <CreateBankAccountModal
+        <BankingCreateAccountModal
           onClose={() => setCreateAccOpen(false)}
-          onCreated={(code) => {
-            setBankAcc(code);
+          onCreated={(newCode) => {
             setCreateAccOpen(false);
+            void loadBankAccounts(newCode);
           }}
         />
       ) : null}
-    </div>
-  );
-}
-
-function CreateBankAccountModal({
-  onClose,
-  onCreated,
-}: {
-  onClose: () => void;
-  onCreated: (code: string) => void;
-}) {
-  const { t } = useTranslation();
-  const { token } = useRequireAuth();
-  const [code, setCode] = useState("221.01");
-  const [name, setName] = useState("");
-  const [currency, setCurrency] = useState<"AZN" | "USD" | "EUR">("AZN");
-  const [busy, setBusy] = useState(false);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!token) return;
-    if (!code.trim() || !name.trim()) {
-      toast.error(t("common.fillRequired"));
-      return;
-    }
-    setBusy(true);
-    const res = await apiFetch("/api/accounts/bank-accounts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, name, currency }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      toast.error(t("banking.createBankAccountErr"));
-      return;
-    }
-    const created = (await res.json()) as { code?: string };
-    toast.success(t("banking.createBankAccountOk"));
-    onCreated(created.code || code);
-  }
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-      <div
-        className={`${CARD_CONTAINER_CLASS} flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden bg-white p-6`}
-        role="dialog"
-        aria-modal="true"
-      >
-        <header className="flex shrink-0 items-start justify-between gap-3">
-          <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
-            {t("banking.createBankAccountTitle")}
-          </h3>
-          <Button type="button" variant="ghost" className="!px-2" onClick={onClose} aria-label={t("common.close")}>
-            <X className="h-4 w-4 shrink-0" aria-hidden />
-          </Button>
-        </header>
-
-        <form className="mt-4 flex min-h-0 flex-1 flex-col" onSubmit={(e) => void submit(e)}>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-            <label className={MODAL_FIELD_LABEL_CLASS}>
-              {t("banking.createBankAccountCode")}
-              <input
-                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-              />
-            </label>
-            <label className={MODAL_FIELD_LABEL_CLASS}>
-              {t("banking.createBankAccountName")}
-              <input
-                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
-            <label className={MODAL_FIELD_LABEL_CLASS}>
-              {t("banking.createBankAccountCurrency")}
-              <select
-                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value as "AZN" | "USD" | "EUR")}
-              >
-                <option value="AZN">AZN</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-              </select>
-            </label>
-          </div>
-          <div className={MODAL_FOOTER_ACTIONS_CLASS}>
-            <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" variant="primary" disabled={busy}>
-              {busy ? t("common.loading") : t("banking.createBankAccountSubmit")}
-            </Button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 }
@@ -385,11 +334,6 @@ function segmentIcon(segment: AccountSegment) {
   return segment === "CASH" ? Wallet : Landmark;
 }
 
-function isoDateFromRow(valueDate: string | null): string | null {
-  if (!valueDate) return null;
-  return String(valueDate).slice(0, 10);
-}
-
 function sourceLabelKey(origin: string): string {
   switch (origin) {
     case "INVOICE_PAYMENT_SYSTEM":
@@ -407,6 +351,22 @@ function sourceLabelKey(origin: string): string {
     default:
       return "banking.sourceOther";
   }
+}
+
+function defaultYearMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** `ym` = `YYYY-MM` (локальный календарь). */
+function monthDateRange(ym: string): { from: string; to: string } {
+  const parts = ym.split("-");
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const from = `${y}-${String(m).padStart(2, "0")}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const to = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to };
 }
 
 function CashAccountCards({
@@ -462,20 +422,6 @@ function CashAccountCards({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 m-0">{t("banking.accountsTitle")}</h2>
-          <p className="text-sm text-slate-600 mt-1 mb-0 max-w-2xl">{t("banking.accountsHint")}</p>
-          {data ? (
-            <p className="text-xs text-slate-500 mt-1 mb-0">
-              {data.ledgerType} · {data.dateFrom} → {data.dateTo}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap gap-4">
-          <Link
-            href="/reporting"
-            className="text-[13px] font-medium text-action hover:opacity-90 underline underline-offset-2"
-          >
-            {t("banking.reportingLink")}
-          </Link>
         </div>
       </div>
       {loading && <p className="text-[#7F8C8D] text-[13px] m-0">{t("common.loading")}</p>}
@@ -510,21 +456,23 @@ function CashAccountCards({
             return (
               <div
                 key={acc.accountCode}
-                className={`${CARD_CONTAINER_CLASS} p-5`}
+                className={`relative ${CARD_CONTAINER_CLASS} p-5`}
               >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[2px] bg-[#EBEDF0] text-[#2980B9]">
+                <span className="absolute right-4 top-4 font-mono text-[11px] text-slate-400" title={acc.accountCode}>
+                  {acc.accountCode}
+                </span>
+                <div className="flex items-start gap-3 pr-14">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#EBEDF0] text-[#2980B9]">
                     <Icon className="h-5 w-5" aria-hidden />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 m-0">
-                      {segTitle}
-                    </p>
-                    <p className="text-sm font-semibold text-slate-900 truncate m-0 mt-0.5" title={acc.displayName}>
+                    <p className="m-0 truncate text-[14px] font-bold text-[#34495E]" title={acc.displayName}>
                       {acc.displayName}
                     </p>
-                    <p className="text-xs font-mono text-slate-500 mt-0.5 m-0">{acc.accountCode}</p>
-                    <p className="text-xs text-slate-500 font-mono mt-1 m-0">{acc.maskedNumber}</p>
+                    <p className="m-0 mt-1 text-xs text-slate-500">
+                      {segTitle}
+                      {acc.maskedNumber ? ` · ${acc.maskedNumber}` : ""}
+                    </p>
                   </div>
                 </div>
                 <div className="mt-4 space-y-1 border-t border-slate-100 pt-3">
@@ -544,7 +492,7 @@ function CashAccountCards({
         </div>
       )}
       {createBankOpen ? (
-        <CreateBankAccountModal
+        <BankingCreateAccountModal
           onClose={() => setCreateBankOpen(false)}
           onCreated={() => {
             setCreateBankOpen(false);
@@ -556,246 +504,69 @@ function CashAccountCards({
   );
 }
 
-function BankingImportCenter({
-  onImported,
-}: {
-  onImported: () => void;
-}) {
-  const { t } = useTranslation();
-  const { token, ready } = useRequireAuth();
-  const [bankName, setBankName] = useState("Pasha Bank");
-  const [importChannel, setImportChannel] = useState<"BANK" | "CASH">("BANK");
-  const [uploading, setUploading] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-  const [syncLoading, setSyncLoading] = useState(false);
+type BankingSyncStatus = {
+  lastSyncAt: string | null;
+  lastSyncStatus: string | null;
+  lastSyncError: string | null;
+  webhookUrl: string | null;
+};
 
-  const loadSyncStatus = useCallback(async () => {
-    if (!token) {
-      setSyncStatus(null);
-      return;
-    }
-    const res = await apiFetch("/api/banking/sync/status");
-    if (res.ok) {
-      setSyncStatus((await res.json()) as SyncStatus);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    if (!ready || !token) return;
-    void loadSyncStatus();
-  }, [loadSyncStatus, ready, token]);
-
-  async function runDirectSync() {
-    if (!token) return;
-    setSyncLoading(true);
-    const res = await apiFetch("/api/banking/sync", { method: "POST" });
-    setSyncLoading(false);
-    if (!res.ok) {
-      const txt = await res.text();
-      alert(`${t("banking.syncFail")}: ${res.status} ${txt}`);
-    } else {
-      alert(t("banking.syncDone"));
-    }
-    await loadSyncStatus();
-    onImported();
-  }
-
-  async function uploadCsv(file: File) {
-    if (!token || !bankName.trim()) return;
-    const lower = file.name.toLowerCase();
-    if (lower.endsWith(".xml")) {
-      alert(t("banking.importXmlNotSupported"));
-      return;
-    }
-    setUploading(true);
-    setError(null);
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("bankName", bankName.trim());
-    fd.append("channel", importChannel);
-    const res = await apiFetch("/api/banking/import", {
-      method: "POST",
-      body: fd,
-    });
-    setUploading(false);
-    if (!res.ok) {
-      const txt = await res.text();
-      const msg = `${res.status} ${txt}`;
-      toast.error(t("banking.importErr"), { description: msg });
-      setError(msg);
-      return;
-    }
-    onImported();
-  }
-
-  function onDropFiles(fileList: FileList | null) {
-    const f = fileList?.[0];
-    if (f) void uploadCsv(f);
-  }
-
-  if (!ready || !token) return null;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-base font-semibold text-gray-900 m-0">{t("banking.importStatementsTitle")}</h3>
-        <button
-          type="button"
-          disabled={syncLoading}
-          onClick={() => void runDirectSync()}
-          className={`${PRIMARY_BUTTON_CLASS} disabled:opacity-50`}
-        >
-          {syncLoading ? t("banking.syncRunning") : t("banking.syncBtn")}
-        </button>
-      </div>
-      <p className="text-sm text-slate-600 m-0">{t("banking.importStatementsHint")}</p>
-      {syncStatus && (
-        <div className="text-xs text-slate-600 flex flex-wrap gap-x-4 gap-y-1">
-          <span>
-            {t("banking.lastSync")}:{" "}
-            {syncStatus.lastSyncAt ? new Date(syncStatus.lastSyncAt).toLocaleString() : t("banking.syncNever")}
-          </span>
-          {syncStatus.lastSyncStatus === "ok" && (
-            <span className="text-emerald-700 font-semibold">{t("banking.syncOk")}</span>
-          )}
-          {syncStatus.lastSyncStatus === "error" && (
-            <span className="text-red-600 font-semibold">{t("banking.syncErr")}</span>
-          )}
-        </div>
-      )}
-      {error ? (
-        <EmptyState
-          title={t("banking.importErr")}
-          description={error}
-          icon={<Landmark className="h-8 w-8" aria-hidden />}
-        />
-      ) : null}
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="block text-sm font-medium text-gray-700">
-          {t("banking.bank")}
-          <input
-            value={bankName}
-            onChange={(e) => setBankName(e.target.value)}
-            className={FORM_INPUT_CLASS}
-          />
-        </label>
-        <label className="block text-sm font-medium text-gray-700">
-          {t("banking.importChannel")}
-          <select
-            value={importChannel}
-            onChange={(e) => setImportChannel(e.target.value as "BANK" | "CASH")}
-            className={FORM_INPUT_CLASS}
-          >
-            <option value="BANK">{t("banking.filterBank")}</option>
-            <option value="CASH">{t("banking.filterCash")}</option>
-          </select>
-        </label>
-      </div>
-      <div
-        onDragEnter={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setDragActive(true);
-        }}
-        onDragLeave={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setDragActive(false);
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setDragActive(false);
-          onDropFiles(e.dataTransfer.files);
-        }}
-        className={`rounded-[2px] border-2 border-dashed px-6 py-12 text-center transition-colors ${
-          dragActive
-            ? "border-[#2980B9] bg-[#EBEDF0]"
-            : "border-[#D5DADF] bg-[#F8F9FA] hover:border-[#2980B9]/60"
-        }`}
-      >
-        <Landmark className="mx-auto h-10 w-10 text-[#2980B9] mb-3" aria-hidden />
-        <p className="text-sm font-medium text-slate-800 m-0">{t("banking.importDropHint")}</p>
-        <p className="text-xs text-slate-500 mt-2 m-0">{t("banking.uploadHint")}</p>
-        <label className={`mt-4 inline-flex cursor-pointer ${PRIMARY_BUTTON_CLASS} disabled:opacity-50`}>
-          <input
-            type="file"
-            accept=".csv,.xml,text/csv,application/xml,text/xml"
-            disabled={uploading}
-            className="sr-only"
-            onChange={(e) => {
-              onDropFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          {uploading ? t("banking.uploadHint") : t("banking.importCsv")}
-        </label>
-      </div>
-    </div>
-  );
-}
-
-function BankingRegistry({
+function BankingUnifiedRegistry({
+  yearMonth,
   refreshKey,
-  onTreasuryChanged,
+  disabled,
+  syncStatus,
 }: {
+  yearMonth: string;
   refreshKey: number;
-  onTreasuryChanged: () => void;
+  disabled?: boolean;
+  syncStatus: BankingSyncStatus | null;
 }) {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
   const [lines, setLines] = useState<BankLine[]>([]);
+  const [drafts, setDrafts] = useState<OutboundDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [candidatesByLine, setCandidatesByLine] = useState<
     Record<string, Candidate[] | "loading" | "error">
   >({});
 
-  const now = new Date();
-  const defaultTo = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
-  const defaultFrom = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
-  const [dateFrom, setDateFrom] = useState(defaultFrom);
-  const [dateTo, setDateTo] = useState(defaultTo);
-
   const load = useCallback(async () => {
     if (!token) {
       setLines([]);
+      setDrafts([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
-    const res = await apiFetch("/api/banking/lines?channel=BANK&bankOnly=true");
-    if (!res.ok) {
-      const detail = String(res.status);
+    const { from, to } = monthDateRange(yearMonth);
+    const lineQuery = `channel=BANK&bankOnly=true&valueDateFrom=${encodeURIComponent(from)}&valueDateTo=${encodeURIComponent(to)}`;
+    const [lineRes, draftRes] = await Promise.all([
+      apiFetch(`/api/banking/lines?${lineQuery}`),
+      apiFetch("/api/banking/payment-drafts?status=PENDING"),
+    ]);
+    if (!lineRes.ok) {
+      const detail = String(lineRes.status);
       toast.error(t("banking.loadErr"), { description: detail });
       setError(detail);
       setLines([]);
     } else {
-      const data = (await res.json()) as BankLine[];
-      setLines(data);
+      setLines((await lineRes.json()) as BankLine[]);
+    }
+    if (draftRes.ok) {
+      setDrafts((await draftRes.json()) as OutboundDraft[]);
+    } else {
+      setDrafts([]);
     }
     setLoading(false);
-  }, [token, t]);
+  }, [token, t, yearMonth]);
 
   useEffect(() => {
     if (!ready || !token) return;
     void load();
   }, [load, ready, token, refreshKey]);
-
-  const filteredLines = useMemo(() => {
-    return lines.filter((r) => {
-      const d = isoDateFromRow(r.valueDate);
-      if (!d) return true;
-      return d >= dateFrom && d <= dateTo;
-    });
-  }, [lines, dateFrom, dateTo]);
 
   async function loadCandidates(lineId: string) {
     if (!token) return;
@@ -818,7 +589,7 @@ function BankingRegistry({
     });
     if (!res.ok) {
       const txt = await res.text();
-      alert(`${t("banking.matchErr")}: ${res.status} ${txt}`);
+      toast.error(`${t("banking.matchErr")}: ${res.status} ${txt}`);
       return;
     }
     setCandidatesByLine((m) => {
@@ -829,46 +600,11 @@ function BankingRegistry({
     await load();
   }
 
+  const hasAny = drafts.length > 0 || lines.length > 0;
+
   return (
-    <section className="space-y-4">
-      <h3 className="text-base font-semibold text-gray-900 m-0">{t("banking.recentTransactionsTitle")}</h3>
-
-      <p className="text-sm text-slate-600 m-0">
-        {t("banking.cashOpsMovedHint")}{" "}
-        <Link href="/banking/cash" className="font-medium text-action hover:underline">
-          {t("nav.kassa")}
-        </Link>
-        {" · "}
-        <Link href="/banking/money" className="font-medium text-action hover:underline">
-          {t("treasury.moneyTitle")}
-        </Link>
-      </p>
-
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm text-slate-700">
-          <span className="block mb-1">{t("banking.periodFrom")}</span>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className={FORM_INPUT_CLASS}
-          />
-        </label>
-        <label className="text-sm text-slate-700">
-          <span className="block mb-1">{t("banking.periodTo")}</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className={FORM_INPUT_CLASS}
-          />
-        </label>
-      </div>
-
-      {loading && <p className="text-[#7F8C8D] text-[13px]">{t("banking.loadingLines")}</p>}
-      {!loading && filteredLines.length === 0 && !error && (
-        <p className="text-[#7F8C8D] text-[13px]">{t("banking.noLines")}</p>
-      )}
+    <section className={`space-y-4 ${disabled ? "pointer-events-none opacity-60" : ""}`}>
+      {loading && <p className="text-[#7F8C8D] text-[13px] m-0">{t("banking.loadingLines")}</p>}
       {!loading && error ? (
         <EmptyState
           title={t("banking.loadErr")}
@@ -876,8 +612,27 @@ function BankingRegistry({
           icon={<Landmark className="h-8 w-8" aria-hidden />}
         />
       ) : null}
-      {!loading && filteredLines.length > 0 && (
+      {!loading && !error && !hasAny ? (
+        <p className="text-[#7F8C8D] text-[13px] m-0">{t("banking.unifiedTableEmpty")}</p>
+      ) : null}
+      {!loading && !error && hasAny ? (
         <div className={DATA_TABLE_VIEWPORT_CLASS}>
+          {syncStatus ? (
+            <div className="mb-2 flex justify-end text-[11px] text-slate-500">
+              <span className="text-right">
+                {t("banking.lastSync")}:{" "}
+                {syncStatus.lastSyncAt
+                  ? new Date(syncStatus.lastSyncAt).toLocaleString()
+                  : t("banking.syncNever")}
+                {syncStatus.lastSyncStatus === "ok" ? (
+                  <span className="ml-2 font-semibold text-emerald-700">{t("banking.syncOk")}</span>
+                ) : null}
+                {syncStatus.lastSyncStatus === "error" ? (
+                  <span className="ml-2 font-semibold text-red-600">{t("banking.syncErr")}</span>
+                ) : null}
+              </span>
+            </div>
+          ) : null}
           <table className={`${DATA_TABLE_CLASS} w-full`}>
             <thead>
               <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
@@ -893,266 +648,171 @@ function BankingRegistry({
               </tr>
             </thead>
             <tbody>
-              {filteredLines.map((r) => {
-                const amt = Number(
-                  String(r.amount ?? "")
-                    .replace(/\s/g, "")
-                    .replace(",", "."),
-                );
-                const isIn = r.type === "INFLOW";
-                const signed = isIn ? amt : -amt;
-                return (
-                  <tr key={r.id} className={`${DATA_TABLE_TR_CLASS} align-top`}>
-                    <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>
-                      {r.valueDate ? String(r.valueDate).slice(0, 10) : "—"}
-                    </td>
-                    <td className={DATA_TABLE_TD_CLASS}>
-                      <span className="inline-flex rounded-[2px] bg-[#EBEDF0] px-2 py-0.5 text-xs font-medium text-[#34495E]">
-                        {t(sourceLabelKey(r.origin))}
-                      </span>
-                    </td>
-                    <td className={DATA_TABLE_TD_RIGHT_CLASS}>
-                      <div className="flex items-center justify-end gap-2 min-w-[8rem]">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EBEDF0] text-[#7F8C8D]">
-                          <Building2 className="h-4 w-4" aria-hidden />
-                        </span>
-                        <span className="break-words font-mono tabular-nums text-[#34495E]">
-                          {r.counterpartyTaxId ?? "—"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className={`${DATA_TABLE_TD_CLASS} max-w-md`}>
-                      {r.description ?? r.bankStatement.bankName}
-                    </td>
-                    <td
-                      className={`${DATA_TABLE_TD_RIGHT_CLASS} font-medium ${
-                        signed >= 0 ? "text-emerald-700" : "text-rose-700"
-                      }`}
-                    >
-                      <span className="block">
-                        {isIn ? t("banking.income") : t("banking.expense")} · {formatMoneyAzn(r.amount)}
-                      </span>
-                    </td>
-                    <td className={DATA_TABLE_TD_CENTER_CLASS}>
-                      {r.isMatched ? (
-                        <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                          {t("banking.statusPosted")}
-                        </span>
-                      ) : (
-                        <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">
-                          {t("banking.statusPending")}
-                        </span>
-                      )}
-                    </td>
-                    <td className={`${DATA_TABLE_TD_CLASS} w-[140px] min-w-[140px]`}>
-                      {!r.isMatched && r.type === "INFLOW" && (
-                        <div className="space-y-2 max-w-md text-left">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              className={TABLE_ROW_ICON_BTN_CLASS}
-                              title={t("banking.candidates")}
-                              onClick={() => void loadCandidates(r.id)}
-                            >
-                              {candidatesByLine[r.id] === "loading" ? (
-                                <Loader2 className="h-4 w-4 animate-spin text-[#2980B9]" aria-hidden />
-                              ) : (
-                                <Search className="h-4 w-4 text-[#2980B9]" aria-hidden />
-                              )}
-                            </button>
-                          </div>
-                          {candidatesByLine[r.id] === "loading" && (
-                            <span className="text-xs text-[#7F8C8D]">{t("banking.candidatesLoading")}</span>
-                          )}
-                          {candidatesByLine[r.id] === "error" && (
-                            <span className="text-xs text-red-600">{t("banking.candidatesErr")}</span>
-                          )}
-                          {Array.isArray(candidatesByLine[r.id]) &&
-                            (candidatesByLine[r.id] as Candidate[]).length === 0 && (
-                              <p className="text-xs text-[#7F8C8D] m-0">{t("banking.noCandidates")}</p>
-                            )}
-                          {Array.isArray(candidatesByLine[r.id]) &&
-                            (candidatesByLine[r.id] as Candidate[]).map((c) => (
-                              <div key={c.id} className="flex flex-wrap items-center justify-end gap-1 mt-1">
-                                <span className="text-[13px] text-[#34495E] text-right min-w-0 flex-1">
-                                  {c.number} · {c.counterparty.name} · {formatMoneyAzn(c.totalAmount)}
-                                </span>
-                                <button
-                                  type="button"
-                                  className={TABLE_ROW_ICON_BTN_CLASS}
-                                  title={t("banking.match")}
-                                  onClick={() => void match(r.id, c.id)}
-                                >
-                                  <GitMerge className="h-4 w-4 text-[#2980B9]" aria-hidden />
-                                </button>
-                              </div>
-                            ))}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function OutboundPaymentsSection({ refreshKey }: { refreshKey: number }) {
-  const { t } = useTranslation();
-  const { token, ready } = useRequireAuth();
-  const [rows, setRows] = useState<OutboundDraft[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [fromAccountIban, setFromAccountIban] = useState("");
-  const [recipientIban, setRecipientIban] = useState("");
-  const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState("AZN");
-  const [purpose, setPurpose] = useState("");
-  const [provider, setProvider] = useState("pasha");
-
-  const load = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    const res = await apiFetch("/api/banking/payment-drafts");
-    if (res.ok) {
-      setRows((await res.json()) as OutboundDraft[]);
-    }
-    setLoading(false);
-  }, [token]);
-
-  useEffect(() => {
-    if (!ready || !token) return;
-    void load();
-  }, [ready, token, load, refreshKey]);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!token) return;
-    const normalizedAmount = Number(amount.replace(",", "."));
-    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
-      toast.error("Некорректная сумма");
-      return;
-    }
-    setBusy(true);
-    const res = await apiFetch("/api/banking/payment-drafts/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fromAccountIban: fromAccountIban.trim(),
-        recipientIban: recipientIban.trim(),
-        amount: normalizedAmount,
-        currency: currency.trim().toUpperCase(),
-        purpose: purpose.trim(),
-        provider: provider.trim(),
-      }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      const txt = await res.text();
-      toast.error("Не удалось отправить в банк", { description: `${res.status} ${txt}` });
-      return;
-    }
-    toast.success("Платеж отправлен в банк");
-    setRecipientIban("");
-    setAmount("");
-    setPurpose("");
-    await load();
-  }
-
-  if (!ready || !token) return null;
-
-  return (
-    <section className={`${CARD_CONTAINER_CLASS} p-6 space-y-5`}>
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-gray-900 m-0">Исходящие платежи</h3>
-      </div>
-      <form className="grid gap-3 md:grid-cols-2" onSubmit={(e) => void submit(e)}>
-        <input
-          className={FORM_INPUT_CLASS}
-          placeholder="IBAN списания"
-          value={fromAccountIban}
-          onChange={(e) => setFromAccountIban(e.target.value)}
-          required
-        />
-        <input
-          className={FORM_INPUT_CLASS}
-          placeholder="IBAN получателя"
-          value={recipientIban}
-          onChange={(e) => setRecipientIban(e.target.value)}
-          required
-        />
-        <input
-          className={FORM_INPUT_CLASS}
-          placeholder="Сумма"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          required
-        />
-        <select className={FORM_INPUT_CLASS} value={currency} onChange={(e) => setCurrency(e.target.value)}>
-          <option value="AZN">AZN</option>
-          <option value="USD">USD</option>
-          <option value="EUR">EUR</option>
-        </select>
-        <input
-          className={`${FORM_INPUT_CLASS} md:col-span-2`}
-          placeholder="Назначение платежа"
-          value={purpose}
-          onChange={(e) => setPurpose(e.target.value)}
-          required
-        />
-        <select className={FORM_INPUT_CLASS} value={provider} onChange={(e) => setProvider(e.target.value)}>
-          <option value="pasha">Pasha</option>
-          <option value="abb">ABB</option>
-          <option value="birbank">Birbank</option>
-        </select>
-        <div className="flex items-center">
-          <button type="submit" className={PRIMARY_BUTTON_CLASS} disabled={busy}>
-            {busy ? t("common.loading") : "Отправить в банк"}
-          </button>
-        </div>
-      </form>
-      {loading ? <p className="text-sm text-slate-600 m-0">{t("common.loading")}</p> : null}
-      {!loading && (
-        <div className={DATA_TABLE_VIEWPORT_CLASS}>
-          <table className={`${DATA_TABLE_CLASS} w-full`}>
-            <thead>
-              <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
-                <th className={DATA_TABLE_TH_RIGHT_CLASS}>Дата</th>
-                <th className={DATA_TABLE_TH_LEFT_CLASS}>Получатель</th>
-                <th className={DATA_TABLE_TH_LEFT_CLASS}>Назначение</th>
-                <th className={DATA_TABLE_TH_LEFT_CLASS}>Провайдер</th>
-                <th className={DATA_TABLE_TH_RIGHT_CLASS}>Сумма</th>
-                <th className={DATA_TABLE_TH_CENTER_CLASS}>Статус</th>
+              <tr className="bg-amber-50/90">
+                <td
+                  colSpan={7}
+                  className="py-2.5 px-3 text-left text-xs font-semibold uppercase tracking-wide text-amber-950"
+                >
+                  {t("banking.queueSectionTitle")}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className={DATA_TABLE_TR_CLASS}>
-                  <td className={DATA_TABLE_TD_RIGHT_CLASS}>{String(r.createdAt).slice(0, 10)}</td>
-                  <td className={`${DATA_TABLE_TD_CLASS} font-mono text-xs`}>{r.recipientIban}</td>
-                  <td className={DATA_TABLE_TD_CLASS}>{r.purpose}</td>
-                  <td className={DATA_TABLE_TD_CLASS}>{r.provider ?? "—"}</td>
-                  <td className={DATA_TABLE_TD_RIGHT_CLASS}>
-                    {formatMoneyAzn(Number(r.amount))} {r.currency}
-                  </td>
-                  <td className={DATA_TABLE_TD_CENTER_CLASS}>
-                    <span className="inline-flex rounded-full bg-[#EBEDF0] px-2 py-0.5 text-xs text-[#34495E]">
-                      {r.status}
-                    </span>
-                    {r.rejectionReason ? (
-                      <div className="text-xs text-rose-700 mt-1">{r.rejectionReason}</div>
-                    ) : null}
+              {drafts.length === 0 ? (
+                <tr className={`${DATA_TABLE_TR_CLASS} bg-amber-50/40`}>
+                  <td colSpan={7} className={`${DATA_TABLE_TD_CLASS} text-sm text-slate-600`}>
+                    {t("banking.queueEmpty")}
                   </td>
                 </tr>
-              ))}
+              ) : (
+                drafts.map((r) => (
+                  <tr key={`draft-${r.id}`} className={`${DATA_TABLE_TR_CLASS} align-top bg-amber-50/40`}>
+                    <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>
+                      {String(r.createdAt).slice(0, 10)}
+                    </td>
+                    <td className={DATA_TABLE_TD_CLASS}>
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-950">
+                        <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {t("banking.queueRowBadge")}
+                      </span>
+                    </td>
+                    <td className={`${DATA_TABLE_TD_RIGHT_CLASS} font-mono text-xs text-[#34495E]`}>
+                      {r.recipientIban}
+                    </td>
+                    <td className={`${DATA_TABLE_TD_CLASS} max-w-md`}>{r.purpose}</td>
+                    <td className={`${DATA_TABLE_TD_RIGHT_CLASS} font-medium text-rose-700`}>
+                      {t("banking.expense")} · {formatMoneyAzn(Number(r.amount))} {r.currency}
+                    </td>
+                    <td className={DATA_TABLE_TD_CENTER_CLASS}>
+                      <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-950">
+                        {r.status}
+                      </span>
+                      {r.rejectionReason ? (
+                        <div className="mt-1 text-xs text-rose-700">{r.rejectionReason}</div>
+                      ) : null}
+                    </td>
+                    <td className={DATA_TABLE_TD_CLASS}>—</td>
+                  </tr>
+                ))
+              )}
+              <tr className="bg-slate-50">
+                <td
+                  colSpan={7}
+                  className="py-2.5 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700"
+                >
+                  {t("banking.historySectionTitle")} · {yearMonth}
+                </td>
+              </tr>
+              {lines.length === 0 ? (
+                <tr className={DATA_TABLE_TR_CLASS}>
+                  <td colSpan={7} className={`${DATA_TABLE_TD_CLASS} text-sm text-slate-600`}>
+                    {t("banking.noLinesMonth")}
+                  </td>
+                </tr>
+              ) : (
+                lines.map((r) => {
+                  const amt = Number(
+                    String(r.amount ?? "")
+                      .replace(/\s/g, "")
+                      .replace(",", "."),
+                  );
+                  const isIn = r.type === "INFLOW";
+                  const signed = isIn ? amt : -amt;
+                  return (
+                    <tr key={r.id} className={`${DATA_TABLE_TR_CLASS} align-top`}>
+                      <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>
+                        {r.valueDate ? String(r.valueDate).slice(0, 10) : "—"}
+                      </td>
+                      <td className={DATA_TABLE_TD_CLASS}>
+                        <span className="inline-flex rounded-lg bg-[#EBEDF0] px-2 py-0.5 text-xs font-medium text-[#34495E]">
+                          {t(sourceLabelKey(r.origin))}
+                        </span>
+                      </td>
+                      <td className={DATA_TABLE_TD_RIGHT_CLASS}>
+                        <div className="flex min-w-[8rem] items-center justify-end gap-2">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EBEDF0] text-[#7F8C8D]">
+                            <Building2 className="h-4 w-4" aria-hidden />
+                          </span>
+                          <span className="break-words font-mono tabular-nums text-[#34495E]">
+                            {r.counterpartyTaxId ?? "—"}
+                          </span>
+                        </div>
+                      </td>
+                      <td className={`${DATA_TABLE_TD_CLASS} max-w-md`}>
+                        {r.description ?? r.bankStatement.bankName}
+                      </td>
+                      <td
+                        className={`${DATA_TABLE_TD_RIGHT_CLASS} font-medium ${
+                          signed >= 0 ? "text-emerald-700" : "text-rose-700"
+                        }`}
+                      >
+                        <span className="block">
+                          {isIn ? t("banking.income") : t("banking.expense")} · {formatMoneyAzn(r.amount)}
+                        </span>
+                      </td>
+                      <td className={DATA_TABLE_TD_CENTER_CLASS}>
+                        {r.isMatched ? (
+                          <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                            {t("banking.statusPosted")}
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">
+                            {t("banking.statusPending")}
+                          </span>
+                        )}
+                      </td>
+                      <td className={`${DATA_TABLE_TD_CLASS} w-[140px] min-w-[140px]`}>
+                        {!r.isMatched && r.type === "INFLOW" && (
+                          <div className="max-w-md space-y-2 text-left">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                className={TABLE_ROW_ICON_BTN_CLASS}
+                                title={t("banking.candidates")}
+                                onClick={() => void loadCandidates(r.id)}
+                              >
+                                {candidatesByLine[r.id] === "loading" ? (
+                                  <Loader2 className="h-4 w-4 animate-spin text-[#2980B9]" aria-hidden />
+                                ) : (
+                                  <Search className="h-4 w-4 text-[#2980B9]" aria-hidden />
+                                )}
+                              </button>
+                            </div>
+                            {candidatesByLine[r.id] === "loading" && (
+                              <span className="text-xs text-[#7F8C8D]">{t("banking.candidatesLoading")}</span>
+                            )}
+                            {candidatesByLine[r.id] === "error" && (
+                              <span className="text-xs text-red-600">{t("banking.candidatesErr")}</span>
+                            )}
+                            {Array.isArray(candidatesByLine[r.id]) &&
+                              (candidatesByLine[r.id] as Candidate[]).length === 0 && (
+                                <p className="m-0 text-xs text-[#7F8C8D]">{t("banking.noCandidates")}</p>
+                              )}
+                            {Array.isArray(candidatesByLine[r.id]) &&
+                              (candidatesByLine[r.id] as Candidate[]).map((c) => (
+                                <div key={c.id} className="mt-1 flex flex-wrap items-center justify-end gap-1">
+                                  <span className="min-w-0 flex-1 text-right text-[13px] text-[#34495E]">
+                                    {c.number} · {c.counterparty.name} · {formatMoneyAzn(c.totalAmount)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className={TABLE_ROW_ICON_BTN_CLASS}
+                                    title={t("banking.match")}
+                                    onClick={() => void match(r.id, c.id)}
+                                  >
+                                    <GitMerge className="h-4 w-4 text-[#2980B9]" aria-hidden />
+                                  </button>
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -1162,11 +822,69 @@ export default function BankingPage() {
   const { token, ready } = useRequireAuth();
   const [refreshKey, setRefreshKey] = useState(0);
   const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"registry" | "outbound">("registry");
+  const [createAccountOpen, setCreateAccountOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferMode, setTransferMode] = useState<"TRANSFER" | "CONVERSION" | "CASH_DEPOSIT">("TRANSFER");
+  const [importOpen, setImportOpen] = useState(false);
+  const [yearMonth, setYearMonth] = useState(defaultYearMonth);
+  const [syncFullBusy, setSyncFullBusy] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<BankingSyncStatus | null>(null);
 
   const bump = useCallback(() => {
     setRefreshKey((k) => k + 1);
   }, []);
+
+  const loadSyncStatus = useCallback(async () => {
+    if (!token) {
+      setSyncStatus(null);
+      return;
+    }
+    const res = await apiFetch("/api/banking/sync/status");
+    if (res.ok) {
+      setSyncStatus((await res.json()) as BankingSyncStatus);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!ready || !token) return;
+    void loadSyncStatus();
+  }, [ready, token, refreshKey, loadSyncStatus]);
+
+  const smartSync = useCallback(async () => {
+    if (!token) return;
+    setSyncFullBusy(true);
+    try {
+      const pushRes = await apiFetch("/api/banking/payment-drafts/send-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!pushRes.ok) {
+        const txt = await pushRes.text();
+        toast.error(t("banking.syncFail"), { description: `${pushRes.status} ${txt}` });
+      } else {
+        const j = (await pushRes.json()) as { failed?: number };
+        if (j.failed && j.failed > 0) {
+          toast.warning(t("banking.smartSyncPushPartial", { count: String(j.failed) }));
+        }
+      }
+      const pullRes = await apiFetch("/api/banking/sync", { method: "POST" });
+      if (!pullRes.ok) {
+        const txt = await pullRes.text();
+        toast.error(t("banking.syncFail"), { description: `${pullRes.status} ${txt}` });
+      } else {
+        toast.success(t("banking.smartSyncDone"));
+      }
+      bump();
+    } catch (e) {
+      toast.error(t("banking.syncFail"), {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setSyncFullBusy(false);
+      void loadSyncStatus();
+    }
+  }, [token, t, bump, loadSyncStatus]);
 
   if (!ready) {
     return (
@@ -1183,62 +901,148 @@ export default function BankingPage() {
           title={t("banking.title")}
           actions={
             <>
-              <Link href="/sales/invoices?pay=1" className={SECONDARY_BUTTON_CLASS}>
-                {t("banking.quickPay")}
-              </Link>
+              <div className="flex h-8 items-center gap-2">
+                <span className="shrink-0 text-sm leading-none text-slate-700">
+                  {t("banking.monthPickerToolbarLabel")}
+                </span>
+                <input
+                  type="month"
+                  value={yearMonth}
+                  disabled={syncFullBusy}
+                  onChange={(e) => setYearMonth(e.target.value)}
+                  className={TOOLBAR_MONTH_INPUT_CLASS}
+                  aria-label={t("banking.monthPickerLabel")}
+                />
+              </div>
+              <button
+                type="button"
+                disabled={syncFullBusy}
+                onClick={() => void smartSync()}
+                className={`${PRIMARY_BUTTON_CLASS} inline-flex items-center gap-2 disabled:opacity-50`}
+              >
+                {syncFullBusy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                    {t("banking.syncRunning")}
+                  </>
+                ) : (
+                  t("banking.syncBtn")
+                )}
+              </button>
+              <button
+                type="button"
+                disabled={syncFullBusy}
+                onClick={() => setImportOpen(true)}
+                className={`${PRIMARY_BUTTON_CLASS} disabled:opacity-50`}
+              >
+                {t("banking.importStatementBtn")}
+              </button>
               <button
                 type="button"
                 className={SECONDARY_BUTTON_CLASS}
+                disabled={syncFullBusy}
                 onClick={() => setQuickExpenseOpen(true)}
               >
                 {t("banking.quickExpense")}
               </button>
-              <Link href="/accounting/mapping" className={PRIMARY_BUTTON_CLASS}>
+              <details className="relative">
+                <summary className={`${SECONDARY_BUTTON_CLASS} cursor-pointer list-none`}>
+                  {t("banking.transfer.openAction")}
+                </summary>
+                <div className="absolute right-0 z-20 mt-1 min-w-[14rem] rounded-xl border border-[#D5DADF] bg-white p-1 shadow-lg">
+                  <button
+                    type="button"
+                    className="block w-full rounded-lg px-3 py-2 text-left text-sm text-[#34495E] hover:bg-[#F1F5F9]"
+                    onClick={() => {
+                      setTransferMode("TRANSFER");
+                      setTransferOpen(true);
+                    }}
+                  >
+                    {t("banking.transfer.modeTransfer")}
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full rounded-lg px-3 py-2 text-left text-sm text-[#34495E] hover:bg-[#F1F5F9]"
+                    onClick={() => {
+                      setTransferMode("CONVERSION");
+                      setTransferOpen(true);
+                    }}
+                  >
+                    {t("banking.transfer.modeConversion")}
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full rounded-lg px-3 py-2 text-left text-sm text-[#34495E] hover:bg-[#F1F5F9]"
+                    onClick={() => {
+                      setTransferMode("CASH_DEPOSIT");
+                      setTransferOpen(true);
+                    }}
+                  >
+                    {t("banking.transfer.modeCashDeposit")}
+                  </button>
+                </div>
+              </details>
+              <button
+                type="button"
+                className={PRIMARY_BUTTON_CLASS}
+                disabled={syncFullBusy}
+                onClick={() => setCreateAccountOpen(true)}
+              >
                 {t("banking.addAccount")}
-              </Link>
+              </button>
             </>
           }
         />
 
         <CashAccountCards refreshKey={refreshKey} segmentFilter="BANK" />
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className={activeTab === "registry" ? PRIMARY_BUTTON_CLASS : SECONDARY_BUTTON_CLASS}
-            onClick={() => setActiveTab("registry")}
-          >
-            Выписки и сверка
-          </button>
-          <button
-            type="button"
-            className={activeTab === "outbound" ? PRIMARY_BUTTON_CLASS : SECONDARY_BUTTON_CLASS}
-            onClick={() => setActiveTab("outbound")}
-          >
-            Исходящие платежи
-          </button>
+        <div className="relative">
+          {syncFullBusy ? (
+            <div
+              className="absolute inset-0 z-10 rounded-lg bg-white/70 backdrop-blur-[1px]"
+              aria-busy="true"
+            />
+          ) : null}
+          <div className="relative z-[1]">
+            <BankingUnifiedRegistry
+              yearMonth={yearMonth}
+              refreshKey={refreshKey}
+              disabled={syncFullBusy}
+              syncStatus={syncStatus}
+            />
+          </div>
         </div>
 
-        <section className={`${CARD_CONTAINER_CLASS} p-6`}>
-          <BankingImportCenter
-            onImported={() => {
+        {quickExpenseOpen ? (
+          <BankingQuickExpenseModal onClose={() => setQuickExpenseOpen(false)} onDone={bump} />
+        ) : null}
+        {createAccountOpen ? (
+          <BankingCreateAccountModal
+            onClose={() => setCreateAccountOpen(false)}
+            onCreated={() => {
+              setCreateAccountOpen(false);
               bump();
             }}
           />
-        </section>
-
-        {activeTab === "registry" ? (
-          <BankingRegistry refreshKey={refreshKey} onTreasuryChanged={bump} />
-        ) : (
-          <OutboundPaymentsSection refreshKey={refreshKey} />
-        )}
-
-        {quickExpenseOpen && (
-          <BankingQuickExpenseModal
-            onClose={() => setQuickExpenseOpen(false)}
-            onDone={bump}
-          />
-        )}
+        ) : null}
+        <BankStatementImportModal
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          onImported={() => {
+            setImportOpen(false);
+            void loadSyncStatus();
+            bump();
+          }}
+        />
+        <InternalTransferModal
+          open={transferOpen}
+          initialMode={transferMode}
+          onClose={() => setTransferOpen(false)}
+          onDone={() => {
+            setTransferOpen(false);
+            bump();
+          }}
+        />
       </div>
     </SubscriptionPaywall>
   );

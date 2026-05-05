@@ -240,7 +240,7 @@ export function AuditModal({
 
       {audit && (
         <>
-          <section className={`overflow-x-auto rounded-[2px] border border-[#D5DADF] bg-white shadow-sm`}>
+          <section className={`overflow-x-auto rounded-2xl border border-[#D5DADF] bg-white shadow-sm`}>
             <table className="min-w-full text-[13px]">
               <thead>
                 <tr className="border-b border-[#EBEDF0]">

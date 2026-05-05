@@ -2,9 +2,12 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UploadedFile,
@@ -33,10 +36,16 @@ import { BankMatchService } from "./bank-match.service";
 import { BankingService } from "./banking.service";
 import { BankingGatewayService } from "./banking-gateway.service";
 import { CashOutDto } from "./dto/cash-out.dto";
+import { CreateBankConversionDto } from "./dto/create-bank-conversion.dto";
+import { CreateCashDepositDto } from "./dto/create-cash-deposit.dto";
+import { CreateInternalTransferDto } from "./dto/create-internal-transfer.dto";
 import { ManualBankEntryDto } from "./dto/manual-bank-entry.dto";
 import { MatchBankLineDto } from "./dto/match-line.dto";
+import { SendAllPendingPaymentDraftsDto } from "./dto/send-all-pending-payment-drafts.dto";
 import { SendBankPaymentDraftDto } from "./dto/send-bank-payment-draft.dto";
 import { ValidateIbanDto } from "./dto/validate-iban.dto";
+import { CreateOrganizationBankAccountDto } from "../organizations/dto/create-organization-bank-account.dto";
+import { UpdateOrganizationBankAccountDto } from "../organizations/dto/update-organization-bank-account.dto";
 import { RequiresModule } from "../subscription/requires-module.decorator";
 import { SubscriptionGuard } from "../subscription/subscription.guard";
 import { ModuleEntitlement } from "../subscription/subscription.constants";
@@ -148,6 +157,96 @@ export class BankingController {
     return this.banking.manualBankEntry(organizationId, dto);
   }
 
+  @Get("bank-accounts")
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({ summary: "CRUD: list organization bank accounts" })
+  listBankAccounts(@OrganizationId() organizationId: string) {
+    return this.banking.listOrganizationBankAccounts(organizationId);
+  }
+
+  @Post("bank-accounts")
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({ summary: "CRUD: create organization bank account" })
+  createBankAccount(
+    @OrganizationId() organizationId: string,
+    @Body() dto: CreateOrganizationBankAccountDto,
+  ) {
+    return this.banking.createOrganizationBankAccount(organizationId, dto);
+  }
+
+  @Patch("bank-accounts/:id")
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({ summary: "CRUD: update organization bank account" })
+  updateBankAccount(
+    @OrganizationId() organizationId: string,
+    @Param("id", new ParseUUIDPipe({ version: "4" })) id: string,
+    @Body() dto: UpdateOrganizationBankAccountDto,
+  ) {
+    return this.banking.updateOrganizationBankAccount(organizationId, id, dto);
+  }
+
+  @Delete("bank-accounts/:id")
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({ summary: "CRUD: archive/delete organization bank account" })
+  deleteBankAccount(
+    @OrganizationId() organizationId: string,
+    @Param("id", new ParseUUIDPipe({ version: "4" })) id: string,
+  ) {
+    return this.banking.deleteOrganizationBankAccount(organizationId, id);
+  }
+
+  @Post("transfers")
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({
+    summary:
+      "Внутренний перевод между своими счетами (через транзит 231, комиссия на 731)",
+  })
+  createInternalTransfer(
+    @OrganizationId() organizationId: string,
+    @Body() dto: CreateInternalTransferDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    requireOrgRole(user);
+    return this.banking.createInternalTransfer(organizationId, dto);
+  }
+
+  @Post("conversions")
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({
+    summary:
+      "Конвертация между своими валютными счетами с расчётом курсовой разницы (662/762)",
+  })
+  createConversion(
+    @OrganizationId() organizationId: string,
+    @Body() dto: CreateBankConversionDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    requireOrgRole(user);
+    return this.banking.createBankConversion(organizationId, dto);
+  }
+
+  @Post("cash-deposits")
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({
+    summary:
+      "Взнос наличных на банковский счет (источник: касса 251 или средства учредителя 545)",
+  })
+  createCashDeposit(
+    @OrganizationId() organizationId: string,
+    @Body() dto: CreateCashDepositDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    requireOrgRole(user);
+    return this.banking.createCashDeposit(organizationId, dto);
+  }
+
   @Post("validate-iban")
   @ApiOperation({
     summary:
@@ -177,8 +276,30 @@ export class BankingController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
   @ApiOperation({ summary: "Исходящие платежные драфты в банк" })
-  listPaymentDrafts(@OrganizationId() organizationId: string) {
-    return this.banking.listPaymentDrafts(organizationId);
+  listPaymentDrafts(
+    @OrganizationId() organizationId: string,
+    @Query("status") status?: string,
+  ) {
+    const s = (status ?? "").trim().toUpperCase();
+    const allowed = ["PENDING", "SENT", "REJECTED", "COMPLETED"] as const;
+    const st = (allowed as readonly string[]).find((x) => x === s) as
+      | (typeof allowed)[number]
+      | undefined;
+    return this.banking.listPaymentDrafts(organizationId, st);
+  }
+
+  @Post("payment-drafts/send-all")
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({
+    summary:
+      "Отправить все черновики исходящих платежей (PENDING) в direct banking по очереди",
+  })
+  sendAllPendingPaymentDrafts(
+    @OrganizationId() organizationId: string,
+    @Body() dto: SendAllPendingPaymentDraftsDto,
+  ) {
+    return this.gateway.sendAllPendingPaymentDrafts(organizationId, dto.fromAccountIban);
   }
 
   @Post("payment-drafts/send")
@@ -236,16 +357,22 @@ export class BankingController {
     @Query("needsAttention") needsAttention?: string,
     @Query("channel") channel?: string,
     @Query("bankOnly") bankOnly?: string,
+    @Query("valueDateFrom") valueDateFrom?: string,
+    @Query("valueDateTo") valueDateTo?: string,
   ) {
     const ch = channel?.trim().toUpperCase();
     const channelFilter =
       ch === "BANK" || ch === "CASH" ? ch : undefined;
+    const from = valueDateFrom?.trim();
+    const to = valueDateTo?.trim();
     return this.banking.listLines(organizationId, {
       bankStatementId: bankStatementId || undefined,
       unmatchedOnly: unmatchedOnly === "1" || unmatchedOnly === "true",
       needsAttention: needsAttention === "1" || needsAttention === "true",
       channel: channelFilter,
       bankOnly: bankOnly === "1" || bankOnly === "true",
+      valueDateFrom: from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : undefined,
+      valueDateTo: to && /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : undefined,
     });
   }
 

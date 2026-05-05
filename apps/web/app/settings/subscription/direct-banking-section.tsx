@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
 import type { SubscriptionSnapshot } from "../../../lib/subscription-context";
+import { MODAL_INPUT_CLASS, MODAL_INPUT_MONO_CLASS } from "../../../lib/design-system";
 
 type DirectView = {
   syncMode: "mock" | "rest";
@@ -268,7 +269,7 @@ export function DirectBankingSection({
                         value={b.url}
                         onChange={(e) => setBank(key, "url", e.target.value)}
                         disabled={readOnly}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                        className={MODAL_INPUT_CLASS}
                         placeholder="https://"
                       />
                     </div>
@@ -290,7 +291,7 @@ export function DirectBankingSection({
                           if (e.target.value) setBank(key, "clear", false);
                         }}
                         disabled={readOnly}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono"
+                        className={MODAL_INPUT_MONO_CLASS}
                         placeholder="••••••••"
                       />
                       {hasToken && (

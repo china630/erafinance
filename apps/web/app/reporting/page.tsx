@@ -17,7 +17,6 @@ import { useRequireAuth } from "../../lib/use-require-auth";
 import { PageHeader } from "../../components/layout/page-header";
 import { EmptyState } from "../../components/empty-state";
 import {
-  BORDER_MUTED_CLASS,
   CARD_CONTAINER_CLASS,
   DATA_TABLE_CLASS,
   DATA_TABLE_HEAD_ROW_CLASS,
@@ -27,6 +26,7 @@ import {
   DATA_TABLE_TH_RIGHT_CLASS,
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
+  MODAL_INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from "../../lib/design-system";
 
@@ -260,7 +260,7 @@ export default function ReportingPage() {
 
   const segBtn = (isActive: boolean, disabled: boolean) =>
     [
-      "inline-flex h-8 min-h-8 items-center justify-center rounded-[2px] px-4 text-[13px] font-semibold transition-colors",
+      "inline-flex h-8 min-h-8 items-center justify-center rounded-lg px-4 text-[13px] font-semibold transition-colors",
       isActive
         ? "bg-[#2980B9] text-white shadow-sm hover:bg-[#2471A3]"
         : "border border-[#D5DADF] bg-white text-[#34495E] hover:bg-[#F4F5F7]",
@@ -299,7 +299,7 @@ export default function ReportingPage() {
                   type="number"
                   value={closeYear}
                   onChange={(e) => setCloseYear(Number(e.target.value))}
-                  className="w-28 rounded-md border border-slate-200 px-2 py-1.5"
+                  className={`${MODAL_INPUT_CLASS} !w-28`}
                 />
               </label>
               <label className="flex flex-col gap-1 text-sm">
@@ -310,7 +310,7 @@ export default function ReportingPage() {
                   max={12}
                   value={closeMonth}
                   onChange={(e) => setCloseMonth(Number(e.target.value))}
-                  className="w-24 rounded-md border border-slate-200 px-2 py-1.5"
+                  className={`${MODAL_INPUT_CLASS} !w-24`}
                 />
               </label>
               <button
@@ -325,7 +325,9 @@ export default function ReportingPage() {
           ) : undefined
         }
       />
-      {closeMsg && <p className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">{closeMsg}</p>}
+      {closeMsg && (
+        <p className="rounded-lg border border-[#D5DADF] bg-[#F8F9FA] px-4 py-3 text-[13px] text-[#34495E]">{closeMsg}</p>
+      )}
 
       <div
         className={`flex flex-col flex-wrap gap-4 lg:flex-row lg:items-end ${CARD_CONTAINER_CLASS} p-4`}
@@ -337,7 +339,7 @@ export default function ReportingPage() {
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className={`rounded-[2px] border bg-white px-2 py-1.5 text-sm text-[#34495E] ${BORDER_MUTED_CLASS}`}
+              className={MODAL_INPUT_CLASS}
             />
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
@@ -346,7 +348,7 @@ export default function ReportingPage() {
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className={`rounded-[2px] border bg-white px-2 py-1.5 text-sm text-[#34495E] ${BORDER_MUTED_CLASS}`}
+              className={MODAL_INPUT_CLASS}
             />
           </label>
           {canFilterPlByDepartment && (
@@ -355,7 +357,7 @@ export default function ReportingPage() {
               <select
                 value={plDepartmentId}
                 onChange={(e) => setPlDepartmentId(e.target.value)}
-                className={`rounded-[2px] border bg-white px-2 py-1.5 text-sm font-normal min-w-[180px] text-[#34495E] ${BORDER_MUTED_CLASS}`}
+                className={`${MODAL_INPUT_CLASS} min-w-[180px]`}
               >
                 <option value="">{t("reporting.plDepartmentAll")}</option>
                 {plDepartments.map((d) => (
@@ -369,7 +371,7 @@ export default function ReportingPage() {
         </div>
 
         <div
-          className="inline-flex p-1 rounded-[2px] border border-[#D5DADF] bg-white gap-1"
+          className="inline-flex p-1 rounded-lg border border-[#D5DADF] bg-white gap-1"
           role="group"
           aria-label="report type"
         >

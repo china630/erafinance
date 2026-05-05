@@ -8,7 +8,7 @@ export type NumericAmountInputProps = {
   /** Неформатированное значение: цифры и опционально `.` как разделитель дроби (`1500000`, `12.5`). */
   value: string;
   onValueChange: (plain: string) => void;
-  /** `form` — те же отступы/бордер, что у `FORM_INPUT_CLASS` на страницах (касса и т.п.). */
+  /** `form` — страницы с `FORM_INPUT_CLASS`; `modal` — `MODAL_INPUT_NUMERIC_CLASS`. */
   fieldVariant?: "modal" | "form";
   className?: string;
   decimalScale?: number;

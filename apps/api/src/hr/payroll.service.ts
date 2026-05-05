@@ -15,6 +15,7 @@ import {
 } from "@dayday/database";
 import { AccountingService } from "../accounting/accounting.service";
 import {
+  PAYABLE_SUPPLIERS_ACCOUNT_CODE,
   PAYROLL_EXPENSE_ACCOUNT_CODE,
   PAYROLL_PAYABLE_ACCOUNT_CODE,
   PAYROLL_TAX_PAYABLE_ACCOUNT_CODE,
@@ -33,6 +34,7 @@ import {
 } from "../payroll/tax-calculator";
 import { BankingGatewayService } from "../banking/banking-gateway.service";
 import { assertMayAccessPayrollFinance } from "../auth/policies/hr-payroll.policy";
+import { NotificationService } from "../notifications/notification.service";
 import {
   STORAGE_SERVICE,
   type StorageService,
@@ -49,6 +51,7 @@ export class PayrollService {
     private readonly bankingGateway: BankingGatewayService,
     private readonly config: ConfigService,
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+    private readonly notifications: NotificationService,
   ) {}
 
   listRuns(organizationId: string) {
@@ -216,6 +219,11 @@ export class PayrollService {
     return this.createDraftRunSync(organizationId, dto);
   }
 
+  /**
+   * Переводит `PayrollRun` в **POSTED** (без проводок ГК).
+   * NAS-проводки по ЗП создаются при **`SalaryRegistry → PAID`**: см. `markSalaryRegistryPaid`
+   * (штат: 721/533/521; ГПХ: 721/531/521 — TZ §12.3).
+   */
   async postRunSync(organizationId: string, runId: string) {
     const run = await this.prisma.payrollRun.findFirst({
       where: { id: runId, organizationId },
@@ -348,10 +356,9 @@ export class PayrollService {
             slips: {
               include: {
                 employee: {
-                  include: {
-                    jobPosition: {
-                      select: { departmentId: true },
-                    },
+                  select: {
+                    kind: true,
+                    jobPosition: { select: { departmentId: true } },
                   },
                 },
               },
@@ -383,7 +390,10 @@ export class PayrollService {
             dsmfEmployer: Decimal;
             itsEmployer: Decimal;
             unemploymentEmployer: Decimal;
-            employee: { jobPosition: { departmentId: string | null } };
+            employee: {
+              kind: EmployeeKind;
+              jobPosition: { departmentId: string | null } | null;
+            };
           }>;
         }
       | undefined;
@@ -395,81 +405,170 @@ export class PayrollService {
     const periodEnd = new Date(Date.UTC(run.year, run.month, 0, 12, 0, 0, 0));
     const refBase = `PAY-${run.year}-${String(run.month).padStart(2, "0")}`;
 
-    return this.prisma.$transaction(async (tx) => {
+    const updatedRegistry = await this.prisma.$transaction(async (tx) => {
+      /** First created GL transaction id when multiple departmental postings exist (backward-compatible link on PayrollRun). */
       let runTransactionId = run.transactionId;
       if (!runTransactionId) {
+        type EmpBucket = {
+          gross: Decimal;
+          net: Decimal;
+          workerTaxes: Decimal;
+          employer: Decimal;
+        };
+        type ContrBucket = {
+          gross: Decimal;
+          withholding521: Decimal;
+        };
+        const emptyEmp = (): EmpBucket => ({
+          gross: new Decimal(0),
+          net: new Decimal(0),
+          workerTaxes: new Decimal(0),
+          employer: new Decimal(0),
+        });
+        const emptyContr = (): ContrBucket => ({
+          gross: new Decimal(0),
+          withholding521: new Decimal(0),
+        });
+
         const buckets = new Map<
           string,
           {
             departmentId: string | null;
-            gross: Decimal;
-            net: Decimal;
-            workerTaxes: Decimal;
-            employer: Decimal;
+            emp: EmpBucket;
+            contr: ContrBucket;
           }
         >();
+
         for (const s of run.slips) {
-          const departmentId = s.employee.jobPosition.departmentId ?? null;
+          const departmentId =
+            s.employee.jobPosition?.departmentId ?? null;
           const key = departmentId ?? "__NO_DEPARTMENT__";
           const cur = buckets.get(key) ?? {
             departmentId,
-            gross: new Decimal(0),
-            net: new Decimal(0),
-            workerTaxes: new Decimal(0),
-            employer: new Decimal(0),
+            emp: emptyEmp(),
+            contr: emptyContr(),
           };
-          cur.gross = cur.gross.add(s.gross);
-          cur.net = cur.net.add(s.net);
-          cur.workerTaxes = cur.workerTaxes
-            .add(s.incomeTax)
-            .add(s.dsmfWorker)
-            .add(s.itsWorker)
-            .add(s.unemploymentWorker)
-            .add(s.contractorSocialWithheld);
-          cur.employer = cur.employer
-            .add(s.dsmfEmployer)
-            .add(s.itsEmployer)
-            .add(s.unemploymentEmployer);
+
+          if (s.employee.kind === EmployeeKind.CONTRACTOR) {
+            cur.contr.gross = cur.contr.gross.add(s.gross);
+            cur.contr.withholding521 = cur.contr.withholding521
+              .add(s.incomeTax)
+              .add(s.contractorSocialWithheld);
+          } else {
+            cur.emp.gross = cur.emp.gross.add(s.gross);
+            cur.emp.net = cur.emp.net.add(s.net);
+            cur.emp.workerTaxes = cur.emp.workerTaxes
+              .add(s.incomeTax)
+              .add(s.dsmfWorker)
+              .add(s.itsWorker)
+              .add(s.unemploymentWorker)
+              .add(s.contractorSocialWithheld);
+            cur.emp.employer = cur.emp.employer
+              .add(s.dsmfEmployer)
+              .add(s.itsEmployer)
+              .add(s.unemploymentEmployer);
+          }
           buckets.set(key, cur);
         }
 
         const ordered = [...buckets.values()].sort((a, b) =>
           (a.departmentId ?? "").localeCompare(b.departmentId ?? ""),
         );
+        const distinctDeptIds = [
+          ...new Set(
+            ordered
+              .map((b) => b.departmentId)
+              .filter((id): id is string => id != null && id !== ""),
+          ),
+        ];
+        const departments =
+          distinctDeptIds.length > 0
+            ? await tx.department.findMany({
+                where: { organizationId, id: { in: distinctDeptIds } },
+                select: { id: true, name: true },
+              })
+            : [];
+        const deptNameById = new Map(departments.map((d) => [d.id, d.name]));
+
         for (const [idx, b] of ordered.entries()) {
-          const cr521 = b.workerTaxes.add(b.employer);
-          if (b.gross.add(b.net).add(cr521).add(b.employer).equals(0)) continue;
+          const { emp, contr } = b;
+          const cr521 = emp.workerTaxes
+            .add(emp.employer)
+            .add(contr.withholding521);
+          const debit721 = emp.gross.add(emp.employer).add(contr.gross);
+          if (debit721.isZero()) {
+            continue;
+          }
+          const deptLabel = b.departmentId
+            ? (deptNameById.get(b.departmentId) ?? b.departmentId)
+            : "без подразделения";
+
+          const lines: Array<{
+            accountCode: string;
+            debit: string | number;
+            credit: string | number;
+          }> = [];
+
+          if (emp.gross.gt(0)) {
+            lines.push({
+              accountCode: PAYROLL_EXPENSE_ACCOUNT_CODE,
+              debit: emp.gross.toString(),
+              credit: 0,
+            });
+          }
+          if (emp.employer.gt(0)) {
+            lines.push({
+              accountCode: PAYROLL_EXPENSE_ACCOUNT_CODE,
+              debit: emp.employer.toString(),
+              credit: 0,
+            });
+          }
+          if (contr.gross.gt(0)) {
+            lines.push({
+              accountCode: PAYROLL_EXPENSE_ACCOUNT_CODE,
+              debit: contr.gross.toString(),
+              credit: 0,
+            });
+          }
+          if (emp.net.gt(0)) {
+            lines.push({
+              accountCode: PAYROLL_PAYABLE_ACCOUNT_CODE,
+              debit: 0,
+              credit: emp.net.toString(),
+            });
+          }
+          if (contr.gross.gt(0)) {
+            lines.push({
+              accountCode: PAYABLE_SUPPLIERS_ACCOUNT_CODE,
+              debit: 0,
+              credit: contr.gross.toString(),
+            });
+          }
+          if (contr.withholding521.gt(0)) {
+            lines.push({
+              accountCode: PAYABLE_SUPPLIERS_ACCOUNT_CODE,
+              debit: contr.withholding521.toString(),
+              credit: 0,
+            });
+          }
+          if (cr521.gt(0)) {
+            lines.push({
+              accountCode: PAYROLL_TAX_PAYABLE_ACCOUNT_CODE,
+              debit: 0,
+              credit: cr521.toString(),
+            });
+          }
+
           const { transactionId } = await this.accounting.postJournalInTransaction(
             tx,
             {
               organizationId,
               date: periodEnd,
               reference: `${refBase}-D${String(idx + 1).padStart(2, "0")}`,
-              description: `Зарплата ${run.month}/${run.year}${b.departmentId ? ` (department ${b.departmentId})` : ""}`,
+              description: `Зарплата ${run.month}/${run.year} — ${deptLabel}`,
               isFinal: true,
               departmentId: b.departmentId ?? undefined,
-              lines: [
-                {
-                  accountCode: PAYROLL_EXPENSE_ACCOUNT_CODE,
-                  debit: b.gross.toString(),
-                  credit: 0,
-                },
-                {
-                  accountCode: PAYROLL_EXPENSE_ACCOUNT_CODE,
-                  debit: b.employer.toString(),
-                  credit: 0,
-                },
-                {
-                  accountCode: PAYROLL_PAYABLE_ACCOUNT_CODE,
-                  debit: 0,
-                  credit: b.net.toString(),
-                },
-                {
-                  accountCode: PAYROLL_TAX_PAYABLE_ACCOUNT_CODE,
-                  debit: 0,
-                  credit: cr521.toString(),
-                },
-              ],
+              lines,
             },
           );
           if (!runTransactionId) {
@@ -487,6 +586,15 @@ export class PayrollService {
         data: { status: "PAID" },
       });
     });
+
+    await this.notifications.notifyFinanceUsers(organizationId, {
+      title: "Зарплата",
+      message:
+        "Расчёт зарплаты завершён. Нажмите, чтобы посмотреть ведомость.",
+      link: `/payroll?registryId=${registryId}`,
+    });
+
+    return updatedRegistry;
   }
 
   async createSalaryRegistryExportLink(

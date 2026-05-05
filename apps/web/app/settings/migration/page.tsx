@@ -412,7 +412,7 @@ export default function MigrationSettingsPage() {
             {t("migrationWizard.next")}
           </button>
         </div>
-        <div className="rounded-[2px] border border-[#D5DADF] bg-[#EBEDF0]/40 p-3 text-sm text-[#34495E]">
+        <div className="rounded-lg border border-[#D5DADF] bg-[#EBEDF0]/40 p-3 text-sm text-[#34495E]">
           {t("migrationWizard.formatHint")}
         </div>
       </section>

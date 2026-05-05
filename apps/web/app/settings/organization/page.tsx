@@ -494,7 +494,7 @@ export default function OrganizationSettingsPage() {
               {banks.map((b, idx) => (
                 <div
                   key={idx}
-                  className="grid gap-3 md:grid-cols-2 border border-[#D5DADF] rounded-lg p-3 bg-[#EBEDF0]/30"
+                  className="grid gap-3 md:grid-cols-2 rounded-2xl border border-[#D5DADF] bg-[#EBEDF0]/30 p-3"
                 >
                   <label className="text-sm text-[#34495E] md:col-span-2">
                     {t("orgSettings.bankName")}
@@ -584,7 +584,7 @@ export default function OrganizationSettingsPage() {
                     </button>
                   </div>
                   <div className="md:col-span-2">
-                    <p className="rounded-[2px] border border-[#D5DADF] bg-[#EBEDF0]/40 p-2 text-xs text-[#34495E]">
+                    <p className="rounded-lg border border-[#D5DADF] bg-[#EBEDF0]/40 p-2 text-xs text-[#34495E]">
                       {t("orgSettings.ibanHint")}
                     </p>
                   </div>

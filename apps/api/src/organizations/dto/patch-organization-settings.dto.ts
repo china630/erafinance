@@ -2,7 +2,9 @@ import { Type } from "class-transformer";
 import {
   IsArray,
   IsDateString,
+  IsBoolean,
   IsEnum,
+  IsIn,
   IsOptional,
   IsString,
   MaxLength,
@@ -10,7 +12,6 @@ import {
 } from "class-validator";
 import {
   InventoryValuationMethod,
-  OrgBankAccountCurrency,
 } from "@dayday/database";
 
 export class OrganizationBankAccountInputDto {
@@ -22,12 +23,15 @@ export class OrganizationBankAccountInputDto {
   @MaxLength(200)
   bankName!: string;
 
+  @IsOptional()
   @IsString()
   @MaxLength(64)
-  accountNumber!: string;
+  accountNumber?: string;
 
-  @IsEnum(OrgBankAccountCurrency)
-  currency!: OrgBankAccountCurrency;
+  @IsOptional()
+  @IsString()
+  @IsIn(["AZN", "USD", "EUR", "RUB", "TRY"])
+  currency?: string;
 
   @IsOptional()
   @IsString()
@@ -38,6 +42,28 @@ export class OrganizationBankAccountInputDto {
   @IsString()
   @MaxLength(32)
   swift?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  ledgerAccountCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(["MAIN", "SALARY", "CARD", "TENDER", "CREDIT", "VAT_DEPOSIT"])
+  accountType?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isArchived?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isFrozen?: boolean;
 }
 
 export class PatchOrganizationSettingsDto {

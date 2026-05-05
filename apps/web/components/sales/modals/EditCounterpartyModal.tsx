@@ -293,7 +293,6 @@ export function EditCounterpartyModal({
           onCancel={onClose}
           busy={busy || loadBusy}
           formId="edit-counterparty-form"
-          cancelVariant="ghost"
         />
       }
     >
@@ -380,23 +379,26 @@ export function EditCounterpartyModal({
           <span>{t("counterparties.vatPayerCheckbox")}</span>
         </label>
         {isRiskyTaxpayer === true ? (
-          <div className="inline-flex items-center rounded-[2px] border border-amber-300 bg-amber-100 px-2.5 py-1 text-[13px] font-semibold text-amber-900">
+          <div className="inline-flex items-center rounded-lg border border-amber-300 bg-amber-100 px-2.5 py-1 text-[13px] font-semibold text-amber-900">
             {t("counterparties.riskyTaxpayerBadge")}
           </div>
         ) : null}
         <div>
           <span className={lbl}>{t("counterparties.role")}</span>
-          <select
+          <Select
             value={role}
-            onChange={(e) => setRole(e.target.value as typeof role)}
+            onValueChange={(v) => setRole(v as typeof role)}
             className={MODAL_INPUT_CLASS}
             disabled={loadBusy}
           >
-            <option value="CUSTOMER">{t("counterparties.roleCustomer")}</option>
-            <option value="SUPPLIER">{t("counterparties.roleSupplier")}</option>
-            <option value="BOTH">{t("counterparties.roleTradingPartner")}</option>
-            <option value="OTHER">{t("counterparties.roleOther")}</option>
-          </select>
+            <SelectTrigger className="" />
+            <SelectContent>
+              <SelectItem value="CUSTOMER">{t("counterparties.roleCustomer")}</SelectItem>
+              <SelectItem value="SUPPLIER">{t("counterparties.roleSupplier")}</SelectItem>
+              <SelectItem value="BOTH">{t("counterparties.roleBoth")}</SelectItem>
+              <SelectItem value="OTHER">{t("counterparties.roleOther")}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <span className={lbl}>{t("counterparties.address")}</span>

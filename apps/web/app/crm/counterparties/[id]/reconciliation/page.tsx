@@ -188,7 +188,7 @@ export default function CounterpartyReconciliationPage() {
         actions={
           <Link
             href="/crm/counterparties"
-            className="inline-flex h-8 items-center rounded-[2px] border border-[#D5DADF] bg-white px-4 text-[13px] font-medium text-[#34495E] shadow-sm hover:bg-[#F4F5F7]"
+            className="inline-flex h-8 items-center rounded-lg border border-[#D5DADF] bg-white px-4 text-[13px] font-medium text-[#34495E] shadow-sm hover:bg-[#F4F5F7]"
           >
             {t("counterparties.backList")}
           </Link>

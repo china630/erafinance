@@ -6,9 +6,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiFetch } from "../../lib/api-client";
 import {
-  CARD_CONTAINER_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
   MODAL_FIELD_LABEL_CLASS,
   MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
   MODAL_INPUT_CLASS,
 } from "../../lib/design-system";
 import { formatMoneyAzn } from "../../lib/format-money";
@@ -99,17 +101,13 @@ export function VacationCalcModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div
-        className={`${CARD_CONTAINER_CLASS} flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden bg-white p-6`}
-        role="dialog"
-        aria-modal="true"
-      >
+      <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-2xl`} role="dialog" aria-modal="true">
         <header className="flex shrink-0 items-start justify-between gap-3">
           <div className="min-w-0 flex-1 pr-2">
             <h3 className="m-0 text-lg font-semibold leading-snug text-[#34495E]">{t("payroll.vacationCalc")}</h3>
             <p className="mb-0 mt-1 text-[13px] leading-snug text-[#7F8C8D]">{t("payroll.vacationCalcHint")}</p>
           </div>
-          <Button type="button" variant="ghost" className="!px-2" onClick={onClose} aria-label={t("common.close")}>
+          <Button type="button" variant="ghost" className={MODAL_CLOSE_BUTTON_CLASS} onClick={onClose} aria-label={t("common.close")}>
             <X className="h-4 w-4" aria-hidden />
           </Button>
         </header>
@@ -160,7 +158,7 @@ export function VacationCalcModal({
             </div>
 
             {out ? (
-              <div className="space-y-1 rounded-[2px] border border-[#D5DADF] bg-[#F4F5F7] p-4 text-[13px] text-[#34495E]">
+              <div className="space-y-1 rounded-lg border border-[#D5DADF] bg-[#F4F5F7] p-4 text-[13px] text-[#34495E]">
                 <div className="font-semibold text-[#34495E]">{t("payroll.calcResult")}</div>
                 <div>
                   {formatMoneyAzn(out.vacationPayAmount)} AZN ({Number(out.calendarDays)}{" "}
@@ -181,10 +179,16 @@ export function VacationCalcModal({
           </div>
 
           <div className={MODAL_FOOTER_ACTIONS_CLASS}>
-            <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
+            <Button
+              type="button"
+              variant="outline"
+              className={MODAL_FOOTER_BUTTON_CLASS}
+              onClick={onClose}
+              disabled={busy}
+            >
               {t("common.cancel")}
             </Button>
-            <Button type="submit" variant="primary" disabled={busy}>
+            <Button type="submit" variant="primary" className={MODAL_FOOTER_BUTTON_CLASS} disabled={busy}>
               {busy ? "…" : t("payroll.calcBtn")}
             </Button>
           </div>

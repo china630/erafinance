@@ -10,6 +10,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Min,
   ValidateNested,
 } from "class-validator";
 
@@ -83,4 +84,13 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsBoolean()
   vatInclusive?: boolean;
+
+  @ApiPropertyOptional({
+    description: "Курс валюты счёта к AZN (информативно / будущие проводки; для AZN = 1)",
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.0000001)
+  fxRateToAzn?: number;
 }

@@ -50,8 +50,22 @@ export class CashDeskController {
   @ApiOperation({
     summary: "Журнал кассовых ордеров (KMO/KXO — Kassa Mədaxil/Məxaric Orderi)",
   })
-  orders(@OrganizationId() organizationId: string) {
-    return this.cash.listOrders(organizationId);
+  orders(
+    @OrganizationId() organizationId: string,
+    @Query("dateFrom") dateFrom?: string,
+    @Query("dateTo") dateTo?: string,
+  ) {
+    const from = dateFrom?.trim();
+    const to = dateTo?.trim();
+    const valid =
+      from &&
+      to &&
+      /^\d{4}-\d{2}-\d{2}$/.test(from) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(to);
+    return this.cash.listOrders(
+      organizationId,
+      valid ? { dateFrom: from, dateTo: to } : undefined,
+    );
   }
 
   @Post("orders/kmo")

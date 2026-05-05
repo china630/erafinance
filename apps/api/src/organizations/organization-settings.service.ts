@@ -113,10 +113,15 @@ export class OrganizationSettingsService {
             data: dto.bankAccounts.map((b) => ({
               organizationId,
               bankName: b.bankName.trim(),
-              accountNumber: b.accountNumber.trim(),
-              currency: b.currency,
-              iban: b.iban?.trim() || null,
+              accountNumber: b.accountNumber?.trim() || b.iban?.trim() || null,
+              currency: (b.currency?.trim().toUpperCase() || "AZN"),
+              iban: b.iban?.trim() || b.accountNumber?.trim() || "",
               swift: b.swift?.trim() || null,
+              ledgerAccountCode: (b.ledgerAccountCode?.trim() || "221"),
+              accountType: (b.accountType as any) || "MAIN",
+              isPrimary: b.isPrimary === true,
+              isFrozen: b.isFrozen === true,
+              isArchived: b.isArchived === true,
             })),
           });
         }

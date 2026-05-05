@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { CreditCard, Pencil, Scale, Users2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { subscribeListRefresh } from "../../../lib/list-refresh-bus";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
@@ -19,6 +19,7 @@ import {
   DATA_TABLE_TH_RIGHT_CLASS,
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
+  MODAL_INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
   TABLE_ROW_ICON_BTN_CLASS,
 } from "../../../lib/design-system";
@@ -30,6 +31,7 @@ import {
   CreateCounterpartyModal,
   EditCounterpartyModal,
 } from "../../../components/sales/modals";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "../../../components/ui/select";
 import type { CounterpartyLegalForm } from "../../../lib/counterparty-legal-form";
 import {
   COUNTERPARTY_LEGAL_FORMS,
@@ -56,26 +58,59 @@ function legalFormLabel(t: (k: string) => string, code: string | null | undefine
   return c;
 }
 
+const TOOLBAR_SEARCH_CLASS =
+  "h-8 w-64 shrink-0 rounded-lg border border-[#D5DADF] bg-white px-2 text-[13px] text-[#34495E] shadow-sm outline-none placeholder:text-[#7F8C8D] focus:border-[#2980B9] focus:ring-1 focus:ring-[#2980B9]/30";
+
+const TOOLBAR_SELECT_CLASS = `${MODAL_INPUT_CLASS} !w-40 max-w-[10rem] shrink-0 !h-8 min-h-8 py-1 leading-tight`;
+
+const TOOLBAR_SELECT_TRIGGER_CLASS = "!h-8 min-h-8 py-0 leading-tight";
+
+function roleCellLabel(t: (k: string) => string, role: string): string {
+  switch (role) {
+    case "CUSTOMER":
+      return t("counterparties.roleCustomer");
+    case "SUPPLIER":
+      return t("counterparties.roleSupplier");
+    case "BOTH":
+      return t("counterparties.roleBoth");
+    case "OTHER":
+      return t("counterparties.roleOther");
+    default:
+      return role;
+  }
+}
+
 export default function CounterpartiesPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("");
+  const [legalFormFilter, setLegalFormFilter] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [bankModal, setBankModal] = useState<{ id: string; name: string } | null>(null);
 
-  const filtered = useCallback(() => {
+  const filtered = useMemo(() => {
+    let list = rows;
     const term = q.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((r) => {
-      const name = String(r.name ?? "").toLowerCase();
-      const voen = String(r.taxId ?? "").toLowerCase();
-      return name.includes(term) || voen.includes(term);
-    });
-  }, [q, rows]);
+    if (term) {
+      list = list.filter((r) => {
+        const name = String(r.name ?? "").toLowerCase();
+        const voen = String(r.taxId ?? "").toLowerCase();
+        return name.includes(term) || voen.includes(term);
+      });
+    }
+    if (roleFilter) {
+      list = list.filter((r) => r.role === roleFilter);
+    }
+    if (legalFormFilter) {
+      list = list.filter((r) => String(r.legalForm ?? "").trim() === legalFormFilter);
+    }
+    return list;
+  }, [rows, q, roleFilter, legalFormFilter]);
 
   const load = useCallback(async () => {
     if (!token) {
@@ -116,26 +151,54 @@ export default function CounterpartiesPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title={t("counterparties.title")}
-        subtitle={t("counterparties.subtitle")}
-        actions={
-          <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => setCreateOpen(true)}>
-            + {t("counterparties.newBtn")}
-          </button>
-        }
-      />
+      <PageHeader title={t("counterparties.title")} />
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <section>
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="m-0 text-lg font-semibold text-gray-900">{t("counterparties.list")}</h2>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={t("counterparties.search", { defaultValue: "Поиск по имени или VÖEN…" })}
-            className="w-full max-w-md shrink-0 rounded-[2px] border border-[#D5DADF] px-3 py-2 text-sm outline-none focus:border-[#2980B9] sm:max-w-xs"
-          />
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t("counterparties.search")}
+              className={TOOLBAR_SEARCH_CLASS}
+              aria-label={t("counterparties.search")}
+            />
+            <Select
+              value={roleFilter}
+              onValueChange={setRoleFilter}
+              className={TOOLBAR_SELECT_CLASS}
+              aria-label={t("counterparties.filterRole")}
+            >
+              <SelectTrigger className={TOOLBAR_SELECT_TRIGGER_CLASS} />
+              <SelectContent>
+                <SelectItem value="">{t("counterparties.filterRoleAll")}</SelectItem>
+                <SelectItem value="CUSTOMER">{t("counterparties.roleCustomer")}</SelectItem>
+                <SelectItem value="SUPPLIER">{t("counterparties.roleSupplier")}</SelectItem>
+                <SelectItem value="BOTH">{t("counterparties.roleBoth")}</SelectItem>
+                <SelectItem value="OTHER">{t("counterparties.roleOther")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={legalFormFilter}
+              onValueChange={setLegalFormFilter}
+              className={TOOLBAR_SELECT_CLASS}
+              aria-label={t("counterparties.filterLegalForm")}
+            >
+              <SelectTrigger className={TOOLBAR_SELECT_TRIGGER_CLASS} />
+              <SelectContent>
+                <SelectItem value="">{t("counterparties.filterLegalFormAll")}</SelectItem>
+                {COUNTERPARTY_LEGAL_FORMS.map((code) => (
+                  <SelectItem key={code} value={code}>
+                    {t(counterpartyLegalFormI18nKey(code))}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => setCreateOpen(true)}>
+            + {t("counterparties.newBtn")}
+          </button>
         </div>
         {loading && <p className="text-gray-600">{t("common.loading")}</p>}
         {!loading && rows.length === 0 && !error && (
@@ -150,14 +213,14 @@ export default function CounterpartiesPage() {
             }
           />
         )}
-        {!loading && rows.length > 0 && filtered().length === 0 && !error && (
+        {!loading && rows.length > 0 && filtered.length === 0 && !error && (
           <EmptyState
             title={t("counterparties.none", { defaultValue: "Нет контрагентов" })}
-            description={t("counterparties.emptyHint", { defaultValue: "Попробуйте изменить запрос поиска." })}
+            description={t("counterparties.searchNone")}
             icon={<Users2 className="mx-auto h-12 w-12 stroke-[1.5] text-[#7F8C8D]" aria-hidden />}
           />
         )}
-        {!loading && filtered().length > 0 && (
+        {!loading && filtered.length > 0 && (
           <div className={DATA_TABLE_VIEWPORT_CLASS}>
             <table className={DATA_TABLE_CLASS}>
               <thead>
@@ -174,7 +237,7 @@ export default function CounterpartiesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered().map((r) => (
+                {filtered.map((r) => (
                   <tr key={r.id} className={DATA_TABLE_TR_CLASS}>
                     <td className={`${DATA_TABLE_TD_CLASS} font-semibold text-[#34495E]`}>{r.name}</td>
                     <td className={DATA_TABLE_TD_RIGHT_CLASS}>{r.taxId}</td>
@@ -186,7 +249,7 @@ export default function CounterpartiesPage() {
                           : "—"}
                     </td>
                     <td className={DATA_TABLE_TD_CLASS}>{legalFormLabel(t, r.legalForm)}</td>
-                    <td className={DATA_TABLE_TD_CLASS}>{r.role}</td>
+                    <td className={DATA_TABLE_TD_CLASS}>{roleCellLabel(t, r.role)}</td>
                     <td className={DATA_TABLE_TD_CLASS}>{r.email ?? "—"}</td>
                     <td className={DATA_TABLE_ACTIONS_TD_CLASS}>
                       <div className="flex items-center justify-end gap-1">

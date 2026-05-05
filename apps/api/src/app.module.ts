@@ -40,6 +40,7 @@ import { OrganizationsModule } from "./organizations/organizations.module";
 import { TenantContextInterceptor } from "./prisma/tenant-context.interceptor";
 import { TreasuryModule } from "./treasury/treasury.module";
 import { ReportsModule } from "./reports/reports.module";
+import { NotificationModule } from "./notifications/notification.module";
 
 const apiEnvFiles = apiEnvFilePaths();
 
@@ -80,6 +81,7 @@ const apiEnvFiles = apiEnvFilePaths();
     OrganizationsModule,
     TreasuryModule,
     ReportsModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [

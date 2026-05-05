@@ -33,4 +33,12 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   isService?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      "Единица измерения (шт, кг, м): не хранится отдельным полем; добавляется к отображаемому имени в скобках",
+  })
+  @IsOptional()
+  @IsString()
+  unitOfMeasure?: string;
 }

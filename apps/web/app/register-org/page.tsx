@@ -114,7 +114,7 @@ export default function RegisterOrgPage() {
               {t("auth.organizationType")}
             </legend>
             <label
-              className={`block rounded-[2px] border p-3 cursor-pointer transition ${
+              className={`block rounded-lg border p-3 cursor-pointer transition ${
                 templateGroup === "COMMERCIAL"
                   ? "border-[#2980B9] bg-[#2980B9]/10"
                   : "border-[#D5DADF] bg-white hover:border-[#B8C0C8]"
@@ -136,7 +136,7 @@ export default function RegisterOrgPage() {
               </p>
             </label>
             <label
-              className={`block rounded-[2px] border p-3 cursor-pointer transition ${
+              className={`block rounded-lg border p-3 cursor-pointer transition ${
                 templateGroup === "SMALL_BUSINESS"
                   ? "border-[#2980B9] bg-[#2980B9]/10"
                   : "border-[#D5DADF] bg-white hover:border-[#B8C0C8]"

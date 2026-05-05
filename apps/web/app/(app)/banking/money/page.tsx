@@ -135,7 +135,7 @@ export default function TreasuryMoneyDashboardPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <div className={`${CARD_CONTAINER_CLASS} p-5`}>
           <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-[2px] bg-[#EBEDF0] text-[#2980B9]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#EBEDF0] text-[#2980B9]">
               <Wallet className="h-5 w-5" aria-hidden />
             </div>
             <div>
@@ -177,7 +177,7 @@ export default function TreasuryMoneyDashboardPage() {
 
         <div className={`${CARD_CONTAINER_CLASS} p-5`}>
           <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-[2px] bg-[#EBEDF0] text-[#2980B9]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#EBEDF0] text-[#2980B9]">
               <Landmark className="h-5 w-5" aria-hidden />
             </div>
             <div>

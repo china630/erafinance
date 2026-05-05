@@ -112,7 +112,7 @@ describe("Invoices VAT and multi-currency rounding", () => {
       tx,
       expect.objectContaining({
         lines: [
-          expect.objectContaining({ accountCode: "562", debit: "0.01", credit: 0 }),
+          expect.objectContaining({ accountCode: "762", debit: "0.01", credit: 0 }),
           expect.objectContaining({ accountCode: "221", debit: 0, credit: "0.01" }),
         ],
       }),

@@ -11,6 +11,7 @@ import {
   Receipt,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +19,10 @@ import { apiFetch } from "../../../lib/api-client";
 import {
   CARD_CONTAINER_CLASS,
   LINK_ACCENT_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
+  MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from "../../../lib/design-system";
 import {
@@ -29,6 +34,7 @@ import { canAccessBilling } from "../../../lib/role-utils";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/layout/page-header";
+import { Button } from "../../../components/ui/button";
 import { toast } from "sonner";
 import { intlLocaleRuAz } from "../../../lib/i18n/ui-lang";
 
@@ -132,9 +138,9 @@ function QuotaProgress({
         </span>
       </div>
       {max != null && (
-        <div className="h-2 w-full overflow-hidden rounded-[2px] bg-[#EBEDF0]">
+        <div className="h-2 w-full overflow-hidden rounded-lg bg-[#EBEDF0]">
           <div
-            className="h-full rounded-[2px] bg-[#2980B9] transition-all"
+            className="h-full rounded-lg bg-[#2980B9] transition-all"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -478,12 +484,12 @@ export default function SubscriptionSettingsPage() {
       />
 
       {msg && (
-        <p className="text-[13px] text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-[2px] px-3 py-2">
+        <p className="text-[13px] text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
           {msg}
         </p>
       )}
       {err && (
-        <p className="text-[13px] text-red-700 bg-red-50 border border-red-100 rounded-[2px] px-3 py-2">
+        <p className="text-[13px] text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
           {err}
         </p>
       )}
@@ -491,7 +497,7 @@ export default function SubscriptionSettingsPage() {
       <section className={`${CARD_CONTAINER_CLASS} p-6 space-y-4`}>
         <div className="flex flex-wrap items-start gap-4">
           <div className="flex min-w-0 flex-1 gap-3">
-            <div className="mt-0.5 rounded-[2px] border border-[#D5DADF] bg-[#F8F9FA] p-2">
+            <div className="mt-0.5 rounded-lg border border-[#D5DADF] bg-[#F8F9FA] p-2">
               <Building2 className="h-6 w-6 text-[#2980B9]" aria-hidden />
             </div>
             <div className="min-w-0">
@@ -516,7 +522,7 @@ export default function SubscriptionSettingsPage() {
               {tierLabel(effectiveSnapshot.tier)}
             </div>
             {effectiveSnapshot.isTrial && (
-              <span className="inline-block mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-800 bg-amber-100 px-2 py-0.5 rounded-[2px]">
+              <span className="inline-block mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-800 bg-amber-100 px-2 py-0.5 rounded-lg">
                 {t("subscriptionSettings.trial")}
               </span>
             )}
@@ -575,7 +581,7 @@ export default function SubscriptionSettingsPage() {
             </p>
           )}
           {platformInvoices.length > 0 && (
-            <div className="overflow-x-auto rounded-[2px] border border-[#D5DADF]">
+            <div className="overflow-x-auto rounded-2xl border border-[#D5DADF]">
               <table className="min-w-full text-left text-[13px]">
                 <thead className="bg-[#F8F9FA] text-[#7F8C8D] uppercase text-[11px] tracking-wide">
                   <tr>
@@ -635,12 +641,12 @@ export default function SubscriptionSettingsPage() {
       )}
 
       {readOnlySub && (
-        <p className="text-[13px] text-amber-900 bg-amber-50 border border-amber-100 rounded-[2px] px-3 py-2">
+        <p className="text-[13px] text-amber-900 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
           {t("subscriptionSettings.readOnlyModules")}
         </p>
       )}
       {isEnterprise && (
-        <p className="text-[13px] text-[#34495E] bg-[#EBEDF0] border border-[#D5DADF] rounded-[2px] px-3 py-2">
+        <p className="text-[13px] text-[#34495E] bg-[#EBEDF0] border border-[#D5DADF] rounded-lg px-3 py-2">
           {t("subscriptionSettings.enterpriseAllModules")}
         </p>
       )}
@@ -661,7 +667,7 @@ export default function SubscriptionSettingsPage() {
           <p className="text-[13px] text-[#7F8C8D]">{t("common.loading")}</p>
         )}
         {catalog && (
-          <ul className="divide-y divide-[#EBEDF0] rounded-[2px] border border-[#D5DADF] bg-white">
+          <ul className="divide-y divide-[#EBEDF0] rounded-2xl border border-[#D5DADF] bg-white">
             {catalog.modules.map((mod) => {
               const on = isModuleOn(mod.key);
               const busy = moduleBusyKey === mod.key;
@@ -678,7 +684,7 @@ export default function SubscriptionSettingsPage() {
                         {mod.name}
                       </div>
                       {pending && (
-                        <div className="mt-1 inline-flex rounded-[2px] border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                        <div className="mt-1 inline-flex rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
                           {t("subscriptionSettings.pendingDeactivationBadge")}
                         </div>
                       )}
@@ -784,34 +790,37 @@ export default function SubscriptionSettingsPage() {
           role="dialog"
           aria-modal="true"
         >
-          <div className={`${CARD_CONTAINER_CLASS} max-w-md w-full p-6 space-y-4`}>
-            <h3 className="text-lg font-semibold text-[#34495E]">
-              {consentModal.mode === "enable"
-                ? t("subscriptionSettings.consentEnableTitle")
-                : t("subscriptionSettings.consentDisableTitle")}
-            </h3>
-            <p className="text-[13px] leading-relaxed text-[#34495E]">
+          <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`}>
+            <header className="flex shrink-0 items-start justify-between gap-3">
+              <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
+                {consentModal.mode === "enable"
+                  ? t("subscriptionSettings.consentEnableTitle")
+                  : t("subscriptionSettings.consentDisableTitle")}
+              </h3>
+              <Button
+                type="button"
+                variant="ghost"
+                className={MODAL_CLOSE_BUTTON_CLASS}
+                onClick={() => setConsentModal(null)}
+                aria-label={t("common.close")}
+              >
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+              </Button>
+            </header>
+            <p className="m-0 mt-4 text-[13px] leading-relaxed text-[#34495E]">
               {consentModal.mode === "enable"
                 ? t("subscriptionSettings.consentEnableBody", {
                     monthly: consentModal.monthlyAzn,
                   })
                 : t("subscriptionSettings.consentDisableBody")}
             </p>
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setConsentModal(null)}
-                className="rounded-[2px] border border-[#D5DADF] bg-white px-4 py-2 text-[13px] font-medium text-[#34495E] hover:bg-[#F8F9FA]"
-              >
+            <div className={MODAL_FOOTER_ACTIONS_CLASS}>
+              <Button type="button" variant="outline" className={MODAL_FOOTER_BUTTON_CLASS} onClick={() => setConsentModal(null)}>
                 {t("common.cancel")}
-              </button>
-              <button
-                type="button"
-                onClick={() => void confirmToggleModule()}
-                className={PRIMARY_BUTTON_CLASS}
-              >
+              </Button>
+              <Button type="button" variant="primary" className={MODAL_FOOTER_BUTTON_CLASS} onClick={() => void confirmToggleModule()}>
                 {t("subscriptionSettings.consentConfirm")}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

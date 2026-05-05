@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useRouter } from "next/navigation";
-import { Building2, Check, LogIn, Pencil, Trash2 } from "lucide-react";
+import { Building2, Check, LogIn, Pencil, Trash2, X } from "lucide-react";
 import { EmptyState } from "../../components/empty-state";
+import { Button } from "../../components/ui/button";
 import { useAuth } from "../../lib/auth-context";
 import { apiFetch } from "../../lib/api-client";
 import {
@@ -22,6 +23,14 @@ import {
   DATA_TABLE_TH_RIGHT_CLASS,
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
+  MODAL_CHECKBOX_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
+  MODAL_FIELD_LABEL_CLASS,
+  MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
+  MODAL_INPUT_CLASS,
+  MODAL_INPUT_MONO_CLASS,
   MODAL_INPUT_NUMERIC_CLASS,
   PRIMARY_BUTTON_CLASS,
   SECONDARY_BUTTON_CLASS,
@@ -686,7 +695,7 @@ export default function SuperAdminPage() {
       key={id}
       onClick={() => setTab(id)}
       className={[
-        "px-3 py-2 rounded-[2px] text-[13px] font-medium transition",
+        "px-3 py-2 rounded-lg text-[13px] font-medium transition",
         tab === id
           ? "bg-[#2980B9] text-white shadow-sm ring-2 ring-[#2980B9] ring-offset-1"
           : "bg-white border border-[#D5DADF] text-[#34495E] hover:bg-[#F8F9FA]",
@@ -758,7 +767,7 @@ export default function SuperAdminPage() {
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2 items-center">
             <input
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm min-w-[200px]"
+              className={`${MODAL_INPUT_CLASS} min-w-[200px]`}
               placeholder={t("superAdmin.searchVoen")}
               value={orgQ}
               onChange={(e) => setOrgQ(e.target.value)}
@@ -849,7 +858,7 @@ export default function SuperAdminPage() {
                 </tbody>
               </table>
             </div>
-              <div className="mt-2 flex justify-between rounded-[2px] border border-[#D5DADF] bg-[#F8FAFC] px-4 py-2 text-xs text-[#7F8C8D]">
+              <div className="mt-2 flex justify-between rounded-lg border border-[#D5DADF] bg-[#F8FAFC] px-4 py-2 text-xs text-[#7F8C8D]">
                 <span>{t("superAdmin.totalLabel", { count: orgs.total })}</span>
                 <span>
                   <button
@@ -882,7 +891,7 @@ export default function SuperAdminPage() {
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2 items-center">
             <input
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm min-w-[200px]"
+              className={`${MODAL_INPUT_CLASS} min-w-[200px]`}
               placeholder={t("superAdmin.searchUsers")}
               value={usersQ}
               onChange={(e) => setUsersQ(e.target.value)}
@@ -971,7 +980,7 @@ export default function SuperAdminPage() {
                 </tbody>
               </table>
             </div>
-              <div className="mt-2 flex justify-between rounded-[2px] border border-[#D5DADF] bg-[#F8FAFC] px-4 py-2 text-xs text-[#7F8C8D]">
+              <div className="mt-2 flex justify-between rounded-lg border border-[#D5DADF] bg-[#F8FAFC] px-4 py-2 text-xs text-[#7F8C8D]">
                 <span>
                   {t("superAdmin.totalLabel", { count: users.total })}
                 </span>
@@ -1039,7 +1048,7 @@ export default function SuperAdminPage() {
               <label className="block text-sm text-[#34495E] max-w-xs">
                 {t("superAdmin.priceAzn")}
                 <input
-                  className="mt-1 w-full border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-sm"
+                  className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
                   value={foundationStr || "29"}
                   onChange={(e) => setFoundationStr(e.target.value)}
                 />
@@ -1085,7 +1094,7 @@ export default function SuperAdminPage() {
                   type="button"
                   onClick={() => setSubsSubTab("pricing")}
                   className={[
-                    "px-3 py-2 rounded-[2px] text-[13px] font-medium transition",
+                    "px-3 py-2 rounded-lg text-[13px] font-medium transition",
                     subsSubTab === "pricing"
                       ? "bg-[#2980B9] text-white shadow-sm ring-2 ring-[#2980B9] ring-offset-1"
                       : "bg-white border border-[#D5DADF] text-[#34495E] hover:bg-[#F8F9FA]",
@@ -1097,7 +1106,7 @@ export default function SuperAdminPage() {
                   type="button"
                   onClick={() => setSubsSubTab("quotas")}
                   className={[
-                    "px-3 py-2 rounded-[2px] text-[13px] font-medium transition",
+                    "px-3 py-2 rounded-lg text-[13px] font-medium transition",
                     subsSubTab === "quotas"
                       ? "bg-[#2980B9] text-white shadow-sm ring-2 ring-[#2980B9] ring-offset-1"
                       : "bg-white border border-[#D5DADF] text-[#34495E] hover:bg-[#F8F9FA]",
@@ -1109,7 +1118,7 @@ export default function SuperAdminPage() {
                   type="button"
                   onClick={() => setSubsSubTab("bundles")}
                   className={[
-                    "px-3 py-2 rounded-[2px] text-[13px] font-medium transition",
+                    "px-3 py-2 rounded-lg text-[13px] font-medium transition",
                     subsSubTab === "bundles"
                       ? "bg-[#2980B9] text-white shadow-sm ring-2 ring-[#2980B9] ring-offset-1"
                       : "bg-white border border-[#D5DADF] text-[#34495E] hover:bg-[#F8F9FA]",
@@ -1132,7 +1141,7 @@ export default function SuperAdminPage() {
                     <label className="block text-sm text-[#34495E] flex-1 min-w-[160px]">
                       {t("superAdmin.priceAzn")}
                       <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-sm"
+                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
                         value={foundationStr}
                         onChange={(e) => setFoundationStr(e.target.value)}
                       />
@@ -1235,7 +1244,7 @@ export default function SuperAdminPage() {
                     <label className="block text-sm text-[#34495E]">
                       {t("superAdmin.billingQuotaEmployeeBlock")}
                       <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-sm"
+                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
                         value={quotaStr.employeeBlockSize}
                         onChange={(e) =>
                           setQuotaStr((s) => ({
@@ -1248,7 +1257,7 @@ export default function SuperAdminPage() {
                     <label className="block text-sm text-[#34495E]">
                       {t("superAdmin.billingQuotaEmployeePrice")}
                       <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-sm"
+                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
                         value={quotaStr.pricePerEmployeeBlockAzn}
                         onChange={(e) =>
                           setQuotaStr((s) => ({
@@ -1261,7 +1270,7 @@ export default function SuperAdminPage() {
                     <label className="block text-sm text-[#34495E]">
                       {t("superAdmin.billingQuotaDocBlock")}
                       <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-sm"
+                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
                         value={quotaStr.documentPackSize}
                         onChange={(e) =>
                           setQuotaStr((s) => ({
@@ -1274,7 +1283,7 @@ export default function SuperAdminPage() {
                     <label className="block text-sm text-[#34495E]">
                       {t("superAdmin.billingQuotaDocPrice")}
                       <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-sm"
+                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
                         value={quotaStr.pricePerDocumentPackAzn}
                         onChange={(e) =>
                           setQuotaStr((s) => ({
@@ -1289,7 +1298,7 @@ export default function SuperAdminPage() {
                     <label className="block text-sm text-[#34495E] flex-1 min-w-[200px]">
                       {t("superAdmin.billingYearlyDiscountLabel")}
                       <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-sm"
+                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
                         value={yearlyDiscStr}
                         onChange={(e) => setYearlyDiscStr(e.target.value)}
                       />
@@ -1352,7 +1361,7 @@ export default function SuperAdminPage() {
                     <label className="block text-sm text-[#34495E] sm:col-span-2">
                       {t("superAdmin.billingBundleName")}
                       <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-sm"
+                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
                         value={newBundleName}
                         onChange={(e) => setNewBundleName(e.target.value)}
                       />
@@ -1360,7 +1369,7 @@ export default function SuperAdminPage() {
                     <label className="block text-sm text-[#34495E]">
                       {t("superAdmin.billingBundleDiscount")}
                       <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-[2px] px-2 py-1.5 text-sm"
+                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
                         value={newBundleDisc}
                         onChange={(e) => setNewBundleDisc(e.target.value)}
                       />
@@ -1374,7 +1383,7 @@ export default function SuperAdminPage() {
                       {billing.pricingModules.map((mod) => (
                         <div
                           key={mod.key}
-                          className="flex items-center justify-between gap-3 rounded-[2px] border border-[#EBEDF0] bg-[#F8F9FA] px-3 py-2"
+                          className="flex items-center justify-between gap-3 rounded-lg border border-[#EBEDF0] bg-[#F8F9FA] px-3 py-2"
                         >
                           <div className="min-w-0">
                             <div className="text-sm font-medium text-[#34495E] truncate">
@@ -1496,7 +1505,7 @@ export default function SuperAdminPage() {
                         return (
                           <li
                             key={b.id}
-                            className="rounded-[2px] border border-[#D5DADF] p-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
+                            className="rounded-lg border border-[#D5DADF] p-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
                           >
                             <div>
                               <div className="font-semibold text-[#34495E]">
@@ -1545,7 +1554,7 @@ export default function SuperAdminPage() {
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
             <select
-              className="border border-gray-300 rounded-lg px-2 py-2 text-sm"
+              className={MODAL_INPUT_CLASS}
               value={i18nLocale}
               onChange={(e) => setI18nLocale(e.target.value)}
             >
@@ -1554,7 +1563,7 @@ export default function SuperAdminPage() {
               <option value="en">en</option>
             </select>
             <input
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 min-w-[160px]"
+              className={`${MODAL_INPUT_CLASS} flex-1 min-w-[160px]`}
               placeholder={t("superAdmin.i18nSearchPlaceholder")}
               value={i18nQ}
               onChange={(e) => setI18nQ(e.target.value)}
@@ -1585,13 +1594,13 @@ export default function SuperAdminPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <input
-              className="border border-gray-300 rounded-lg px-2 py-2 text-sm md:col-span-1"
+              className={`${MODAL_INPUT_CLASS} md:col-span-1`}
               placeholder={t("superAdmin.i18nFormKeyPlaceholder")}
               value={i18nKey}
               onChange={(e) => setI18nKey(e.target.value)}
             />
             <input
-              className="border border-gray-300 rounded-lg px-2 py-2 text-sm md:col-span-2"
+              className={`${MODAL_INPUT_CLASS} md:col-span-2`}
               placeholder={t("superAdmin.i18nFormValuePlaceholder")}
               value={i18nVal}
               onChange={(e) => setI18nVal(e.target.value)}
@@ -1663,7 +1672,7 @@ export default function SuperAdminPage() {
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
             <input
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 min-w-[200px]"
+              className={`${MODAL_INPUT_CLASS} flex-1 min-w-[200px]`}
               placeholder={t("superAdmin.orgIdFilter")}
               value={logOrg}
               onChange={(e) => setLogOrg(e.target.value)}
@@ -1708,7 +1717,7 @@ export default function SuperAdminPage() {
                 </tbody>
               </table>
             </div>
-              <div className="mt-2 rounded-[2px] border border-[#D5DADF] bg-[#F8FAFC] px-4 py-2 text-xs text-[#7F8C8D]">
+              <div className="mt-2 rounded-lg border border-[#D5DADF] bg-[#F8FAFC] px-4 py-2 text-xs text-[#7F8C8D]">
                 {t("superAdmin.logsTotal", { count: logs.total })}
               </div>
             </>
@@ -1741,7 +1750,7 @@ export default function SuperAdminPage() {
                 required
                 value={newTpl.code}
                 onChange={(e) => setNewTpl((s) => ({ ...s, code: e.target.value }))}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
               />
             </label>
             <label className="text-xs font-medium text-[#34495E]">
@@ -1750,7 +1759,7 @@ export default function SuperAdminPage() {
                 required
                 value={newTpl.nameAz}
                 onChange={(e) => setNewTpl((s) => ({ ...s, nameAz: e.target.value }))}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
               />
             </label>
             <label className="text-xs font-medium text-[#34495E]">
@@ -1759,7 +1768,7 @@ export default function SuperAdminPage() {
                 required
                 value={newTpl.nameRu}
                 onChange={(e) => setNewTpl((s) => ({ ...s, nameRu: e.target.value }))}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
               />
             </label>
             <label className="text-xs font-medium text-[#34495E]">
@@ -1768,7 +1777,7 @@ export default function SuperAdminPage() {
                 required
                 value={newTpl.nameEn}
                 onChange={(e) => setNewTpl((s) => ({ ...s, nameEn: e.target.value }))}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
               />
             </label>
             <label className="text-xs font-medium text-[#34495E]">
@@ -1778,7 +1787,7 @@ export default function SuperAdminPage() {
                 onChange={(e) =>
                   setNewTpl((s) => ({ ...s, accountType: e.target.value }))
                 }
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
               >
                 {(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"] as const).map(
                   (k) => (
@@ -1796,7 +1805,7 @@ export default function SuperAdminPage() {
                 onChange={(e) =>
                   setNewTpl((s) => ({ ...s, parentCode: e.target.value }))
                 }
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
                 placeholder="101"
               />
             </label>
@@ -1811,7 +1820,7 @@ export default function SuperAdminPage() {
                     sortOrder: Number.parseInt(e.target.value, 10) || 0,
                   }))
                 }
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
               />
             </label>
             <div className="flex items-end">
@@ -1881,110 +1890,122 @@ export default function SuperAdminPage() {
 
       {subModalOrg ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="sub-modal-title"
         >
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 space-y-4">
-            <h2 id="sub-modal-title" className="text-lg font-semibold text-gray-900">
-              {t("superAdmin.orgSubModalTitle")}
-            </h2>
-            <p className="text-sm text-gray-600">
-              {subModalOrg.name}{" "}
-              <span className="font-mono text-xs">({subModalOrg.taxId})</span>
-            </p>
-            <label className="block text-sm">
-              <span className="text-gray-700">{t("superAdmin.orgSubTier")}</span>
-              <select
-                className="mt-1 w-full border border-gray-300 rounded-lg px-2 py-2 text-sm"
-                value={subTier}
-                onChange={(e) => {
-                  const v = e.target.value as typeof subTier;
-                  setSubTier(v);
-                  if (v === "ENTERPRISE" && subExpires.trim() === "") {
-                    setSubExpires(addOneYearFromTodayDateInput());
-                  }
-                }}
+          <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-lg`}>
+            <header className="flex shrink-0 items-start justify-between gap-3">
+              <h2
+                id="sub-modal-title"
+                className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]"
               >
-                <option value="STARTER">{t("superAdmin.tierSTARTER")}</option>
-                <option value="BUSINESS">{t("superAdmin.tierBUSINESS")}</option>
-                <option value="ENTERPRISE">{t("superAdmin.tierENTERPRISE")}</option>
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="text-gray-700">{t("superAdmin.orgSubExpires")}</span>
-              <input
-                type="date"
-                className="mt-1 w-full border border-gray-300 rounded-lg px-2 py-2 text-sm"
-                value={subExpires}
-                onChange={(e) => setSubExpires(e.target.value)}
-              />
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={subBlocked}
-                onChange={(e) => setSubBlocked(e.target.checked)}
-              />
-              {t("superAdmin.orgSubBlocked")}
-            </label>
-            <div>
-              <div className="text-sm text-gray-700 mb-2">
-                {t("superAdmin.orgSubModules")}
-              </div>
-              <p className="text-xs text-gray-500 mb-2">
-                {t("superAdmin.orgSubModulesHint")}
+                {t("superAdmin.orgSubModalTitle")}
+              </h2>
+              <Button
+                type="button"
+                variant="ghost"
+                className={MODAL_CLOSE_BUTTON_CLASS}
+                onClick={() => setSubModalOrg(null)}
+                disabled={subSaving}
+                aria-label={t("common.close")}
+              >
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+              </Button>
+            </header>
+            <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto">
+              <p className="m-0 text-[13px] text-[#34495E]">
+                {subModalOrg.name}{" "}
+                <span className="font-mono text-[13px] tabular-nums text-[#7F8C8D]">({subModalOrg.taxId})</span>
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {MODULE_SLUG_PRESETS.map((slug) => (
-                  <label
-                    key={slug}
-                    className="flex items-center gap-2 text-sm font-mono"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(subPreset[slug])}
-                      onChange={() =>
-                        setSubPreset((s) => ({
-                          ...s,
-                          [slug]: !s[slug],
-                        }))
-                      }
-                    />
-                    {slug}
-                  </label>
-                ))}
-              </div>
-              <label className="block text-sm mt-3">
-                <span className="text-gray-700">
-                  {t("superAdmin.orgSubModulesExtra")}
-                </span>
+              <label className={MODAL_FIELD_LABEL_CLASS}>
+                {t("superAdmin.orgSubTier")}
+                <select
+                  className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
+                  value={subTier}
+                  onChange={(e) => {
+                    const v = e.target.value as typeof subTier;
+                    setSubTier(v);
+                    if (v === "ENTERPRISE" && subExpires.trim() === "") {
+                      setSubExpires(addOneYearFromTodayDateInput());
+                    }
+                  }}
+                >
+                  <option value="STARTER">{t("superAdmin.tierSTARTER")}</option>
+                  <option value="BUSINESS">{t("superAdmin.tierBUSINESS")}</option>
+                  <option value="ENTERPRISE">{t("superAdmin.tierENTERPRISE")}</option>
+                </select>
+              </label>
+              <label className={MODAL_FIELD_LABEL_CLASS}>
+                {t("superAdmin.orgSubExpires")}
                 <input
-                  className="mt-1 w-full border border-gray-300 rounded-lg px-2 py-2 text-sm font-mono"
-                  value={subExtra}
-                  onChange={(e) => setSubExtra(e.target.value)}
-                  placeholder="ifrs_mapping, …"
+                  type="date"
+                  className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
+                  value={subExpires}
+                  onChange={(e) => setSubExpires(e.target.value)}
                 />
               </label>
+              <label className="flex cursor-pointer items-start gap-2 text-[13px] text-[#34495E]">
+                <input
+                  type="checkbox"
+                  className={`mt-0.5 ${MODAL_CHECKBOX_CLASS}`}
+                  checked={subBlocked}
+                  onChange={(e) => setSubBlocked(e.target.checked)}
+                />
+                <span>{t("superAdmin.orgSubBlocked")}</span>
+              </label>
+              <div>
+                <div className="mb-1.5 text-[13px] font-semibold text-[#34495E]">{t("superAdmin.orgSubModules")}</div>
+                <p className="mb-2 m-0 text-[13px] text-[#7F8C8D]">{t("superAdmin.orgSubModulesHint")}</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {MODULE_SLUG_PRESETS.map((slug) => (
+                    <label key={slug} className="flex cursor-pointer items-center gap-2 font-mono text-[13px] text-[#34495E]">
+                      <input
+                        type="checkbox"
+                        className={MODAL_CHECKBOX_CLASS}
+                        checked={Boolean(subPreset[slug])}
+                        onChange={() =>
+                          setSubPreset((s) => ({
+                            ...s,
+                            [slug]: !s[slug],
+                          }))
+                        }
+                      />
+                      {slug}
+                    </label>
+                  ))}
+                </div>
+                <label className={`${MODAL_FIELD_LABEL_CLASS} mt-3`}>
+                  {t("superAdmin.orgSubModulesExtra")}
+                  <input
+                    className={`mt-1 block w-full ${MODAL_INPUT_MONO_CLASS}`}
+                    value={subExtra}
+                    onChange={(e) => setSubExtra(e.target.value)}
+                    placeholder="ifrs_mapping, …"
+                  />
+                </label>
+              </div>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
+            <div className={MODAL_FOOTER_ACTIONS_CLASS}>
+              <Button
                 type="button"
-                className="px-3 py-2 rounded-lg border border-gray-300 text-sm"
+                variant="outline"
+                className={MODAL_FOOTER_BUTTON_CLASS}
                 onClick={() => setSubModalOrg(null)}
                 disabled={subSaving}
               >
                 {t("superAdmin.orgSubCancel")}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className={`${PRIMARY_BUTTON_CLASS} disabled:opacity-50`}
+                variant="primary"
+                className={MODAL_FOOTER_BUTTON_CLASS}
                 disabled={subSaving}
                 onClick={() => void saveSubscription()}
               >
                 {t("superAdmin.orgSubSave")}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1992,33 +2013,34 @@ export default function SuperAdminPage() {
 
       {userOrgsUserId ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           role="dialog"
           aria-modal="true"
         >
-          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-5 space-y-4">
-            <div className="flex justify-between items-start gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">
+          <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-3xl`}>
+            <header className="flex shrink-0 items-start justify-between gap-4">
+              <div className="min-w-0 flex-1 pr-2">
+                <h2 className="m-0 text-lg font-semibold leading-snug text-[#34495E]">
                   {t("superAdmin.userOrgsModalTitle")}
                 </h2>
                 {userOrgsData ? (
-                  <p className="text-sm text-gray-600 mt-1 font-mono">
-                    {userOrgsData.email}
-                  </p>
+                  <p className="mb-0 mt-1 font-mono text-[13px] text-[#7F8C8D]">{userOrgsData.email}</p>
                 ) : null}
               </div>
-              <button
+              <Button
                 type="button"
-                className="text-sm text-action hover:underline shrink-0"
+                variant="ghost"
+                className={`${MODAL_CLOSE_BUTTON_CLASS} shrink-0`}
                 onClick={() => {
                   setUserOrgsUserId(null);
                   setUserOrgsData(null);
                 }}
+                aria-label={t("common.close")}
               >
-                {t("superAdmin.userOrgsClose")}
-              </button>
-            </div>
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+              </Button>
+            </header>
+            <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto">
             {userOrgsLoading ? (
               <p className="text-sm text-gray-500">{t("common.loading")}</p>
             ) : userOrgsData && userOrgsData.items.length === 0 ? (
@@ -2085,6 +2107,7 @@ export default function SuperAdminPage() {
                 </table>
               </div>
             ) : null}
+            </div>
           </div>
         </div>
       ) : null}

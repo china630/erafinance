@@ -23,6 +23,8 @@ import { EmptyState } from "../../components/empty-state";
 import { DepartmentSelect } from "../../components/payroll/department-select";
 import {
   CARD_CONTAINER_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
   DATA_TABLE_CLASS,
   DATA_TABLE_HEAD_ROW_CLASS,
   DATA_TABLE_TD_CENTER_CLASS,
@@ -35,6 +37,7 @@ import {
   DATA_TABLE_VIEWPORT_CLASS,
   MODAL_FIELD_LABEL_CLASS,
   MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
   MODAL_INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
   SECONDARY_BUTTON_CLASS,
@@ -664,13 +667,13 @@ function PayrollPageInner() {
                   type="month"
                   value={monthValue}
                   onChange={(e) => setMonthValue(e.target.value)}
-                  className="mt-1 block h-8 rounded-[2px] border border-[#D5DADF] bg-white px-2 text-[13px]"
+                  className="mt-1 block h-8 rounded-lg border border-[#D5DADF] bg-white px-2 text-[13px]"
                 />
               </label>
               <DepartmentSelect
                 value={departmentId}
                 onChange={setDepartmentId}
-                className="mt-1 block h-8 min-w-[200px] rounded-[2px] border border-[#D5DADF] bg-white px-2 text-[13px] sm:min-w-[220px]"
+                className="mt-1 block h-8 min-w-[200px] rounded-lg border border-[#D5DADF] bg-white px-2 text-[13px] sm:min-w-[220px]"
               />
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -738,7 +741,7 @@ function PayrollPageInner() {
           </h2>
           {currentRun ? (
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <span className="rounded-[2px] border border-[#D5DADF] bg-[#EBEDF0] px-2 py-1 text-xs font-semibold uppercase tracking-wide text-[#34495E]">
+              <span className="rounded-lg border border-[#D5DADF] bg-[#EBEDF0] px-2 py-1 text-xs font-semibold uppercase tracking-wide text-[#34495E]">
                 {currentRun.status}
               </span>
               <button
@@ -1049,7 +1052,7 @@ function PayrollPageInner() {
                 {registries.map((r) => (
                   <div
                     key={r.id}
-                    className="flex flex-wrap items-center justify-between gap-2 border border-[#D5DADF] rounded-[2px] px-3 py-2"
+                    className="flex flex-wrap items-center justify-between gap-2 border border-[#D5DADF] rounded-lg px-3 py-2"
                   >
                     <div className="text-sm text-[#34495E]">
                       <span className="font-medium">{r.payoutFormat}</span> ·{" "}
@@ -1210,11 +1213,7 @@ function PayrollPageInner() {
 
       {payoutModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div
-            className={`${CARD_CONTAINER_CLASS} flex max-h-[90vh] min-h-0 w-full max-w-lg flex-col overflow-hidden bg-white p-6`}
-            role="dialog"
-            aria-modal="true"
-          >
+          <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-lg`} role="dialog" aria-modal="true">
             <header className="flex shrink-0 items-start justify-between gap-3">
               <div className="min-w-0 flex-1 pr-2">
                 <h3 className="m-0 text-lg font-semibold leading-snug text-[#34495E]">{t("payroll.payRun")}</h3>
@@ -1223,7 +1222,7 @@ function PayrollPageInner() {
               <Button
                 type="button"
                 variant="ghost"
-                className="!px-2"
+                className={MODAL_CLOSE_BUTTON_CLASS}
                 onClick={() => setPayoutModalOpen(false)}
                 disabled={Boolean(payingRunId)}
                 aria-label={t("common.close")}
@@ -1251,7 +1250,8 @@ function PayrollPageInner() {
               <div className={MODAL_FOOTER_ACTIONS_CLASS}>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
+                  className={MODAL_FOOTER_BUTTON_CLASS}
                   onClick={() => setPayoutModalOpen(false)}
                   disabled={Boolean(payingRunId)}
                 >
@@ -1260,6 +1260,7 @@ function PayrollPageInner() {
                 <Button
                   type="button"
                   variant="primary"
+                  className={MODAL_FOOTER_BUTTON_CLASS}
                   onClick={() => void payRun(currentRun?.id || "")}
                   disabled={Boolean(payingRunId)}
                 >

@@ -30,6 +30,9 @@ import { PatchInventorySettingsDto } from "./dto/patch-inventory-settings.dto";
 import { AdjustStockDto } from "./dto/adjust-stock.dto";
 import { CreateInventoryAdjustmentDto } from "./dto/create-inventory-adjustment.dto";
 import { PurchaseStockDto } from "./dto/purchase-stock.dto";
+import { CreateWarehouseReceiptDto } from "./dto/create-warehouse-receipt.dto";
+import { CreateWarehouseShipmentDto } from "./dto/create-warehouse-shipment.dto";
+import { CreateTransferDto } from "./dto/create-transfer.dto";
 import { SurplusStockDocumentDto } from "./dto/surplus-stock-document.dto";
 import { TransferStockDto } from "./dto/transfer-stock.dto";
 import { WriteOffStockDocumentDto } from "./dto/write-off-stock-document.dto";
@@ -101,6 +104,91 @@ export class InventoryController {
     return this.inventory.listStock(organizationId, warehouseId);
   }
 
+  @Get("balances")
+  @ApiOperation({
+    summary:
+      "Anbar qalığı: остатки из stock_movements (SUM(IN)−SUM(OUT)) по складу, ячейке, товару; qty>0",
+  })
+  balances(
+    @OrganizationId() organizationId: string,
+    @Query("warehouseId") warehouseId?: string,
+    @Query("search") search?: string,
+    @Query("take") take?: string,
+  ) {
+    const takeN = take ? Number.parseInt(take, 10) : NaN;
+    return this.inventory.listMovementBalances(organizationId, {
+      warehouseId: warehouseId || undefined,
+      search: search?.trim() || undefined,
+      take: Number.isFinite(takeN) ? takeN : undefined,
+    });
+  }
+
+  @Get("purchase-invoices")
+  @ApiOperation({
+    summary:
+      "Реестр alış fakturası (проводки 201/731+241+531), без складских строк",
+  })
+  purchaseInvoices(
+    @OrganizationId() organizationId: string,
+    @Query("take") take?: string,
+  ) {
+    return this.inventory.listPurchaseInvoices(
+      organizationId,
+      take ? Number.parseInt(take, 10) : 400,
+    );
+  }
+
+  @Get("purchase-invoices/:id")
+  @Roles(
+    UserRole.OWNER,
+    UserRole.ADMIN,
+    UserRole.ACCOUNTANT,
+    UserRole.WAREHOUSE_KEEPER,
+  )
+  @ApiOperation({
+    summary:
+      "Alış fakturası по id: строки из purchaseSnapshot (для автозаполнения mədaxil orderi)",
+  })
+  purchaseInvoiceDetail(
+    @OrganizationId() organizationId: string,
+    @Param("id") id: string,
+  ) {
+    return this.inventory.getPurchaseInvoiceDetail(organizationId, id);
+  }
+
+  @Get("sales-invoices")
+  @ApiOperation({
+    summary:
+      "Реестр Satış fakturası (проводки Дт 211 — Кт 601) для основания məxaric orderi",
+  })
+  salesInvoices(
+    @OrganizationId() organizationId: string,
+    @Query("take") take?: string,
+  ) {
+    return this.inventory.listSalesInvoices(
+      organizationId,
+      take ? Number.parseInt(take, 10) : 400,
+    );
+  }
+
+  @Get("sales-invoices/:id")
+  @Roles(
+    UserRole.OWNER,
+    UserRole.ADMIN,
+    UserRole.ACCOUNTANT,
+    UserRole.WAREHOUSE_KEEPER,
+  )
+  @ApiOperation({
+    summary:
+      "Satış по id транзакции выручки: строки из salesSnapshot (автозаполнение məxaric orderi)",
+  })
+  salesInvoiceDetail(
+    @OrganizationId() organizationId: string,
+    @Param("id") id: string,
+  ) {
+    return this.inventory.getSalesInvoiceDetail(organizationId, id);
+  }
+
   @Get("movements")
   @ApiOperation({ summary: "История движений" })
   movements(
@@ -142,13 +230,49 @@ export class InventoryController {
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
   @ApiOperation({
     summary:
-      "Закупка: kind=goods — приход на склад + Дт 201 (+241 при ценах с НДС) Кт 531; kind=services — Дт 731 (+241) Кт 531 без StockMovement",
+      "Alış fakturası: kind=goods — Дт 201 (+241 при ценах с НДС) Кт 531 без StockMovement; kind=services — Дт 731 (+241) Кт 531. Складской приход — отдельный документ (roadmap).",
   })
   purchase(
     @OrganizationId() organizationId: string,
     @Body() dto: PurchaseStockDto,
   ) {
     return this.inventory.recordPurchase(organizationId, dto);
+  }
+
+  @Post("receipts")
+  @Roles(
+    UserRole.OWNER,
+    UserRole.ADMIN,
+    UserRole.ACCOUNTANT,
+    UserRole.WAREHOUSE_KEEPER,
+  )
+  @ApiOperation({
+    summary:
+      "Anbar mədaxil orderi: физический приход (StockMovement IN, RECEIPT), без проводок; опционально basisTransactionId или referenceId (alış fakturası); строки — lines или items",
+  })
+  warehouseReceipt(
+    @OrganizationId() organizationId: string,
+    @Body() dto: CreateWarehouseReceiptDto,
+  ) {
+    return this.inventory.recordWarehouseReceipt(organizationId, dto);
+  }
+
+  @Post("shipments")
+  @Roles(
+    UserRole.OWNER,
+    UserRole.ADMIN,
+    UserRole.ACCOUNTANT,
+    UserRole.WAREHOUSE_KEEPER,
+  )
+  @ApiOperation({
+    summary:
+      "Anbar məxarici orderi: StockMovement OUT (SHIPMENT) + COGS 701/201 при привязке к Satış; строки — lines или items",
+  })
+  warehouseShipment(
+    @OrganizationId() organizationId: string,
+    @Body() dto: CreateWarehouseShipmentDto,
+  ) {
+    return this.inventory.recordWarehouseShipment(organizationId, dto);
   }
 
   @Post("transfer")
@@ -159,6 +283,24 @@ export class InventoryController {
     @Body() dto: TransferStockDto,
   ) {
     return this.inventory.transferStock(organizationId, dto);
+  }
+
+  @Post("transfers")
+  @Roles(
+    UserRole.OWNER,
+    UserRole.ADMIN,
+    UserRole.ACCOUNTANT,
+    UserRole.WAREHOUSE_KEEPER,
+  )
+  @ApiOperation({
+    summary:
+      "Yerdəyişmə: internal transfer — paired StockMovement OUT (source) + IN (target) per line, one DB transaction",
+  })
+  transfers(
+    @OrganizationId() organizationId: string,
+    @Body() dto: CreateTransferDto,
+  ) {
+    return this.inventory.recordInventoryTransfers(organizationId, dto);
   }
 
   @Post("adjustments")

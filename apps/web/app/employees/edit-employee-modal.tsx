@@ -6,9 +6,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiFetch } from "../../lib/api-client";
 import {
-  CARD_CONTAINER_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
   MODAL_FIELD_LABEL_CLASS,
   MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
   MODAL_INPUT_CLASS,
   MODAL_INPUT_NUMERIC_CLASS,
 } from "../../lib/design-system";
@@ -34,7 +36,22 @@ type EmployeeDetail = {
   startDate: string;
   salary: unknown;
   contractorMonthlySocialAzn?: unknown | null;
+  vacationDaysBalance?: unknown | null;
 };
+
+function formatVacationDaysBalance(v: unknown): string {
+  if (v == null) return "—";
+  const s =
+    typeof v === "object" && v !== null && "toString" in v
+      ? (v as { toString(): string }).toString()
+      : String(v);
+  const n = Number(String(s).replace(",", "."));
+  if (!Number.isFinite(n)) return "—";
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
 
 export function EditEmployeeModal({
   open,
@@ -66,6 +83,7 @@ export function EditEmployeeModal({
   const [positionId, setPositionId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [salary, setSalary] = useState("");
+  const [vacationBalanceLabel, setVacationBalanceLabel] = useState("—");
 
   const title = useMemo(() => t("employees.editSection"), [t]);
 
@@ -113,6 +131,7 @@ export function EditEmployeeModal({
             ? String(soc)
             : "",
       );
+      setVacationBalanceLabel(formatVacationDaysBalance(r.vacationDaysBalance));
     } catch {
       setLoadErr(t("employees.loadErr"));
     } finally {
@@ -207,7 +226,7 @@ export function EditEmployeeModal({
   if (!open || !employeeId) return null;
 
   const tabBtn = (active: boolean) =>
-    `rounded-[2px] border px-3 py-1.5 text-[13px] font-medium ${
+    `rounded-lg border px-3 py-1.5 text-[13px] font-medium ${
       active
         ? "border-[#2980B9] bg-white text-[#34495E]"
         : "border-transparent text-[#7F8C8D] hover:border-[#D5DADF]"
@@ -215,14 +234,10 @@ export function EditEmployeeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div
-        className={`${CARD_CONTAINER_CLASS} flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden bg-white p-6`}
-        role="dialog"
-        aria-modal="true"
-      >
+      <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-2xl`} role="dialog" aria-modal="true">
         <header className="flex shrink-0 items-start justify-between gap-3">
           <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">{title}</h3>
-          <Button type="button" variant="ghost" className="!px-2" onClick={onClose} aria-label={t("common.close")}>
+          <Button type="button" variant="ghost" className={MODAL_CLOSE_BUTTON_CLASS} onClick={onClose} aria-label={t("common.close")}>
             <X className="h-4 w-4 shrink-0" aria-hidden />
           </Button>
         </header>
@@ -353,14 +368,34 @@ export function EditEmployeeModal({
                     onChange={(e) => setSalary(e.target.value)}
                   />
                 </label>
+                {kind === "EMPLOYEE" && !loading ? (
+                  <div className={`${MODAL_FIELD_LABEL_CLASS} md:col-span-2`}>
+                    <span className="text-[#34495E]">{t("employees.vacationDaysAvailable")}</span>
+                    <div
+                      className="mt-1 w-full rounded-lg border border-[#D5DADF] bg-[#F4F5F7] px-3 py-2 text-[13px] font-medium tabular-nums text-[#34495E]"
+                      aria-readonly
+                    >
+                      {vacationBalanceLabel}
+                    </div>
+                    <p className="mb-0 mt-1 text-[11px] leading-snug text-[#7F8C8D]">
+                      {t("employees.vacationDaysAvailableHint")}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </div>
 
             <div className={MODAL_FOOTER_ACTIONS_CLASS}>
-              <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
+              <Button
+                type="button"
+                variant="outline"
+                className={MODAL_FOOTER_BUTTON_CLASS}
+                onClick={onClose}
+                disabled={busy}
+              >
                 {t("employees.cancel")}
               </Button>
-              <Button type="submit" variant="primary" disabled={busy}>
+              <Button type="submit" variant="primary" className={MODAL_FOOTER_BUTTON_CLASS} disabled={busy}>
                 {busy ? "…" : t("employees.save")}
               </Button>
             </div>

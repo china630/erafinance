@@ -8,7 +8,10 @@ export const RECEIVABLE_ACCOUNT_CODE = "211";
 export const FX_GAIN_ACCOUNT_CODE = "662";
 
 /** Расход / потери от курсовой разницы (MVP). */
-export const FX_LOSS_ACCOUNT_CODE = "562";
+export const FX_LOSS_ACCOUNT_CODE = "762";
+
+/** Внутренние переводы в пути (Yoldaki pul kochurmeleri). */
+export const TRANSIT_TRANSFER_ACCOUNT_CODE = "231";
 
 /** Зарплата: расходы и задолженность перед персоналом. */
 export const PAYROLL_EXPENSE_ACCOUNT_CODE = "721";
@@ -38,6 +41,12 @@ export const CASH_OPERATIONAL_ACCOUNT_CODE = "101.01";
 
 /** Касса в иностранной валюте (субсчёт 102). */
 export const FOREIGN_CASH_OPERATIONAL_ACCOUNT_CODE = "102.01";
+
+/** Денежные средства в пути / инкассация из кассы в банк. */
+export const CASH_IN_TRANSIT_ACCOUNT_CODE = "251";
+
+/** Прочий добавочный капитал / средства учредителя. */
+export const FOUNDER_FUNDS_ACCOUNT_CODE = "545";
 
 /** Расчёты с подотчётными лицами (NAS). */
 export const ACCOUNTABLE_PERSONS_ACCOUNT_CODE = "244";

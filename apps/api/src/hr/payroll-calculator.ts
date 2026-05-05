@@ -12,6 +12,7 @@ export function roundMoney2(d: Decimal): Decimal {
 
 export type PayrollBreakdownPrivate = {
   gross: Decimal;
+  /** Штатники: подоходный по профилю. ГПХ (CONTRACTOR): удержание 5% у источника (хранится в том же поле в БД). */
   incomeTax: Decimal;
   dsmfWorker: Decimal;
   dsmfEmployer: Decimal;

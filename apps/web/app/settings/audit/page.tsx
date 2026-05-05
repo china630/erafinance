@@ -1,16 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
 import {
   CARD_CONTAINER_CLASS,
   INPUT_BORDERED_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
+  MODAL_FIELD_LABEL_CLASS,
   PRIMARY_BUTTON_CLASS,
   SECONDARY_BUTTON_CLASS,
 } from "../../../lib/design-system";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { PageHeader } from "../../../components/layout/page-header";
+import { Button } from "../../../components/ui/button";
 
 type AuditRow = {
   id: string;
@@ -241,38 +246,42 @@ export default function AuditSettingsPage() {
 
       {selected && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           role="dialog"
           aria-modal
         >
-          <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b flex justify-between items-center">
-              <h3 className="font-semibold">{t("auditPage.diffTitle")}</h3>
-              <button
+          <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-5xl`}>
+            <header className="flex shrink-0 items-start justify-between gap-3">
+              <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
+                {t("auditPage.diffTitle")}
+              </h3>
+              <Button
                 type="button"
+                variant="ghost"
+                className={MODAL_CLOSE_BUTTON_CLASS}
                 onClick={() => setSelected(null)}
-                className="text-gray-500 hover:text-gray-800"
+                aria-label={t("common.close")}
               >
-                ✕
-              </button>
-            </div>
-            <div className="p-4 overflow-auto grid md:grid-cols-2 gap-4 text-xs">
-              <div>
-                <div className="font-medium text-gray-700 mb-2">{t("auditPage.before")}</div>
-                <pre className="bg-slate-50 border rounded p-3 overflow-auto max-h-[60vh] whitespace-pre-wrap">
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+              </Button>
+            </header>
+            <div className="mt-4 grid min-h-0 max-h-[60vh] flex-1 gap-4 overflow-y-auto text-[13px] md:grid-cols-2">
+              <div className="flex min-h-0 flex-col gap-1.5">
+                <div className={MODAL_FIELD_LABEL_CLASS}>{t("auditPage.before")}</div>
+                <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-2xl border border-[#D5DADF] bg-[#F4F5F7] p-3 font-mono text-[12px] text-[#34495E]">
                   {formatJson(selected.oldValues)}
                 </pre>
               </div>
-              <div>
-                <div className="font-medium text-gray-700 mb-2">{t("auditPage.after")}</div>
-                <pre className="bg-slate-50 border rounded p-3 overflow-auto max-h-[60vh] whitespace-pre-wrap">
+              <div className="flex min-h-0 flex-col gap-1.5">
+                <div className={MODAL_FIELD_LABEL_CLASS}>{t("auditPage.after")}</div>
+                <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-2xl border border-[#D5DADF] bg-[#F4F5F7] p-3 font-mono text-[12px] text-[#34495E]">
                   {formatJson(selected.newValues)}
                 </pre>
               </div>
             </div>
-            <div className="px-4 py-2 border-t text-xs text-gray-500">
+            <p className="m-0 mt-4 text-[13px] text-[#7F8C8D]">
               IP: {selected.clientIp ?? "—"} · {selected.userAgent ?? "—"}
-            </div>
+            </p>
           </div>
         </div>
       )}

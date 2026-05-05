@@ -118,7 +118,7 @@ export default function SuperAdminTranslationsPage() {
           <select
             value={locale}
             onChange={(e) => setLocale(e.target.value)}
-            className="ml-2 rounded-[2px] border border-[#D5DADF] px-2 py-1"
+            className="ml-2 rounded-lg border border-[#D5DADF] px-2 py-1"
           >
             <option value="az">az</option>
             <option value="ru">ru</option>
@@ -130,7 +130,7 @@ export default function SuperAdminTranslationsPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={t("superAdminTranslations.search")}
-          className="min-w-[200px] flex-1 rounded-[2px] border border-[#D5DADF] px-3 py-1.5 text-[13px]"
+          className="min-w-[200px] flex-1 rounded-lg border border-[#D5DADF] px-3 py-1.5 text-[13px]"
         />
         <button
           type="button"

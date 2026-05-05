@@ -19,9 +19,16 @@ import { PayrollHeavyWorker } from "./payroll-heavy.worker";
 import { PayrollService } from "./payroll.service";
 import { PayrollExportService } from "./payroll-export.service";
 import { DepartmentHeadScopeService } from "./department-head-scope.service";
+import { NotificationModule } from "../notifications/notification.module";
+import { VacationBalanceService } from "./vacation-balance.service";
 
 @Module({
-  imports: [PrismaModule, AccountingModule, BankingModule],
+  imports: [
+    PrismaModule,
+    AccountingModule,
+    BankingModule,
+    NotificationModule,
+  ],
   controllers: [
     EmployeesController,
     PayrollController,
@@ -41,6 +48,7 @@ import { DepartmentHeadScopeService } from "./department-head-scope.service";
     OrgStructureService,
     TimesheetService,
     DepartmentHeadScopeService,
+    VacationBalanceService,
     RolesGuard,
   ],
   exports: [OrgStructureService],

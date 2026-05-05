@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../lib/api-client";
 import { uiLangRuAz } from "../lib/i18n/ui-lang";
 import {
-  CARD_CONTAINER_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
   MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from "../lib/design-system";
 import { Button } from "./ui/button";
@@ -108,19 +111,28 @@ export function UpgradePlanModalHost() {
       aria-modal="true"
       aria-labelledby="upgrade-plan-modal-title"
     >
-      <div
-        className={`${CARD_CONTAINER_CLASS} flex max-h-[90vh] min-h-0 w-full max-w-md flex-col overflow-hidden bg-white p-6 shadow-sm`}
-      >
-        <h2
-          id="upgrade-plan-modal-title"
-          className="m-0 shrink-0 text-lg font-semibold leading-snug text-[#34495E]"
-        >
-          {title}
-        </h2>
+      <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`}>
+        <header className="flex shrink-0 items-start justify-between gap-3">
+          <h2
+            id="upgrade-plan-modal-title"
+            className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]"
+          >
+            {title}
+          </h2>
+          <Button
+            type="button"
+            variant="ghost"
+            className={MODAL_CLOSE_BUTTON_CLASS}
+            onClick={() => setOpen(false)}
+            aria-label={t("common.close")}
+          >
+            <X className="h-4 w-4 shrink-0" aria-hidden />
+          </Button>
+        </header>
         <div className="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto">
           <p className="mb-0 text-[13px] leading-relaxed text-[#7F8C8D]">{text}</p>
           {preview ? (
-            <div className="rounded-[2px] border border-[#D5DADF] bg-[#F4F5F7] px-3 py-2.5">
+            <div className="rounded-lg border border-[#D5DADF] bg-[#F4F5F7] px-3 py-2.5">
               <p className="m-0 text-[13px] font-semibold text-[#34495E]">{t("upgradeModal.previewTitle")}</p>
               <p className="mb-0 mt-1 text-[13px] leading-snug text-[#34495E]">
                 {t("upgradeModal.previewBody", {
@@ -133,13 +145,18 @@ export function UpgradePlanModalHost() {
           ) : null}
         </div>
         <div className={MODAL_FOOTER_ACTIONS_CLASS}>
-          <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            className={MODAL_FOOTER_BUTTON_CLASS}
+            onClick={() => setOpen(false)}
+          >
             {t("upgradeModal.close")}
           </Button>
           <Link
             href="/settings/subscription"
             onClick={() => setOpen(false)}
-            className={PRIMARY_BUTTON_CLASS}
+            className={`${PRIMARY_BUTTON_CLASS} ${MODAL_FOOTER_BUTTON_CLASS}`}
           >
             {t("upgradeModal.openSubscription")}
           </Link>

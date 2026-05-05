@@ -15,36 +15,70 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { UserRole } from "@dayday/database";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { RolesGuard } from "../auth/guards/roles.guard";
+import { isDepartmentHeadRole } from "../auth/policies/hr-payroll.policy";
+import { requireOrgRole } from "../auth/require-org-role";
+import type { AuthUser } from "../auth/types/auth-user";
 import { CheckQuota } from "../common/decorators/check-quota.decorator";
 import { QuotaGuard } from "../common/guards/quota.guard";
 import { OrganizationId } from "../common/org-id.decorator";
 import { QuotaResource } from "../quota/quota-resource";
 import { CreateEmployeeDto } from "./dto/create-employee.dto";
 import { UpdateEmployeeDto } from "./dto/update-employee.dto";
+import { DepartmentHeadScopeService } from "./department-head-scope.service";
 import { EmployeesService } from "./employees.service";
 
 @ApiTags("hr-employees")
 @ApiBearerAuth("bearer")
 @Controller("hr/employees")
 export class EmployeesController {
-  constructor(private readonly employees: EmployeesService) {}
+  constructor(
+    private readonly employees: EmployeesService,
+    private readonly scope: DepartmentHeadScopeService,
+  ) {}
 
   @Get()
-  @ApiOperation({ summary: "Список сотрудников (пагинация: page, pageSize)" })
-  list(
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserRole.OWNER,
+    UserRole.ADMIN,
+    UserRole.ACCOUNTANT,
+    UserRole.HR_MANAGER,
+    UserRole.DEPARTMENT_HEAD,
+  )
+  @ApiOperation({
+    summary:
+      "Список сотрудников (пагинация; departmentId — фильтр; DEPARTMENT_HEAD — только свой отдел)",
+  })
+  async list(
     @OrganizationId() organizationId: string,
+    @CurrentUser() user: AuthUser,
     @Query("page") page?: string,
     @Query("pageSize") pageSize?: string,
+    @Query("departmentId") departmentId?: string,
   ) {
+    const role = requireOrgRole(user);
+    let dept = departmentId;
+    if (isDepartmentHeadRole(role)) {
+      dept =
+        (await this.scope.resolveManagedDepartmentId(
+          organizationId,
+          user.userId,
+        )) ?? undefined;
+    }
     const p =
       page != null && page !== "" ? Number.parseInt(page, 10) : undefined;
     const ps =
       pageSize != null && pageSize !== ""
         ? Number.parseInt(pageSize, 10)
         : undefined;
-    return this.employees.list(organizationId, { page: p, pageSize: ps });
+    return this.employees.list(organizationId, {
+      page: p,
+      pageSize: ps,
+      departmentId: dept,
+    });
   }
 
   @Get(":id")

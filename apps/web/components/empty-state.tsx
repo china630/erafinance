@@ -35,7 +35,7 @@ export function EmptyState({
   );
   return (
     <div
-      className={`flex flex-col items-center justify-center rounded-[2px] border border-[#D5DADF] ${box} ${className}`}
+      className={`flex flex-col items-center justify-center rounded-2xl border border-[#D5DADF] ${box} ${className}`}
     >
       <div className={`${iconWrap} text-[#62707E]`} aria-hidden>
         {icon ?? defaultIcon}

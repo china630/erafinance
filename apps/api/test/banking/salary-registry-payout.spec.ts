@@ -1,3 +1,4 @@
+import { UserRole } from "@dayday/database";
 import { BankingGatewayService } from "../../src/banking/banking-gateway.service";
 
 describe("SalaryRegistry payout strategy", () => {
@@ -51,7 +52,7 @@ describe("SalaryRegistry payout strategy", () => {
       { putObject: jest.fn() } as any,
     );
 
-    await service.prepareSalaryRegistry("reg-1");
+    await service.prepareSalaryRegistry("reg-1", UserRole.ACCOUNTANT);
     expect(abb.buildSalaryPaymentXml).toHaveBeenCalled();
     expect(abb.sendSalaryRegistryXml).toHaveBeenCalled();
   });
@@ -109,7 +110,7 @@ describe("SalaryRegistry payout strategy", () => {
       storage,
     );
 
-    await service.prepareSalaryRegistry("reg-2");
+    await service.prepareSalaryRegistry("reg-2", UserRole.ACCOUNTANT);
     expect(universal.buildSalaryRegistryXlsx).toHaveBeenCalled();
     expect(storage.putObject).toHaveBeenCalled();
   });

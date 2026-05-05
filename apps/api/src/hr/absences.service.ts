@@ -7,6 +7,7 @@ import {
   AbsencePayFormula,
   Decimal,
   PayrollRunStatus,
+  Prisma,
 } from "@dayday/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateAbsenceDto } from "./dto/create-absence.dto";
@@ -98,6 +99,19 @@ function fullMonthsWorkedBeforeAnchor(hireDateUtc: Date, anchorUtc: Date): numbe
   return Math.max(0, months);
 }
 
+/** UI / analytics: hex tint per DESIGN.md palette (primary/action/alert). */
+export function absenceCalendarColor(formula: AbsencePayFormula): string {
+  switch (formula) {
+    case AbsencePayFormula.SICK_LEAVE_STAJ:
+      return "#FCE8E8";
+    case AbsencePayFormula.UNPAID_RECORD:
+      return "#FEF3C7";
+    case AbsencePayFormula.LABOR_LEAVE_304:
+    default:
+      return "#E8F4FC";
+  }
+}
+
 @Injectable()
 export class AbsencesService {
   constructor(
@@ -105,17 +119,70 @@ export class AbsencesService {
     private readonly absenceTypes: AbsenceTypesService,
   ) {}
 
-  list(organizationId: string, departmentId?: string) {
-    return this.prisma.absence.findMany({
+  async list(
+    organizationId: string,
+    opts?: {
+      departmentId?: string;
+      dateFrom?: Date;
+      dateTo?: Date;
+    },
+  ) {
+    const departmentId = opts?.departmentId;
+    let rangeFilter: Prisma.AbsenceWhereInput | undefined;
+    const from = opts?.dateFrom;
+    const to = opts?.dateTo;
+    if (from && to && from > to) {
+      throw new BadRequestException("dateFrom must be on or before dateTo");
+    }
+    if (from && to) {
+      rangeFilter = {
+        startDate: { lte: to },
+        endDate: { gte: from },
+      };
+    } else if (from) {
+      rangeFilter = { endDate: { gte: from } };
+    } else if (to) {
+      rangeFilter = { startDate: { lte: to } };
+    }
+
+    const rows = await this.prisma.absence.findMany({
       where: {
         organizationId,
         ...(departmentId
           ? { employee: { jobPosition: { departmentId } } }
           : {}),
+        ...(rangeFilter ?? {}),
       },
-      orderBy: [{ startDate: "desc" }],
+      orderBy: [{ startDate: "asc" }, { employeeId: "asc" }],
       include: { employee: true, absenceType: true },
     });
+
+    return rows.map((r) => ({
+      id: r.id,
+      organizationId: r.organizationId,
+      employeeId: r.employeeId,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      note: r.note,
+      approved: r.approved,
+      absenceTypeId: r.absenceTypeId,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      employee: {
+        id: r.employee.id,
+        firstName: r.employee.firstName,
+        lastName: r.employee.lastName,
+      },
+      absenceType: r.absenceType
+        ? {
+            id: r.absenceType.id,
+            nameAz: r.absenceType.nameAz,
+            code: r.absenceType.code,
+            formula: r.absenceType.formula,
+            color: absenceCalendarColor(r.absenceType.formula),
+          }
+        : undefined,
+    }));
   }
 
   async getOne(organizationId: string, id: string, departmentId?: string) {

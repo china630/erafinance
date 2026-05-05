@@ -3,7 +3,12 @@
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { CARD_CONTAINER_CLASS, MODAL_FOOTER_ACTIONS_CLASS } from "../../../lib/design-system";
+import {
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
+  MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
+} from "../../../lib/design-system";
 import { Button } from "../../ui/button";
 
 /** @deprecated Используйте `t("common.cancel")` / `t("common.save")` — строки оставлены для обратной совместимости импортов. */
@@ -37,7 +42,7 @@ export function SalesModalShell({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div
-        className={`${CARD_CONTAINER_CLASS} ${maxWidthClass} flex w-full max-h-[90vh] flex-col bg-white p-6`}
+        className={`${MODAL_DIALOG_CONTENT_CLASS} ${maxWidthClass}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="sales-modal-title"
@@ -61,7 +66,7 @@ export function SalesModalShell({
             <Button
               type="button"
               variant="ghost"
-              className="!px-2"
+              className={MODAL_CLOSE_BUTTON_CLASS}
               onClick={onClose}
               aria-label={t("common.close")}
             >
@@ -70,12 +75,18 @@ export function SalesModalShell({
           </div>
         </header>
 
-        <div className="mt-4 min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto">{children}</div>
 
         {footer != null ? <footer className="shrink-0">{footer}</footer> : null}
       </div>
     </div>
   );
+}
+
+function cancelButtonVariant(v: "ghost" | "secondary" | "outline"): "ghost" | "secondary" | "outline" {
+  if (v === "ghost") return "ghost";
+  if (v === "secondary") return "secondary";
+  return "outline";
 }
 
 export function SalesModalFooter({
@@ -84,22 +95,23 @@ export function SalesModalFooter({
   busy,
   saveDisabled,
   formId,
-  /** `ghost` — прозрачная отмена (стандарт модалок); `secondary` — контурная кнопка. */
-  cancelVariant = "ghost",
+  /** `outline` — белый фон, серая рамка (эталон DayDay); `ghost` — текстовая отмена. */
+  cancelVariant = "outline",
 }: {
   onCancel: () => void;
   onSave?: () => void | Promise<void>;
   busy?: boolean;
   saveDisabled?: boolean;
   formId?: string;
-  cancelVariant?: "ghost" | "secondary";
+  cancelVariant?: "ghost" | "secondary" | "outline";
 }) {
   const { t } = useTranslation();
   return (
     <div className={MODAL_FOOTER_ACTIONS_CLASS}>
       <Button
         type="button"
-        variant={cancelVariant === "secondary" ? "secondary" : "ghost"}
+        variant={cancelButtonVariant(cancelVariant)}
+        className={MODAL_FOOTER_BUTTON_CLASS}
         onClick={onCancel}
         disabled={!!busy}
       >
@@ -109,6 +121,7 @@ export function SalesModalFooter({
         <Button
           type="submit"
           variant="primary"
+          className={MODAL_FOOTER_BUTTON_CLASS}
           form={formId}
           disabled={!!busy || !!saveDisabled}
         >
@@ -118,6 +131,7 @@ export function SalesModalFooter({
         <Button
           type="button"
           variant="primary"
+          className={MODAL_FOOTER_BUTTON_CLASS}
           disabled={!!busy || !!saveDisabled}
           onClick={() => void onSave?.()}
         >

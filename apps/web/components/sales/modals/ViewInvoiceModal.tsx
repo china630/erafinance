@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import QRCode from "qrcode";
@@ -19,8 +20,11 @@ import {
   DATA_TABLE_TH_LEFT_CLASS,
   DATA_TABLE_TH_RIGHT_CLASS,
   DATA_TABLE_TR_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
   MODAL_FIELD_LABEL_CLASS,
   MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
   MODAL_INPUT_NUMERIC_CLASS,
 } from "../../../lib/design-system";
 import { Badge } from "../../ui/badge";
@@ -380,7 +384,7 @@ export function ViewInvoiceModal({
               </div>
 
               {viewTab === "history" ? (
-              <section className="rounded-[2px] border border-[#D5DADF] bg-white p-4 shadow-sm">
+              <section className="rounded-2xl border border-[#D5DADF] bg-white p-4 shadow-sm">
                 <h2 className="mb-4 text-lg font-semibold text-[#34495E]">
                   {t("invoiceView.historyTitle")}
                 </h2>
@@ -400,7 +404,7 @@ export function ViewInvoiceModal({
                   ) : null}
                 </p>
 
-                <div className="space-y-4 rounded-[2px] border border-[#D5DADF] bg-white p-4 text-[13px] shadow-sm">
+                <div className="space-y-4 rounded-lg border border-[#D5DADF] bg-white p-4 text-[13px] shadow-sm">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <span className="text-[#7F8C8D]">{t("invoices.status")}: </span>
@@ -422,7 +426,7 @@ export function ViewInvoiceModal({
                     </div>
                   </div>
                   {showNettingCta && (
-                    <div className="mt-4 border-t border-[#D5DADF] pt-4">
+                    <div className="mt-6 space-y-2">
                       <p className="mb-2 text-[13px] text-[#7F8C8D]">{t("invoiceView.payByNettingHint")}</p>
                       <Button type="button" variant="primary" onClick={() => openNettingModal()}>
                         {t("invoiceView.payByNetting")}
@@ -431,7 +435,7 @@ export function ViewInvoiceModal({
                   )}
                 </div>
 
-                <div className="overflow-x-auto rounded-[2px] border border-[#D5DADF] bg-white shadow-sm">
+                <div className="overflow-x-auto rounded-2xl border border-[#D5DADF] bg-white shadow-sm">
                   <table className={`${DATA_TABLE_CLASS} min-w-full`}>
                     <thead>
                       <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
@@ -462,15 +466,26 @@ export function ViewInvoiceModal({
 
       {netModal && inv && netPreview && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="w-full max-w-md rounded-[2px] border border-[#D5DADF] bg-white p-6 shadow-sm"
-          >
-            <div className="space-y-4">
-              <h2 className="m-0 text-lg font-semibold text-[#34495E]">
+          <div role="dialog" aria-modal="true" className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`}>
+            <header className="flex shrink-0 items-start justify-between gap-3">
+              <h2 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold text-[#34495E]">
                 {t("invoiceView.payByNettingModalTitle")}
               </h2>
+              <Button
+                type="button"
+                variant="ghost"
+                className={MODAL_CLOSE_BUTTON_CLASS}
+                disabled={netBusy}
+                onClick={() => {
+                  setNetModal(false);
+                  setNetErr(null);
+                }}
+                aria-label={t("common.close")}
+              >
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+              </Button>
+            </header>
+            <div className="mt-4 space-y-4">
               <p className="text-[13px] text-[#7F8C8D]">{t("reconciliation.nettingHint")}</p>
               <p className="text-[13px] text-[#34495E]">
                 <span className="text-[#7F8C8D]">{t("reconciliation.nettingDr")}:</span>{" "}
@@ -480,15 +495,15 @@ export function ViewInvoiceModal({
                 <span className="text-[#7F8C8D]">{t("reconciliation.nettingCr")}:</span>{" "}
                 <span className="font-mono tabular-nums">{formatMoneyAzn(netPreview.payable531)}</span>
               </p>
-              <label className="block">
-                <span className={MODAL_FIELD_LABEL_CLASS}>{t("reconciliation.nettingAmount")}</span>
+              <label className={MODAL_FIELD_LABEL_CLASS}>
+                {t("reconciliation.nettingAmount")}
                 <input
                   type="number"
                   min={0.0001}
                   step="any"
                   value={netAmount}
                   onChange={(e) => setNetAmount(e.target.value)}
-                  className={`mt-1 ${MODAL_INPUT_NUMERIC_CLASS}`}
+                  className={`mt-1 block w-full ${MODAL_INPUT_NUMERIC_CLASS}`}
                 />
               </label>
               {netErr ? <p className="text-[13px] text-red-600">{netErr}</p> : null}
@@ -496,7 +511,8 @@ export function ViewInvoiceModal({
             <div className={MODAL_FOOTER_ACTIONS_CLASS}>
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
+                className={MODAL_FOOTER_BUTTON_CLASS}
                 disabled={netBusy}
                 onClick={() => {
                   setNetModal(false);
@@ -505,7 +521,13 @@ export function ViewInvoiceModal({
               >
                 {t("reconciliation.nettingClose")}
               </Button>
-              <Button type="button" variant="primary" disabled={netBusy} onClick={() => void submitNetting()}>
+              <Button
+                type="button"
+                variant="primary"
+                className={MODAL_FOOTER_BUTTON_CLASS}
+                disabled={netBusy}
+                onClick={() => void submitNetting()}
+              >
                 {netBusy ? t("reconciliation.nettingBusy") : t("invoiceView.payByNettingSubmit")}
               </Button>
             </div>
@@ -519,9 +541,30 @@ export function ViewInvoiceModal({
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-md rounded-[2px] border border-[#D5DADF] bg-white p-6 shadow-sm">
-            <div className="space-y-4">
-              <h2 className="m-0 text-lg font-semibold text-[#34495E]">{t("invoiceView.signTitle")}</h2>
+          <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`}>
+            <header className="flex shrink-0 items-start justify-between gap-3">
+              <h2 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold text-[#34495E]">
+                {t("invoiceView.signTitle")}
+              </h2>
+              <Button
+                type="button"
+                variant="ghost"
+                className={MODAL_CLOSE_BUTTON_CLASS}
+                onClick={() => {
+                  setSignOpen(false);
+                  setSignLogId(null);
+                  setSignMessage(null);
+                  setPollHint(null);
+                  setSimQrPayload(null);
+                  setSimQrDataUrl(null);
+                  setActiveSignProvider(null);
+                }}
+                aria-label={t("common.close")}
+              >
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+              </Button>
+            </header>
+            <div className="mt-4 space-y-4">
               <p className="text-[13px] text-[#7F8C8D]">{t("invoiceView.signPick")}</p>
               <div className="flex flex-col gap-4">
               <Button
@@ -550,13 +593,13 @@ export function ViewInvoiceModal({
               </Button>
               </div>
               {activeSignProvider === "SIMA" && simQrPayload && (
-              <div className="flex flex-col items-center gap-3 rounded-[2px] border border-[#2980B9]/25 bg-[#2980B9]/10 p-4">
+              <div className="flex flex-col items-center gap-3 rounded-lg border border-[#2980B9]/25 bg-[#2980B9]/10 p-4">
                 <p className="text-center text-[13px] text-[#34495E]">{t("invoiceView.signSimaQrHint")}</p>
                 {simQrDataUrl ? (
                   <img
                     src={simQrDataUrl}
                     alt=""
-                    className="h-[220px] w-[220px] rounded-[2px] border border-white bg-white p-2 shadow-md"
+                    className="h-[220px] w-[220px] rounded-2xl border border-white bg-white p-2 shadow-md"
                   />
                 ) : (
                   <p className="text-[13px] text-[#7F8C8D]">{t("common.loading")}</p>
@@ -564,7 +607,7 @@ export function ViewInvoiceModal({
               </div>
               )}
               {signMessage ? (
-                <p className="rounded-[2px] border border-amber-200 bg-amber-50 p-3 text-[13px] text-[#34495E]">
+                <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[13px] text-[#34495E]">
                   {signMessage}
                 </p>
               ) : null}
@@ -573,7 +616,8 @@ export function ViewInvoiceModal({
             <div className={MODAL_FOOTER_ACTIONS_CLASS}>
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
+                className={MODAL_FOOTER_BUTTON_CLASS}
                 onClick={() => {
                   setSignOpen(false);
                   setSignLogId(null);

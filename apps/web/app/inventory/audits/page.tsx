@@ -16,7 +16,8 @@ import { PageHeader } from "../../../components/layout/page-header";
 import { EmptyState } from "../../../components/empty-state";
 import { Button } from "../../../components/ui/button";
 import {
-  CARD_CONTAINER_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
   DATA_TABLE_ACTIONS_TD_CLASS,
   DATA_TABLE_ACTIONS_TH_CLASS,
   DATA_TABLE_CLASS,
@@ -189,12 +190,12 @@ export default function InventoryAuditsHistoryPage() {
       {auditCreateOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div
-            className={`relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden ${CARD_CONTAINER_CLASS}`}
+            className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-5xl`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="inventory-audit-create-modal-title"
           >
-            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#D5DADF] px-6 py-4">
+            <header className="flex shrink-0 items-start justify-between gap-3">
               <h2
                 id="inventory-audit-create-modal-title"
                 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]"
@@ -204,14 +205,14 @@ export default function InventoryAuditsHistoryPage() {
               <Button
                 type="button"
                 variant="ghost"
-                className="!px-2"
+                className={MODAL_CLOSE_BUTTON_CLASS}
                 onClick={() => closeAuditCreate()}
                 aria-label={t("common.close")}
               >
                 <X className="h-4 w-4 shrink-0" aria-hidden />
               </Button>
             </header>
-            <div className="min-h-0 flex-1 overflow-y-auto p-6">
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
               <InventoryAuditCreateFlow
                 key={auditFlowKey}
                 onNavigateToHistory={() => closeAuditCreate()}

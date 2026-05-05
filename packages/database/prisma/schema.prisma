@@ -99,6 +99,7 @@ model Organization {
   transactions                 Transaction[]
   warehouses                   Warehouse[]
   warehouseBins                WarehouseBin[]
+  notifications                Notification[]
 
   @@index([ownerId])
   @@index([holdingId, id])
@@ -156,19 +157,28 @@ model AccountBalance {
 /// *
 ///  * Банковские счета организации (реквизиты для документов и интеграций), 1:N к Organization.
 model OrganizationBankAccount {
-  id             String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String                 @map("organization_id") @db.Uuid
-  bankName       String                 @map("bank_name")
-  accountNumber  String                 @map("account_number")
-  currency       OrgBankAccountCurrency
-  iban           String?
-  swift          String?
-  createdAt      DateTime               @default(now()) @map("created_at")
-  updatedAt      DateTime               @updatedAt @map("updated_at")
-  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId    String                 @map("organization_id") @db.Uuid
+  bankName          String                 @map("bank_name")
+  /// Legacy field (kept for backward compatibility in old integrations/UI).
+  accountNumber     String?                @map("account_number")
+  currency          String                 @default("AZN")
+  iban              String
+  swift             String?
+  ledgerAccountCode String                 @map("ledger_account_code")
+  accountType       BankAccountType        @default(MAIN) @map("account_type")
+  isPrimary         Boolean                @default(false) @map("is_primary")
+  isFrozen          Boolean                @default(false) @map("is_frozen")
+  isArchived        Boolean                @default(false) @map("is_archived")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
+  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   salaryRegistries SalaryRegistry[]
 
-  @@index([organizationId])
+  @@unique([organizationId, iban], map: "organization_bank_accounts_org_iban_uidx")
+  @@index([organizationId, isArchived, createdAt], map: "organization_bank_accounts_org_arch_created_idx")
+  @@index([organizationId, accountType], map: "organization_bank_accounts_org_type_idx")
+  @@index([organizationId, ledgerAccountCode], map: "organization_bank_accounts_org_ledger_idx")
   @@map("organization_bank_accounts")
 }
 
@@ -642,6 +652,15 @@ model Employee {
   ///    * Остаток отпускных дней на дату миграции (Opening Balances Wizard).
   initialVacationDays        Decimal          @default(0) @map("initial_vacation_days") @db.Decimal(8, 2)
   /// *
+  ///    * Текущий накопленный баланс дней основного отпуска (пересчёт cron, TZ §7.0.3).
+  vacationDaysBalance        Decimal          @default(0) @map("vacation_days_balance") @db.Decimal(8, 2)
+  /// *
+  ///    * Норма дней отпуска в год (ТК АР — не менее 21; по умолчанию 21).
+  baseVacationDaysPerYear    Int              @default(21) @map("base_vacation_days_per_year")
+  /// *
+  ///    * Учёт в ежедневном перерасчёте отпускного баланса (только ACTIVE штатники).
+  employmentStatus           EmployeeEmploymentStatus @default(ACTIVE) @map("employment_status")
+  /// *
   ///    * Среднемесячный доход за последние 12 месяцев для миграционного расчёта отпускных.
   avgMonthlySalaryLastYear   Decimal?         @map("avg_monthly_salary_last_year") @db.Decimal(19, 4)
   positionId                 String           @map("position_id") @db.Uuid
@@ -856,9 +875,36 @@ model User {
   ownedOrganizations        Organization[]           @relation("OrganizationOwner")
   subscriptionInvoices      SubscriptionInvoice[]
   warehouses                Warehouse?               @relation(fields: [defaultWarehouseId], references: [id])
+  notifications             Notification[]
 
   @@index([defaultWarehouseId])
   @@map("users")
+}
+
+/// In-app notification (tenant-scoped or platform; severity drives UI).
+enum NotificationSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model Notification {
+  id             String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId         String               @map("user_id") @db.Uuid
+  /// Nullable for future platform-wide messages; product MVP uses org context.
+  organizationId String?              @map("organization_id") @db.Uuid
+  title          String
+  message        String               @db.Text
+  severity       NotificationSeverity @default(INFO)
+  link           String?
+  isRead         Boolean              @default(false) @map("is_read")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, organizationId, isRead])
+  @@index([organizationId, createdAt])
+  @@map("notifications")
 }
 
 model Account {
@@ -975,6 +1021,10 @@ model Transaction {
   counterpartyId               String?                       @map("counterparty_id") @db.Uuid
   /// Аналитика ЦФО: расходы/прочие проводки, привязанные к департаменту.
   departmentId                 String?                       @map("department_id") @db.Uuid
+  /// Snapshot for purchase invoices (line-level goods/services payload for downstream documents).
+  purchaseSnapshot             Json?                         @map("purchase_snapshot")
+  /// Snapshot for sales recognition (goods lines + invoiceId basis for shipment flows).
+  salesSnapshot                Json?                         @map("sales_snapshot")
   advanceReportsPosted         AdvanceReport?                @relation("AdvanceReportPostedTx")
   cashOrdersLinked             CashOrder[]                   @relation("CashOrderLinkedTx")
   cashOrdersPosted             CashOrder[]                   @relation("CashOrderPostedTx")
@@ -1248,6 +1298,8 @@ model Invoice {
   /// *
   ///    * Момент первого проведения Дт 211 — Кт 601 (для акта сверки и сальдо)
   recognizedAt      DateTime?           @map("recognized_at")
+  /// Linked revenue recognition transaction id (Dr 211 / Cr 601) for idempotent posting.
+  revenuePostedTransactionId String?    @map("revenue_posted_transaction_id") @db.Uuid
   /// *
   ///    * Гостевая ссылка на портал счёта (opaque token); выдаётся менеджеру, без JWT.
   publicToken       String?             @unique @map("public_token") @db.VarChar(200)
@@ -1708,14 +1760,13 @@ enum InventoryValuationMethod {
   FIFO
 }
 
-/// *
-///  * Валюта банковского счёта организации (справочник реквизитов).
-enum OrgBankAccountCurrency {
-  AZN
-  USD
-  EUR
-  RUB
-  TRY
+enum BankAccountType {
+  MAIN
+  SALARY
+  CARD
+  TENDER
+  CREDIT
+  VAT_DEPOSIT
 }
 
 enum UserRole {
@@ -1853,6 +1904,11 @@ enum EmployeeKind {
   CONTRACTOR
 }
 
+enum EmployeeEmploymentStatus {
+  ACTIVE
+  TERMINATED
+}
+
 enum TimesheetStatus {
   DRAFT
   APPROVED
@@ -1878,6 +1934,9 @@ enum StockMovementReason {
   SALE
   PURCHASE
   ADJUSTMENT
+  RECEIPT
+  SHIPMENT
+  TRANSFER
   /// *
   ///    * Выпуск готовой продукции (списание компонентов / приход ГП)
   MANUFACTURING

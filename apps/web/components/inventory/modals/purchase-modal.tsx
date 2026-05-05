@@ -1,10 +1,11 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Plus, Sparkles, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiFetch } from "../../../lib/api-client";
+import { fetchExchangeRateMock } from "../../../lib/mock-exchange-rates";
 import { notifyInventoryListsRefresh } from "../../../lib/list-refresh-bus";
 import {
   MODAL_CHECKBOX_CLASS,
@@ -12,29 +13,39 @@ import {
   MODAL_INPUT_CLASS,
   TABLE_ROW_ICON_BTN_CLASS,
 } from "../../../lib/design-system";
+import { normalizeProductVatRate } from "../../../lib/vat-line-rates";
 import { uuidV4 } from "../../../lib/uuid";
-import { AsyncCombobox } from "../../ui/async-combobox";
+import { ProductCombobox, type ProductRow } from "../../ui/product-combobox";
 import { Button } from "../../ui/button";
 import { NumericAmountInput } from "../../ui/numeric-amount-input";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "../../ui/select";
+import { AsyncCombobox } from "../../ui/async-combobox";
 import { InventoryModalFooter, InventoryModalShell } from "./modal-shell";
 import {
   buildPurchasePayload,
+  purchaseLineMoney,
   validatePurchaseForm,
   type PurchaseFormValues,
   type PurchaseLineFormValue,
-  type PurchaseKind,
+  type PurchaseLineVatMode,
 } from "./purchase-validation";
 
-type Warehouse = { id: string; name: string };
-type Product = { id: string; name: string; sku: string; vatRate?: unknown; isService?: boolean };
-type Bin = { id: string; warehouseId: string; code: string; barcode?: string | null };
+type Counterparty = { id: string; name: string; taxId: string };
 
 type LineRow = PurchaseLineFormValue & { key: string };
 
 const FORM_ID = "inventory-modal-purchase-form";
 
-function newLine(): LineRow {
-  return { key: uuidV4(), productId: "", quantity: "", unitPrice: "", binId: "" };
+function newGoodsLine(): LineRow {
+  return { key: uuidV4(), productId: "", quantity: "", unitPrice: "", vatMode: "" };
+}
+
+function newServiceLine(): LineRow {
+  return { key: uuidV4(), productId: "", quantity: "", unitPrice: "", vatMode: "" };
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function fieldErrorClass(hasError: boolean) {
@@ -42,6 +53,10 @@ function fieldErrorClass(hasError: boolean) {
     ? `${MODAL_INPUT_CLASS} border-red-500 ring-2 ring-red-500/25`
     : MODAL_INPUT_CLASS;
 }
+
+const VAT_SELECT_TRIGGER = `${MODAL_INPUT_CLASS} w-full min-w-[6.5rem] max-w-[9rem]`;
+
+const CURRENCIES = ["AZN", "USD", "EUR", "TRY", "RUB"] as const;
 
 export function PurchaseModal({
   open,
@@ -53,107 +68,147 @@ export function PurchaseModal({
   onSaved?: () => void;
 }) {
   const { t } = useTranslation();
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [bins, setBins] = useState<Bin[]>([]);
-  const [productLabels, setProductLabels] = useState<Record<string, string>>({});
-  const [warehouseId, setWarehouseId] = useState("");
-  const [kind, setKind] = useState<PurchaseKind>("goods");
+  const [counterpartyId, setCounterpartyId] = useState("");
+  const [counterpartyLabel, setCounterpartyLabel] = useState("");
+  const [documentDate, setDocumentDate] = useState(todayIsoDate);
+  const [currency, setCurrency] = useState<string>("AZN");
+  const [fxRateToAzn, setFxRateToAzn] = useState("1.0000");
   const [pricesIncludeVat, setPricesIncludeVat] = useState(false);
-  const [lines, setLines] = useState<LineRow[]>(() => [newLine()]);
+  const [goodsLines, setGoodsLines] = useState<LineRow[]>(() => [newGoodsLine()]);
+  const [serviceLines, setServiceLines] = useState<LineRow[]>(() => [newServiceLine()]);
+  const [productLabels, setProductLabels] = useState<Record<string, string>>({});
+  const [productVatByKey, setProductVatByKey] = useState<Record<string, number>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
-  const loadRefs = useCallback(async (purchaseKind: PurchaseKind) => {
-    const isGoods = purchaseKind === "goods";
-    if (!isGoods) {
-      return { whList: [] as Warehouse[], bins: [] as Bin[], defaultWh: "" };
+  /** Runs before [open] reset so a stale foreign currency from the last session does not overwrite fx after reset. */
+  useEffect(() => {
+    if (!open) return;
+    if (currency === "AZN") {
+      setFxRateToAzn("1.0000");
+      return;
     }
-    const [w, cfg, b] = await Promise.all([
-      apiFetch("/api/inventory/warehouses"),
-      apiFetch("/api/inventory/settings"),
-      apiFetch("/api/inventory/bins"),
-    ]);
-    const whList = w.ok ? ((await w.json()) as Warehouse[]) : [];
-    const binList = b.ok ? ((await b.json()) as Bin[]) : [];
-    let defaultWh = "";
-    if (cfg.ok) {
-      const j = (await cfg.json()) as {
-        defaultWarehouseResolvedId?: string | null;
-        defaultWarehouseId?: string | null;
-      };
-      defaultWh = (j.defaultWarehouseId ?? j.defaultWarehouseResolvedId ?? "") || "";
-    }
-    if (!defaultWh && whList[0]) defaultWh = whList[0].id;
-    return { whList, bins: binList, defaultWh };
-  }, []);
-
-  const fetchProducts = useCallback(
-    async (search: string) => {
-      const isGoods = kind === "goods";
-      const q = new URLSearchParams();
-      q.set("isService", isGoods ? "false" : "true");
-      q.set("limit", "20");
-      const trimmed = search.trim();
-      if (trimmed) q.set("search", trimmed);
-      const res = await apiFetch(`/api/products?${q}`);
-      if (!res.ok) return [];
-      const list = (await res.json()) as Product[];
-      return Array.isArray(list) ? list : [];
-    },
-    [kind],
-  );
+    setFxRateToAzn(fetchExchangeRateMock(currency));
+  }, [open, currency]);
 
   useEffect(() => {
     if (!open) return;
-    let cancelled = false;
-    void (async () => {
-      const { whList, bins: binRows, defaultWh } = await loadRefs(kind);
-      if (cancelled) return;
-      setWarehouses(whList);
-      setBins(binRows);
-      setWarehouseId(kind === "goods" ? defaultWh : "");
-      setLines([newLine()]);
-      setProductLabels({});
-      setFieldErrors({});
-      setBusy(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, kind, loadRefs]);
-
-  useEffect(() => {
-    if (!open) return;
+    setCounterpartyId("");
+    setCounterpartyLabel("");
+    setDocumentDate(todayIsoDate());
+    setCurrency("AZN");
+    setFxRateToAzn("1.0000");
     setPricesIncludeVat(false);
-  }, [open, kind]);
+    setGoodsLines([newGoodsLine()]);
+    setServiceLines([newServiceLine()]);
+    setProductLabels({});
+    setProductVatByKey({});
+    setFieldErrors({});
+    setBusy(false);
+  }, [open]);
 
   function err(path: string): string | undefined {
     return fieldErrors[path];
   }
 
-  function updateLine(i: number, patch: Partial<PurchaseLineFormValue>) {
-    setLines((prev) => prev.map((row, j) => (j === i ? { ...row, ...patch } : row)));
+  const fetchCounterparties = useCallback(async (search: string) => {
+    const q = new URLSearchParams();
+    q.set("limit", "20");
+    const trimmed = search.trim();
+    if (trimmed) q.set("search", trimmed);
+    const res = await apiFetch(`/api/counterparties?${q}`);
+    if (!res.ok) return [];
+    const list = (await res.json()) as Counterparty[];
+    return Array.isArray(list) ? list : [];
+  }, []);
+
+  function updateGoodsLine(i: number, patch: Partial<PurchaseLineFormValue>) {
+    setGoodsLines((prev) => prev.map((row, j) => (j === i ? { ...row, ...patch } : row)));
+    clearErrorsPrefix(`goodsLines.${i}.`);
+  }
+
+  function updateServiceLine(i: number, patch: Partial<PurchaseLineFormValue>) {
+    setServiceLines((prev) => prev.map((row, j) => (j === i ? { ...row, ...patch } : row)));
+    clearErrorsPrefix(`serviceLines.${i}.`);
+  }
+
+  function clearErrorsPrefix(prefix: string) {
     setFieldErrors((prev) => {
       const next = { ...prev };
       for (const k of Object.keys(next)) {
-        if (k.startsWith(`lines.${i}.`)) delete next[k];
+        if (k.startsWith(prefix)) delete next[k];
       }
       return next;
     });
+  }
+
+  const totals = useMemo(() => {
+    let net = 0;
+    let vat = 0;
+    let gross = 0;
+    const addBlock = (rows: LineRow[]) => {
+      for (const row of rows) {
+        if (!row.productId?.trim()) continue;
+        const q = Number(String(row.quantity).replace(",", "."));
+        const u = Number(String(row.unitPrice).replace(",", "."));
+        if (!Number.isFinite(q) || q <= 0 || !Number.isFinite(u) || u < 0) continue;
+        const vr = productVatByKey[row.key] ?? normalizeProductVatRate(18);
+        const m = purchaseLineMoney(q, u, row.vatMode, vr, pricesIncludeVat);
+        net += m.net;
+        vat += m.vat;
+        gross += m.gross;
+      }
+    };
+    addBlock(goodsLines);
+    addBlock(serviceLines);
+    return { net, vat, gross };
+  }, [goodsLines, serviceLines, pricesIncludeVat, productVatByKey]);
+
+  function onProductPicked(
+    rowKey: string,
+    item: ProductRow | null,
+    setLine: (i: number, patch: Partial<PurchaseLineFormValue>) => void,
+    idx: number,
+  ) {
+    setLine(idx, { productId: item?.id ?? "" });
+    setProductLabels((prev) => ({
+      ...prev,
+      [rowKey]: item ? (item.isService ? item.name : `${item.name} (${item.sku})`) : "",
+    }));
+    if (item) {
+      setProductVatByKey((prev) => ({
+        ...prev,
+        [rowKey]: normalizeProductVatRate(Number(item.vatRate)),
+      }));
+    } else {
+      setProductVatByKey((prev) => {
+        const next = { ...prev };
+        delete next[rowKey];
+        return next;
+      });
+    }
   }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFieldErrors({});
     const formValues: PurchaseFormValues = {
-      kind,
-      warehouseId,
+      counterpartyId,
+      documentDate,
+      currency,
+      fxRateToAzn,
       pricesIncludeVat,
-      lines: lines.map(({ productId, quantity, unitPrice, binId }) => ({
+      goodsLines: goodsLines.map(({ productId, quantity, unitPrice, vatMode }) => ({
         productId,
         quantity,
         unitPrice,
-        binId,
+        vatMode,
+      })),
+      serviceLines: serviceLines.map(({ productId, quantity, unitPrice, vatMode }) => ({
+        productId,
+        quantity,
+        unitPrice,
+        vatMode,
       })),
     };
     const validated = validatePurchaseForm(t, formValues);
@@ -180,196 +235,300 @@ export function PurchaseModal({
     onClose();
   }
 
-  const isGoods = kind === "goods";
+  const goodsHasRows = goodsLines.some((r) => r.productId?.trim());
+
+  function renderLineTable(
+    title: string,
+    rows: LineRow[],
+    isGoods: boolean,
+    updateLine: (i: number, patch: Partial<PurchaseLineFormValue>) => void,
+    removeLine: (i: number) => void,
+    addLine: () => void,
+    prefix: "goodsLines" | "serviceLines",
+  ) {
+    return (
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold text-[#34495E] m-0">{title}</h3>
+        {isGoods ? (
+          <p className="m-0 text-[12px] leading-snug text-[#7F8C8D]">{t("inventory.purchaseReceiptHint")}</p>
+        ) : null}
+        <div className="rounded-2xl border border-[#D5DADF] bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] table-fixed border-collapse text-[13px]">
+              <thead className="border-b border-[#D5DADF] bg-[#F8FAFC] text-left text-[#34495E]">
+                <tr>
+                  <th className="px-3 py-2 text-xs font-bold text-[#475569]">
+                    {isGoods ? t("inventory.purchaseColProduct") : t("inventory.purchaseColService")}
+                  </th>
+                  <th className="px-3 py-2 text-xs font-bold text-[#475569] w-[6.5rem]">
+                    {t("inventory.purchaseColQty")}
+                  </th>
+                  <th className="px-3 py-2 text-xs font-bold text-[#475569] w-[7.5rem]">
+                    {t("inventory.purchaseColPrice")}
+                  </th>
+                  <th className="px-3 py-2 text-xs font-bold text-[#475569] w-[8.5rem]">
+                    {t("inventory.purchaseColVat")}
+                  </th>
+                  <th className="px-3 py-2 text-xs font-bold text-[#475569] w-[7rem] text-right">
+                    {t("inventory.purchaseColAmount")}
+                  </th>
+                  <th className="px-2 py-2 w-[2.75rem]" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, idx) => {
+                  const q = Number(String(row.quantity).replace(",", "."));
+                  const u = Number(String(row.unitPrice).replace(",", "."));
+                  const vr = productVatByKey[row.key] ?? normalizeProductVatRate(18);
+                  const money =
+                    row.productId && Number.isFinite(q) && q > 0 && Number.isFinite(u) && u >= 0
+                      ? purchaseLineMoney(q, u, row.vatMode, vr, pricesIncludeVat)
+                      : null;
+                  return (
+                    <tr
+                      key={row.key}
+                      className="border-b border-[#D5DADF] bg-white transition-colors hover:bg-[#F1F5F9] last:border-b-0"
+                    >
+                      <td className="px-3 py-2 align-middle min-w-0">
+                        <ProductCombobox
+                          isService={!isGoods}
+                          value={row.productId}
+                          onChange={(id, item) => onProductPicked(row.key, item, updateLine, idx)}
+                          selectedLabel={productLabels[row.key] ?? ""}
+                          className="min-w-0"
+                          listClassName="min-w-[14rem]"
+                          portaled
+                          aria-invalid={!!err(`${prefix}.${idx}.productId`)}
+                        />
+                        {err(`${prefix}.${idx}.productId`) ? (
+                          <p className="mt-1 text-xs text-red-600 m-0">{err(`${prefix}.${idx}.productId`)}</p>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2 align-middle">
+                        <NumericAmountInput
+                          value={row.quantity}
+                          onValueChange={(plain) => updateLine(idx, { quantity: plain })}
+                          decimalScale={4}
+                          className={err(`${prefix}.${idx}.quantity`) ? "border-red-500 ring-2 ring-red-500/25" : ""}
+                          aria-invalid={!!err(`${prefix}.${idx}.quantity`)}
+                        />
+                        {err(`${prefix}.${idx}.quantity`) ? (
+                          <p className="mt-1 text-xs text-red-600 m-0">{err(`${prefix}.${idx}.quantity`)}</p>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2 align-middle">
+                        <NumericAmountInput
+                          value={row.unitPrice}
+                          onValueChange={(plain) => updateLine(idx, { unitPrice: plain })}
+                          decimalScale={4}
+                          className={err(`${prefix}.${idx}.unitPrice`) ? "border-red-500 ring-2 ring-red-500/25" : ""}
+                          aria-invalid={!!err(`${prefix}.${idx}.unitPrice`)}
+                        />
+                        {err(`${prefix}.${idx}.unitPrice`) ? (
+                          <p className="mt-1 text-xs text-red-600 m-0">{err(`${prefix}.${idx}.unitPrice`)}</p>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2 align-middle">
+                        <Select
+                          value={row.vatMode === "" ? "__catalog__" : row.vatMode}
+                          onValueChange={(v) =>
+                            updateLine(idx, {
+                              vatMode: (v === "__catalog__" ? "" : v) as PurchaseLineVatMode,
+                            })
+                          }
+                          aria-label={t("inventory.purchaseColVat")}
+                        >
+                          <SelectTrigger className={VAT_SELECT_TRIGGER} />
+                          <SelectContent>
+                            <SelectItem value="__catalog__">{t("inventory.purchaseVatCatalog")}</SelectItem>
+                            <SelectItem value="18">{t("inventory.purchaseVat18")}</SelectItem>
+                            <SelectItem value="0">{t("inventory.purchaseVat0")}</SelectItem>
+                            <SelectItem value="exempt">{t("inventory.purchaseVatExempt")}</SelectItem>
+                            <SelectItem value="not_applicable">
+                              {t("inventory.purchaseVatNotApplicable")}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-3 py-2 align-middle text-right tabular-nums text-[#34495E]">
+                        {money ? money.gross.toFixed(2) : "—"}
+                      </td>
+                      <td className="px-2 py-2 align-middle text-center">
+                        <button
+                          type="button"
+                          className={`${TABLE_ROW_ICON_BTN_CLASS} text-[#E74C3C]`}
+                          title={t("inventory.purchaseRemoveLine")}
+                          onClick={() => removeLine(idx)}
+                        >
+                          <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={addLine}
+        >
+          <Plus className="h-4 w-4 shrink-0" aria-hidden />
+          {t("inventory.purchaseAddLine")}
+        </Button>
+      </section>
+    );
+  }
 
   return (
     <InventoryModalShell
       open={open}
       title={t("inventory.purchaseModalTitle")}
       onClose={onClose}
-      maxWidthClass="max-w-4xl"
+      maxWidthClass="max-w-5xl"
+      headerActions={
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 shrink-0 gap-1.5 border-[#805AD5]/35 bg-white text-[13px] font-medium text-[#5B21B6] shadow-sm hover:bg-[#F5F3FF]"
+          onClick={() => toast.info(t("inventory.purchasePdfAiToast"))}
+        >
+          <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
+          {t("inventory.purchasePdfAiToastBtn")}
+        </Button>
+      }
       footer={<InventoryModalFooter onCancel={onClose} busy={busy} formId={FORM_ID} />}
     >
-      <form id={FORM_ID} className="space-y-4" onSubmit={(e) => void onSubmit(e)}>
-        <div>
-          <p className="mb-2 text-[13px] font-medium text-[#34495E]">{t("inventory.purchaseKindLabel")}</p>
-          <div className="flex flex-wrap gap-4 text-[13px] text-[#34495E]">
-            <label className="inline-flex cursor-pointer items-center gap-2">
-              <input
-                type="radio"
-                name="purchase-kind"
-                checked={kind === "goods"}
-                onChange={() => setKind("goods")}
-                className="h-4 w-4 shrink-0 accent-[#2980B9]"
-              />
-              {t("inventory.purchaseKindGoods")}
-            </label>
-            <label className="inline-flex cursor-pointer items-center gap-2">
-              <input
-                type="radio"
-                name="purchase-kind"
-                checked={kind === "services"}
-                onChange={() => setKind("services")}
-                className="h-4 w-4 shrink-0 accent-[#2980B9]"
-              />
-              {t("inventory.purchaseKindServices")}
-            </label>
-          </div>
-        </div>
-
-        <label className="flex cursor-pointer items-start gap-2 text-[13px] text-[#34495E]">
-          <input
-            type="checkbox"
-            checked={pricesIncludeVat}
-            onChange={(e) => setPricesIncludeVat(e.target.checked)}
-            className={`mt-0.5 ${MODAL_CHECKBOX_CLASS}`}
-          />
-          <span>{t("inventory.purchasePricesIncludeVat")}</span>
-        </label>
-
-        {isGoods ? (
-          <label className={MODAL_FIELD_LABEL_CLASS}>
-            {t("inventory.whSelect")}
-            <select
-              value={warehouseId}
-              onChange={(e) => {
-                setWarehouseId(e.target.value);
-                setFieldErrors((prev) => {
-                  const next = { ...prev };
-                  delete next.warehouseId;
-                  return next;
-                });
+      <form id={FORM_ID} className="space-y-5" onSubmit={(e) => void onSubmit(e)}>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="block sm:col-span-2">
+            <span className={MODAL_FIELD_LABEL_CLASS}>{t("inventory.purchaseFieldCounterparty")}</span>
+            <AsyncCombobox<Counterparty>
+              value={counterpartyId}
+              onChange={(id, item) => {
+                setCounterpartyId(id);
+                setCounterpartyLabel(item ? `${item.name} (${item.taxId})` : "");
               }}
-              className={`mt-1 block w-full ${fieldErrorClass(!!err("warehouseId"))}`}
-              aria-invalid={!!err("warehouseId")}
+              fetcher={fetchCounterparties}
+              getOptionLabel={(c) => `${c.name} (${c.taxId})`}
+              placeholder={t("invoiceNew.selectCounterpartyPlaceholder")}
+              selectedLabel={counterpartyLabel}
+              className="mt-1"
+              portaled
+              aria-invalid={!!err("counterpartyId")}
+            />
+            {err("counterpartyId") ? (
+              <p className="mt-1 text-xs text-red-600 m-0">{err("counterpartyId")}</p>
+            ) : null}
+          </label>
+          <label className="block">
+            <span className={MODAL_FIELD_LABEL_CLASS}>{t("inventory.purchaseFieldDate")}</span>
+            <input
+              type="date"
+              value={documentDate}
+              onChange={(e) => setDocumentDate(e.target.value)}
+              className={fieldErrorClass(!!err("documentDate"))}
+            />
+            {err("documentDate") ? (
+              <p className="mt-1 text-xs text-red-600 m-0">{err("documentDate")}</p>
+            ) : null}
+          </label>
+          <label className="block">
+            <span className={MODAL_FIELD_LABEL_CLASS}>{t("inventory.purchaseFieldCurrency")}</span>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              className={MODAL_INPUT_CLASS}
             >
-              <option value="">{t("inventory.whSelect")}</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
+              {CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
                 </option>
               ))}
             </select>
-            {err("warehouseId") ? <p className="mt-1 text-xs text-red-600 m-0">{err("warehouseId")}</p> : null}
           </label>
-        ) : null}
-
-        <div className="overflow-x-auto rounded-[2px] border border-[#D5DADF] bg-white shadow-sm">
-          <table className="min-w-full border-collapse text-[13px]">
-            <thead className="sticky top-0 z-[1] border-b border-[#D5DADF] bg-[#F8FAFC] text-left text-[#34495E]">
-              <tr>
-                <th className="px-4 py-2 text-xs font-bold text-[#475569]">{t("inventory.purchaseColProduct")}</th>
-                <th className="w-28 px-4 py-2 text-xs font-bold text-[#475569]">{t("inventory.purchaseColQty")}</th>
-                <th className="w-32 px-4 py-2 text-xs font-bold text-[#475569]">{t("inventory.purchaseColPrice")}</th>
-                {isGoods ? (
-                  <th className="min-w-[8rem] px-4 py-2 text-xs font-bold text-[#475569]">
-                    {t("inventory.purchaseColBin")}
-                  </th>
-                ) : null}
-                <th className="w-12 px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((row, idx) => (
-                <tr key={row.key} className="border-b border-[#D5DADF] bg-white transition-colors hover:bg-[#F1F5F9]">
-                  <td className="px-4 py-2 align-middle">
-                    <AsyncCombobox<Product>
-                      value={row.productId}
-                      onChange={(id, item) => {
-                        updateLine(idx, { productId: id });
-                        setProductLabels((prev) => ({
-                          ...prev,
-                          [row.key]: item ? (item.isService ? item.name : `${item.name} (${item.sku})`) : "",
-                        }));
-                      }}
-                      fetcher={fetchProducts}
-                      getOptionLabel={(p) => (p.isService ? p.name : `${p.name} (${p.sku})`)}
-                      placeholder={t("common.emptyValue")}
-                      selectedLabel={productLabels[row.key] ?? ""}
-                      className="min-w-0"
-                      listClassName="min-w-[14rem]"
-                      aria-invalid={!!err(`lines.${idx}.productId`)}
-                    />
-                    {err(`lines.${idx}.productId`) ? (
-                      <p className="mt-1 text-xs text-red-600 m-0">{err(`lines.${idx}.productId`)}</p>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-2 align-middle">
-                    <NumericAmountInput
-                      value={row.quantity}
-                      onValueChange={(plain) => updateLine(idx, { quantity: plain })}
-                      decimalScale={4}
-                      className={
-                        err(`lines.${idx}.quantity`) ? "border-red-500 ring-2 ring-red-500/25" : ""
-                      }
-                      aria-invalid={!!err(`lines.${idx}.quantity`)}
-                    />
-                    {err(`lines.${idx}.quantity`) ? (
-                      <p className="mt-1 text-xs text-red-600 m-0">{err(`lines.${idx}.quantity`)}</p>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-2 align-middle">
-                    <NumericAmountInput
-                      value={row.unitPrice}
-                      onValueChange={(plain) => updateLine(idx, { unitPrice: plain })}
-                      decimalScale={4}
-                      className={
-                        err(`lines.${idx}.unitPrice`) ? "border-red-500 ring-2 ring-red-500/25" : ""
-                      }
-                      aria-invalid={!!err(`lines.${idx}.unitPrice`)}
-                    />
-                    {err(`lines.${idx}.unitPrice`) ? (
-                      <p className="mt-1 text-xs text-red-600 m-0">{err(`lines.${idx}.unitPrice`)}</p>
-                    ) : null}
-                  </td>
-                  {isGoods ? (
-                    <td className="px-4 py-2 align-middle">
-                      <select
-                        value={row.binId}
-                        onChange={(e) => updateLine(idx, { binId: e.target.value })}
-                        className={MODAL_INPUT_CLASS}
-                      >
-                        <option value="">{t("inventory.purchaseBinAuto")}</option>
-                        {bins
-                          .filter((b) => !warehouseId || b.warehouseId === warehouseId)
-                          .map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.code}
-                            </option>
-                          ))}
-                      </select>
-                    </td>
-                  ) : null}
-                  <td className="px-4 py-2 align-middle text-center">
-                    <button
-                      type="button"
-                      className={`${TABLE_ROW_ICON_BTN_CLASS} text-[#E74C3C]`}
-                      title={t("inventory.purchaseRemoveLine")}
-                      onClick={() => {
-                        if (lines.length <= 1) return;
-                        setLines((prev) => prev.filter((_, j) => j !== idx));
-                        setFieldErrors((prev) => {
-                          const next = { ...prev };
-                          for (const k of Object.keys(next)) {
-                            if (k.startsWith(`lines.${idx}.`)) delete next[k];
-                          }
-                          return next;
-                        });
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <label className="block">
+            <span className={MODAL_FIELD_LABEL_CLASS}>{t("inventory.purchaseFieldFx")}</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={fxRateToAzn}
+              onChange={(e) => setFxRateToAzn(e.target.value)}
+              disabled={currency === "AZN"}
+              className={fieldErrorClass(!!err("fxRateToAzn"))}
+              aria-invalid={!!err("fxRateToAzn")}
+            />
+            {err("fxRateToAzn") ? (
+              <p className="mt-1 text-xs text-red-600 m-0">{err("fxRateToAzn")}</p>
+            ) : null}
+          </label>
         </div>
 
-        <Button type="button" variant="secondary" onClick={() => setLines((prev) => [...prev, newLine()])}>
-          <Plus className="h-4 w-4 shrink-0" aria-hidden />
-          {t("inventory.purchaseAddLine")}
-        </Button>
+        {renderLineTable(
+          t("inventory.purchaseBlockGoods"),
+          goodsLines,
+          true,
+          (i, p) => updateGoodsLine(i, p),
+          (i) => {
+            if (goodsLines.length <= 1) return;
+            setGoodsLines((prev) => prev.filter((_, j) => j !== i));
+            clearErrorsPrefix(`goodsLines.${i}.`);
+          },
+          () => setGoodsLines((prev) => [...prev, newGoodsLine()]),
+          "goodsLines",
+        )}
+
+        {renderLineTable(
+          t("inventory.purchaseBlockServices"),
+          serviceLines,
+          false,
+          (i, p) => updateServiceLine(i, p),
+          (i) => {
+            if (serviceLines.length <= 1) return;
+            setServiceLines((prev) => prev.filter((_, j) => j !== i));
+            clearErrorsPrefix(`serviceLines.${i}.`);
+          },
+          () => setServiceLines((prev) => [...prev, newServiceLine()]),
+          "serviceLines",
+        )}
+
+        <div className="rounded-lg border border-[#D5DADF] bg-[#F8F9FA] px-4 py-3 space-y-3">
+          <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[#34495E]">
+            <input
+              type="checkbox"
+              checked={pricesIncludeVat}
+              onChange={(e) => setPricesIncludeVat(e.target.checked)}
+              className={`mt-0.5 ${MODAL_CHECKBOX_CLASS}`}
+            />
+            <span>{t("inventory.purchasePricesIncludeVat")}</span>
+          </label>
+          <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2 text-[13px] text-[#34495E]">
+            <span>
+              {t("inventory.purchaseTotalNet")}:{" "}
+              <strong className="tabular-nums">{totals.net.toFixed(2)}</strong> {currency}
+            </span>
+            <span>
+              {t("inventory.purchaseTotalVat")}:{" "}
+              <strong className="tabular-nums">{totals.vat.toFixed(2)}</strong> {currency}
+            </span>
+            <span>
+              {t("inventory.purchaseTotalGross")}:{" "}
+              <strong className="tabular-nums">{totals.gross.toFixed(2)}</strong> {currency}
+            </span>
+          </div>
+          {currency !== "AZN" ? (
+            <p className="m-0 text-[12px] text-[#7F8C8D]">
+              {t("inventory.purchaseFxFooterHint", {
+                azn: (totals.gross * Number(fxRateToAzn.replace(",", ".")) || 0).toFixed(2),
+              })}
+            </p>
+          ) : null}
+          {goodsHasRows ? (
+            <p className="m-0 text-[12px] font-medium text-[#2980B9]">{t("inventory.purchaseReceiptBadgeDraft")}</p>
+          ) : null}
+        </div>
       </form>
     </InventoryModalShell>
   );

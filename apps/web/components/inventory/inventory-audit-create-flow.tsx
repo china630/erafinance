@@ -10,6 +10,7 @@ import {
   CARD_CONTAINER_CLASS,
   MODAL_FIELD_LABEL_CLASS,
   MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
   MODAL_INPUT_CLASS,
   MODAL_INPUT_NUMERIC_CLASS,
 } from "../../lib/design-system";
@@ -232,7 +233,13 @@ export function InventoryAuditCreateFlow({
             </label>
           </div>
           <div className={MODAL_FOOTER_ACTIONS_CLASS}>
-            <Button type="button" variant="primary" disabled={creating} onClick={() => void createDraft()}>
+            <Button
+              type="button"
+              variant="primary"
+              className={MODAL_FOOTER_BUTTON_CLASS}
+              disabled={creating}
+              onClick={() => void createDraft()}
+            >
               {creating ? "…" : t("inventory.auditSaveDraft")}
             </Button>
           </div>
@@ -241,7 +248,7 @@ export function InventoryAuditCreateFlow({
 
       {audit && (
         <>
-          <section className="overflow-x-auto rounded-[2px] border border-[#D5DADF] bg-white shadow-sm">
+          <section className="overflow-x-auto rounded-2xl border border-[#D5DADF] bg-white shadow-sm">
             <table className="min-w-full border-collapse text-[13px]">
               <thead>
                 <tr className="sticky top-0 z-[1] border-b border-[#D5DADF] bg-[#F8FAFC]">
@@ -349,10 +356,21 @@ export function InventoryAuditCreateFlow({
             <p className="m-0 max-w-2xl text-[13px] text-[#7F8C8D]">{t("inventory.auditApproveHint")}</p>
           </div>
           <div className={MODAL_FOOTER_ACTIONS_CLASS}>
-            <Button type="button" variant="ghost" onClick={onNavigateToHistory}>
+            <Button
+              type="button"
+              variant="outline"
+              className={MODAL_FOOTER_BUTTON_CLASS}
+              onClick={onNavigateToHistory}
+            >
               {t("inventory.auditHistoryBack")}
             </Button>
-            <Button type="button" variant="primary" disabled={approving} onClick={() => void approveDraft()}>
+            <Button
+              type="button"
+              variant="primary"
+              className={MODAL_FOOTER_BUTTON_CLASS}
+              disabled={approving}
+              onClick={() => void approveDraft()}
+            >
               {approving ? "…" : t("inventory.auditApprove")}
             </Button>
           </div>

@@ -13,13 +13,23 @@ import { assertMayPostManualJournal } from "../auth/policies/invoice-finance.pol
 import { AccountingService } from "../accounting/accounting.service";
 import {
   CASH_OPERATIONAL_ACCOUNT_CODE,
+  CASH_IN_TRANSIT_ACCOUNT_CODE,
+  FOUNDER_FUNDS_ACCOUNT_CODE,
+  FX_GAIN_ACCOUNT_CODE,
+  FX_LOSS_ACCOUNT_CODE,
   MISC_OPERATING_EXPENSE_ACCOUNT_CODE,
+  TRANSIT_TRANSFER_ACCOUNT_CODE,
 } from "../ledger.constants";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReportingService } from "../reporting/reporting.service";
-import { parseIsoDateOnly } from "../reporting/reporting-period.util";
+import { endOfUtcDay, parseIsoDateOnly } from "../reporting/reporting-period.util";
 import { TreasuryService } from "../treasury/treasury.service";
 import { parseBankStatementCsv } from "./csv/bank-csv.parser";
+import type { CreateBankConversionDto } from "./dto/create-bank-conversion.dto";
+import type { CreateCashDepositDto } from "./dto/create-cash-deposit.dto";
+import type { CreateInternalTransferDto } from "./dto/create-internal-transfer.dto";
+import type { CreateOrganizationBankAccountDto } from "../organizations/dto/create-organization-bank-account.dto";
+import type { UpdateOrganizationBankAccountDto } from "../organizations/dto/update-organization-bank-account.dto";
 
 function matchesPrefix(accountCode: string, prefix: string): boolean {
   return accountCode === prefix || accountCode.startsWith(`${prefix}.`);
@@ -371,6 +381,613 @@ export class BankingService {
     });
   }
 
+  async createInternalTransfer(
+    organizationId: string,
+    dto: CreateInternalTransferDto,
+  ) {
+    if (dto.sourceBankAccountId === dto.targetBankAccountId) {
+      throw new BadRequestException("source and target accounts must differ");
+    }
+    const amount = new Decimal(dto.amount);
+    const commission = new Decimal(dto.commissionAmount ?? 0);
+    if (amount.lte(0)) {
+      throw new BadRequestException("amount must be positive");
+    }
+    if (commission.lt(0)) {
+      throw new BadRequestException("commissionAmount cannot be negative");
+    }
+    const date = parseIsoDateOnly(dto.date.trim());
+    return this.prisma.$transaction(async (tx) => {
+      const [source, target] = await Promise.all([
+        tx.organizationBankAccount.findFirst({
+          where: {
+            id: dto.sourceBankAccountId,
+            organizationId,
+            isArchived: false,
+          },
+        }),
+        tx.organizationBankAccount.findFirst({
+          where: {
+            id: dto.targetBankAccountId,
+            organizationId,
+            isArchived: false,
+          },
+        }),
+      ]);
+      if (!source || !target) {
+        throw new BadRequestException("bank account not found in organization");
+      }
+      if (source.isFrozen) {
+        throw new BadRequestException("frozen account cannot be used as transfer source");
+      }
+      if (source.currency !== target.currency) {
+        throw new BadRequestException(
+          "internal transfer requires same currency accounts",
+        );
+      }
+      await this.assertNasAccountsExist(tx, organizationId, [
+        source.ledgerAccountCode,
+        target.ledgerAccountCode,
+        TRANSIT_TRANSFER_ACCOUNT_CODE,
+        MISC_OPERATING_EXPENSE_ACCOUNT_CODE,
+      ]);
+
+      const transferTotal = amount.add(commission);
+      const lines = [
+        {
+          accountCode: TRANSIT_TRANSFER_ACCOUNT_CODE,
+          debit: transferTotal.toString(),
+          credit: "0",
+        },
+        { accountCode: source.ledgerAccountCode, debit: "0", credit: transferTotal.toString() },
+        ...(commission.gt(0)
+          ? [
+              {
+                accountCode: MISC_OPERATING_EXPENSE_ACCOUNT_CODE,
+                debit: commission.toString(),
+                credit: "0",
+              },
+              {
+                accountCode: TRANSIT_TRANSFER_ACCOUNT_CODE,
+                debit: "0",
+                credit: commission.toString(),
+              },
+            ]
+          : []),
+        { accountCode: target.ledgerAccountCode, debit: amount.toString(), credit: "0" },
+        { accountCode: TRANSIT_TRANSFER_ACCOUNT_CODE, debit: "0", credit: amount.toString() },
+      ];
+      this.assertBalanced(lines);
+
+      const { transactionId } = await this.accounting.postJournalInTransaction(tx, {
+        organizationId,
+        date,
+        reference: "BANK-INTERNAL-TRANSFER",
+        description: `Internal transfer ${source.iban} -> ${target.iban}`,
+        isFinal: true,
+        lines,
+      });
+
+      const stmt = await tx.bankStatement.create({
+        data: {
+          organizationId,
+          date,
+          totalAmount: amount,
+          bankName: "MANUAL_INTERNAL_TRANSFER",
+          channel: BankStatementChannel.BANK,
+        },
+      });
+      await tx.bankStatementLine.createMany({
+        data: [
+          {
+            organizationId,
+            bankStatementId: stmt.id,
+            description: `Internal transfer out: ${source.bankName}`,
+            amount: transferTotal,
+            type: BankStatementLineType.OUTFLOW,
+            origin: BankStatementLineOrigin.MANUAL_BANK_ENTRY,
+            valueDate: date,
+            isMatched: true,
+            rawRow: {
+              operation: "INTERNAL_TRANSFER",
+              role: "source",
+              sourceBankAccountId: source.id,
+              targetBankAccountId: target.id,
+              commission: commission.toString(),
+              transactionId,
+            } as Prisma.InputJsonValue,
+          },
+          {
+            organizationId,
+            bankStatementId: stmt.id,
+            description: `Internal transfer in: ${target.bankName}`,
+            amount,
+            type: BankStatementLineType.INFLOW,
+            origin: BankStatementLineOrigin.MANUAL_BANK_ENTRY,
+            valueDate: date,
+            isMatched: true,
+            rawRow: {
+              operation: "INTERNAL_TRANSFER",
+              role: "target",
+              sourceBankAccountId: source.id,
+              targetBankAccountId: target.id,
+              commission: commission.toString(),
+              transactionId,
+            } as Prisma.InputJsonValue,
+          },
+        ],
+      });
+      return { ok: true as const, transactionId, bankStatementId: stmt.id };
+    });
+  }
+
+  listOrganizationBankAccounts(organizationId: string) {
+    return this.prisma.organizationBankAccount.findMany({
+      where: { organizationId, isArchived: false },
+      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        bankName: true,
+        iban: true,
+        swift: true,
+        currency: true,
+        ledgerAccountCode: true,
+        accountType: true,
+        isPrimary: true,
+        isFrozen: true,
+      },
+    });
+  }
+
+  async createOrganizationBankAccount(
+    organizationId: string,
+    dto: CreateOrganizationBankAccountDto,
+  ) {
+    const code = dto.ledgerAccountCode.trim();
+    if (!/^(221|222|223|224|225)(\.\d{2}){0,4}$/.test(code)) {
+      throw new BadRequestException(
+        "ledgerAccountCode must start with 221/222/223/224/225",
+      );
+    }
+    const hasCode = await this.prisma.account.findFirst({
+      where: { organizationId, ledgerType: LedgerType.NAS, code },
+      select: { id: true },
+    });
+    if (!hasCode) {
+      throw new BadRequestException(`NAS account not found: ${code}`);
+    }
+    const iban = dto.iban.trim().replace(/\s+/g, "").toUpperCase();
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.isPrimary === true) {
+        await tx.organizationBankAccount.updateMany({
+          where: { organizationId, isArchived: false },
+          data: { isPrimary: false },
+        });
+      }
+      return tx.organizationBankAccount.create({
+        data: {
+          organizationId,
+          bankName: dto.bankName.trim(),
+          iban,
+          accountNumber: iban,
+          swift: dto.swift?.trim() || null,
+          currency: (dto.currency ?? "AZN").toUpperCase(),
+          ledgerAccountCode: code,
+          accountType: (dto.accountType as any) ?? "MAIN",
+          isPrimary: dto.isPrimary === true,
+          isFrozen: dto.isFrozen === true,
+          isArchived: false,
+        },
+      });
+    });
+  }
+
+  async updateOrganizationBankAccount(
+    organizationId: string,
+    id: string,
+    dto: UpdateOrganizationBankAccountDto,
+  ) {
+    const existing = await this.prisma.organizationBankAccount.findFirst({
+      where: { id, organizationId, isArchived: false },
+      select: { id: true },
+    });
+    if (!existing) throw new BadRequestException("bank account not found");
+
+    if (dto.ledgerAccountCode) {
+      const code = dto.ledgerAccountCode.trim();
+      if (!/^(221|222|223|224|225)(\.\d{2}){0,4}$/.test(code)) {
+        throw new BadRequestException(
+          "ledgerAccountCode must start with 221/222/223/224/225",
+        );
+      }
+      const hasCode = await this.prisma.account.findFirst({
+        where: { organizationId, ledgerType: LedgerType.NAS, code },
+        select: { id: true },
+      });
+      if (!hasCode) {
+        throw new BadRequestException(`NAS account not found: ${code}`);
+      }
+    }
+    const data: Prisma.OrganizationBankAccountUpdateInput = {};
+    if (dto.bankName !== undefined) data.bankName = dto.bankName.trim();
+    if (dto.iban !== undefined) {
+      const iban = dto.iban.trim().replace(/\s+/g, "").toUpperCase();
+      data.iban = iban;
+      data.accountNumber = iban;
+    }
+    if (dto.swift !== undefined) data.swift = dto.swift?.trim() || null;
+    if (dto.currency !== undefined) data.currency = dto.currency.toUpperCase();
+    if (dto.ledgerAccountCode !== undefined)
+      data.ledgerAccountCode = dto.ledgerAccountCode.trim();
+    if (dto.accountType !== undefined) data.accountType = dto.accountType as any;
+    if (dto.isPrimary !== undefined) data.isPrimary = dto.isPrimary;
+    if (dto.isFrozen !== undefined) data.isFrozen = dto.isFrozen;
+
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.isPrimary === true) {
+        await tx.organizationBankAccount.updateMany({
+          where: { organizationId, isArchived: false },
+          data: { isPrimary: false },
+        });
+      }
+      return tx.organizationBankAccount.update({
+        where: { id },
+        data,
+      });
+    });
+  }
+
+  async deleteOrganizationBankAccount(organizationId: string, id: string) {
+    const row = await this.prisma.organizationBankAccount.findFirst({
+      where: { id, organizationId },
+      select: { id: true },
+    });
+    if (!row) throw new BadRequestException("bank account not found");
+
+    const linkedSalaryRegs = await this.prisma.salaryRegistry.count({
+      where: { organizationId, bankAccountId: id },
+    });
+    if (linkedSalaryRegs > 0) {
+      await this.prisma.organizationBankAccount.update({
+        where: { id },
+        data: { isArchived: true, isPrimary: false },
+      });
+      return { archived: true };
+    }
+    await this.prisma.organizationBankAccount.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  async createBankConversion(
+    organizationId: string,
+    dto: CreateBankConversionDto,
+  ) {
+    if (dto.sourceBankAccountId === dto.targetBankAccountId) {
+      throw new BadRequestException("source and target accounts must differ");
+    }
+    const sourceAmount = new Decimal(dto.sourceAmount);
+    const targetAmount = new Decimal(dto.targetAmount);
+    const commission = new Decimal(dto.commissionAmount ?? 0);
+    if (sourceAmount.lte(0) || targetAmount.lte(0)) {
+      throw new BadRequestException("sourceAmount and targetAmount must be positive");
+    }
+    if (commission.lt(0)) {
+      throw new BadRequestException("commissionAmount cannot be negative");
+    }
+    const date = parseIsoDateOnly(dto.date.trim());
+
+    return this.prisma.$transaction(async (tx) => {
+      const [source, target] = await Promise.all([
+        tx.organizationBankAccount.findFirst({
+          where: {
+            id: dto.sourceBankAccountId,
+            organizationId,
+            isArchived: false,
+          },
+        }),
+        tx.organizationBankAccount.findFirst({
+          where: {
+            id: dto.targetBankAccountId,
+            organizationId,
+            isArchived: false,
+          },
+        }),
+      ]);
+      if (!source || !target) {
+        throw new BadRequestException("bank account not found in organization");
+      }
+      if (source.isFrozen) {
+        throw new BadRequestException("frozen account cannot be used as conversion source");
+      }
+      if (source.currency === target.currency) {
+        throw new BadRequestException(
+          "conversion requires different source and target currencies",
+        );
+      }
+      await this.assertNasAccountsExist(tx, organizationId, [
+        source.ledgerAccountCode,
+        target.ledgerAccountCode,
+        FX_GAIN_ACCOUNT_CODE,
+        FX_LOSS_ACCOUNT_CODE,
+        MISC_OPERATING_EXPENSE_ACCOUNT_CODE,
+      ]);
+
+      const sourceRate = await this.getOfficialRate(tx, date, source.currency);
+      const targetRate = await this.getOfficialRate(tx, date, target.currency);
+
+      // Convert target amount into source currency through AZN cross-rate.
+      const officialTargetInSource = targetAmount
+        .mul(targetRate)
+        .div(sourceRate)
+        .toDecimalPlaces(4);
+
+      const fxDelta = sourceAmount.sub(officialTargetInSource).toDecimalPlaces(4);
+      const isLoss = fxDelta.gt(0);
+      const fxAbs = fxDelta.abs();
+
+      const lines: Array<{ accountCode: string; debit: string; credit: string }> = [
+        {
+          accountCode: target.ledgerAccountCode,
+          debit: officialTargetInSource.toString(),
+          credit: "0",
+        },
+        {
+          accountCode: source.ledgerAccountCode,
+          debit: "0",
+          credit: sourceAmount.toString(),
+        },
+      ];
+      if (fxAbs.gt(0)) {
+        if (isLoss) {
+          lines.push({
+            accountCode: FX_LOSS_ACCOUNT_CODE,
+            debit: fxAbs.toString(),
+            credit: "0",
+          });
+        } else {
+          lines.push({
+            accountCode: FX_GAIN_ACCOUNT_CODE,
+            debit: "0",
+            credit: fxAbs.toString(),
+          });
+        }
+      }
+      if (commission.gt(0)) {
+        lines.push({
+          accountCode: MISC_OPERATING_EXPENSE_ACCOUNT_CODE,
+          debit: commission.toString(),
+          credit: "0",
+        });
+        lines.push({
+          accountCode: source.ledgerAccountCode,
+          debit: "0",
+          credit: commission.toString(),
+        });
+      }
+      this.assertBalanced(lines);
+
+      const { transactionId } = await this.accounting.postJournalInTransaction(tx, {
+        organizationId,
+        date,
+        reference: "BANK-CONVERSION",
+        description: `Conversion ${source.currency}->${target.currency}`,
+        isFinal: true,
+        lines,
+      });
+
+      const stmt = await tx.bankStatement.create({
+        data: {
+          organizationId,
+          date,
+          totalAmount: sourceAmount,
+          bankName: "MANUAL_CONVERSION",
+          channel: BankStatementChannel.BANK,
+        },
+      });
+      await tx.bankStatementLine.createMany({
+        data: [
+          {
+            organizationId,
+            bankStatementId: stmt.id,
+            description: `Conversion out ${source.currency}`,
+            amount: sourceAmount.add(commission),
+            type: BankStatementLineType.OUTFLOW,
+            origin: BankStatementLineOrigin.MANUAL_BANK_ENTRY,
+            valueDate: date,
+            isMatched: true,
+            rawRow: {
+              operation: "CONVERSION",
+              role: "source",
+              sourceBankAccountId: source.id,
+              targetBankAccountId: target.id,
+              sourceAmount: sourceAmount.toString(),
+              targetAmount: targetAmount.toString(),
+              commission: commission.toString(),
+              sourceRate: sourceRate.toString(),
+              targetRate: targetRate.toString(),
+              officialTargetInSource: officialTargetInSource.toString(),
+              fxDelta: fxDelta.toString(),
+              transactionId,
+            } as Prisma.InputJsonValue,
+          },
+          {
+            organizationId,
+            bankStatementId: stmt.id,
+            description: `Conversion in ${target.currency}`,
+            amount: targetAmount,
+            type: BankStatementLineType.INFLOW,
+            origin: BankStatementLineOrigin.MANUAL_BANK_ENTRY,
+            valueDate: date,
+            isMatched: true,
+            rawRow: {
+              operation: "CONVERSION",
+              role: "target",
+              sourceBankAccountId: source.id,
+              targetBankAccountId: target.id,
+              sourceAmount: sourceAmount.toString(),
+              targetAmount: targetAmount.toString(),
+              commission: commission.toString(),
+              sourceRate: sourceRate.toString(),
+              targetRate: targetRate.toString(),
+              officialTargetInSource: officialTargetInSource.toString(),
+              fxDelta: fxDelta.toString(),
+              transactionId,
+            } as Prisma.InputJsonValue,
+          },
+        ],
+      });
+
+      return {
+        ok: true as const,
+        transactionId,
+        bankStatementId: stmt.id,
+        fxDelta: fxDelta.toString(),
+        officialTargetInSource: officialTargetInSource.toString(),
+      };
+    });
+  }
+
+  async createCashDeposit(organizationId: string, dto: CreateCashDepositDto) {
+    const amount = new Decimal(dto.amount);
+    if (amount.lte(0)) {
+      throw new BadRequestException("amount must be positive");
+    }
+    const date = parseIsoDateOnly(dto.date.trim());
+    return this.prisma.$transaction(async (tx) => {
+      const target = await tx.organizationBankAccount.findFirst({
+        where: {
+          id: dto.targetBankAccountId,
+          organizationId,
+          isArchived: false,
+        },
+      });
+      if (!target) {
+        throw new BadRequestException("target bank account not found in organization");
+      }
+      const sourceAccountCode =
+        dto.source === "KASSA" ? CASH_IN_TRANSIT_ACCOUNT_CODE : FOUNDER_FUNDS_ACCOUNT_CODE;
+
+      await this.assertNasAccountsExist(tx, organizationId, [
+        target.ledgerAccountCode,
+        sourceAccountCode,
+      ]);
+
+      const lines = [
+        {
+          accountCode: target.ledgerAccountCode,
+          debit: amount.toString(),
+          credit: "0",
+        },
+        {
+          accountCode: sourceAccountCode,
+          debit: "0",
+          credit: amount.toString(),
+        },
+      ];
+      this.assertBalanced(lines);
+
+      const { transactionId } = await this.accounting.postJournalInTransaction(tx, {
+        organizationId,
+        date,
+        reference: "BANK-CASH-DEPOSIT",
+        description:
+          dto.description?.trim() ||
+          `Cash deposit to ${target.bankName} (${dto.source})`,
+        isFinal: true,
+        lines,
+      });
+
+      const stmt = await tx.bankStatement.create({
+        data: {
+          organizationId,
+          date,
+          totalAmount: amount,
+          bankName: "MANUAL_CASH_DEPOSIT",
+          channel: BankStatementChannel.BANK,
+        },
+      });
+      await tx.bankStatementLine.create({
+        data: {
+          organizationId,
+          bankStatementId: stmt.id,
+          description:
+            dto.description?.trim() ||
+            `Cash deposit (${dto.source}) to ${target.currency} account`,
+          amount,
+          type: BankStatementLineType.INFLOW,
+          origin: BankStatementLineOrigin.MANUAL_BANK_ENTRY,
+          valueDate: date,
+          isMatched: true,
+          rawRow: {
+            operation: "CASH_DEPOSIT",
+            source: dto.source,
+            targetBankAccountId: target.id,
+            transactionId,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return { ok: true as const, transactionId, bankStatementId: stmt.id };
+    });
+  }
+
+  private assertBalanced(
+    lines: Array<{ accountCode: string; debit: string; credit: string }>,
+  ): void {
+    let debit = new Decimal(0);
+    let credit = new Decimal(0);
+    for (const l of lines) {
+      debit = debit.add(new Decimal(l.debit));
+      credit = credit.add(new Decimal(l.credit));
+    }
+    if (!debit.equals(credit)) {
+      throw new BadRequestException(
+        `journal is not balanced (debit=${debit.toString()}, credit=${credit.toString()})`,
+      );
+    }
+  }
+
+  private async getOfficialRate(
+    tx: Prisma.TransactionClient,
+    date: Date,
+    currency: string,
+  ): Promise<Decimal> {
+    const c = currency.trim().toUpperCase();
+    if (c === "AZN") return new Decimal(1);
+    const row = await tx.cbarOfficialRate.findUnique({
+      where: {
+        rateDate_currencyCode: { rateDate: date, currencyCode: c },
+      },
+      select: { rate: true },
+    });
+    if (!row) {
+      throw new BadRequestException(`CBAR rate not found for ${c} on selected date`);
+    }
+    return row.rate;
+  }
+
+  private async assertNasAccountsExist(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    accountCodes: string[],
+  ): Promise<void> {
+    const uniqueCodes = [...new Set(accountCodes.map((x) => x.trim()))];
+    const rows = await tx.account.findMany({
+      where: {
+        organizationId,
+        ledgerType: LedgerType.NAS,
+        code: { in: uniqueCodes },
+      },
+      select: { code: true },
+    });
+    const found = new Set(rows.map((x) => x.code));
+    const missing = uniqueCodes.filter((x) => !found.has(x));
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `NAS accounts not found: ${missing.join(", ")}`,
+      );
+    }
+  }
+
   listStatements(organizationId: string) {
     return this.prisma.bankStatement.findMany({
       where: { organizationId },
@@ -392,6 +1009,10 @@ export class BankingService {
        * MANUAL_BANK_ENTRY, FILE_IMPORT, DIRECT_SYNC
        */
       bankOnly?: boolean;
+      /** YYYY-MM-DD (UTC-день), включительно */
+      valueDateFrom?: string;
+      /** YYYY-MM-DD (UTC-день), включительно до конца дня */
+      valueDateTo?: string;
     },
   ) {
     const channelFilter =
@@ -413,11 +1034,27 @@ export class BankingService {
         }
       : {};
 
+    const valueDateRange =
+      filters?.valueDateFrom || filters?.valueDateTo
+        ? {
+            valueDate: {
+              not: null,
+              ...(filters.valueDateFrom
+                ? { gte: parseIsoDateOnly(filters.valueDateFrom) }
+                : {}),
+              ...(filters.valueDateTo
+                ? { lte: endOfUtcDay(parseIsoDateOnly(filters.valueDateTo)) }
+                : {}),
+            },
+          }
+        : {};
+
     return this.prisma.bankStatementLine.findMany({
       where: {
         organizationId,
         ...channelFilter,
         ...originFilter,
+        ...valueDateRange,
         ...(filters?.bankStatementId
           ? { bankStatementId: filters.bankStatementId }
           : {}),
@@ -444,9 +1081,12 @@ export class BankingService {
     });
   }
 
-  listPaymentDrafts(organizationId: string) {
+  listPaymentDrafts(organizationId: string, status?: "PENDING" | "SENT" | "REJECTED" | "COMPLETED") {
     return (this.prisma as any).bankPaymentDraft.findMany({
-      where: { organizationId },
+      where: {
+        organizationId,
+        ...(status ? { status } : {}),
+      },
       orderBy: [{ createdAt: "desc" }],
     });
   }

@@ -1,0 +1,92 @@
+---
+description: DayDay ERP — роли агентов, язык, тенантность, безопасность, UI↔DESIGN, ссылки на PRD/TZ
+alwaysApply: true
+---
+
+# DayDay ERP — роли агентов и общие законы
+
+**Документы:** `PRD.md` и `TZ.md` в **`.cursorignore`** — для нетривиальных задач **прикрепляй** `@PRD.md`, `@TZ.md`. **`DESIGN.md`** в индексе (не в ignore); для UI см. также **`dayday-ui-design.mdc`**. Карта путей коду — **`dayday-module-map.mdc`**.
+
+| Агент | Краткое описание |
+|-------|------------------|
+| [Product Owner] | Хранитель логики: не даёт внедрять функции вне B2B SaaS и модулей 1–9. |
+| [System Architect] | Техлид: monorepo, NestJS, логика в сервисах, не в контроллерах. |
+| [DB Architect] | Мульти-тенантность: `organizationId`, Prisma Extensions, сырой SQL с фильтром по org. |
+| [Sync Master] | Доки: предлагает обновить `PRD.md` / `TZ.md` до или вместе с изменением продукта или контрактов API/модели. |
+| [Compliance] | AZN, VÖEN, +994, форматы дат Азербайджана. |
+| [Security Auditor] | DTO-валидация, `AuditMutationInterceptor` на мутациях. |
+| [Infra Expert] | Docker Compose, BullMQ, Windows, `D:\DockerData\dayday_erp`. |
+
+**Language:** код, комментарии, коммиты и добавляемая в репо дока — **English**. Общение с пользователем — **Russian**.
+
+**Source of truth (после `@`):** продукт — `PRD.md`, техспека — `TZ.md`. Перед нетривиальными задачами сверяйся с PRD §4 (модули 1–9), §7 (SaaS/billing/tenancy), TZ §1–2, §9–11, §16–17 по релевантности.
+
+---
+
+## UI components
+
+Перед генерацией или правкой UI в этом репозитории:
+
+1. Прочитай **`DESIGN.md`** (через `@DESIGN.md` при необходимости).
+2. Соблюдай палитру, радиусы, отступы и типографику из него.
+3. Если запрос противоречит **DESIGN.md** — следуй DESIGN или уточни у пользователя.
+
+---
+
+## Agent personas (strict)
+
+### [Product Owner]
+
+- **Law:** `PRD.md` (через `@`).
+- Отклоняй или откладывай фичи вне **B2B SaaS**, модульной ERP (модули 1–9, PRD §4), roadmap (PRD §5–§7).
+- Держи **один tenant = одна юр. сущность (VÖEN)**, подписка/gating (PRD §7), продуктовые решения в PRD §12.
+
+### [System Architect]
+
+- **Law:** `TZ.md` (через `@`).
+- **Monorepo:** `apps/web` (Next.js), `apps/api` (NestJS), `packages/database` (Prisma); не плодить параллельные корни приложений без обновления TZ.
+- **Границы:** DTO → service → controller; домен в сервисах.
+- **NestJS** (modules, guards, interceptors, pipes), **Prisma** как слой данных; OpenAPI где уместно (TZ §11).
+
+### [DB Architect]
+
+- **Мульти-тенантность:** у новых tenant-scoped моделей — **`organizationId`** где применимо (PRD §3.1, TZ §2, §16). Исключения (User без org, Organization, платформенный конфиг) — по TZ.
+- Запросы/мутации по данным org — в активной организации; **Prisma Client Extensions** (`$extends`) и контекст запроса (TZ §16).
+- **`$queryRaw` / `$executeRaw`** — явные предикаты по **`organizationId`** для org-данных (TZ §2).
+- **BullMQ workers:** тот же tenant из payload или задокументированный `skipTenantFilter` только для глобальных джоб (TZ §16).
+
+### [Sync Master]
+
+- Если меняется **продукт** (тарифы, модули, биллинг, UX-обещания) или **контракты** (форма API, модель данных) — **сначала предложи обновить `PRD.md` и/или `TZ.md`**, либо в том же наборе изменений вместе с кодом; не разводи молча доки и код.
+
+### [Compliance] — Azerbaijan locale
+
+- Формы и API: **AZN**, телефон **+994**, **VÖEN** (10 цифр), локальные форматы по PRD/TZ.
+- Даты: **UTC в БД**; отображение — **локаль Азербайджана**; суммы в **AZN** (PRD §12, TZ §1).
+
+### [Security Auditor]
+
+- Мутации (**POST, PATCH, PUT, DELETE**) — через **`AuditMutationInterceptor`**, кроме задокументированных auth/public исключений (TZ §9).
+- Глобальный **`ValidationPipe`:** `whitelist: true`, **`forbidNonWhitelisted: true`**, `transform: true` (TZ §2, §17). Входы без «размытого» `any`; `class-validator` / `class-transformer`.
+
+### [Infra Expert]
+
+- Локально на Windows: тома **`D:\DockerData\dayday_erp`** (PRD §12, TZ §1). **Docker Compose**, **Redis**, **BullMQ** (очереди, воркеры, payroll/import по TZ).
+
+---
+
+## Financial and data integrity
+
+- Операции с **проводками**, **склад + ledger**, **проведение payroll**, **оплата/неттинг счетов**, мульти-сущность — в **`prisma.$transaction`** (или один атомарный аналог) — PRD §7.7–7.11, TZ §17.
+
+---
+
+## Quick reference
+
+| Topic | Document |
+|-------|----------|
+| Modules 1–9, SaaS, billing | PRD §4, §7 |
+| IAM, validation, audit, Prisma extension | TZ §2, §9, §16–17 |
+| Subscription, gating, billing API | TZ §14, PRD §7.12 |
+
+**Навигация по коду:** см. **`dayday-module-map.mdc`** (модуль по-русски или по slug → папки API / Web / Prisma).

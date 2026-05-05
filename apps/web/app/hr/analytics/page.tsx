@@ -1,34 +1,63 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "../../../components/layout/page-header";
 import { EmptyState } from "../../../components/empty-state";
 import { apiFetch } from "../../../lib/api-client";
 import { parseHrEmployeesResponse } from "../../../lib/hr-employees-list";
 import { useRequireAuth } from "../../../lib/use-require-auth";
+import { useAuth } from "../../../lib/auth-context";
 import {
   BORDER_MUTED_CLASS,
   CARD_CONTAINER_CLASS,
 } from "../../../lib/design-system";
 
-type EmpOpt = { id: string; firstName: string; lastName: string };
-type AbsenceTypeOpt = { id: string; nameAz: string; code: string; formula: string };
+type Dept = { id: string; name: string };
+type EmpRow = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  jobPosition?: { department?: { id: string; name: string } };
+};
 type AbsenceRow = {
   id: string;
+  employeeId: string;
   startDate: string;
   endDate: string;
-  note: string;
-  employee: EmpOpt;
-  absenceType?: AbsenceTypeOpt;
+  note?: string;
+  absenceType?: {
+    nameAz: string;
+    formula: string;
+    color?: string;
+  };
 };
 
-function utcDayKey(y: number, m0: number, d: number): number {
-  return Date.UTC(y, m0, d);
+function monthBounds(isoMonth: string): {
+  from: string;
+  to: string;
+  y: number;
+  m: number;
+  days: number;
+} | null {
+  const s = isoMonth.trim();
+  if (!/^\d{4}-\d{2}$/.test(s)) return null;
+  const y = Number(s.slice(0, 4));
+  const m = Number(s.slice(5, 7));
+  if (!Number.isFinite(y) || m < 1 || m > 12) return null;
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    y,
+    m,
+    days,
+    from: `${y}-${pad(m)}-01`,
+    to: `${y}-${pad(m)}-${pad(days)}`,
+  };
 }
 
-function parseIsoDayUtc(s: string): number {
-  const x = s.slice(0, 10);
+function utcDay(iso: string): number {
+  const x = iso.slice(0, 10);
   return Date.UTC(
     Number(x.slice(0, 4)),
     Number(x.slice(5, 7)) - 1,
@@ -36,43 +65,35 @@ function parseIsoDayUtc(s: string): number {
   );
 }
 
-function parseMonthValue(v: string): { year: number; month: number } | null {
-  const s = v.trim();
-  if (!/^\d{4}-\d{2}$/.test(s)) return null;
-  const y = Number(s.slice(0, 4));
-  const m = Number(s.slice(5, 7));
-  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return null;
-  return { year: y, month: m };
-}
-
-function absenceCellKinds(
+/** Priority: sick > unpaid > labor (visual emphasis for overlapping types). */
+function pickAbsenceForCell(
   absences: AbsenceRow[],
-  y: number,
-  m0: number,
-  d: number,
-): { vacation: boolean; sick: boolean; unpaid: boolean } {
-  const day = utcDayKey(y, m0, d);
-  let vacation = false;
-  let sick = false;
-  let unpaid = false;
-  for (const a of absences) {
-    const a0 = parseIsoDayUtc(a.startDate);
-    const a1 = parseIsoDayUtc(a.endDate);
-    if (day < a0 || day > a1) continue;
-    const f = a.absenceType?.formula;
-    if (f === "SICK_LEAVE_STAJ") sick = true;
-    else if (f === "UNPAID_RECORD" || a.absenceType?.code === "UNPAID_LEAVE") unpaid = true;
-    else vacation = true;
-  }
-  return { vacation, sick, unpaid };
+  employeeId: string,
+  dayUtc: number,
+): AbsenceRow | null {
+  const hits = absences.filter((a) => {
+    if (a.employeeId !== employeeId) return false;
+    const a0 = utcDay(a.startDate);
+    const a1 = utcDay(a.endDate);
+    return dayUtc >= a0 && dayUtc <= a1;
+  });
+  if (hits.length === 0) return null;
+  const sick = hits.find((h) => h.absenceType?.formula === "SICK_LEAVE_STAJ");
+  if (sick) return sick;
+  const unpaid = hits.find((h) => h.absenceType?.formula === "UNPAID_RECORD");
+  if (unpaid) return unpaid;
+  return hits[0] ?? null;
 }
 
 export default function HrAnalyticsPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
-  const [employees, setEmployees] = useState<EmpOpt[]>([]);
+  const { user } = useAuth();
+  const isDeptHead = user?.role === "DEPARTMENT_HEAD";
+
+  const [departments, setDepartments] = useState<Dept[]>([]);
+  const [employees, setEmployees] = useState<EmpRow[]>([]);
   const [absences, setAbsences] = useState<AbsenceRow[]>([]);
-  const [absenceTypes, setAbsenceTypes] = useState<AbsenceTypeOpt[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -80,53 +101,85 @@ export default function HrAnalyticsPage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
-  const parsedMonth = useMemo(() => parseMonthValue(monthValue), [monthValue]);
-  const calYear = parsedMonth?.year ?? new Date().getFullYear();
-  const calMonth = parsedMonth?.month ?? new Date().getMonth() + 1;
+  const [departmentId, setDepartmentId] = useState("");
 
-  const pollAbortRef = useRef(false);
+  const bounds = useMemo(() => monthBounds(monthValue), [monthValue]);
+  const calYear = bounds?.y ?? new Date().getFullYear();
+  const calMonth = bounds?.m ?? new Date().getMonth() + 1;
+  const daysInMonth = bounds?.days ?? 31;
 
-  useEffect(() => {
-    return () => {
-      pollAbortRef.current = true;
-    };
-  }, []);
+  const loadData = useCallback(async () => {
+    if (!token || !bounds) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const deptQs =
+        !isDeptHead && departmentId
+          ? `&departmentId=${encodeURIComponent(departmentId)}`
+          : "";
+      const absQs = `dateFrom=${encodeURIComponent(bounds.from)}&dateTo=${encodeURIComponent(bounds.to)}${deptQs}`;
+      const empQs = `page=1&pageSize=500${deptQs}`;
+      const [ed, ea, eb] = await Promise.all([
+        apiFetch("/api/hr/departments"),
+        apiFetch(`/api/hr/absences?${absQs}`),
+        apiFetch(`/api/hr/employees?${empQs}`),
+      ]);
+      if (ed.ok) {
+        setDepartments((await ed.json()) as Dept[]);
+      }
+      if (!ea.ok) {
+        setErr(`${t("payroll.loadErr")}: ${ea.status}`);
+        setAbsences([]);
+      } else {
+        setAbsences((await ea.json()) as AbsenceRow[]);
+      }
+      if (!eb.ok) {
+        setErr((e) => e ?? `${t("employees.loadErr")}: ${eb.status}`);
+        setEmployees([]);
+      } else {
+        const parsed = parseHrEmployeesResponse<EmpRow>(await eb.json());
+        setEmployees(parsed.items);
+      }
+    } catch {
+      setErr(t("common.loadErr"));
+    } finally {
+      setLoading(false);
+    }
+  }, [token, bounds, departmentId, isDeptHead, t]);
 
   useEffect(() => {
     if (!ready || !token) return;
-    let cancelled = false;
-    setLoading(true);
-    setErr(null);
-    void (async () => {
-      const [er, ea, et] = await Promise.all([
-        apiFetch("/api/hr/employees?page=1&pageSize=500"),
-        apiFetch("/api/hr/absences"),
-        apiFetch("/api/hr/absence-types"),
-      ]);
-      if (cancelled) return;
-      if (!er.ok) setErr(`${t("employees.loadErr")}: ${er.status}`);
-      else {
-        const parsed = parseHrEmployeesResponse<EmpOpt>(await er.json());
-        setEmployees(parsed.items);
-      }
-      if (!ea.ok) setErr(`${t("payroll.loadErr")}: ${ea.status}`);
-      else setAbsences((await ea.json()) as AbsenceRow[]);
-      if (et.ok) setAbsenceTypes((await et.json()) as AbsenceTypeOpt[]);
-      setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [ready, token, t]);
+    void loadData();
+  }, [ready, token, loadData]);
+
+  const dayHeader = useMemo(() => {
+    const labels: string[] = [];
+    const m0 = calMonth - 1;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dt = new Date(Date.UTC(calYear, m0, d));
+      const wd = dt.getUTCDay();
+      const w = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][wd];
+      labels.push(`${d}\n${w}`);
+    }
+    return labels;
+  }, [calYear, calMonth, daysInMonth]);
 
   const legend = useMemo(
     () => [
-      { color: "bg-blue-200", label: t("payroll.calendarLegendVacation") },
-      { color: "bg-yellow-200", label: t("payroll.calendarLegendSick") },
-      { color: "bg-orange-400", label: "Ödənişsiz məzuniyyət" },
       {
-        color: "bg-gradient-to-br from-blue-200 to-yellow-200",
-        label: `${t("payroll.calendarLegendVacation")} + ${t("payroll.calendarLegendSick")}`,
+        hex: "#E8F4FC",
+        border: "#2980B9",
+        label: t("payroll.calendarLegendVacation"),
+      },
+      {
+        hex: "#FCE8E8",
+        border: "#C0392B",
+        label: t("payroll.calendarLegendSick"),
+      },
+      {
+        hex: "#FEF3C7",
+        border: "#D97706",
+        label: t("hrAnalytics.legendUnpaid"),
       },
     ],
     [t],
@@ -134,7 +187,7 @@ export default function HrAnalyticsPage() {
 
   if (!ready) {
     return (
-      <div className="text-gray-600">
+      <div className="text-[#7F8C8D]">
         <p>{t("common.loading")}</p>
       </div>
     );
@@ -142,91 +195,145 @@ export default function HrAnalyticsPage() {
   if (!token) return null;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
-        title="İnfoqrafika"
-        subtitle="Məzuniyyət və xəstəlik təqvimi"
+        title={t("hrAnalytics.title")}
+        subtitle={t("hrAnalytics.subtitle")}
         actions={
-          <label className="block shrink-0 text-[13px] font-medium text-[#34495E]">
-            Ay
-            <input
-              type="month"
-              value={monthValue}
-              onChange={(e) => setMonthValue(e.target.value)}
-              className="mt-1 block h-8 rounded-[2px] border border-[#D5DADF] bg-white px-2 text-[13px]"
-            />
-          </label>
+          <div className="flex flex-wrap items-end justify-end gap-3">
+            <label className="block shrink-0 text-[13px] font-medium text-[#34495E]">
+              {t("hrAnalytics.monthFilter")}
+              <input
+                type="month"
+                value={monthValue}
+                onChange={(e) => setMonthValue(e.target.value)}
+                className={`mt-1 block h-9 rounded-lg border ${BORDER_MUTED_CLASS} bg-white px-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#2980B9]/40`}
+              />
+            </label>
+            {!isDeptHead ? (
+              <label className="block min-w-[12rem] shrink-0 text-[13px] font-medium text-[#34495E]">
+                {t("hrAnalytics.departmentFilter")}
+                <select
+                  value={departmentId}
+                  onChange={(e) => setDepartmentId(e.target.value)}
+                  className={`mt-1 block h-9 w-full rounded-lg border ${BORDER_MUTED_CLASS} bg-white px-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#2980B9]/40`}
+                >
+                  <option value="">{t("hrAnalytics.departmentAll")}</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
         }
       />
 
-      {err ? <p className="text-red-600 text-sm">{err}</p> : null}
-      {loading && <p className="text-gray-600">{t("common.loading")}</p>}
+      {err ? (
+        <p className="text-[13px] text-red-600" role="alert">
+          {err}
+        </p>
+      ) : null}
+      {loading ? <p className="text-[13px] text-[#7F8C8D]">{t("common.loading")}</p> : null}
 
-      {!loading && absences.length === 0 ? (
-        <EmptyState title={t("payroll.calendarTitle")} description={t("payroll.calendarHint")} />
-      ) : (
-        <section className={`${CARD_CONTAINER_CLASS} p-4`}>
-          <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-[#7F8C8D]">
-            {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((w) => (
-              <div key={w}>{w}</div>
+      {!loading && employees.length === 0 ? (
+        <EmptyState
+          title={t("hrAnalytics.emptyTitle")}
+          description={t("hrAnalytics.emptyHint")}
+        />
+      ) : !loading ? (
+        <section className={`${CARD_CONTAINER_CLASS} overflow-x-auto p-4`}>
+          <div
+            className="inline-grid gap-px rounded-xl bg-[#D5DADF] p-px"
+            style={{
+              gridTemplateColumns: `minmax(10rem,14rem) repeat(${daysInMonth}, minmax(1.5rem, 1fr))`,
+            }}
+          >
+            <div className="sticky left-0 z-20 bg-[#F4F5F7] px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#7F8C8D]">
+              {t("employees.thName")}
+            </div>
+            {dayHeader.map((label, i) => {
+              const d = i + 1;
+              const m0 = calMonth - 1;
+              const wd = new Date(Date.UTC(calYear, m0, d)).getUTCDay();
+              const weekend = wd === 0 || wd === 6;
+              return (
+                <div
+                  key={d}
+                  className={`bg-[#F4F5F7] px-0.5 py-2 text-center text-[10px] font-semibold leading-tight text-[#34495E] ${weekend ? "text-[#7F8C8D]" : ""}`}
+                >
+                  {label.split("\n").map((line, li) => (
+                    <span key={li} className="block">
+                      {line}
+                    </span>
+                  ))}
+                </div>
+              );
+            })}
+
+            {employees.map((emp) => (
+              <Fragment key={emp.id}>
+                <div
+                  className="sticky left-0 z-10 border-t border-[#EBEDF0] bg-white px-2 py-1.5 text-[13px] font-medium text-[#34495E]"
+                >
+                  <span className="block truncate" title={`${emp.lastName} ${emp.firstName}`}>
+                    {emp.lastName} {emp.firstName}
+                  </span>
+                  {emp.jobPosition?.department?.name ? (
+                    <span className="block truncate text-[11px] font-normal text-[#7F8C8D]">
+                      {emp.jobPosition.department.name}
+                    </span>
+                  ) : null}
+                </div>
+                {Array.from({ length: daysInMonth }, (_, i) => {
+                  const d = i + 1;
+                  const m0 = calMonth - 1;
+                  const dayT = Date.UTC(calYear, m0, d);
+                  const wd = new Date(dayT).getUTCDay();
+                  const weekend = wd === 0 || wd === 6;
+                  const hit = pickAbsenceForCell(absences, emp.id, dayT);
+                  const bg = hit?.absenceType?.color;
+                  const title = hit
+                    ? `${hit.absenceType?.nameAz ?? ""}${hit.note ? ` — ${hit.note}` : ""}`
+                    : undefined;
+                  return (
+                    <div
+                      key={`${emp.id}-d-${d}`}
+                      title={title}
+                      className={`min-h-9 border-t border-[#EBEDF0] ${weekend && !bg ? "bg-[#FAFBFC]" : "bg-white"}`}
+                      style={
+                        bg
+                          ? {
+                              backgroundColor: bg,
+                              boxShadow: "inset 0 0 0 1px rgba(52,73,94,0.12)",
+                            }
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </Fragment>
             ))}
           </div>
-          <div className="grid grid-cols-7 gap-1">
-            {(() => {
-              const m0 = calMonth - 1;
-              const first = new Date(Date.UTC(calYear, m0, 1));
-              const dow = first.getUTCDay();
-              const mondayStart = (dow + 6) % 7;
-              const daysInMonth = new Date(Date.UTC(calYear, calMonth, 0)).getUTCDate();
-              const cells: ReactElement[] = [];
-              for (let i = 0; i < mondayStart; i++) {
-                cells.push(<div key={`e-${i}`} className="aspect-square" />);
-              }
-              for (let d = 1; d <= daysInMonth; d++) {
-                const { vacation, sick, unpaid } = absenceCellKinds(absences, calYear, m0, d);
-                let bg = "bg-slate-50";
-                if (unpaid) bg = "bg-orange-400";
-                else if (vacation && sick) bg = "bg-gradient-to-br from-blue-200 to-yellow-200";
-                else if (vacation) bg = "bg-blue-200";
-                else if (sick) bg = "bg-yellow-200";
-                const labels = absences
-                  .filter((a) => {
-                    const day = utcDayKey(calYear, m0, d);
-                    const a0 = parseIsoDayUtc(a.startDate);
-                    const a1 = parseIsoDayUtc(a.endDate);
-                    return day >= a0 && day <= a1;
-                  })
-                  .map((a) => `${a.employee.lastName} ${a.employee.firstName?.[0] ?? ""}.`);
-                cells.push(
-                  <div
-                    key={d}
-                    title={labels.length ? labels.join(", ") : undefined}
-                    className={`aspect-square rounded-[2px] border ${BORDER_MUTED_CLASS} flex flex-col items-center justify-center text-xs font-medium text-[#34495E] ${bg}`}
-                  >
-                    {d}
-                  </div>,
-                );
-              }
-              return cells;
-            })()}
-          </div>
 
-          <div className="mt-4 flex flex-wrap gap-4 text-xs text-[#7F8C8D]">
+          <div className="mt-4 flex flex-wrap gap-4 text-[12px] text-[#7F8C8D]">
             {legend.map((it) => (
               <span key={it.label} className="inline-flex items-center gap-2">
-                <span className={`h-3 w-3 rounded border ${BORDER_MUTED_CLASS} ${it.color}`} />
+                <span
+                  className="h-3 w-5 shrink-0 rounded border"
+                  style={{
+                    backgroundColor: it.hex,
+                    borderColor: it.border,
+                  }}
+                />
                 {it.label}
               </span>
             ))}
           </div>
         </section>
-      )}
-
-      {/* keep these loaded to ensure translations are present and to prevent accidental tree-shaking */}
-      <div className="hidden" aria-hidden>
-        {employees.length} {absenceTypes.length}
-      </div>
+      ) : null}
     </div>
   );
 }
-

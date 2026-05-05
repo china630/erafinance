@@ -10,21 +10,31 @@ export const DESIGN = {
   action: "#2980B9",
 } as const;
 
-/** Toolbar / form primary actions — 32px height, 2px radius per DESIGN.md (v8.9.2: явный контраст) */
+/** Toolbar / form primary actions — 32px height, `rounded-lg` per DESIGN.md */
 export const PRIMARY_BUTTON_CLASS =
-  "inline-flex h-8 min-h-8 shrink-0 items-center justify-center gap-1.5 rounded-[2px] px-4 text-[13px] font-semibold text-white bg-[#2980B9] shadow-sm transition hover:bg-[#2471A3] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#2980B9] disabled:opacity-50 disabled:pointer-events-none";
+  "inline-flex h-8 min-h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-[13px] font-semibold text-white bg-[#2980B9] shadow-sm transition hover:bg-[#2471A3] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#2980B9] disabled:opacity-50 disabled:pointer-events-none";
 
 /** Secondary outline button (same height) */
 export const SECONDARY_BUTTON_CLASS =
-  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-[2px] border border-[#D5DADF] bg-white px-4 text-[13px] font-medium text-[#34495E] shadow-sm transition hover:bg-[#F4F5F7] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#2980B9]/40";
+  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#D5DADF] bg-white px-4 text-[13px] font-medium text-[#34495E] shadow-sm transition hover:bg-[#F4F5F7] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#2980B9]/40";
 
 /** Ghost / text-style cancel in modals (same height) */
 export const GHOST_BUTTON_CLASS =
-  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-[2px] border border-transparent bg-transparent px-4 text-[13px] font-medium text-[#34495E] transition hover:bg-[#F4F5F7] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#2980B9]/30 disabled:opacity-50 disabled:pointer-events-none";
+  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-transparent bg-transparent px-4 text-[13px] font-medium text-[#34495E] transition hover:bg-[#F4F5F7] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#2980B9]/30 disabled:opacity-50 disabled:pointer-events-none";
 
-/** Cards / panels — 2px radius, neutral border */
+/** Cards / panels — outer shell radius per DESIGN.md */
 export const CARD_CONTAINER_CLASS =
-  "rounded-[2px] border border-[#D5DADF] bg-white shadow-sm";
+  "rounded-2xl border border-[#D5DADF] bg-white shadow-sm";
+
+/**
+ * Modal root / dialog panel (DESIGN.md): `!rounded-2xl`, `p-6`. Add `max-w-*` in a second `className`.
+ */
+export const MODAL_DIALOG_CONTENT_CLASS =
+  "flex w-full max-h-[90vh] min-h-0 flex-col overflow-hidden !rounded-2xl border border-[#D5DADF] bg-white p-6 shadow-sm";
+
+/** Кнопка закрытия (Lucide `X`) в шапке модалки. */
+export const MODAL_CLOSE_BUTTON_CLASS =
+  "h-8 w-8 shrink-0 !px-2 text-[#7F8C8D]";
 
 /** Чёткая граница на фоне #EBEDF0 (DESIGN.md — не «бледные» slate-200). */
 export const BORDER_MUTED_CLASS = "border-[#D5DADF]";
@@ -33,17 +43,23 @@ export const BORDER_MUTED_CLASS = "border-[#D5DADF]";
 export const LINK_ACCENT_CLASS =
   "font-medium text-[#2980B9] hover:text-[#34495E] underline-offset-2 hover:underline";
 
-/** Поля форм: 13px, рамка DESIGN.md border-muted */
+/** Поля форм: 13px, рамка DESIGN.md border-muted (фокус: `ring-1` action). */
 export const INPUT_BORDERED_CLASS =
-  "rounded-[2px] border border-[#D5DADF] bg-white px-4 py-2 text-[13px] text-[#34495E] shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#2980B9]";
+  "rounded-lg border border-[#D5DADF] bg-white px-4 py-2 text-[13px] text-[#34495E] shadow-sm focus:outline-none focus:ring-1 focus:ring-[#2980B9]";
 
-/** Подписи полей в модалках (DESIGN.md: 13px, #34495E). */
+/** Подписи полей в модалках (DESIGN.md: 13px, #34495E; отступ до поля — `mb-1.5` ≈ space-y-1.5). */
 export const MODAL_FIELD_LABEL_CLASS =
-  "mb-1 block text-[13px] font-semibold text-[#34495E]";
+  "mb-1.5 block text-[13px] font-semibold text-[#34495E]";
 
-/** Полный ввод в модалке (ширина 100%, без max-w-md из legacy form-classes). */
-export const MODAL_INPUT_CLASS =
-  "w-full rounded-[2px] border border-[#D5DADF] bg-white px-3 py-2 text-[13px] text-[#34495E] shadow-sm placeholder:text-[#7F8C8D] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#2980B9] disabled:bg-[#F4F5F7] disabled:text-[#7F8C8D]";
+/** Shared border/typography for modal fields (no fixed height — use {@link MODAL_INPUT_CLASS} or {@link MODAL_TEXTAREA_CLASS}). */
+const MODAL_INPUT_BASE =
+  "w-full rounded-lg border border-[#D5DADF] bg-white px-3 text-[13px] text-[#34495E] shadow-sm placeholder:text-[#7F8C8D] focus:outline-none focus:ring-1 focus:ring-[#2980B9] disabled:bg-[#F4F5F7] disabled:text-[#7F8C8D]";
+
+/** Single-line: Input, native select, Select trigger, date (etalon row height 36px). */
+export const MODAL_INPUT_CLASS = `${MODAL_INPUT_BASE} box-border h-9 min-h-9 leading-normal`;
+
+/** Multiline textarea — no fixed h-9. */
+export const MODAL_TEXTAREA_CLASS = `${MODAL_INPUT_BASE} min-h-[4.5rem] resize-y py-2 leading-normal`;
 
 export const MODAL_INPUT_MONO_CLASS = `${MODAL_INPUT_CLASS} font-mono`;
 
@@ -51,15 +67,17 @@ export const MODAL_INPUT_NUMERIC_CLASS = `${MODAL_INPUT_CLASS} text-right tabula
 
 /** VÖEN в ряду с кнопкой «Yoxla». */
 export const MODAL_INPUT_TAX_ID_CLASS =
-  "w-[11ch] min-w-[9.5rem] shrink-0 rounded-[2px] border border-[#D5DADF] bg-white px-3 py-2 text-[13px] text-[#34495E] tabular-nums shadow-sm placeholder:text-[#7F8C8D] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#2980B9]";
+  "w-[11ch] min-w-[9.5rem] shrink-0 rounded-lg border border-[#D5DADF] bg-white px-3 text-[13px] leading-normal text-[#34495E] tabular-nums shadow-sm placeholder:text-[#7F8C8D] focus:outline-none focus:ring-1 focus:ring-[#2980B9] box-border h-9 min-h-9";
 
-/** Чекбоксы в модалках — 2px, граница DESIGN.md. */
+/** Checkboxes in modals — same radius family as inputs (DESIGN.md). */
 export const MODAL_CHECKBOX_CLASS =
-  "h-4 w-4 shrink-0 rounded-[2px] border border-[#D5DADF] accent-[#2980B9]";
+  "h-4 w-4 shrink-0 rounded-lg border border-[#D5DADF] accent-[#2980B9]";
 
-/** Футер модалки (эталон KMO): линия сверху, отступы, кнопки вправо. */
-export const MODAL_FOOTER_ACTIONS_CLASS =
-  "flex w-full justify-end gap-2 border-t border-[#D5DADF] pt-4 mt-4";
+/** Modal footer: no top border, no footer strip background — spacing from content via margin only (etalon Avans hesabatı). */
+export const MODAL_FOOTER_ACTIONS_CLASS = "flex justify-end gap-2 mt-6";
+
+/** Primary / outline actions in modal footers — height + 13px + `rounded-lg` (DESIGN.md). */
+export const MODAL_FOOTER_BUTTON_CLASS = "!h-9 !min-h-9 shrink-0 !rounded-lg text-[13px]";
 
 /** Active filter chip (registry, tabs) */
 export const FILTER_ACTIVE_CLASS =
@@ -72,7 +90,7 @@ export const FILTER_IDLE_CLASS =
 
 /** Окно таблицы: горизонтальный + вертикальный скролл, чтобы `sticky` у шапки работал на длинных списках. */
 export const DATA_TABLE_VIEWPORT_CLASS =
-  "max-h-[min(70vh,56rem)] overflow-auto rounded-[2px] border border-[#D5DADF] bg-white shadow-sm";
+  "max-h-[min(70vh,56rem)] overflow-auto rounded-2xl border border-[#D5DADF] bg-white shadow-sm";
 
 export const DATA_TABLE_CLASS = "min-w-full border-collapse text-[13px]";
 
@@ -108,4 +126,4 @@ export const DATA_TABLE_ACTIONS_TD_CLASS =
 
 /** 32×32, ghost, иконки в строке таблицы. */
 export const TABLE_ROW_ICON_BTN_CLASS =
-  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[2px] border border-transparent bg-transparent transition-colors hover:bg-[#EBEDF0] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#2980B9]/25 disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent bg-transparent transition-colors hover:bg-[#EBEDF0] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#2980B9]/25 disabled:pointer-events-none disabled:opacity-50";

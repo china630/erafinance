@@ -7,12 +7,14 @@ import {
   SECONDARY_BUTTON_CLASS,
 } from "../../lib/design-system";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "outline";
 
 const variantClass: Record<ButtonVariant, string> = {
   primary: PRIMARY_BUTTON_CLASS,
   secondary: SECONDARY_BUTTON_CLASS,
   ghost: GHOST_BUTTON_CLASS,
+  /** Alias of secondary — white fill, muted border (modal cancel). */
+  outline: SECONDARY_BUTTON_CLASS,
 };
 
 export function Button({

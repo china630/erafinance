@@ -162,7 +162,9 @@ export default function InventoryMovementsPage() {
                   <td className={DATA_TABLE_TD_CLASS}>{m.warehouse.name}</td>
                   <td className={DATA_TABLE_TD_CLASS}>{m.product.name}</td>
                   <td className={DATA_TABLE_TD_CLASS}>{m.type}</td>
-                  <td className={DATA_TABLE_TD_CLASS}>{m.reason}</td>
+                  <td className={DATA_TABLE_TD_CLASS}>
+                    {t(`inventory.movReason_${m.reason}`, { defaultValue: m.reason })}
+                  </td>
                   <td className={DATA_TABLE_TD_RIGHT_CLASS}>{fmtQty(m.quantity)}</td>
                   <td className={DATA_TABLE_TD_CLASS}>{m.bin?.code ?? "—"}</td>
                   <td className={DATA_TABLE_TD_RIGHT_CLASS}>{formatMoneyAzn(m.price)}</td>

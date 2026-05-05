@@ -167,7 +167,6 @@ export function ProductModal({
     <SalesModalShell
       open={open}
       title={title}
-      subtitle={t("products.subtitle")}
       onClose={onClose}
       maxWidthClass="max-w-2xl"
       footer={
@@ -175,7 +174,6 @@ export function ProductModal({
           onCancel={onClose}
           busy={busy || loading}
           formId="product-modal-form"
-          cancelVariant="ghost"
         />
       }
     >
@@ -216,7 +214,6 @@ export function ProductModal({
             <Select
               value={vatSelect}
               onValueChange={(v) => setVatSelect(v as VatSelect)}
-              className={MODAL_INPUT_CLASS}
             >
               <SelectTrigger className="" />
               <SelectContent>

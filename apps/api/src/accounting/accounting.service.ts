@@ -5,10 +5,12 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import {
+  AccountType,
   FixedAssetStatus,
-  LedgerType,
   InvoiceStatus,
+  LedgerType,
   Prisma,
+  TemplateGroup,
   UserRole,
 } from "@dayday/database";
 import { assertMayPostManualJournal } from "../auth/policies/invoice-finance.policy";
@@ -23,6 +25,21 @@ import { IfrsAutoMappingService } from "./ifrs-auto-mapping.service";
 
 type Decimal = Prisma.Decimal;
 const Decimal = Prisma.Decimal;
+
+/** NAS codes used in code (e.g. 241) but missing from some chart JSON seeds — create under known parent. */
+const NAS_ACCOUNT_FALLBACK: Record<
+  string,
+  { type: AccountType; parentCode: string; nameAz: string; nameRu: string; nameEn: string }
+> = {
+  "241": {
+    type: AccountType.ASSET,
+    parentCode: "290",
+    nameAz: "Alınmış dəyərlər üzrə ƏDV (241)",
+    nameRu: "НДС к зачёту (входящий), счёт 241",
+    nameEn: "Input VAT (241)",
+  },
+};
+
 function asCount(v: unknown): number {
   if (typeof v === "number") return v;
   if (typeof v === "bigint") return Number(v);
@@ -117,6 +134,7 @@ export class AccountingService {
     }
 
     const codes = [...new Set(lines.map((l) => l.accountCode))];
+    await this.ensureNasAccountsForPosting(tx, organizationId, codes, ledgerType);
     const accounts = await tx.account.findMany({
       where: {
         organizationId,
@@ -382,5 +400,122 @@ export class AccountingService {
       checks.noBrokenJournalLinks.ok;
 
     return { month, allPassed, checks };
+  }
+
+  private async findChartEntryForCode(tx: Prisma.TransactionClient, code: string) {
+    let entry = await tx.chartOfAccountsEntry.findFirst({
+      where: { templateGroup: TemplateGroup.COMMERCIAL, code },
+    });
+    if (!entry) {
+      entry = await tx.chartOfAccountsEntry.findFirst({
+        where: { templateGroup: TemplateGroup.SMALL_BUSINESS, code },
+      });
+    }
+    return entry;
+  }
+
+  /**
+   * Ensures all NAS account codes referenced in posting exist (e.g. 241 on empty / partial CoA).
+   * Uses `chart_of_accounts_entries` when possible; otherwise {@link NAS_ACCOUNT_FALLBACK}.
+   */
+  private async ensureNasAccountsForPosting(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    codes: string[],
+    ledgerType: LedgerType,
+  ): Promise<void> {
+    if (ledgerType !== LedgerType.NAS) return;
+    const unique = [...new Set(codes)];
+    const existing = await tx.account.findMany({
+      where: { organizationId, ledgerType, code: { in: unique } },
+      select: { code: true },
+    });
+    const have = new Set(existing.map((e) => e.code));
+    for (const code of unique) {
+      if (!have.has(code)) {
+        await this.ensureNasAccountExists(tx, organizationId, code, ledgerType, new Set());
+      }
+    }
+  }
+
+  private async ensureNasAccountExists(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    code: string,
+    ledgerType: LedgerType,
+    stack: Set<string>,
+  ): Promise<void> {
+    if (ledgerType !== LedgerType.NAS) return;
+
+    const already = await tx.account.findFirst({
+      where: { organizationId, ledgerType, code },
+      select: { id: true },
+    });
+    if (already) return;
+
+    if (stack.has(code)) {
+      throw new BadRequestException(`Circular NAS account parent chain while creating ${code}`);
+    }
+    stack.add(code);
+
+    const entry = await this.findChartEntryForCode(tx, code);
+    if (entry) {
+      let parentId: string | null = null;
+      if (entry.parentCode) {
+        await this.ensureNasAccountExists(tx, organizationId, entry.parentCode, ledgerType, stack);
+        const parent = await tx.account.findFirst({
+          where: { organizationId, ledgerType, code: entry.parentCode },
+          select: { id: true },
+        });
+        parentId = parent?.id ?? null;
+      }
+      await tx.account.create({
+        data: {
+          organizationId,
+          ledgerType,
+          code: entry.code,
+          nameAz: entry.nameAz,
+          nameRu: entry.nameRu,
+          nameEn: entry.nameEn,
+          type: entry.accountType,
+          parentId,
+          chartEntryId: entry.id,
+        },
+      });
+      stack.delete(code);
+      return;
+    }
+
+    const fb = NAS_ACCOUNT_FALLBACK[code];
+    if (!fb) {
+      stack.delete(code);
+      throw new NotFoundException(`Account code ${code} not found for organization`);
+    }
+
+    await this.ensureNasAccountExists(tx, organizationId, fb.parentCode, ledgerType, stack);
+    const parentAcc = await tx.account.findFirst({
+      where: { organizationId, ledgerType, code: fb.parentCode },
+      select: { id: true },
+    });
+    if (!parentAcc) {
+      stack.delete(code);
+      throw new NotFoundException(
+        `Parent account ${fb.parentCode} required to create ${code} — seed NAS chart for this organization`,
+      );
+    }
+
+    await tx.account.create({
+      data: {
+        organizationId,
+        ledgerType,
+        code,
+        nameAz: fb.nameAz,
+        nameRu: fb.nameRu,
+        nameEn: fb.nameEn,
+        type: fb.type,
+        parentId: parentAcc.id,
+      },
+    });
+    stack.delete(code);
   }
 }

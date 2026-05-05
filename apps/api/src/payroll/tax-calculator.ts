@@ -131,20 +131,28 @@ export function calculatePayrollByTemplateGroup(
   return calculatePrivateNonOilPayrollV161(grossRaw, orgSettings);
 }
 
+/** Withholding tax at source for ГПХ / VÖEN contractors (AZ): 5% of gross; no DSMF/İTS/unemployment. */
+export const CONTRACTOR_WITHHOLDING_RATE = new Decimal(0.05);
+
+/**
+ * ГПХ (EmployeeKind.CONTRACTOR): налог у источника выплаты **5%** от gross.
+ * Поле `incomeTax` в `PayrollBreakdownPrivate` здесь = **withholdingTax** (не ПНДФЛ штатника).
+ * Опционально `contractorMonthlySocialAzn` — доп. фикс. удержание с выплаты (учёт в `contractorSocialWithheld` и в 521 при проведении).
+ */
 export function calculateContractorMicroPayrollTax(
   grossRaw: Decimal,
   monthlyFixedSocialAzn?: Decimal | null,
 ): PayrollBreakdownPrivate {
   const gross = roundMoney2(grossRaw);
-  const incomeTax = roundMoney2(gross.mul(0.05));
+  const withholdingTax = roundMoney2(gross.mul(CONTRACTOR_WITHHOLDING_RATE));
   const fixed =
     monthlyFixedSocialAzn != null && monthlyFixedSocialAzn.gt(0)
       ? roundMoney2(monthlyFixedSocialAzn)
       : new Decimal(0);
-  const net = roundMoney2(gross.sub(incomeTax).sub(fixed));
+  const net = roundMoney2(gross.sub(withholdingTax).sub(fixed));
   return {
     gross,
-    incomeTax,
+    incomeTax: withholdingTax,
     dsmfWorker: new Decimal(0),
     dsmfEmployer: new Decimal(0),
     itsWorker: new Decimal(0),

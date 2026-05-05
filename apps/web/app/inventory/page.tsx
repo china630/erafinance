@@ -143,7 +143,7 @@ export default function InventoryPage() {
             {stock.map((r) => (
               <div
                 key={r.id}
-                className="rounded-[2px] border border-[#D5DADF] bg-white p-4 shadow-sm text-[13px] space-y-1"
+                className="rounded-2xl border border-[#D5DADF] bg-white p-4 shadow-sm text-[13px] space-y-1"
               >
                 <div className="font-medium text-gray-900">{r.product.name}</div>
                 <div className="text-slate-600">

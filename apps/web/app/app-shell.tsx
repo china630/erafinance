@@ -12,6 +12,7 @@ import { useLedger } from "../lib/ledger-context";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MainSidebar } from "../components/layout/Sidebar";
 import { MainHeader } from "../components/layout/Header";
+import { InAppNotificationBell } from "../components/notifications/in-app-notification-bell";
 
 const quickActionItemClass =
   "block px-3 py-2 text-sm text-gray-700 hover:bg-action/10 hover:text-primary rounded-md mx-1";
@@ -630,7 +631,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             ← {t("nav.home")}
           </Link>
-          <span className="text-xs font-bold uppercase tracking-wide text-[#34495E] bg-[#EBEDF0] px-2 py-1 rounded-[2px] border border-[#D5DADF]">
+          <span className="text-xs font-bold uppercase tracking-wide text-[#34495E] bg-[#EBEDF0] px-2 py-1 rounded-lg border border-[#D5DADF]">
             Super Admin
           </span>
           <button
@@ -694,6 +695,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               />
             ) : null
           }
+          notificationsBell={
+            ready && token ? <InAppNotificationBell /> : undefined
+          }
           orgSwitcher={<OrgSwitcher onNavigate={closeMobileNav} />}
           onLogout={() => void logout()}
         />
@@ -703,7 +707,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {ready && token && billingBanner ? (
             <div
               className={[
-                "mb-4 rounded-[2px] border px-3 py-2 text-[13px] font-semibold",
+                "mb-4 rounded-lg border px-3 py-2 text-[13px] font-semibold",
                 billingBanner.tone === "hard"
                   ? "border-red-200 bg-red-50 text-red-800"
                   : "border-amber-200 bg-amber-50 text-amber-900",
