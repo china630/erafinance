@@ -1,4 +1,4 @@
-# DayDay ERP — развёртывание в production (Ubuntu 24.04 + Docker Compose)
+﻿# DayDay ERP — развёртывание в production (Ubuntu 24.04 + Docker Compose)
 
 Цель: поднять стек из `docker-compose.prod.yml`:
 - Postgres (`db`)
@@ -153,7 +153,7 @@ MAINTENANCE_MODE=1
 docker compose -f docker-compose.prod.yml up -d web
 ```
 
-Дальше миграции и инициализация (как в §7.1–7.2), затем снимите `MAINTENANCE_MODE` и снова `up -d web`.
+Дальше миграции и инициализация (как в п. 7.1–7.2), затем снимите `MAINTENANCE_MODE` и снова `up -d web`.
 
 **Ограничение:** ответ 503 отдаёт только контейнер **Next (`web`)**. Запросы, которые не проходят через него (например, отдельно опубликованный порт API на хосте), этой настройкой не отключаются. В таких схемах используйте вариант B.
 
@@ -184,6 +184,44 @@ docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
 sudo rm -f /var/www/html/maintenance.enable
 sudo nginx -t && sudo systemctl reload nginx
 ```
+
+### 7.0.1. RC1: схлопнутые миграции (squash) и существующие базы
+
+В репозитории остаётся **одна** стартовая миграция Prisma Migrate. **Имя папки миграции (зафиксировать для деплоя):** `20260505120000_squashed_init`.
+
+**Новая пустая база:** достаточно обычного `prisma migrate deploy` (или `npm run db:migrate:deploy` в образе API) — Prisma применит `migration.sql` и заполнит `_prisma_migrations`.
+
+**Существующая база** (local / staging / production), где схема уже создана **старыми** миграциями, а в репозитории больше нет их папок: **нельзя** сразу запускать `migrate deploy` по одному большому `migration.sql` — получите ошибки вида «relation already exists» и риск потери данных при попытках «починить» через `prisma migrate reset`.
+
+Официальный безопасный порядок для таких серверов:
+
+1. Сделайте **резервную копию** Postgres.
+2. В Postgres выполните очистку **только** служебной таблицы учёта миграций (в ней нет бизнес-данных):
+
+```sql
+DELETE FROM "_prisma_migrations";
+```
+
+3. В каталоге `packages/database` с корректным `DATABASE_URL` пометьте squashed-миграцию как уже применённую **без выполнения SQL**:
+
+```bash
+npx prisma migrate resolve --applied 20260505120000_squashed_init
+```
+
+4. Затем выполните стандартный деплой миграций:
+
+```bash
+npx prisma migrate deploy
+```
+
+В Docker Compose (как в п. 7.1) шаги 3–4 обычно выполняют внутри контейнера `api`, откуда доступен `DATABASE_URL`, например:
+
+```bash
+docker compose -f docker-compose.prod.yml exec api npx prisma migrate resolve --applied 20260505120000_squashed_init
+docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
+```
+
+**Примечание для разработчиков:** после удаления истории миграций команда `npx prisma migrate dev --name squashed_init --create-only` на **непустой** локальной БД часто завершается сообщением о drift и предложением `migrate reset`. Для RC1 итоговый `migration.sql` сформирован командой `npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script` (Prisma 7; см. раздел *Baselining* в документации Prisma Migrate). Результат в репозитории — папка **`20260505120000_squashed_init`**.
 
 ### 7.1. Миграции (обязательно)
 
@@ -354,3 +392,4 @@ docker compose -f docker-compose.prod.yml down -v
 ```
 
 Затем снова выполнить шаги из 11.2.
+
