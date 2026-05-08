@@ -735,6 +735,11 @@ export default function SuperAdminPage() {
         {tabBtn("logs", t("superAdmin.tabLogs"))}
         {tabBtn("chartTemplate", t("superAdmin.tabChartTemplate"))}
       </div>
+      <p className="text-[13px] text-[#2980B9]">
+        <a className="underline font-medium" href="/super-admin/customs-tariff-rates">
+          {t("trade.customs.tariffRatesTitle")}
+        </a>
+      </p>
 
       {err ? (
         <EmptyState

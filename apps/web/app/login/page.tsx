@@ -9,6 +9,7 @@ import type { AuthUser, OrgSummary } from "../../lib/auth-context";
 import { useAuth } from "../../lib/auth-context";
 import { LINK_ACCENT_CLASS, PRIMARY_BUTTON_CLASS } from "../../lib/design-system";
 import { LanguageSwitcher } from "../language-switcher";
+import { PublicLegalFooter } from "../../components/public-legal-footer";
 
 const LOGIN_RECENT_EMAILS_KEY = "dayday_login_recent_emails";
 const MAX_RECENT_EMAILS = 10;
@@ -154,6 +155,7 @@ export default function LoginPage() {
             {t("auth.registerOrgLink")}
           </Link>
         </p>
+        <PublicLegalFooter />
       </div>
     </main>
   );

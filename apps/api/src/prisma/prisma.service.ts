@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { PrismaClient } from "@dayday/database";
 import { prismaSoftDeleteExtension } from "./prisma-soft-delete.extension";
 import { prismaTenantExtension } from "./prisma-tenant.extension";
+import { prismaPiiReadFallbackExtension } from "./prisma-pii-read-fallback.extension";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 
@@ -26,7 +27,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
     const extended = new PrismaClient({ adapter })
       .$extends(prismaTenantExtension)
-      .$extends(prismaSoftDeleteExtension);
+      .$extends(prismaSoftDeleteExtension)
+      .$extends(prismaPiiReadFallbackExtension);
     Object.assign(extended, {
       onModuleInit: async () => {
         await extended.$connect();

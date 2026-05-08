@@ -19,6 +19,7 @@ import {
   DATA_TABLE_VIEWPORT_CLASS,
 } from "../../../../lib/design-system";
 import { PageHeader } from "../../../../components/layout/page-header";
+import { ExtensionInstallBanner } from "../../../../components/extension-install-banner";
 
 type HealthProviderRow = {
   provider: string;
@@ -87,6 +88,7 @@ export default function IntegrationsHealthPage() {
         title="Integration Health"
         subtitle="Last Sync, Latency, Provider Status and cache hit-rate for IBAN / Tax."
       />
+      <ExtensionInstallBanner variant="card" />
       {err ? (
         <p className="text-sm text-red-600">{err}</p>
       ) : null}

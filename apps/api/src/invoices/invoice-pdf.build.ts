@@ -6,6 +6,7 @@ import {
 } from "@dayday/database";
 import { verifyQrPublicBase } from "../common/verify-public-url";
 import { PrismaService } from "../prisma/prisma.service";
+import { decryptText } from "../security/pii-crypto.util";
 import type { InvoicePdfModel } from "./invoice-pdf.render";
 
 export async function buildInvoicePdfModelFromIds(
@@ -51,7 +52,16 @@ export async function buildInvoicePdfModelFromIds(
     dueDate: invoice.dueDate,
     totalAmount: invoice.totalAmount,
     currency: invoice.currency,
-    counterparty: invoice.counterparty,
+    isInternational: (invoice as { isInternational?: boolean }).isInternational ?? false,
+    counterparty: {
+      name: invoice.counterparty.nameCipher
+        ? decryptText(invoice.counterparty.nameCipher) ?? ""
+        : "",
+      taxId: invoice.counterparty.taxIdCipher
+        ? decryptText(invoice.counterparty.taxIdCipher) ?? ""
+        : "",
+      country: invoice.counterparty.country ?? null,
+    },
     items: invoice.items,
     signature,
   };
@@ -100,7 +110,16 @@ export async function buildInvoicePdfModelByInvoiceIdPublic(
     dueDate: invoice.dueDate,
     totalAmount: invoice.totalAmount,
     currency: invoice.currency,
-    counterparty: invoice.counterparty,
+    isInternational: (invoice as { isInternational?: boolean }).isInternational ?? false,
+    counterparty: {
+      name: invoice.counterparty.nameCipher
+        ? decryptText(invoice.counterparty.nameCipher) ?? ""
+        : "",
+      taxId: invoice.counterparty.taxIdCipher
+        ? decryptText(invoice.counterparty.taxIdCipher) ?? ""
+        : "",
+      country: invoice.counterparty.country ?? null,
+    },
     items: invoice.items,
     signature,
   };

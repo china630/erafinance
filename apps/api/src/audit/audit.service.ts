@@ -10,6 +10,11 @@ import {
   verifyAuditHashLegacy,
 } from "./audit-hash";
 import { serializeForAudit } from "./audit-serialize";
+import {
+  loadEntitySnapshotForAudit,
+  matchAuditSnapshotPath,
+} from "./audit-entity-snapshot";
+import { ActivityStreamEmitterService } from "../activity-stream/activity-stream-emitter.service";
 import { DataMaskingService } from "../privacy/data-masking.service";
 
 const MUTATION_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
@@ -42,6 +47,7 @@ export class AuditService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly dataMasking: DataMaskingService,
+    private readonly activityEmitter: ActivityStreamEmitterService,
   ) {
     const explicit = this.config.get<string>("AUDIT_HASH_SECRET") ?? null;
     const jwtFallback = this.config.get<string>("JWT_SECRET") ?? null;
@@ -119,55 +125,34 @@ export class AuditService {
       return null;
     }
 
-    const invoiceMatch = /^\/invoices\/([^/]+)/.exec(path);
-    if (invoiceMatch) {
-      const invoiceId = invoiceMatch[1];
-      const inv = await this.prisma.invoice.findFirst({
-        where: { id: invoiceId, organizationId: orgId },
-        include: { items: true, payments: true },
-      });
-      if (!inv) {
-        return null;
+    const pathMatch = matchAuditSnapshotPath(path, method);
+    if (pathMatch) {
+      const row = await loadEntitySnapshotForAudit(
+        this.prisma,
+        pathMatch.entityType,
+        orgId,
+        pathMatch.entityId,
+      );
+      if (row) {
+        return {
+          entityType: pathMatch.entityType,
+          entityId: pathMatch.entityId,
+          oldValues: serializeForAudit(row),
+        };
       }
-      return {
-        entityType: "Invoice",
-        entityId: invoiceId,
-        oldValues: serializeForAudit(inv),
-      };
     }
 
-    const productMatch = /^\/products\/([^/]+)$/.exec(path);
-    if (productMatch && method === "PATCH") {
-      const id = productMatch[1];
-      const row = await this.prisma.product.findFirst({
+    const customsAttach = /^\/customs\/declarations\/([^/]+)\/attach$/.exec(path);
+    if (customsAttach && method === "PATCH") {
+      const id = customsAttach[1];
+      const row = await this.prisma.customsDeclaration.findFirst({
         where: { id, organizationId: orgId },
       });
       if (!row) {
         return null;
       }
       return {
-        entityType: "Product",
-        entityId: id,
-        oldValues: serializeForAudit(row),
-      };
-    }
-
-    const empMatch = /^\/hr\/employees\/([^/]+)$/.exec(path);
-    if (empMatch && (method === "PATCH" || method === "DELETE")) {
-      const id = empMatch[1];
-      const row = await this.prisma.employee.findFirst({
-        where: { id, organizationId: orgId },
-        include: {
-          jobPosition: {
-            include: { department: { select: { id: true, name: true } } },
-          },
-        },
-      });
-      if (!row) {
-        return null;
-      }
-      return {
-        entityType: "Employee",
+        entityType: "CustomsDeclaration",
         entityId: id,
         oldValues: serializeForAudit(row),
       };
@@ -234,35 +219,35 @@ export class AuditService {
       }
     }
 
-    if (oldSnapshot?.entityType === "Invoice" && organizationId) {
-      const inv = await this.prisma.invoice.findFirst({
-        where: { id: oldSnapshot.entityId, organizationId },
-        include: { items: true, payments: true },
-      });
-      return inv ? serializeForAudit(inv) : serializeForAudit(responseBody);
+    if (oldSnapshot && organizationId && method !== "DELETE") {
+      const refreshed = await loadEntitySnapshotForAudit(
+        this.prisma,
+        oldSnapshot.entityType,
+        organizationId,
+        oldSnapshot.entityId,
+      );
+      if (refreshed) {
+        return serializeForAudit(refreshed);
+      }
     }
 
-    if (oldSnapshot?.entityType === "Product" && organizationId) {
-      const row = await this.prisma.product.findFirst({
-        where: { id: oldSnapshot.entityId, organizationId },
-      });
-      return row ? serializeForAudit(row) : serializeForAudit(responseBody);
-    }
-
-    if (oldSnapshot?.entityType === "Employee" && method !== "DELETE" && organizationId) {
-      const row = await this.prisma.employee.findFirst({
-        where: { id: oldSnapshot.entityId, organizationId },
-        include: {
-          jobPosition: {
-            include: { department: { select: { id: true, name: true } } },
-          },
-        },
-      });
-      return row ? serializeForAudit(row) : serializeForAudit(responseBody);
-    }
-
-    if (oldSnapshot?.entityType === "Employee" && method === "DELETE") {
+    if (oldSnapshot && method === "DELETE") {
       return { deleted: true };
+    }
+
+    if (
+      path === "/customs/declarations/prefill-capture" &&
+      method === "POST" &&
+      responseBody &&
+      organizationId
+    ) {
+      const id = (responseBody as { id?: string } | null)?.id;
+      if (id) {
+        const row = await this.prisma.customsDeclaration.findFirst({
+          where: { id, organizationId },
+        });
+        return row ? serializeForAudit(row) : serializeForAudit(responseBody);
+      }
     }
 
     if (path === "/invoices" && method === "POST" && responseBody && organizationId) {
@@ -337,6 +322,17 @@ export class AuditService {
       entityId = nid ?? entityId;
     } else if (path === "/hr/employees" && method === "POST") {
       entityType = "Employee";
+      const nid = (responseBody as { id?: string } | null)?.id;
+      entityId = nid ?? entityId;
+    } else if (
+      (path === "/invoices/bulk-sync-result" || path === "/hr/employees/bulk-sync-result") &&
+      method === "POST"
+    ) {
+      entityType = "IntegrationSyncRun";
+      const rid = (req.body as { runId?: string } | null)?.runId;
+      entityId = rid ?? entityId;
+    } else if (path === "/customs/declarations/prefill-capture" && method === "POST") {
+      entityType = "CustomsDeclaration";
       const nid = (responseBody as { id?: string } | null)?.id;
       entityId = nid ?? entityId;
     }
@@ -417,6 +413,21 @@ export class AuditService {
         createdAt,
       },
     });
+
+    if (orgId) {
+      void this.activityEmitter
+        .emitFromAuditMutation({
+          organizationId: orgId,
+          actorUserId: userId,
+          auditEntityType: entityType,
+          entityId,
+          httpMethod: method,
+        })
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`activity stream emit failed: ${msg}`);
+        });
+    }
   }
 
   verifyStoredLog(log: {
@@ -627,6 +638,70 @@ export class AuditService {
         entityId: params.entityId,
         action: params.action,
         newValues,
+      },
+    });
+  }
+
+  /**
+   * Append a tenant-scoped audit row with full hash-chain continuity (platform / domain jobs).
+   */
+  async appendTenantAuditChainEntry(params: {
+    organizationId: string;
+    userId: string | null;
+    entityType: string;
+    entityId: string;
+    action: string;
+    oldValues?: unknown;
+    newValues?: unknown;
+    changes?: Record<string, unknown>;
+  }): Promise<void> {
+    const createdAt = new Date();
+    const changes = params.changes ?? { source: "appendTenantAuditChainEntry" };
+    let oldValues: unknown =
+      params.oldValues !== undefined ? this.maskAuditSnapshot(params.oldValues) : null;
+    let newValues: unknown =
+      params.newValues !== undefined ? this.maskAuditSnapshot(params.newValues) : null;
+    const hashPayload: AuditHashPayload = {
+      organizationId: params.organizationId,
+      userId: params.userId,
+      entityType: params.entityType,
+      entityId: params.entityId,
+      action: params.action,
+      oldValues,
+      newValues,
+      changes,
+      clientIp: null,
+      userAgent: null,
+      createdAt,
+    };
+    const previous = await this.prisma.auditLog.findFirst({
+      where: { organizationId: params.organizationId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { hash: true },
+    });
+    const hash = computeAuditHash(
+      {
+        ...hashPayload,
+        prevHash: previous?.hash ?? null,
+      },
+      this.hashSecret,
+    );
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId: params.organizationId,
+        userId: params.userId,
+        entityType: params.entityType,
+        entityId: params.entityId,
+        action: params.action,
+        changes: changes as object,
+        oldValues:
+          oldValues === null || oldValues === undefined ? undefined : (oldValues as object),
+        newValues:
+          newValues === null || newValues === undefined ? undefined : (newValues as object),
+        clientIp: null,
+        userAgent: null,
+        hash,
+        createdAt,
       },
     });
   }

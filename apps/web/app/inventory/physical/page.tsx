@@ -33,7 +33,7 @@ type StockRow = {
 
 type Line = { productId: string; actualQty: string };
 
-const DOC_TYPES = ["INVENTORY_COUNT", "WRITE_OFF", "SURPLUS"] as const;
+const DOC_TYPES = ["WRITE_OFF", "SURPLUS"] as const;
 
 export default function InventoryPhysicalPage() {
   const { t } = useTranslation();
@@ -43,7 +43,7 @@ export default function InventoryPhysicalPage() {
   const [stockRows, setStockRows] = useState<StockRow[]>([]);
   const [warehouseId, setWarehouseId] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [docType, setDocType] = useState<(typeof DOC_TYPES)[number]>("INVENTORY_COUNT");
+  const [docType, setDocType] = useState<(typeof DOC_TYPES)[number]>("WRITE_OFF");
   const [reason, setReason] = useState("");
   const [lines, setLines] = useState<Line[]>([{ productId: "", actualQty: "0" }]);
   const [busy, setBusy] = useState(false);

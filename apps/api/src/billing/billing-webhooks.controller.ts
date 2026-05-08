@@ -7,6 +7,7 @@ import {
   Post,
 } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
 import { Public } from "../auth/decorators/public.decorator";
 import { PaymentWebhookDto } from "./dto/payment-webhook.dto";
 import { PaymentProviderService } from "./payment-provider.service";
@@ -15,6 +16,7 @@ const SUPPORTED_PROVIDERS = new Set(["mock", "pasha", "pasha_bank"]);
 
 @ApiTags("billing-webhooks")
 @Public()
+@Throttle({ default: { limit: 5000, ttl: 60_000 } })
 @Controller("billing/webhooks")
 export class BillingWebhooksController {
   constructor(private readonly payment: PaymentProviderService) {}

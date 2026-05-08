@@ -4,17 +4,30 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { resources } from "../apps/web/lib/i18n/resources";
+import {
+  extensionResources,
+  mergeLocaleResources,
+  resources,
+} from "@dayday/i18n";
 
 const SCAN_ROOTS = [
   path.join(process.cwd(), "apps/web/app"),
   path.join(process.cwd(), "apps/web/components"),
   /** Ключи в `lib/` (api-client, контексты и т.д.) тоже должны быть в RU/AZ. */
   path.join(process.cwd(), "apps/web/lib"),
+  /** Browser extension (WXT) — same RU/AZ rules. */
+  path.join(process.cwd(), "apps/extension/src"),
 ];
 
-const ru = resources.ru.translation as Record<string, unknown>;
-const az = resources.az.translation as Record<string, unknown>;
+const merged = mergeLocaleResources(
+  resources as { ru: Record<string, unknown>; az: Record<string, unknown> },
+  extensionResources as unknown as {
+    ru: Record<string, unknown>;
+    az: Record<string, unknown>;
+  },
+);
+const ru = merged.ru.translation as Record<string, unknown>;
+const az = merged.az.translation as Record<string, unknown>;
 
 function walk(dir: string, out: string[] = []): string[] {
   if (!fs.existsSync(dir)) return out;
@@ -125,7 +138,7 @@ function main(): void {
 
   if (!missingRu.length && !missingAz.length && !notString.length) {
     console.info(
-      `i18n audit: OK (RU + AZ) for ${files.length} file(s) under apps/web/app, components, lib.`,
+      `i18n audit: OK (RU + AZ) for ${files.length} file(s) under apps/web + apps/extension.`,
     );
     process.exit(0);
   } else {

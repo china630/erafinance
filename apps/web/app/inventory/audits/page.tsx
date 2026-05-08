@@ -160,11 +160,17 @@ export default function InventoryAuditsHistoryPage() {
                     {r.warehouse?.name ?? "—"}
                   </td>
                   <td className={`${DATA_TABLE_TD_CENTER_CLASS} whitespace-nowrap`}>
-                    {r.status === "APPROVED"
-                      ? t("inventory.auditStatusApproved")
+                    {r.status === "COMPLETED"
+                      ? t("inventory.auditStatusCompleted")
                       : r.status === "DRAFT"
                         ? t("inventory.auditStatusDraft")
-                        : r.status}
+                        : r.status === "COUNTING"
+                          ? t("inventory.auditStatusCounting")
+                          : r.status === "REVIEW"
+                            ? t("inventory.auditStatusReview")
+                            : r.status === "CANCELLED"
+                              ? t("inventory.auditStatusCancelled")
+                              : r.status}
                   </td>
                   <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>
                     {r.createdAt?.slice(0, 19)?.replace("T", " ") ?? "—"}

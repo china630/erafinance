@@ -25,6 +25,8 @@ export type SubscriptionSnapshot = {
     ifrsMapping: boolean;
     bankingPro: boolean;
     hrFull: boolean;
+    taxPro: boolean;
+    tradePro: boolean;
   };
   quotas: {
     employees: {
@@ -69,6 +71,8 @@ function enterpriseBypassSnapshot(): SubscriptionSnapshot {
       "ifrs",
       "banking_pro",
       "hr_full",
+      "tax_pro",
+      "trade_pro",
     ],
     customConfig: null,
     modules: {
@@ -77,6 +81,8 @@ function enterpriseBypassSnapshot(): SubscriptionSnapshot {
       ifrsMapping: true,
       bankingPro: true,
       hrFull: true,
+      taxPro: true,
+      tradePro: true,
     },
     quotas: {
       employees: { current: 0, max: null, atLimit: false },

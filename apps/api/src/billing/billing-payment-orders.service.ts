@@ -13,6 +13,7 @@ import { registerUnicodeFonts, PDF_FONT_UNICODE } from "../reporting/pdf-font.ut
 import { PrismaService } from "../prisma/prisma.service";
 import { PricingService } from "../admin/pricing.service";
 import { SubscriptionAccessService } from "../subscription/subscription-access.service";
+import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
 
 function isModuleActiveInSubscription(active: string[], key: string): boolean {
   if (active.includes(key)) return true;
@@ -44,7 +45,7 @@ export class BillingPaymentOrdersService {
       orderBy: { createdAt: "desc" },
       take: 500,
       include: {
-        organization: { select: { id: true, name: true, taxId: true } },
+        organization: { select: { id: true, name: true, taxIdCipher: true } },
       },
     });
 
@@ -53,7 +54,7 @@ export class BillingPaymentOrdersService {
         id: o.id,
         organizationId: o.organizationId,
         organizationName: o.organization.name,
-        organizationTaxId: o.organization.taxId,
+        organizationTaxId: decodeOrganizationTaxId(o.organization),
         amountAzn: o.amountAzn.toString(),
         currency: o.currency,
         status: o.status,
@@ -78,12 +79,12 @@ export class BillingPaymentOrdersService {
       monthsApplied: number;
       currency: string;
     };
-    organization: { name: string; taxId: string };
+    organization: { name: string; taxIdCipher: string | null };
   }> {
     const order = await this.prisma.paymentOrder.findUnique({
       where: { id: orderId },
       include: {
-        organization: { select: { name: true, taxId: true } },
+        organization: { select: { name: true, taxIdCipher: true } },
       },
     });
     if (!order) {
@@ -107,7 +108,7 @@ export class BillingPaymentOrdersService {
   }
 
   /**
-   * Заглушка PDF (v10.6): детализация по базе и модулям из текущего снимка подписки + каталога цен.
+   * PDF подтверждения оплаты заказа: снимок подписки + каталог модулей; не является фискальной qaimə.
    */
   async buildInvoicePdfBuffer(orderId: string, userId: string): Promise<Buffer> {
     const { order, organization } = await this.assertOwnerCanAccessOrder(
@@ -162,19 +163,20 @@ export class BillingPaymentOrdersService {
       doc
         .fontSize(18)
         .fillColor("#34495E")
-        .text("DayDay ERP — Invoice (stub v10.6)", { align: "left" });
+        .text("DayDay ERP — Payment confirmation / Ödəniş təsdiqi", { align: "left" });
       doc.moveDown(0.5);
       doc
         .fontSize(10)
         .fillColor("#7F8C8D")
         .text(
-          "Stub PDF: line items use the current subscription snapshot and catalog; charged amount is from the payment order.",
+          "Line items reflect the subscription snapshot and catalog at generation time; " +
+            "the charged total matches the payment order. Sətirlər abunə vəziyyətini əks etdirir.",
           { align: "left" },
         );
       doc.moveDown(1);
 
       doc.fontSize(11).fillColor("#34495E").text(`Organization: ${organization.name}`);
-      doc.text(`VÖEN: ${organization.taxId || "—"}`);
+      doc.text(`VÖEN: ${decodeOrganizationTaxId(organization) || "—"}`);
       doc.text(`Order ID: ${order.id}`);
       doc.text(`Status: ${order.status}`);
       doc.text(`Created: ${order.createdAt.toISOString()}`);
@@ -206,7 +208,7 @@ export class BillingPaymentOrdersService {
         .fontSize(9)
         .fillColor("#7F8C8D")
         .text(
-          "This document is a technical stub for testing. Not a fiscal invoice.",
+          "SaaS payment record for DayDay ERP. Not a fiscal / VAT invoice. / Vergi qaiməsi deyil.",
           { align: "left" },
         );
 

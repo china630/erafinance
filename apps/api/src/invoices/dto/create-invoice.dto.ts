@@ -93,4 +93,17 @@ export class CreateInvoiceDto {
   @IsNumber()
   @Min(0.0000001)
   fxRateToAzn?: number;
+
+  @ApiPropertyOptional({
+    description: "International (export) invoice. Skips local DVX prefill flow.",
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isInternational?: boolean;
+
+  @ApiPropertyOptional({ description: "PSA / project link (optional)" })
+  @IsOptional()
+  @IsUUID()
+  projectId?: string;
 }

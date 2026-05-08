@@ -2,12 +2,17 @@ import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
   DeleteObjectCommand,
+  GetBucketVersioningCommand,
   GetObjectCommand,
+  GetObjectLockConfigurationCommand,
+  PutBucketVersioningCommand,
   PutObjectCommand,
+  PutObjectLockConfigurationCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import type { Readable } from "node:stream";
 import type { StorageService, StoredObjectMeta } from "./storage.interface";
+import { objectLockRetainUntilForKey } from "./storage.constants";
 
 /**
  * S3-compatible (AWS S3, DigitalOcean Spaces, MinIO). Requires S3_* environment variables.
@@ -18,6 +23,7 @@ export class S3StorageService implements StorageService {
   private client!: S3Client;
   private bucket!: string;
   private publicBaseUrl?: string;
+  private bucketFeaturesWarned = false;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -38,6 +44,56 @@ export class S3StorageService implements StorageService {
       credentials: { accessKeyId, secretAccessKey },
     });
     this.logger.log(`S3 storage bucket=${this.bucket} endpoint=${endpoint ?? "default"}`);
+    void this.ensureBucketVersioningAndObjectLock().catch((e) =>
+      this.logger.warn(
+        `S3 versioning/object-lock bootstrap skipped: ${e instanceof Error ? e.message : String(e)}`,
+      ),
+    );
+  }
+
+  /** Idempotent: enable versioning, then default object lock (COMPLIANCE) where supported. */
+  async ensureBucketVersioningAndObjectLock(): Promise<void> {
+    const cur = await this.client.send(
+      new GetBucketVersioningCommand({ Bucket: this.bucket }),
+    );
+    if (cur.Status !== "Enabled") {
+      await this.client.send(
+        new PutBucketVersioningCommand({
+          Bucket: this.bucket,
+          VersioningConfiguration: { Status: "Enabled" },
+        }),
+      );
+      this.logger.log(`S3 bucket versioning enabled for ${this.bucket}`);
+    }
+
+    try {
+      const lockCur = await this.client.send(
+        new GetObjectLockConfigurationCommand({ Bucket: this.bucket }),
+      );
+      if (!lockCur.ObjectLockConfiguration?.ObjectLockEnabled) {
+        await this.client.send(
+          new PutObjectLockConfigurationCommand({
+            Bucket: this.bucket,
+            ObjectLockConfiguration: {
+              ObjectLockEnabled: "Enabled",
+              Rule: {
+                DefaultRetention: {
+                  Mode: "COMPLIANCE",
+                  Years: 1,
+                },
+              },
+            },
+          }),
+        );
+        this.logger.log(`S3 object lock (default COMPLIANCE 1y) enabled for ${this.bucket}`);
+      }
+    } catch (e) {
+      this.logger.warn(
+        `S3 object lock configuration not applied (bucket may predate Object Lock): ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    }
   }
 
   async putObject(
@@ -51,14 +107,38 @@ export class S3StorageService implements StorageService {
         : Buffer.isBuffer(body)
           ? body
           : Buffer.from(body as Uint8Array);
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: bodyForSdk,
-        ContentType: options?.contentType,
-      }),
-    );
+
+    const retainUntil = objectLockRetainUntilForKey(key);
+    const putBase = {
+      Bucket: this.bucket,
+      Key: key,
+      Body: bodyForSdk,
+      ContentType: options?.contentType,
+    } as const;
+
+    if (retainUntil) {
+      try {
+        await this.client.send(
+          new PutObjectCommand({
+            ...putBase,
+            ObjectLockMode: "COMPLIANCE",
+            ObjectLockRetainUntilDate: retainUntil,
+          }),
+        );
+      } catch (e) {
+        if (!this.bucketFeaturesWarned) {
+          this.bucketFeaturesWarned = true;
+          this.logger.warn(
+            `S3 putObject with Object Lock failed for ${key}; retrying without lock. ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+          );
+        }
+        await this.client.send(new PutObjectCommand({ ...putBase }));
+      }
+    } else {
+      await this.client.send(new PutObjectCommand({ ...putBase }));
+    }
     return { key, contentType: options?.contentType, size: bodyForSdk.length };
   }
 

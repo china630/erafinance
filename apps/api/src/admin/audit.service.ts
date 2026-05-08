@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { Prisma } from "@dayday/database";
 import { PrismaService } from "../prisma/prisma.service";
+import { decryptText } from "../security/pii-crypto.util";
 
 export type SemanticAuditAction = "CREATE" | "UPDATE" | "DELETE" | "OTHER";
 
@@ -19,17 +20,15 @@ export function httpMethodToSemanticAction(method: string): SemanticAuditAction 
 }
 
 function userDisplayName(u: {
-  fullName: string | null;
-  firstName: string | null;
-  lastName: string | null;
+  firstNameCipher: string | null;
+  lastNameCipher: string | null;
   email: string;
 }): string {
-  const fn = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+  const firstName = u.firstNameCipher ? decryptText(u.firstNameCipher) : null;
+  const lastName = u.lastNameCipher ? decryptText(u.lastNameCipher) : null;
+  const fn = [firstName, lastName].filter(Boolean).join(" ").trim();
   if (fn) {
     return fn;
-  }
-  if (u.fullName?.trim()) {
-    return u.fullName.trim();
   }
   return u.email;
 }
@@ -103,9 +102,8 @@ export class AdminAuditLogsService {
             select: {
               id: true,
               email: true,
-              fullName: true,
-              firstName: true,
-              lastName: true,
+              firstNameCipher: true,
+              lastNameCipher: true,
             },
           },
         },

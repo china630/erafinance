@@ -3,7 +3,10 @@ description: DayDay ERP — карта модулей (якорь API ↔ Web �
 globs:
   - apps/api/**
   - apps/web/**
+  - apps/extension/**
   - packages/database/**
+  - packages/api-contracts/**
+  - packages/i18n/**
 alwaysApply: false
 ---
 
@@ -32,11 +35,14 @@ alwaysApply: false
 | Курсы валют (`fx`) | `fx/` | — | UI может быть в банке/отчётах |
 | Глобальный справочник компаний (`global-directory`) | `global-directory/` | `companies/`, `crm/counterparties/`, `settings/organization/` | вместе с орг. и CRM |
 | HR и зарплата (`hr`) | `hr/` | `hr/`, `employees/`, `payroll/` | расчёт ЗП на API внутри `hr`; `apps/api/src/payroll/` — вспомогательный код |
-| Интеграции (`integrations`) | `integrations/` | `admin/integrations/` | health и проч. |
+| Интеграции (`integrations`) | `integrations/` | `admin/integrations/` | health, bulk excel fallback (`apps/api/src/integrations/**`) и sync-run |
+| OCR импорт инвойсов (`ocr`) | `ocr/` | `purchases/` | AI распознавание foreign invoices, очередь и статусы |
+| Таможня / BGD (`customs`) | `customs/` | `customs/` | декларации BGD, привязка к purchase transaction |
 | Склад (`inventory`, `stock`) | `inventory/` + `stock/` | `inventory/` | `stock` — подмодуль Nest |
 | Счета продаж (`invoices`) | `invoices/` | `sales/invoices/` | |
 | Касса и денежные средства (`kassa`, `treasury`) | `kassa/` + `treasury/` | `(app)/banking/cash/`, `(app)/banking/money/`, `banking/` | кассы и денежные потоки |
-| Производство (`manufacturing`) | `manufacturing/` | `manufacturing/` | |
+| Производство (`manufacturing`) | `manufacturing/` (+ overhead в том же модуле) | `manufacturing/` | overhead: `manufacturing-overhead.*` |
+| PSA / проекты (`psa`) | `psa/` | `psa/projects/` | billable hours, `InvoicesService` + `projectId` |
 | Миграция данных (`migration`) | `migration/` | `settings/migration/` | |
 | Компании и холдинг (`organizations`) | `organizations/` | `companies/`, `holding/`, `settings/organization/` | |
 | Каталог / номенклатура (`products`) | `products/` | `catalog/products/` | |
@@ -45,6 +51,14 @@ alwaysApply: false
 | Налоговый экспорт (`tax`) | `tax/` | `reporting/tax-export/` | |
 | Доступ и роли (`access`) | `access/` | `settings/team/` | ACL, без отдельного раздела «access» на web |
 | Подписка и квоты (`subscription`, `quota`) | `subscription/` + `quota/` | `settings/subscription/`, `admin/billing/` | |
+| **DayDay Assistant** (browser extension RPA) | — | — | `apps/extension/` (WXT, MV3); Magic Auth + коннекторы порталов (`apps/extension/src/connectors/emas/**`, `apps/extension/src/connectors/etaxes/**`, `apps/extension/src/connectors/customs/**`); см. **TZ §13.6**, **TZ §20** |
+
+## Shared packages (web + extension + API types)
+
+| Пакет | Путь | Назначение |
+|-------|------|------------|
+| `@dayday/api-contracts` | `packages/api-contracts/` | Zod-схемы общих DTO (auth snapshot, subscription, HR prefill для расширения). |
+| `@dayday/i18n` | `packages/i18n/` | `resources` (веб) + `extensionResources` (`extension.*`); импорт в `apps/web/lib/i18n/resources.ts`. |
 
 ## Инфраструктура и поперечные слои (в основном только API)
 

@@ -7,6 +7,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Job, Worker } from "bullmq";
 import { PrismaService } from "../prisma/prisma.service";
+import { attachWorkerFailureAlert } from "../queue/bullmq-worker-alerts";
 import { connectionFromRedisUrl } from "../queue/bullmq.config";
 import { AuditService } from "../audit/audit.service";
 import { BankingGatewayService } from "./banking-gateway.service";
@@ -37,9 +38,12 @@ export class BankBalancesSyncWorker implements OnModuleInit, OnModuleDestroy {
       async (job: Job) => this.handle(job),
       { connection },
     );
-    this.worker.on("failed", (job, err) => {
-      this.logger.error(`Job ${job?.id} failed: ${err?.message}`);
-    });
+    attachWorkerFailureAlert(
+      this.worker,
+      BANK_BALANCES_SYNC_QUEUE,
+      this.logger,
+      this.config.get<string>("DAYDAY_BULLMQ_ALERT_WEBHOOK_URL") ?? undefined,
+    );
   }
 
   async onModuleDestroy(): Promise<void> {

@@ -62,10 +62,16 @@ export function PurchaseModal({
   open,
   onClose,
   onSaved,
+  prefill,
 }: {
   open: boolean;
   onClose: () => void;
   onSaved?: () => void;
+  prefill?: {
+    supplier?: { name?: string };
+    issueDate?: string;
+    currency?: string;
+  } | null;
 }) {
   const { t } = useTranslation();
   const [counterpartyId, setCounterpartyId] = useState("");
@@ -106,6 +112,12 @@ export function PurchaseModal({
     setFieldErrors({});
     setBusy(false);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !prefill) return;
+    if (prefill.issueDate) setDocumentDate(prefill.issueDate.slice(0, 10));
+    if (prefill.currency) setCurrency(prefill.currency);
+  }, [open, prefill]);
 
   function err(path: string): string | undefined {
     return fieldErrors[path];

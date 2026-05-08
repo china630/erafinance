@@ -13,6 +13,7 @@ import {
   parseIsoDateOnly,
 } from "../reporting/reporting-period.util";
 import { runWithTenantContextAsync } from "../prisma/tenant-context";
+import { decodeOrganizationTaxId, decryptText } from "../security/pii-crypto.util";
 
 type Decimal = Prisma.Decimal;
 const Decimal = Prisma.Decimal;
@@ -144,8 +145,8 @@ export class HoldingsReportingService {
       select: {
         id: true,
         organizationId: true,
-        name: true,
-        taxId: true,
+        nameCipher: true,
+        taxIdCipher: true,
       },
       orderBy: { createdAt: "desc" },
       take: 250,
@@ -153,21 +154,22 @@ export class HoldingsReportingService {
 
     const riskyCounterparties = [];
     for (const cp of counterparties) {
-      if (!/^\d{10}$/.test(cp.taxId ?? "")) continue;
+      const taxId = cp.taxIdCipher ? decryptText(cp.taxIdCipher) ?? "" : "";
+      if (!/^\d{10}$/.test(taxId)) continue;
       try {
-        const lookup = await this.taxpayerIntegration.lookupTaxpayerByVoen(cp.taxId);
+        const lookup = await this.taxpayerIntegration.lookupTaxpayerByVoen(taxId);
         if (lookup.isRiskyTaxpayer !== true) continue;
         riskyCounterparties.push({
           organizationId: cp.organizationId,
           organizationName: orgNameById.get(cp.organizationId) ?? "—",
           counterpartyId: cp.id,
-          name: cp.name,
-          taxId: cp.taxId,
+          name: cp.nameCipher ? decryptText(cp.nameCipher) ?? "" : "",
+          taxId,
           isRiskyTaxpayer: lookup.isRiskyTaxpayer,
         });
       } catch (e) {
         this.logger.warn(
-          `Holding tax risk lookup failed taxId=${cp.taxId}: ${
+          `Holding tax risk lookup failed taxId=${taxId}: ${
             e instanceof Error ? e.message : String(e)
           }`,
         );
@@ -249,7 +251,7 @@ export class HoldingsReportingService {
       const row = {
         organizationId: org.id,
         organizationName: org.name,
-        taxId: org.taxId,
+        taxId: decodeOrganizationTaxId(org),
         currency: cur,
         cashBankBalance: cash.toFixed(4),
         cashBankInHoldingBase: null as string | null,
@@ -345,7 +347,7 @@ export class HoldingsReportingService {
       organizations.push({
         organizationId: org.id,
         organizationName: org.name,
-        taxId: org.taxId,
+        taxId: decodeOrganizationTaxId(org),
         currency: cur,
         netProfit: pnl.netProfit,
         netProfitInHoldingBase: null as string | null,

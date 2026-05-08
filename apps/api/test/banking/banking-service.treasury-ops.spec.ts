@@ -41,6 +41,7 @@ describe("BankingService treasury operations", () => {
       {} as any,
       accounting,
       {} as any,
+      {} as any,
     );
     return { service, accounting, prisma };
   }

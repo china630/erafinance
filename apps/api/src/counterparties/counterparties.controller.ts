@@ -23,6 +23,12 @@ import { CreateCounterpartyDto } from "./dto/create-counterparty.dto";
 import { MergeCounterpartiesDto } from "./dto/merge-counterparties.dto";
 import { UpdateCounterpartyDto } from "./dto/update-counterparty.dto";
 import { CounterpartiesService } from "./counterparties.service";
+import {
+  blindIndex,
+  encryptText,
+  normalizeName,
+  normalizeVoen,
+} from "../security/pii-crypto.util";
 
 @ApiTags("counterparties")
 @ApiBearerAuth("bearer")
@@ -44,6 +50,11 @@ export class CounterpartiesController {
     @Query("cashParty") cashParty?: "incoming" | "outgoing",
   ) {
     const searchTrim = search?.trim() ?? "";
+    const exactVoen = searchTrim.replace(/\D/g, "");
+    const exactVoenBlind =
+      exactVoen.length === 10
+        ? blindIndex("voen", normalizeVoen(exactVoen))
+        : null;
     const parsedLimit = limitRaw ? Number.parseInt(limitRaw, 10) : NaN;
     const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 50) : undefined;
     const take =
@@ -56,13 +67,12 @@ export class CounterpartiesController {
           ? { role: { in: [CounterpartyRole.SUPPLIER, CounterpartyRole.BOTH] } }
           : {};
 
-    const voenDigits = searchTrim.replace(/\D/g, "");
     const searchOr =
       searchTrim.length > 0
         ? [
-            { name: { contains: searchTrim, mode: "insensitive" as const } },
-            ...(voenDigits.length > 0
-              ? [{ taxId: { contains: voenDigits, mode: "insensitive" as const } }]
+            { global: { name: { contains: searchTrim, mode: "insensitive" as const } } },
+            ...(exactVoenBlind
+              ? [{ taxIdBlindIndex: exactVoenBlind }]
               : []),
           ]
         : null;
@@ -73,7 +83,7 @@ export class CounterpartiesController {
         ...roleFilter,
         ...(searchOr && searchOr.length > 0 ? { OR: searchOr } : {}),
       },
-      orderBy: { name: "asc" },
+      orderBy: { createdAt: "desc" },
       include: { global: true },
       ...(take !== undefined ? { take } : {}),
     });
@@ -139,8 +149,12 @@ export class CounterpartiesController {
       throw new ConflictException("name is required");
     }
     const taxId = dto.taxId.trim();
+    const taxIdBlindIndex = blindIndex("voen", normalizeVoen(taxId));
     const dup = await this.prisma.counterparty.findFirst({
-      where: { organizationId: orgId, taxId },
+      where: {
+        organizationId: orgId,
+        taxIdBlindIndex,
+      },
     });
     if (dup) {
       throw new ConflictException(
@@ -165,8 +179,12 @@ export class CounterpartiesController {
           role: dto.role ?? CounterpartyRole.CUSTOMER,
           legalForm: dto.legalForm,
           address: dto.address ?? null,
+          country: dto.country?.trim().toUpperCase() || null,
           email: dto.email?.trim() || null,
           isVatPayer: dto.isVatPayer ?? linked.isVatPayer ?? false,
+          nameCipher: encryptText(normalizeName(name)),
+          taxIdCipher: encryptText(normalizeVoen(taxId)),
+          taxIdBlindIndex,
           ...(dto.portalLocale !== undefined && {
             portalLocale: dto.portalLocale,
           }),
@@ -193,12 +211,14 @@ export class CounterpartiesController {
     const created = await this.prisma.counterparty.create({
       data: {
         organizationId: orgId,
-        name,
-        taxId,
+        nameCipher: encryptText(normalizeName(name)),
+        taxIdCipher: encryptText(normalizeVoen(taxId)),
+        taxIdBlindIndex,
         kind,
         role: dto.role ?? CounterpartyRole.CUSTOMER,
         legalForm: dto.legalForm,
         address: dto.address ?? null,
+        country: dto.country?.trim().toUpperCase() || null,
         email: dto.email?.trim() || null,
         isVatPayer: dto.isVatPayer ?? false,
         ...(dto.portalLocale !== undefined && {
@@ -225,11 +245,17 @@ export class CounterpartiesController {
     if (!existing) {
       throw new NotFoundException("Counterparty not found");
     }
-    if (dto.taxId !== undefined && dto.taxId.trim() !== existing.taxId) {
+    if (dto.taxId !== undefined) {
+      const nextTaxId = dto.taxId.trim();
+      const nextTaxIdBlindIndex = blindIndex("voen", normalizeVoen(nextTaxId));
+      const sameAsCurrent = existing.taxIdBlindIndex === nextTaxIdBlindIndex;
+      if (sameAsCurrent) {
+        // no-op for duplicate check when taxId didn't really change
+      } else {
       const dup = await this.prisma.counterparty.findFirst({
         where: {
           organizationId: orgId,
-          taxId: dto.taxId.trim(),
+          taxIdBlindIndex: nextTaxIdBlindIndex,
           NOT: { id },
         },
       });
@@ -237,6 +263,7 @@ export class CounterpartiesController {
         throw new ConflictException(
           "A counterparty with this VÖEN already exists in the organization",
         );
+      }
       }
     }
     const kindPatch =
@@ -246,12 +273,18 @@ export class CounterpartiesController {
     const updated = await this.prisma.counterparty.update({
       where: { id },
       data: {
-        ...(dto.name !== undefined && { name: dto.name.trim() }),
-        ...(dto.taxId !== undefined && { taxId: dto.taxId.trim() }),
+        ...(dto.name !== undefined && {
+          nameCipher: encryptText(normalizeName(dto.name.trim())),
+        }),
+        ...(dto.taxId !== undefined && {
+          taxIdCipher: encryptText(normalizeVoen(dto.taxId.trim())),
+          taxIdBlindIndex: blindIndex("voen", normalizeVoen(dto.taxId.trim())),
+        }),
         ...kindPatch,
         ...(dto.role !== undefined && { role: dto.role }),
         ...(dto.legalForm !== undefined && { legalForm: dto.legalForm }),
         ...(dto.address !== undefined && { address: dto.address || null }),
+        ...(dto.country !== undefined && { country: dto.country?.trim().toUpperCase() || null }),
         ...(dto.email !== undefined && { email: dto.email?.trim() || null }),
         ...(dto.isVatPayer !== undefined && { isVatPayer: dto.isVatPayer }),
         ...(dto.portalLocale !== undefined && {

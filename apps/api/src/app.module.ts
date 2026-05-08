@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
 import { ConfigModule } from "@nestjs/config";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { SentryGlobalFilter, SentryModule } from "@sentry/nestjs/setup";
 import { apiEnvFilePaths } from "./load-env-paths";
 import { APP_GUARD } from "@nestjs/core";
@@ -24,6 +25,7 @@ import { HrModule } from "./hr/hr.module";
 import { IntegrationsModule } from "./integrations/integrations.module";
 import { InventoryModule } from "./inventory/inventory.module";
 import { ManufacturingModule } from "./manufacturing/manufacturing.module";
+import { PsaModule } from "./psa/psa.module";
 import { MailModule } from "./mail/mail.module";
 import { ReportingModule } from "./reporting/reporting.module";
 import { InvoicesModule } from "./invoices/invoices.module";
@@ -31,6 +33,7 @@ import { KassaModule } from "./kassa/kassa.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { SubscriptionModule } from "./subscription/subscription.module";
 import { QuotaModule } from "./quota/quota.module";
+import { PrepaidModule } from "./prepaid/prepaid.module";
 import { ProductsModule } from "./products/products.module";
 import { StorageModule } from "./storage/storage.module";
 import { TaxModule } from "./tax/tax.module";
@@ -41,6 +44,10 @@ import { TenantContextInterceptor } from "./prisma/tenant-context.interceptor";
 import { TreasuryModule } from "./treasury/treasury.module";
 import { ReportsModule } from "./reports/reports.module";
 import { NotificationModule } from "./notifications/notification.module";
+import { OcrModule } from "./ocr/ocr.module";
+import { CustomsModule } from "./customs/customs.module";
+import { PlatformRecoveryModule } from "./platform-recovery/platform-recovery.module";
+import { DisputeFreezeGuard } from "./platform-recovery/dispute/dispute-freeze.guard";
 
 const apiEnvFiles = apiEnvFilePaths();
 
@@ -52,6 +59,9 @@ const apiEnvFiles = apiEnvFilePaths();
       envFilePath: apiEnvFiles.length ? apiEnvFiles : [".env"],
     }),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: "default", ttl: 60_000, limit: 600 }],
+    }),
     AuthModule,
     MailModule,
     PrismaModule,
@@ -64,10 +74,12 @@ const apiEnvFiles = apiEnvFilePaths();
     AccountsModule,
     CounterpartiesModule,
     ProductsModule,
+    PrepaidModule,
     InventoryModule,
     FixedAssetsModule,
     MigrationModule,
     ManufacturingModule,
+    PsaModule,
     InvoicesModule,
     BankingModule,
     KassaModule,
@@ -82,6 +94,9 @@ const apiEnvFiles = apiEnvFilePaths();
     TreasuryModule,
     ReportsModule,
     NotificationModule,
+    OcrModule,
+    CustomsModule,
+    PlatformRecoveryModule,
   ],
   controllers: [AppController],
   providers: [
@@ -91,7 +106,15 @@ const apiEnvFiles = apiEnvFilePaths();
     },
     {
       provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: DisputeFreezeGuard,
     },
     {
       provide: APP_GUARD,

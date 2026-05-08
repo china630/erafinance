@@ -52,6 +52,10 @@ export type OrganizationModuleEntitlements = {
   bankingPro: boolean;
   /** Расширенный HR (add-on); legacy без customConfig — true (без замка в UI). */
   hrFull: boolean;
+  /** Tax module (DVX/e-taxes). */
+  taxPro: boolean;
+  /** Customs / e-customs widget capture (trade). */
+  tradePro: boolean;
 };
 
 /** v8.1: снимок поля custom_config (конструктор тарифа). */
@@ -90,6 +94,8 @@ function entitlementsFromConstructorModules(
     ifrsMapping: has("ifrs") || has("ifrs_mapping"),
     bankingPro: has("banking_pro") || has("kassa") || has("kassa_pro"),
     hrFull: has("hr_full"),
+    taxPro: has("tax_pro"),
+    tradePro: has("trade_pro"),
   };
 }
 
@@ -125,6 +131,8 @@ function emptyOrganizationSnapshot(): {
       ifrsMapping: false,
       bankingPro: false,
       hrFull: false,
+      taxPro: false,
+      tradePro: false,
     },
     expiresAt: null,
     isTrial: false,
@@ -154,6 +162,8 @@ function computeEntitlementsLegacy(sub: {
       has("kassa_pro"),
     /** Legacy: расширенный HR не блокировался отдельно — оставляем открытым. */
     hrFull: true,
+    taxPro: has("tax_pro"),
+    tradePro: has("trade_pro"),
   };
 }
 
@@ -177,6 +187,8 @@ function computeEntitlements(sub: {
       ifrsMapping: true,
       bankingPro: true,
       hrFull: true,
+      taxPro: true,
+      tradePro: true,
     };
   }
   const customList = parseCustomModules(safe.customConfig);
@@ -210,6 +222,12 @@ function isAllowedByConstructorModules(
       return has("kassa_pro") || has("banking_pro") || has("kassa");
     case "hr_full":
       return has("hr_full");
+    case "tax_pro":
+      return has("tax_pro");
+    case "trade_pro":
+      return has("trade_pro");
+    case "recovery_pro":
+      return has("recovery_pro");
     default:
       return has(key);
   }
@@ -336,6 +354,17 @@ export class SubscriptionAccessService {
       case "hr_full":
         allowed = ent.hrFull;
         break;
+      case "tax_pro":
+        allowed = ent.taxPro;
+        break;
+      case "trade_pro":
+        allowed = ent.tradePro;
+        break;
+      case "recovery_pro":
+        allowed = new Set(normalizeActiveModules(sub.activeModules)).has(
+          "recovery_pro",
+        );
+        break;
       default:
         allowed = new Set(normalizeActiveModules(sub.activeModules)).has(
           String(moduleKey),
@@ -403,9 +432,7 @@ export class SubscriptionAccessService {
         await this.prisma.organizationSubscription.update({
           where: { organizationId: id },
           data: {
-            tier: SubscriptionTier.STARTER,
             isTrial: false,
-            activeModules: [],
           },
         });
         const refreshed = await this.prisma.organizationSubscription.findUnique({
@@ -466,6 +493,9 @@ export class SubscriptionAccessService {
       inventory?: boolean;
       manufacturing?: boolean;
       hr_full?: boolean;
+      tax_pro?: boolean;
+      trade_pro?: boolean;
+      recovery_pro?: boolean;
       ifrs_mapping?: boolean;
     },
     tx?: Prisma.TransactionClient,
@@ -490,6 +520,9 @@ export class SubscriptionAccessService {
     apply("inventory", patch.inventory);
     apply("manufacturing", patch.manufacturing);
     apply("hr_full", patch.hr_full);
+    apply("tax_pro", patch.tax_pro);
+    apply("trade_pro", patch.trade_pro);
+    apply("recovery_pro", patch.recovery_pro);
     apply("ifrs_mapping", patch.ifrs_mapping);
 
     if (patch.production === true) {

@@ -23,6 +23,13 @@ import { IfrsAutoMappingService } from "../accounting/ifrs-auto-mapping.service"
 import { apiEnvFilePaths } from "../load-env-paths";
 import { PrismaModule } from "../prisma/prisma.module";
 import { PrismaService } from "../prisma/prisma.service";
+import {
+  blindIndex,
+  decryptText,
+  encryptText,
+  normalizeName,
+  normalizeVoen,
+} from "../security/pii-crypto.util";
 
 const Decimal = Prisma.Decimal;
 const OWNER_EMAIL = "shirinov.chingiz@gmail.com";
@@ -80,9 +87,9 @@ async function createOrGetOwner(prisma: PrismaService) {
     data: {
       email: OWNER_EMAIL,
       passwordHash,
-      firstName: "Chingiz",
-      lastName: "Shirinov",
-      fullName: "Chingiz Shirinov",
+      firstNameCipher: encryptText(normalizeName("Chingiz")),
+      lastNameCipher: encryptText(normalizeName("Shirinov")),
+      fullNameCipher: encryptText(normalizeName("Chingiz Shirinov")),
     },
   });
 }
@@ -94,14 +101,15 @@ async function recreateOrganization(
   config: OrgSeedConfig,
 ) {
   await prisma.organization.deleteMany({
-    where: { taxId: config.taxId },
+    where: { taxIdBlindIndex: blindIndex("voen", normalizeVoen(config.taxId)) },
   });
 
   await prisma.$transaction(async (tx) => {
     const organization = await tx.organization.create({
       data: {
         name: config.name,
-        taxId: config.taxId,
+        taxIdBlindIndex: blindIndex("voen", normalizeVoen(config.taxId)),
+        taxIdCipher: encryptText(normalizeVoen(config.taxId)),
         currency: "AZN",
         legalAddress: config.legalAddress,
         phone: config.phone,
@@ -214,8 +222,9 @@ async function recreateOrganization(
       const created = await tx.counterparty.create({
         data: {
           organizationId: organization.id,
-          name: cp.name,
-          taxId: cp.taxId,
+          nameCipher: encryptText(normalizeName(cp.name)),
+          taxIdCipher: encryptText(normalizeVoen(cp.taxId)),
+          taxIdBlindIndex: blindIndex("voen", normalizeVoen(cp.taxId)),
           role: cp.role,
           kind: cp.kind,
           legalForm: "LLC",
@@ -927,8 +936,15 @@ async function bootstrap() {
     });
 
     const organizations = await prisma.organization.findMany({
-      where: { taxId: { in: ["3700543341", "3701329841"] } },
-      select: { id: true, name: true, taxId: true },
+      where: {
+        taxIdBlindIndex: {
+          in: [
+            blindIndex("voen", "3700543341"),
+            blindIndex("voen", "3701329841"),
+          ],
+        },
+      },
+      select: { id: true, name: true, taxIdCipher: true },
     });
     for (const org of organizations) {
       const cashRows = await prisma.journalEntry.findMany({
@@ -944,8 +960,9 @@ async function bootstrap() {
         new Decimal(0),
       );
       if (net.lt(0)) {
+        const taxId = org.taxIdCipher ? decryptText(org.taxIdCipher) ?? "—" : "—";
         throw new Error(
-          `Cash balance is negative for ${org.name} (${org.taxId}): ${net.toFixed(2)} AZN`,
+          `Cash balance is negative for ${org.name} (${taxId}): ${net.toFixed(2)} AZN`,
         );
       }
       console.log(`Cash balance check OK for ${org.name}: ${net.toFixed(2)} AZN`);

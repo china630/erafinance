@@ -18,6 +18,7 @@ import { parseLedgerTypeQuery } from "../common/ledger-type.util";
 import { MailService } from "../mail/mail.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReportingService } from "../reporting/reporting.service";
+import { decryptText } from "../security/pii-crypto.util";
 import { CashFlowService } from "./cash-flow.service";
 import { FinancialReportService } from "./financial-report.service";
 import { cashFlowPdfBuffer, cashFlowXlsxBuffer } from "./report-export.util";
@@ -26,6 +27,7 @@ const RECON_ROLES = [
   UserRole.OWNER,
   UserRole.ADMIN,
   UserRole.ACCOUNTANT,
+  UserRole.DIRECTOR,
   UserRole.USER,
   UserRole.AUDITOR,
   UserRole.WAREHOUSE_KEEPER,
@@ -290,7 +292,7 @@ export class ReportsController {
     );
     await this.mail.sendMail({
       to: email,
-      subject: `Акт сверки ${cp.name} (${from} — ${to})`,
+      subject: `Акт сверки ${cp.nameCipher ? decryptText(cp.nameCipher) ?? "" : ""} (${from} — ${to})`,
       text: `Во вложении акт сверки взаиморасчётов за период ${from} — ${to}.`,
       attachments: [
         {

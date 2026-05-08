@@ -44,6 +44,7 @@ import type { CreateWarehouseBinDto } from "./dto/create-warehouse-bin.dto";
 import type { CreateWarehouseReceiptDto } from "./dto/create-warehouse-receipt.dto";
 import type { CreateWarehouseShipmentDto } from "./dto/create-warehouse-shipment.dto";
 import type { CreateTransferDto, TransferLineDto } from "./dto/create-transfer.dto";
+import { assertWarehouseNotUnderReconciliation } from "./inventory-reconciliation-lock";
 
 type Decimal = Prisma.Decimal;
 const Decimal = Prisma.Decimal;
@@ -1277,6 +1278,8 @@ export class InventoryService {
         throw new NotFoundException("Warehouse not found");
       }
 
+      await assertWarehouseNotUnderReconciliation(tx, organizationId, dto.warehouseId);
+
       const basisId = dto.basisTransactionId;
       const tr = await tx.transaction.findFirst({
         where: { id: basisId, organizationId },
@@ -1515,6 +1518,8 @@ export class InventoryService {
       if (!wh) {
         throw new NotFoundException("Warehouse not found");
       }
+
+      await assertWarehouseNotUnderReconciliation(tx, organizationId, dto.warehouseId);
 
       if (dto.basisTransactionId) {
         const tr = await tx.transaction.findFirst({
@@ -1815,6 +1820,9 @@ export class InventoryService {
 
     return this.prisma.$transaction(async (tx) => {
       const documentDate = new Date();
+      await assertWarehouseNotUnderReconciliation(tx, organizationId, dto.fromWarehouseId);
+      await assertWarehouseNotUnderReconciliation(tx, organizationId, dto.toWarehouseId);
+
       const src = await tx.stockItem.findUnique({
         where: {
           organizationId_warehouseId_productId: {
@@ -2096,6 +2104,15 @@ export class InventoryService {
         }
       }
 
+      const whIds = new Set<string>();
+      for (const line of lines) {
+        whIds.add(line.sourceWarehouseId);
+        whIds.add(line.targetWarehouseId);
+      }
+      for (const wid of whIds) {
+        await assertWarehouseNotUnderReconciliation(tx, organizationId, wid);
+      }
+
       const docBatch = randomUUID();
 
       for (let i = 0; i < lines.length; i++) {
@@ -2264,6 +2281,8 @@ export class InventoryService {
       return;
     }
 
+    await assertWarehouseNotUnderReconciliation(tx, organizationId, whId);
+
     let totalCogs = new Decimal(0);
 
     for (const line of lines) {
@@ -2386,6 +2405,8 @@ export class InventoryService {
       where: { id: dto.warehouseId, organizationId },
     });
     if (!wh) throw new NotFoundException("Warehouse not found");
+
+    await assertWarehouseNotUnderReconciliation(tx, organizationId, dto.warehouseId);
 
     const product = await tx.product.findFirst({
       where: { id: dto.productId, organizationId },
@@ -2783,6 +2804,8 @@ export class InventoryService {
         0,
       ),
     );
+
+    await assertWarehouseNotUnderReconciliation(tx, organizationId, draft.warehouseId);
 
     const org = await tx.organization.findUnique({
       where: { id: organizationId },

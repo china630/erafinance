@@ -31,6 +31,7 @@ import {
 } from "../../lib/design-system";
 import { CreateEmployeeModal } from "./employee-modal";
 import { EditEmployeeModal } from "./edit-employee-modal";
+import { RpaUpsellModal } from "../../components/rpa-upsell-modal";
 
 type Employee = {
   id: string;
@@ -64,6 +65,8 @@ export default function EmployeesPage() {
   const pageSize = 20;
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [upsellOpen, setUpsellOpen] = useState(false);
   const load = useCallback(async () => {
     if (!token) {
       setRows([]);
@@ -102,6 +105,48 @@ export default function EmployeesPage() {
     await load();
   }
 
+  function toggleSelected(id: string, checked: boolean) {
+    setSelectedIds((cur) => {
+      if (checked) return Array.from(new Set([...cur, id]));
+      return cur.filter((x) => x !== id);
+    });
+  }
+
+  async function exportBulkExcel() {
+    if (selectedIds.length === 0) return;
+    const res = await apiFetch(
+      `/api/integrations/emas/employees/export.xlsx?ids=${encodeURIComponent(selectedIds.join(","))}`,
+    );
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "emas-employees-export.xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importBulkExcel(file: File) {
+    const fd = new FormData();
+    fd.append("file", file);
+    await apiFetch("/api/integrations/emas/employees/import-result", {
+      method: "POST",
+      body: fd,
+    });
+    await load();
+  }
+
+  function runBulkWidget() {
+    if (!snapshot?.modules.hrFull) {
+      setUpsellOpen(true);
+      return;
+    }
+    window.localStorage.setItem("daydayAssistantBulkFlow", "emuqavile");
+    window.localStorage.setItem("daydayAssistantBulkIds", JSON.stringify(selectedIds));
+    alert("Bulk payload prepared for DayDay Assistant");
+  }
+
   if (!ready) {
     return (
       <div className="text-gray-600">
@@ -116,19 +161,50 @@ export default function EmployeesPage() {
       <PageHeader
         title={t("employees.title")}
         actions={
-          <button
-            type="button"
-            className={`${PRIMARY_BUTTON_CLASS} disabled:opacity-50`}
-            disabled={subReady && Boolean(snapshot?.quotas.employees.atLimit)}
-            title={
-              subReady && snapshot?.quotas.employees.atLimit
-                ? t("subscription.employeesLimitTooltip")
-                : undefined
-            }
-            onClick={() => setCreateOpen(true)}
-          >
-            + {t("employees.newBtn")}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={SECONDARY_BUTTON_CLASS}
+              disabled={selectedIds.length === 0}
+              onClick={runBulkWidget}
+            >
+              {t("bulk.employees.rpa")}
+            </button>
+            <button
+              type="button"
+              className={SECONDARY_BUTTON_CLASS}
+              disabled={selectedIds.length === 0}
+              onClick={() => void exportBulkExcel()}
+            >
+              {t("bulk.employees.export")}
+            </button>
+            <label className={SECONDARY_BUTTON_CLASS}>
+              {t("bulk.employees.import")}
+              <input
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void importBulkExcel(f);
+                  e.currentTarget.value = "";
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className={`${PRIMARY_BUTTON_CLASS} disabled:opacity-50`}
+              disabled={subReady && Boolean(snapshot?.quotas.employees.atLimit)}
+              title={
+                subReady && snapshot?.quotas.employees.atLimit
+                  ? t("subscription.employeesLimitTooltip")
+                  : undefined
+              }
+              onClick={() => setCreateOpen(true)}
+            >
+              + {t("employees.newBtn")}
+            </button>
+          </div>
         }
       />
       {error && <p className="text-red-600 text-sm">{error}</p>}
@@ -178,6 +254,14 @@ export default function EmployeesPage() {
                 <div className="font-semibold text-[#34495E]">
                   {r.lastName} {r.firstName}
                 </div>
+                <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(r.id)}
+                    onChange={(e) => toggleSelected(r.id, e.target.checked)}
+                  />
+                  {t("bulk.employees.select")}
+                </label>
                 <div className="text-[13px] text-[#34495E]">
                   {t("employees.thFin")}:{" "}
                   <span className="font-mono tabular-nums">{r.finCode}</span> ·{" "}
@@ -221,6 +305,15 @@ export default function EmployeesPage() {
               <thead>
                 <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
                   <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("employees.thFin")}</th>
+                  <th className={DATA_TABLE_TH_CENTER_CLASS}>
+                    <input
+                      type="checkbox"
+                      checked={rows.length > 0 && selectedIds.length === rows.length}
+                      onChange={(e) =>
+                        setSelectedIds(e.target.checked ? rows.map((x) => x.id) : [])
+                      }
+                    />
+                  </th>
                   <th className={DATA_TABLE_TH_CENTER_CLASS}>{t("employees.thKind")}</th>
                   <th className={`hidden lg:table-cell ${DATA_TABLE_TH_RIGHT_CLASS}`}>
                     {t("employees.thVoen")}
@@ -240,6 +333,13 @@ export default function EmployeesPage() {
                 {rows.map((r) => (
                   <tr key={r.id} className={DATA_TABLE_TR_CLASS}>
                     <td className={DATA_TABLE_TD_RIGHT_CLASS}>{r.finCode}</td>
+                    <td className={DATA_TABLE_TD_CENTER_CLASS}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(r.id)}
+                        onChange={(e) => toggleSelected(r.id, e.target.checked)}
+                      />
+                    </td>
                     <td className={DATA_TABLE_TD_CENTER_CLASS}>
                       {r.kind === "CONTRACTOR"
                         ? t("employees.kindContractor")
@@ -306,6 +406,7 @@ export default function EmployeesPage() {
         onClose={() => setEditEmployeeId(null)}
         onSaved={() => void load()}
       />
+      <RpaUpsellModal open={upsellOpen} onClose={() => setUpsellOpen(false)} moduleKey="hrFull" />
     </div>
   );
 }

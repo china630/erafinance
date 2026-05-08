@@ -12,6 +12,7 @@ import {
 import { AccountsService } from "../accounts/accounts.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AccessControlService } from "../access/access-control.service";
+import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
 
 @Injectable()
 export class OrganizationsService {
@@ -101,7 +102,7 @@ export class OrganizationsService {
           select: {
             id: true,
             name: true,
-            taxId: true,
+            taxIdCipher: true,
             currency: true,
             holdingId: true,
             holding: { select: { id: true, name: true, baseCurrency: true } },
@@ -134,7 +135,7 @@ export class OrganizationsService {
         free.push({
           id: o.id,
           name: o.name,
-          taxId: o.taxId,
+          taxId: decodeOrganizationTaxId(o),
           currency: o.currency,
         });
         continue;
@@ -152,7 +153,7 @@ export class OrganizationsService {
       cur.organizations.push({
         id: o.id,
         name: o.name,
-        taxId: o.taxId,
+        taxId: decodeOrganizationTaxId(o),
         currency: o.currency,
       });
       byHolding.set(key, cur);

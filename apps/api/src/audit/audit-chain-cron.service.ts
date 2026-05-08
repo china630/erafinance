@@ -1,6 +1,9 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron } from "@nestjs/schedule";
+import { SecurityMode } from "@dayday/database";
+import { MailService } from "../mail/mail.service";
+import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "./audit.service";
 
 @Injectable()
@@ -10,6 +13,8 @@ export class AuditChainCronService {
   constructor(
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
   ) {}
 
   @Cron("0 2 * * *")
@@ -20,7 +25,40 @@ export class AuditChainCronService {
       this.logger.error(
         `Audit chain check failed: ${res.compromisedOrganizations} organization(s), compromisedIds=${res.compromisedIds.join(",")}`,
       );
+      const orgs = await this.prisma.organization.findMany({ select: { id: true } });
+      for (const org of orgs) {
+        const chain = await this.audit.verifyOrganizationChain(org.id);
+        if (chain.compromisedCount === 0) {
+          continue;
+        }
+        try {
+          await this.prisma.organizationSecurityState.upsert({
+            where: { organizationId: org.id },
+            create: {
+              organizationId: org.id,
+              mode: SecurityMode.HARD_BLOCK_PLATFORM,
+            },
+            update: { mode: SecurityMode.HARD_BLOCK_PLATFORM },
+          });
+        } catch (e) {
+          this.logger.warn(
+            `Could not set HARD_BLOCK_PLATFORM for ${org.id}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+      }
       await this.sendExternalCriticalAlert(msg, res.compromisedIds);
+      const admins = await this.prisma.user.findMany({
+        where: { isSuperAdmin: true },
+        select: { email: true },
+      });
+      for (const a of admins) {
+        if (!a.email) continue;
+        await this.mail.sendMail({
+          to: a.email,
+          subject: "DayDay ERP — CRITICAL: audit chain integrity failure",
+          text: msg,
+        });
+      }
       return;
     }
     this.logger.log(

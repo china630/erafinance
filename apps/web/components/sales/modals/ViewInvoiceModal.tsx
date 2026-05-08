@@ -10,6 +10,9 @@ import { formatMoneyAzn } from "../../../lib/format-money";
 import { formatInvoiceStatus } from "../../../lib/invoice-status";
 import { ledgerQueryParam, useLedger } from "../../../lib/ledger-context";
 import { useRequireAuth } from "../../../lib/use-require-auth";
+import { useAuth } from "../../../lib/auth-context";
+import { isRestrictedUserRole } from "../../../lib/role-utils";
+import { ActivityPanel } from "../../activity/ActivityPanel";
 import { SignatureProviderMark } from "../../signature-provider-mark";
 import { EntityAuditHistory } from "../../admin/entity-audit-history";
 import {
@@ -85,6 +88,8 @@ export function ViewInvoiceModal({
   const { t } = useTranslation();
   const id = invoiceId ?? "";
   const { token, ready } = useRequireAuth();
+  const { user } = useAuth();
+  const mayCommentActivity = !isRestrictedUserRole(user?.role ?? undefined);
   const { ledgerType, ready: ledgerReady } = useLedger();
   const [inv, setInv] = useState<InvoiceDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +109,7 @@ export function ViewInvoiceModal({
   const [netAmount, setNetAmount] = useState("");
   const [netBusy, setNetBusy] = useState(false);
   const [netErr, setNetErr] = useState<string | null>(null);
-  const [viewTab, setViewTab] = useState<"details" | "history">("details");
+  const [viewTab, setViewTab] = useState<"details" | "history" | "activity">("details");
   const [shareBusy, setShareBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -381,7 +386,19 @@ export function ViewInvoiceModal({
               >
                 {t("invoiceView.tabHistory")}
               </Button>
+              <Button
+                type="button"
+                variant={viewTab === "activity" ? "secondary" : "ghost"}
+                className={viewTab === "activity" ? "border-[#2980B9]" : ""}
+                onClick={() => setViewTab("activity")}
+              >
+                {t("activityStream.title")}
+              </Button>
               </div>
+
+              {viewTab === "activity" ? (
+                <ActivityPanel entityType="invoice" entityId={id} canComment={mayCommentActivity} />
+              ) : null}
 
               {viewTab === "history" ? (
               <section className="rounded-2xl border border-[#D5DADF] bg-white p-4 shadow-sm">

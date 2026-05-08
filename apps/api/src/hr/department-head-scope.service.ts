@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { decryptText } from "../security/pii-crypto.util";
 
 function norm(v: string | null | undefined): string {
   return (v ?? "").trim().toLowerCase();
@@ -20,15 +21,15 @@ export class DepartmentHeadScopeService {
   ): Promise<string> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { firstName: true, lastName: true, fullName: true },
+      select: { firstNameCipher: true, lastNameCipher: true },
     });
     if (!user) {
       throw new ForbiddenException("User not found for department scope");
     }
 
-    const firstName = norm(user.firstName);
-    const lastName = norm(user.lastName);
-    const fullName = norm(user.fullName);
+    const firstName = norm(user.firstNameCipher ? decryptText(user.firstNameCipher) : null);
+    const lastName = norm(user.lastNameCipher ? decryptText(user.lastNameCipher) : null);
+    const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
     if ((!firstName || !lastName) && !fullName) {
       throw new ForbiddenException(
         "DEPARTMENT_HEAD profile is not linked to a managed department",

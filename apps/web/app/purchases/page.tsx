@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FileSpreadsheet, MoreHorizontal } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../lib/api-client";
 import { formatMoneyAzn } from "../../lib/format-money";
@@ -73,6 +73,8 @@ export default function PurchasesPage() {
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [receiptBasisTransactionId, setReceiptBasisTransactionId] = useState<string | undefined>();
   const [purchaseActionsMenuId, setPurchaseActionsMenuId] = useState<string | null>(null);
+  const [ocrPrefill, setOcrPrefill] = useState<Record<string, unknown> | null>(null);
+  const ocrInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     if (!token) {
@@ -122,6 +124,26 @@ export default function PurchasesPage() {
   }
   if (!token) return null;
 
+  async function onPickOcrFile(file: File | null) {
+    if (!file) return;
+    const fd = new FormData();
+    fd.set("file", file);
+    const upload = await apiFetch("/api/ocr/invoices/upload", { method: "POST", body: fd });
+    if (!upload.ok) return;
+    const created = (await upload.json()) as { id: string };
+    for (let i = 0; i < 20; i++) {
+      const poll = await apiFetch(`/api/ocr/invoices/${created.id}`);
+      if (!poll.ok) break;
+      const data = (await poll.json()) as { status?: string; resultJson?: Record<string, unknown> };
+      if (data.status === "DONE" && data.resultJson) {
+        setOcrPrefill(data.resultJson);
+        setModalOpen(true);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -130,6 +152,9 @@ export default function PurchasesPage() {
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => setModalOpen(true)}>
               + {t("inventory.purchaseNewOpenBtn")}
+            </button>
+            <button type="button" className={SECONDARY_BUTTON_CLASS} onClick={() => ocrInputRef.current?.click()}>
+              {t("trade.import.recognizeAi")}
             </button>
             <Link href="/inventory" className={SECONDARY_BUTTON_CLASS}>
               {t("inventory.backList")}
@@ -225,7 +250,22 @@ export default function PurchasesPage() {
         </div>
       )}
 
-      <PurchaseModal open={modalOpen} onClose={() => setModalOpen(false)} onSaved={() => void load()} />
+      <input
+        ref={ocrInputRef}
+        type="file"
+        className="hidden"
+        accept="application/pdf,image/*"
+        onChange={(e) => void onPickOcrFile(e.target.files?.[0] ?? null)}
+      />
+      <PurchaseModal
+        open={modalOpen}
+        prefill={ocrPrefill as any}
+        onClose={() => {
+          setModalOpen(false);
+          setOcrPrefill(null);
+        }}
+        onSaved={() => void load()}
+      />
 
       <CreateReceiptModal
         open={receiptModalOpen}

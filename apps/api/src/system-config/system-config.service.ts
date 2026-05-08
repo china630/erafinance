@@ -15,6 +15,8 @@ const QUOTA_KEY = (tier: SubscriptionTier) => `quota.tier.${tier}`;
 const FOUNDATION_MONTHLY_KEY = "billing.foundation_monthly_azn";
 const YEARLY_DISCOUNT_KEY = "billing.yearly_discount_percent";
 const QUOTA_UNIT_PRICING_KEY = "billing.quota_unit_pricing_v1";
+/** Positive integer: max OCR jobs created per organization per UTC month (`trade_pro` flows). */
+const OCR_JOBS_PER_ORG_MONTH_KEY = "quota.ocr_jobs_per_org_month_v1";
 
 export type QuotaUnitPricing = {
   employeeBlockSize: number;
@@ -181,6 +183,15 @@ export class SystemConfigService {
     };
     await this.setJson(QUOTA_UNIT_PRICING_KEY, next);
     return next;
+  }
+
+  /**
+   * OCR upload quota (per org, per UTC month). Default 200 when unset; ENTERPRISE bypass in QuotaService.
+   */
+  async getOcrJobsPerOrgMonthLimit(): Promise<number> {
+    const raw = await this.getJson(OCR_JOBS_PER_ORG_MONTH_KEY);
+    const n = toPositiveNum(raw, 200);
+    return Math.max(1, Math.floor(n));
   }
 }
 

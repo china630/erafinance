@@ -30,7 +30,7 @@ type AuditLine = {
 type AuditDetail = {
   id: string;
   date: string;
-  status: "DRAFT" | "APPROVED";
+  status: "DRAFT" | "COUNTING" | "REVIEW" | "COMPLETED" | "CANCELLED";
   warehouseId: string;
   warehouse: { id: string; name: string; inventoryAccountCode: string };
   lines: AuditLine[];
@@ -68,9 +68,13 @@ export function InventoryAuditCreateFlow({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [approving, setApproving] = useState(false);
+  const [workflowBusy, setWorkflowBusy] = useState(false);
   const [savingLineId, setSavingLineId] = useState<string | null>(null);
   const pendingTimers = useRef<Record<string, number>>({});
+  const auditRef = useRef<AuditDetail | null>(null);
+  useEffect(() => {
+    auditRef.current = audit;
+  }, [audit]);
 
   const load = useCallback(async () => {
     if (!token) {
@@ -109,37 +113,96 @@ export function InventoryAuditCreateFlow({
     }
     setCreating(true);
     setError(null);
-    const res = await apiFetch("/api/inventory/audits", {
+    const res = await apiFetch("/api/inventory/reconciliations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: dateStr, status: "DRAFT", warehouseId }),
+      body: JSON.stringify({ date: dateStr, warehouseId }),
     });
-    setCreating(false);
     if (!res.ok) {
+      setCreating(false);
       setError(await res.text());
       return;
     }
-    setAudit((await res.json()) as AuditDetail);
+    const created = (await res.json()) as AuditDetail;
+    const startRes = await apiFetch(
+      `/api/inventory/reconciliations/${encodeURIComponent(created.id)}/start`,
+      { method: "POST" },
+    );
+    setCreating(false);
+    if (!startRes.ok) {
+      setError(await startRes.text());
+      setAudit(created);
+      return;
+    }
+    const detail = await apiFetch(
+      `/api/inventory/reconciliations/${encodeURIComponent(created.id)}`,
+    );
+    if (detail.ok) {
+      setAudit((await detail.json()) as AuditDetail);
+      toast.success(t("inventory.auditOkDraft"));
+    } else {
+      setError(await detail.text());
+    }
   }
 
-  async function approveDraft() {
-    if (!token || approving || !audit?.id) return;
-    if (audit.status !== "DRAFT") {
+  async function submitForReview() {
+    if (!token || workflowBusy || !audit?.id) return;
+    if (audit.status !== "COUNTING") {
       toast.error(t("inventory.auditApproveNotDraft"));
       return;
     }
-    setApproving(true);
+    setWorkflowBusy(true);
     setError(null);
-    const res = await apiFetch(`/api/inventory/audits/${encodeURIComponent(audit.id)}/approve`, {
-      method: "POST",
-    });
-    setApproving(false);
+    const res = await apiFetch(
+      `/api/inventory/reconciliations/${encodeURIComponent(audit.id)}/submit`,
+      { method: "POST" },
+    );
+    setWorkflowBusy(false);
     if (!res.ok) {
       setError(await res.text());
       return;
     }
-    const updated = await apiFetch(`/api/inventory/audits/${encodeURIComponent(audit.id)}`);
+    const updated = await apiFetch(`/api/inventory/reconciliations/${encodeURIComponent(audit.id)}`);
     if (updated.ok) setAudit((await updated.json()) as AuditDetail);
+  }
+
+  async function postComplete() {
+    if (!token || workflowBusy || !audit?.id) return;
+    if (audit.status !== "REVIEW") {
+      toast.error(t("inventory.auditApproveNotDraft"));
+      return;
+    }
+    setWorkflowBusy(true);
+    setError(null);
+    const eps = 1e-4;
+    try {
+      for (const line of audit.lines) {
+        const d = toNum(numStr(line.factQty)) - toNum(numStr(line.systemQty));
+        if (Math.abs(d) < eps) continue;
+        const discrepancyKind = d > 0 ? "SURPLUS" : "SHORTAGE_WRITEOFF";
+        const cr = await apiFetch(
+          `/api/inventory/reconciliations/${encodeURIComponent(audit.id)}/lines/${encodeURIComponent(line.id)}/classification`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ discrepancyKind }),
+          },
+        );
+        if (!cr.ok) throw new Error(await cr.text());
+      }
+      const res = await apiFetch(
+        `/api/inventory/reconciliations/${encodeURIComponent(audit.id)}/complete`,
+        { method: "POST" },
+      );
+      if (!res.ok) throw new Error(await res.text());
+      toast.success(t("inventory.auditOkCompleted"));
+      const updated = await apiFetch(`/api/inventory/reconciliations/${encodeURIComponent(audit.id)}`);
+      if (updated.ok) setAudit((await updated.json()) as AuditDetail);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setWorkflowBusy(false);
+    }
   }
 
   function patchLineDebounced(lineId: string, next: { factQty?: string; costPrice?: string }) {
@@ -149,16 +212,24 @@ export function InventoryAuditCreateFlow({
     if (existing) window.clearTimeout(existing);
     pendingTimers.current[lineId] = window.setTimeout(() => {
       setSavingLineId(lineId);
-      void apiFetch(`/api/inventory/audits/lines/${encodeURIComponent(lineId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(next.factQty != null ? { factQty: toNum(next.factQty) } : {}),
-          ...(next.costPrice != null ? { costPrice: toNum(next.costPrice) } : {}),
-        }),
-      })
-        .then(async (res) => {
-          if (!res.ok) throw new Error(await res.text());
+      void (async () => {
+        const a = auditRef.current;
+        if (!a?.id) return;
+        const res = await apiFetch(
+          `/api/inventory/reconciliations/${encodeURIComponent(a.id)}/lines/${encodeURIComponent(lineId)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...(next.factQty != null ? { factQty: toNum(next.factQty) } : {}),
+              ...(next.costPrice != null ? { costPrice: toNum(next.costPrice) } : {}),
+            }),
+          },
+        );
+        if (!res.ok) throw new Error(await res.text());
+      })()
+        .then(async () => {
+          /* ok */
         })
         .catch(async () => {
           /* ignore */
@@ -278,7 +349,7 @@ export function InventoryAuditCreateFlow({
                   const diff = fact - system;
                   const cost = toNum(numStr(l.costPrice));
                   const amt = diff * cost;
-                  const disabled = audit.status !== "DRAFT";
+                  const disabled = audit.status !== "COUNTING";
                   return (
                     <tr key={l.id} className="border-b border-[#D5DADF] bg-white transition-colors hover:bg-[#F1F5F9]">
                       <td className="px-4 py-2 align-middle text-[#34495E]">{l.product?.name ?? l.productId}</td>
@@ -364,15 +435,28 @@ export function InventoryAuditCreateFlow({
             >
               {t("inventory.auditHistoryBack")}
             </Button>
-            <Button
-              type="button"
-              variant="primary"
-              className={MODAL_FOOTER_BUTTON_CLASS}
-              disabled={approving}
-              onClick={() => void approveDraft()}
-            >
-              {approving ? "…" : t("inventory.auditApprove")}
-            </Button>
+            {audit.status === "COUNTING" ? (
+              <Button
+                type="button"
+                variant="primary"
+                className={MODAL_FOOTER_BUTTON_CLASS}
+                disabled={workflowBusy}
+                onClick={() => void submitForReview()}
+              >
+                {workflowBusy ? "…" : t("inventory.auditSubmitReview")}
+              </Button>
+            ) : null}
+            {audit.status === "REVIEW" ? (
+              <Button
+                type="button"
+                variant="primary"
+                className={MODAL_FOOTER_BUTTON_CLASS}
+                disabled={workflowBusy}
+                onClick={() => void postComplete()}
+              >
+                {workflowBusy ? "…" : t("inventory.auditPostComplete")}
+              </Button>
+            ) : null}
           </div>
         </>
       )}

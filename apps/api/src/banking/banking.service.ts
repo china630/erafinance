@@ -11,6 +11,7 @@ import {
 } from "@dayday/database";
 import { assertMayPostManualJournal } from "../auth/policies/invoice-finance.policy";
 import { AccountingService } from "../accounting/accounting.service";
+import { BankSubaccountService } from "../accounting/bank-subaccount.service";
 import {
   CASH_OPERATIONAL_ACCOUNT_CODE,
   CASH_IN_TRANSIT_ACCOUNT_CODE,
@@ -82,6 +83,7 @@ export class BankingService {
     private readonly reporting: ReportingService,
     private readonly accounting: AccountingService,
     private readonly treasury: TreasuryService,
+    private readonly bankSubaccount: BankSubaccountService,
   ) {}
 
   async importCsv(
@@ -543,21 +545,41 @@ export class BankingService {
     organizationId: string,
     dto: CreateOrganizationBankAccountDto,
   ) {
-    const code = dto.ledgerAccountCode.trim();
-    if (!/^(221|222|223|224|225)(\.\d{2}){0,4}$/.test(code)) {
+    const explicitCode = dto.ledgerAccountCode?.trim() ?? "";
+    const branchId = dto.bankBranchId?.trim() || null;
+    if (!explicitCode && !branchId) {
+      throw new BadRequestException(
+        "Either ledgerAccountCode or bankBranchId must be provided",
+      );
+    }
+    if (explicitCode && !/^(221|222|223|224|225)(\.\d{2}){0,4}$/.test(explicitCode)) {
       throw new BadRequestException(
         "ledgerAccountCode must start with 221/222/223/224/225",
       );
     }
-    const hasCode = await this.prisma.account.findFirst({
-      where: { organizationId, ledgerType: LedgerType.NAS, code },
-      select: { id: true },
-    });
-    if (!hasCode) {
-      throw new BadRequestException(`NAS account not found: ${code}`);
-    }
     const iban = dto.iban.trim().replace(/\s+/g, "").toUpperCase();
+    const currency = (dto.currency ?? "AZN").toUpperCase();
     return this.prisma.$transaction(async (tx) => {
+      // Resolve ledger code: either explicit or auto-generated from BankBranch.
+      let code = explicitCode;
+      if (!code && branchId) {
+        const sub = await this.bankSubaccount.ensureSubaccountForBranch(
+          organizationId,
+          branchId,
+          { currency, nameOverride: dto.bankName.trim() || undefined },
+          tx,
+        );
+        code = sub.code;
+      } else if (code) {
+        const hasCode = await tx.account.findFirst({
+          where: { organizationId, ledgerType: LedgerType.NAS, code },
+          select: { id: true },
+        });
+        if (!hasCode) {
+          throw new BadRequestException(`NAS account not found: ${code}`);
+        }
+      }
+
       if (dto.isPrimary === true) {
         await tx.organizationBankAccount.updateMany({
           where: { organizationId, isArchived: false },
@@ -571,12 +593,13 @@ export class BankingService {
           iban,
           accountNumber: iban,
           swift: dto.swift?.trim() || null,
-          currency: (dto.currency ?? "AZN").toUpperCase(),
+          currency,
           ledgerAccountCode: code,
           accountType: (dto.accountType as any) ?? "MAIN",
           isPrimary: dto.isPrimary === true,
           isFrozen: dto.isFrozen === true,
           isArchived: false,
+          bankBranchId: branchId,
         },
       });
     });
@@ -589,7 +612,13 @@ export class BankingService {
   ) {
     const existing = await this.prisma.organizationBankAccount.findFirst({
       where: { id, organizationId, isArchived: false },
-      select: { id: true },
+      select: {
+        id: true,
+        bankBranchId: true,
+        ledgerAccountCode: true,
+        currency: true,
+        bankName: true,
+      },
     });
     if (!existing) throw new BadRequestException("bank account not found");
 
@@ -608,22 +637,56 @@ export class BankingService {
         throw new BadRequestException(`NAS account not found: ${code}`);
       }
     }
-    const data: Prisma.OrganizationBankAccountUpdateInput = {};
-    if (dto.bankName !== undefined) data.bankName = dto.bankName.trim();
-    if (dto.iban !== undefined) {
-      const iban = dto.iban.trim().replace(/\s+/g, "").toUpperCase();
-      data.iban = iban;
-      data.accountNumber = iban;
-    }
-    if (dto.swift !== undefined) data.swift = dto.swift?.trim() || null;
-    if (dto.currency !== undefined) data.currency = dto.currency.toUpperCase();
-    if (dto.ledgerAccountCode !== undefined)
-      data.ledgerAccountCode = dto.ledgerAccountCode.trim();
-    if (dto.accountType !== undefined) data.accountType = dto.accountType as any;
-    if (dto.isPrimary !== undefined) data.isPrimary = dto.isPrimary;
-    if (dto.isFrozen !== undefined) data.isFrozen = dto.isFrozen;
 
     return this.prisma.$transaction(async (tx) => {
+      // If bankBranchId is being attached for the first time and there is no
+      // explicit ledgerAccountCode override, auto-generate the 221.<code>.<seq>
+      // subaccount via the AccountingService hook (TZ §6.0).
+      let autoLedgerCode: string | null = null;
+      const incomingBranchId =
+        dto.bankBranchId !== undefined ? dto.bankBranchId?.trim() || null : undefined;
+      if (
+        incomingBranchId !== undefined &&
+        incomingBranchId !== existing.bankBranchId &&
+        incomingBranchId !== null &&
+        !dto.ledgerAccountCode
+      ) {
+        const sub = await this.bankSubaccount.ensureSubaccountForBranch(
+          organizationId,
+          incomingBranchId,
+          {
+            currency: (dto.currency ?? existing.currency).toUpperCase(),
+            nameOverride:
+              dto.bankName?.trim() || existing.bankName || undefined,
+          },
+          tx,
+        );
+        autoLedgerCode = sub.code;
+      }
+
+      const data: Prisma.OrganizationBankAccountUpdateInput = {};
+      if (dto.bankName !== undefined) data.bankName = dto.bankName.trim();
+      if (dto.iban !== undefined) {
+        const iban = dto.iban.trim().replace(/\s+/g, "").toUpperCase();
+        data.iban = iban;
+        data.accountNumber = iban;
+      }
+      if (dto.swift !== undefined) data.swift = dto.swift?.trim() || null;
+      if (dto.currency !== undefined) data.currency = dto.currency.toUpperCase();
+      if (dto.ledgerAccountCode !== undefined) {
+        data.ledgerAccountCode = dto.ledgerAccountCode.trim();
+      } else if (autoLedgerCode) {
+        data.ledgerAccountCode = autoLedgerCode;
+      }
+      if (dto.accountType !== undefined) data.accountType = dto.accountType as any;
+      if (dto.isPrimary !== undefined) data.isPrimary = dto.isPrimary;
+      if (dto.isFrozen !== undefined) data.isFrozen = dto.isFrozen;
+      if (incomingBranchId !== undefined) {
+        data.bankBranch = incomingBranchId
+          ? { connect: { id: incomingBranchId } }
+          : { disconnect: true };
+      }
+
       if (dto.isPrimary === true) {
         await tx.organizationBankAccount.updateMany({
           where: { organizationId, isArchived: false },

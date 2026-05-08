@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Job, Worker } from "bullmq";
+import { attachWorkerFailureAlert } from "../queue/bullmq-worker-alerts";
 import { connectionFromRedisUrl } from "../queue/bullmq.config";
 import { BankIntegrationService } from "./bank-integration.service";
 import { BANK_DIRECT_SYNC_QUEUE } from "./bank-sync.queue";
@@ -33,9 +34,12 @@ export class BankDirectSyncWorker implements OnModuleInit, OnModuleDestroy {
       async (job: Job) => this.handle(job),
       { connection },
     );
-    this.worker.on("failed", (job, err) => {
-      this.logger.error(`Job ${job?.id} failed: ${err?.message}`);
-    });
+    attachWorkerFailureAlert(
+      this.worker,
+      BANK_DIRECT_SYNC_QUEUE,
+      this.logger,
+      this.config.get<string>("DAYDAY_BULLMQ_ALERT_WEBHOOK_URL") ?? undefined,
+    );
   }
 
   async onModuleDestroy(): Promise<void> {

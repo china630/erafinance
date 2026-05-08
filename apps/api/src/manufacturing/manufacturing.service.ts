@@ -14,6 +14,7 @@ import {
   INVENTORY_GOODS_ACCOUNT_CODE,
 } from "../ledger.constants";
 import { PrismaService } from "../prisma/prisma.service";
+import { assertWarehouseNotUnderReconciliation } from "../inventory/inventory-reconciliation-lock";
 import { StockService } from "../stock/stock.service";
 import { ReleaseProductionDto } from "./dto/release-production.dto";
 import { UpsertRecipeDto } from "./dto/upsert-recipe.dto";
@@ -154,6 +155,112 @@ export class ManufacturingService {
     await this.prisma.productRecipe.delete({ where: { id: r.id } });
   }
 
+  /** Max whole FG units producible from current stock (virtual stock / BOM feasibility). */
+  async computeAvailableOutput(
+    organizationId: string,
+    recipeId: string,
+    warehouseId: string | null | undefined,
+  ): Promise<{
+    recipeId: string;
+    finishedProductId: string;
+    finishedProductName: string;
+    warehouseId: string;
+    maxOutputUnits: string;
+    bottlenecks: Array<{
+      componentProductId: string;
+      componentName: string;
+      needPerFgUnit: string;
+      available: string;
+      maxFgFromLine: string;
+    }>;
+  }> {
+    const wh = warehouseId
+      ? await this.prisma.warehouse.findFirst({
+          where: { id: warehouseId, organizationId },
+        })
+      : await this.prisma.warehouse.findFirst({
+          where: { organizationId },
+          orderBy: { createdAt: "asc" },
+        });
+    if (!wh) throw new NotFoundException("Warehouse not found");
+
+    const recipe = await this.prisma.productRecipe.findFirst({
+      where: { organizationId, id: recipeId },
+      include: {
+        lines: { include: { component: { select: { id: true, name: true } } } },
+        finishedProduct: { select: { id: true, name: true } },
+      },
+    });
+    if (!recipe) throw new NotFoundException("Recipe not found");
+    if (recipe.lines.length === 0) {
+      throw new BadRequestException("Спецификация без строк компонентов");
+    }
+
+    const ROUND_FLOOR = 3 as const;
+    let minWhole: Decimal | null = null;
+    const bottlenecks: Array<{
+      componentProductId: string;
+      componentName: string;
+      needPerFgUnit: string;
+      available: string;
+      maxFgFromLine: string;
+    }> = [];
+
+    for (const line of recipe.lines) {
+      const wf = line.wasteFactor != null ? new Decimal(line.wasteFactor) : new Decimal(0);
+      const needPerFgUnit = new Decimal(line.quantityPerUnit).mul(new Decimal(1).add(wf));
+      if (needPerFgUnit.lte(0)) {
+        bottlenecks.push({
+          componentProductId: line.componentProductId,
+          componentName: line.component?.name ?? line.componentProductId,
+          needPerFgUnit: needPerFgUnit.toString(),
+          available: "0",
+          maxFgFromLine: "999999999",
+        });
+        continue;
+      }
+
+      const si = await this.prisma.stockItem.findUnique({
+        where: {
+          organizationId_warehouseId_productId: {
+            organizationId,
+            warehouseId: wh.id,
+            productId: line.componentProductId,
+          },
+        },
+      });
+      const avail = si?.quantity != null ? new Decimal(si.quantity) : new Decimal(0);
+      const maxFgFromLine = avail.div(needPerFgUnit).toDecimalPlaces(0, ROUND_FLOOR);
+      if (minWhole === null || maxFgFromLine.lt(minWhole)) {
+        minWhole = maxFgFromLine;
+      }
+      bottlenecks.push({
+        componentProductId: line.componentProductId,
+        componentName: line.component?.name ?? line.componentProductId,
+        needPerFgUnit: needPerFgUnit.toString(),
+        available: avail.toString(),
+        maxFgFromLine: maxFgFromLine.toString(),
+      });
+    }
+
+    const maxOut = minWhole ?? new Decimal(0);
+
+    bottlenecks.sort((a, b) => {
+      const da = new Decimal(a.maxFgFromLine);
+      const db = new Decimal(b.maxFgFromLine);
+      return da.cmp(db);
+    });
+
+    return {
+      recipeId: recipe.id,
+      finishedProductId: recipe.finishedProductId,
+      finishedProductName: recipe.finishedProduct.name,
+      warehouseId: wh.id,
+      maxOutputUnits: maxOut.toString(),
+      bottlenecks,
+    };
+  }
+
   async releaseProduction(organizationId: string, dto: ReleaseProductionDto) {
     const wh = dto.warehouseId
       ? await this.prisma.warehouse.findFirst({
@@ -180,6 +287,8 @@ export class ManufacturingService {
 
     return this.prisma.$transaction(async (tx) => {
       const documentDate = new Date();
+      await assertWarehouseNotUnderReconciliation(tx, organizationId, wh.id);
+
       let totalMaterial = new Decimal(0);
 
       for (const line of recipe.lines) {
@@ -293,7 +402,7 @@ export class ManufacturingService {
         },
       });
 
-      await tx.stockMovement.create({
+      const fgMovement = await tx.stockMovement.create({
         data: {
           organizationId,
           warehouseId: wh.id,
@@ -371,7 +480,7 @@ export class ManufacturingService {
       }
 
       // Дт 204 / Кт 201; IFRS — через translateToIFRS при маппингах 204 и 201.
-      await this.accounting.postJournalInTransaction(tx, {
+      const { transactionId } = await this.accounting.postJournalInTransaction(tx, {
         organizationId,
         date: documentDate,
         reference: `MFG-${recipe.id.slice(0, 8)}`,
@@ -391,7 +500,22 @@ export class ManufacturingService {
         ],
       });
 
+      const mRelease = await tx.manufacturingRelease.create({
+        data: {
+          organizationId,
+          recipeId: recipe.id,
+          finishedProductId: recipe.finishedProductId,
+          warehouseId: wh.id,
+          quantity: batchQty,
+          materialCost: totalMaterial,
+          documentDate,
+          finishedGoodsTransactionId: transactionId,
+          finishedGoodsStockMovementId: fgMovement.id,
+        },
+      });
+
       return {
+        manufacturingReleaseId: mRelease.id,
         recipeId: recipe.id,
         finishedProductId: recipe.finishedProductId,
         warehouseId: wh.id,

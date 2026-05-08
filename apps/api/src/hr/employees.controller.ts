@@ -25,6 +25,11 @@ import { CheckQuota } from "../common/decorators/check-quota.decorator";
 import { QuotaGuard } from "../common/guards/quota.guard";
 import { OrganizationId } from "../common/org-id.decorator";
 import { QuotaResource } from "../quota/quota-resource";
+import { RequiresModule } from "../subscription/requires-module.decorator";
+import { ModuleEntitlement } from "../subscription/subscription.constants";
+import { SubscriptionGuard } from "../subscription/subscription.guard";
+import { BulkPrefillEmployeesDto } from "./dto/bulk-prefill-employees.dto";
+import { BulkSyncResultEmployeesDto } from "./dto/bulk-sync-result-employees.dto";
 import { CreateEmployeeDto } from "./dto/create-employee.dto";
 import { UpdateEmployeeDto } from "./dto/update-employee.dto";
 import { DepartmentHeadScopeService } from "./department-head-scope.service";
@@ -79,6 +84,43 @@ export class EmployeesController {
       pageSize: ps,
       departmentId: dept,
     });
+  }
+
+  @Get(":id/prefill")
+  @ApiOperation({
+    summary:
+      "Сотрудник — минимальный DTO для браузерного расширения (ƏMAS prefill)",
+  })
+  getPrefillForExtension(
+    @OrganizationId() organizationId: string,
+    @Param("id") id: string,
+  ) {
+    return this.employees.getExtensionPrefill(organizationId, id);
+  }
+
+  @Post("bulk-prefill")
+  @UseGuards(SubscriptionGuard, RolesGuard)
+  @RequiresModule(ModuleEntitlement.HR_FULL)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.HR_MANAGER)
+  @ApiOperation({ summary: "Bulk DTO list for extension ƏMAS prefill" })
+  getBulkPrefill(
+    @OrganizationId() organizationId: string,
+    @Body() dto: BulkPrefillEmployeesDto,
+  ) {
+    return this.employees.getExtensionPrefillBulk(organizationId, dto.employeeIds);
+  }
+
+  @Post("bulk-sync-result")
+  @UseGuards(SubscriptionGuard, RolesGuard)
+  @RequiresModule(ModuleEntitlement.HR_FULL)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.HR_MANAGER)
+  @ApiOperation({ summary: "Persist bulk sync results for employees (ƏMAS)" })
+  saveBulkSyncResult(
+    @OrganizationId() organizationId: string,
+    @Body() dto: BulkSyncResultEmployeesDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.employees.saveBulkSyncResult(organizationId, dto, user.userId);
   }
 
   @Get(":id")

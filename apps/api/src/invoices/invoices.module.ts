@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
-import { ThrottlerModule } from "@nestjs/throttler";
 import { AccountingModule } from "../accounting/accounting.module";
 import { InventoryModule } from "../inventory/inventory.module";
+import { IntegrationsModule } from "../integrations/integrations.module";
 import { KassaModule } from "../kassa/kassa.module";
 import { SignatureModule } from "../signature/signature.module";
 import { InvoicePdfQueueService } from "./invoice-pdf.queue";
@@ -15,11 +15,9 @@ import { PublicInvoiceController } from "./public-invoice.controller";
   imports: [
     AccountingModule,
     InventoryModule,
+    IntegrationsModule,
     KassaModule,
     SignatureModule,
-    ThrottlerModule.forRoot({
-      throttlers: [{ name: "default", ttl: 60_000, limit: 120 }],
-    }),
   ],
   controllers: [
     InvoicesController,

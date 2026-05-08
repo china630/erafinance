@@ -5,6 +5,7 @@ import {
   NestInterceptor,
 } from "@nestjs/common";
 import { Observable } from "rxjs";
+import { actorContextStorage } from "../common/actor-context";
 import { tenantContextStorage } from "./tenant-context";
 
 /**
@@ -15,7 +16,11 @@ import { tenantContextStorage } from "./tenant-context";
 export class TenantContextInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest<{
-      user?: { organizationId?: string; isSuperAdmin?: boolean };
+      user?: {
+        userId?: string;
+        organizationId?: string;
+        isSuperAdmin?: boolean;
+      };
       originalUrl?: string;
       url?: string;
     }>();
@@ -31,30 +36,29 @@ export class TenantContextInterceptor implements NestInterceptor {
       url === "/api/health" ||
       url.startsWith("/docs");
 
-    if (isPublic) {
-      return tenantContextStorage.run(
-        { organizationId: null, skipTenantFilter: true },
-        () => next.handle(),
+    const runWithContexts = (tenantStore: {
+      organizationId: string | null;
+      skipTenantFilter: boolean;
+    }) =>
+      tenantContextStorage.run(tenantStore, () =>
+        actorContextStorage.run({ userId: user?.userId ?? null }, () => next.handle()),
       );
+
+    if (isPublic) {
+      return runWithContexts({ organizationId: null, skipTenantFilter: true });
     }
 
     if (!user) {
-      return tenantContextStorage.run(
-        { organizationId: null, skipTenantFilter: true },
-        () => next.handle(),
-      );
+      return runWithContexts({ organizationId: null, skipTenantFilter: true });
     }
 
     /** TZ §15 / PRD §7.6: маршруты `/api/admin/*` — супер-админ видит всю систему (Prisma без merge по organizationId). */
     const skipTenantFilter =
       Boolean(user.isSuperAdmin) && url.startsWith("/api/admin");
 
-    return tenantContextStorage.run(
-      {
-        organizationId: user.organizationId ?? null,
-        skipTenantFilter,
-      },
-      () => next.handle(),
-    );
+    return runWithContexts({
+      organizationId: user.organizationId ?? null,
+      skipTenantFilter,
+    });
   }
 }

@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -33,6 +44,23 @@ export class ManufacturingController {
     @Param("finishedProductId") finishedProductId: string,
   ) {
     return this.mfg.getRecipeByFinishedProduct(organizationId, finishedProductId);
+  }
+
+  @Get("recipes/:recipeId/available-output")
+  @ApiOperation({
+    summary:
+      "Virtual stock: max whole FG units from current component stock (BOM × wasteFactor)",
+  })
+  availableOutput(
+    @OrganizationId() organizationId: string,
+    @Param("recipeId", new ParseUUIDPipe({ version: "4" })) recipeId: string,
+    @Query("warehouseId") warehouseId?: string,
+  ) {
+    return this.mfg.computeAvailableOutput(
+      organizationId,
+      recipeId,
+      warehouseId?.trim() ? warehouseId : undefined,
+    );
   }
 
   @Put("recipes")

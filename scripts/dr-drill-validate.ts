@@ -15,6 +15,9 @@ type Baseline = Record<string, number>;
 const TABLES = [
   "users",
   "organizations",
+  "organization_security_states",
+  "organization_data_snapshots",
+  "tenant_rollback_records",
   "accounts",
   "journal_entries",
   "transactions",

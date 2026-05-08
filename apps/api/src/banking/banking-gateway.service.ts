@@ -16,6 +16,7 @@ import {
   STORAGE_SERVICE,
   type StorageService,
 } from "../storage/storage.interface";
+import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
 
 function asRecord(v: unknown): Record<string, unknown> {
   if (typeof v === "object" && v !== null && !Array.isArray(v)) {
@@ -277,7 +278,7 @@ export class BankingGatewayService {
     }
 
     const exported = await this.universalExport.buildSalaryRegistryXlsx({
-      organizationTaxId: run.organization.taxId,
+      organizationTaxId: decodeOrganizationTaxId(run.organization),
       year: run.year,
       month: run.month,
       rows,

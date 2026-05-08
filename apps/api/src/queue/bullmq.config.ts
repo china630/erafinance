@@ -13,5 +13,9 @@ export function connectionFromRedisUrl(url: string): ConnectionOptions {
   if (u.username && u.username !== "default") {
     opts.username = decodeURIComponent(u.username);
   }
+  const dbMatch = u.pathname?.match(/^\/(\d+)$/);
+  if (dbMatch) {
+    opts.db = Number(dbMatch[1]);
+  }
   return opts;
 }

@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Job, Worker } from "bullmq";
+import { attachWorkerFailureAlert } from "../queue/bullmq-worker-alerts";
 import { connectionFromRedisUrl } from "../queue/bullmq.config";
 import { BILLING_MONTHLY_QUEUE } from "./billing-monthly.queue";
 import { BillingMonthlyService } from "./billing-monthly.service";
@@ -35,9 +36,12 @@ export class BillingMonthlyWorker implements OnModuleInit, OnModuleDestroy {
       async (job: Job) => this.handle(job),
       { connection },
     );
-    this.worker.on("failed", (job, err) => {
-      this.logger.error(`Job ${job?.id} failed: ${err?.message}`);
-    });
+    attachWorkerFailureAlert(
+      this.worker,
+      BILLING_MONTHLY_QUEUE,
+      this.logger,
+      this.config.get<string>("DAYDAY_BULLMQ_ALERT_WEBHOOK_URL") ?? undefined,
+    );
   }
 
   async onModuleDestroy(): Promise<void> {

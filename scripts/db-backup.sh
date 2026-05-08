@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Daily PostgreSQL backup with rotation (7 days) and gzip compression.
+# Daily PostgreSQL logical backup with rotation (7 days) and gzip compression.
 # Requires: pg_dump, gzip, find
+#
+# This is a **logical** dump (plain SQL). For RPO below dump frequency, use managed
+# Postgres PITR (RDS, Cloud SQL, etc.) or self-hosted WAL archiving — see
+# `docs/deploy/DR_RUNBOOK.md` sections 9–11.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKUP_DIR="${BACKUP_DIR:-${REPO_ROOT}/backups/db}"

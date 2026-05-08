@@ -303,4 +303,30 @@ export class QuotaService {
       atLimit,
     };
   }
+
+  /**
+   * Trade Pro OCR uploads: per-org monthly cap from `SystemConfig` (`quota.ocr_jobs_per_org_month_v1`).
+   * ENTERPRISE is exempt.
+   */
+  async assertOcrJobsPerMonth(organizationId: string): Promise<void> {
+    const orgId = resolveOrganizationUuid(organizationId);
+    if (!orgId) {
+      return;
+    }
+    const tier = await this.getTier(organizationId);
+    if (tier === SubscriptionTier.ENTERPRISE) {
+      return;
+    }
+    const limit = await this.systemConfig.getOcrJobsPerOrgMonthLimit();
+    const { from, to } = utcMonthBoundsUtc();
+    const current = await this.prisma.ocrJob.count({
+      where: {
+        organizationId: orgId,
+        createdAt: { gte: from, lte: to },
+      },
+    });
+    if (current >= limit) {
+      throw new QuotaExceededException("maxOcrJobsPerMonth", limit, current);
+    }
+  }
 }

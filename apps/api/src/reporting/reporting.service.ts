@@ -38,6 +38,7 @@ import {
   type CounterpartyReconciliationOptions,
 } from "./counterparty-reconciliation-build";
 import { renderReconciliationPdfAz } from "./reconciliation-pdf.render";
+import { decodeOrganizationTaxId, decryptText } from "../security/pii-crypto.util";
 
 /**
  * Cash/Bank balances for dashboards:
@@ -556,8 +557,8 @@ export class ReportingService {
         total = total.add(bal);
         return {
           counterpartyId,
-          name: cp?.name ?? "—",
-          taxId: cp?.taxId ?? "—",
+          name: cp?.nameCipher ? decryptText(cp.nameCipher) ?? "—" : "—",
+          taxId: cp?.taxIdCipher ? decryptText(cp.taxIdCipher) ?? "—" : "—",
           balance: bal.toFixed(4),
         };
       })
@@ -602,6 +603,7 @@ export class ReportingService {
 
     const cp = await this.prisma.counterparty.findFirst({
       where: { id: counterpartyId, organizationId },
+      select: { id: true, nameCipher: true, taxIdCipher: true },
     });
     if (!cp) {
       throw new BadRequestException("Counterparty not found");
@@ -609,7 +611,7 @@ export class ReportingService {
 
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { name: true, taxId: true },
+      select: { name: true, taxIdCipher: true },
     });
 
     const built = await buildCounterpartyReconciliationPayload(
@@ -629,10 +631,10 @@ export class ReportingService {
 
     return {
       organizationName: org?.name ?? "",
-      organizationTaxId: org?.taxId ?? "",
+      organizationTaxId: decodeOrganizationTaxId(org),
       counterpartyId: cp.id,
-      counterpartyName: cp.name,
-      counterpartyTaxId: cp.taxId,
+      counterpartyName: cp.nameCipher ? decryptText(cp.nameCipher) ?? "" : "",
+      counterpartyTaxId: cp.taxIdCipher ? decryptText(cp.taxIdCipher) ?? "" : "",
       dateFrom: dateFromStr,
       dateTo: dateToStr,
       startDate: dateFromStr,
@@ -783,7 +785,7 @@ export class ReportingService {
         },
       },
       include: {
-        counterparty: { select: { id: true, name: true, taxId: true } },
+        counterparty: { select: { id: true, nameCipher: true, taxIdCipher: true } },
       },
     });
 
@@ -820,8 +822,12 @@ export class ReportingService {
       const cur =
         byCp.get(id) ??
         {
-          name: inv.counterparty.name,
-          taxId: inv.counterparty.taxId,
+          name: inv.counterparty.nameCipher
+            ? decryptText(inv.counterparty.nameCipher) ?? ""
+            : "",
+          taxId: inv.counterparty.taxIdCipher
+            ? decryptText(inv.counterparty.taxIdCipher) ?? ""
+            : "",
           buckets: {
             b0_30: new Decimal(0),
             b31_60: new Decimal(0),
@@ -1137,7 +1143,7 @@ export class ReportingService {
       const c = byCredId.get(id);
       return {
         counterpartyId: id,
-        name: c?.name ?? "—",
+        name: c?.nameCipher ? decryptText(c.nameCipher) ?? "—" : "—",
         balance: bal.toFixed(4),
       };
     });

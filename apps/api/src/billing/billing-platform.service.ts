@@ -17,6 +17,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { PricingService } from "../admin/pricing.service";
 import { SubscriptionAccessService } from "../subscription/subscription-access.service";
 import { parseToggleModuleMetadata } from "./billing-module-toggle.helpers";
+import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
 
 function isModuleActiveInSubscription(active: string[], key: string): boolean {
   if (active.includes(key)) return true;
@@ -104,8 +105,8 @@ export class BillingPlatformService {
     const toggleMeta = parseToggleModuleMetadata(order.metadata);
     const desc =
       toggleMeta?.enabled === true && order.monthsApplied === 0
-        ? `Pro-rata module (${toggleMeta.moduleKey}) — ${order.organization.name} (VÖEN ${order.organization.taxId})`
-        : `Subscription payment (${order.monthsApplied} mo.) — ${order.organization.name} (VÖEN ${order.organization.taxId})`;
+        ? `Pro-rata module (${toggleMeta.moduleKey}) — ${order.organization.name} (VÖEN ${decodeOrganizationTaxId(order.organization)})`
+        : `Subscription payment (${order.monthsApplied} mo.) — ${order.organization.name} (VÖEN ${decodeOrganizationTaxId(order.organization)})`;
 
     await tx.subscriptionInvoice.create({
       data: {
@@ -138,7 +139,7 @@ export class BillingPlatformService {
     Array<{
       id: string;
       name: string;
-      taxId: string;
+      taxIdCipher: string | null;
       ownerId: string | null;
     }>
   > {
@@ -146,7 +147,7 @@ export class BillingPlatformService {
       where: { userId, role: UserRole.OWNER },
       include: {
         organization: {
-          select: { id: true, name: true, taxId: true, ownerId: true },
+          select: { id: true, name: true, taxIdCipher: true, ownerId: true },
         },
       },
     });
@@ -196,7 +197,7 @@ export class BillingPlatformService {
       rows.push({
         organizationId: o.id,
         name: o.name,
-        taxId: o.taxId,
+        taxId: decodeOrganizationTaxId(o),
         tier: snap.tier,
         ownerIdMatches: o.ownerId === userId,
         monthlyEstimateAzn: monthly.toFixed(2),
@@ -271,7 +272,7 @@ export class BillingPlatformService {
           items: {
             include: {
               organization: {
-                select: { id: true, name: true, taxId: true },
+                select: { id: true, name: true, taxIdCipher: true },
               },
             },
           },
@@ -297,7 +298,7 @@ export class BillingPlatformService {
         lines: inv.items.map((it) => ({
           organizationId: it.organizationId,
           organizationName: it.organization.name,
-          organizationTaxId: it.organization.taxId,
+          organizationTaxId: decodeOrganizationTaxId(it.organization),
           description: it.description,
           amount: it.amount.toString(),
         })),
@@ -340,7 +341,7 @@ export class BillingPlatformService {
       const doc = new PDFDocument({
         size: "A4",
         margin: 48,
-        info: { Title: "Platform subscription invoice" },
+        info: { Title: "DayDay ERP — platform subscription invoice" },
       });
       const chunks: Buffer[] = [];
       doc.on("data", (c: Buffer) => {
@@ -357,13 +358,16 @@ export class BillingPlatformService {
       doc
         .fontSize(18)
         .fillColor("#34495E")
-        .text("DayDay ERP — Platform invoice (subscription)", { align: "left" });
+        .text("DayDay ERP — Platform subscription invoice / Platforma abunə hesab-fakturası", {
+          align: "left",
+        });
       doc.moveDown(0.5);
       doc
         .fontSize(10)
         .fillColor("#7F8C8D")
         .text(
-          "Aggregated platform billing to the owner account; line items reference organizations (VÖEN).",
+          "Aggregated SaaS fees for the owner account. Lines list organizations (VÖEN). " +
+            "VÖEN üzrə təşkilat sətirləri. Not a fiscal / tax invoice (vergi qaiməsi deyil).",
           { align: "left" },
         );
       doc.moveDown(1);
@@ -390,7 +394,7 @@ export class BillingPlatformService {
       doc.fontSize(10).fillColor("#34495E");
       for (const it of invoice.items) {
         doc.text(
-          `${it.organization.name} (VÖEN ${it.organization.taxId}) — ${it.description}`,
+          `${it.organization.name} (VÖEN ${decodeOrganizationTaxId(it.organization)}) — ${it.description}`,
         );
         doc.text(`… ${Number.parseFloat(it.amount.toString()).toFixed(2)} AZN`);
         doc.moveDown(0.35);
@@ -407,7 +411,8 @@ export class BillingPlatformService {
         .fontSize(9)
         .fillColor("#7F8C8D")
         .text(
-          "Technical document for platform billing. Not a fiscal sales invoice.",
+          "Payment and allocation record for DayDay ERP services. / Ödəniş və xidmət bölgüsü. " +
+            "Not a fiscal sales invoice.",
           { align: "left" },
         );
 

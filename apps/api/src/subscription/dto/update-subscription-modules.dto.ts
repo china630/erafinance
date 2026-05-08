@@ -35,5 +35,17 @@ export class UpdateSubscriptionModulesDto {
 
   @IsOptional()
   @IsBoolean()
+  tax_pro?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  trade_pro?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  recovery_pro?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   ifrs_mapping?: boolean;
 }

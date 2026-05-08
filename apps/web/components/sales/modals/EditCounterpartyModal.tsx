@@ -12,6 +12,9 @@ import {
   type CounterpartyLegalForm,
 } from "../../../lib/counterparty-legal-form";
 import { notifyListRefresh } from "../../../lib/list-refresh-bus";
+import { useAuth } from "../../../lib/auth-context";
+import { isRestrictedUserRole } from "../../../lib/role-utils";
+import { ActivityPanel } from "../../activity/ActivityPanel";
 import {
   MODAL_CHECKBOX_CLASS,
   MODAL_FIELD_LABEL_CLASS,
@@ -54,6 +57,8 @@ export function EditCounterpartyModal({
   onSaved?: () => void;
 }) {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
+  const mayCommentActivity = !isRestrictedUserRole(user?.role ?? undefined);
   const [name, setName] = useState("");
   const [taxId, setTaxId] = useState("");
   const [role, setRole] = useState<"CUSTOMER" | "SUPPLIER" | "BOTH" | "OTHER">("CUSTOMER");
@@ -287,7 +292,7 @@ export function EditCounterpartyModal({
       open={open}
       title={t("counterparties.editSection")}
       onClose={onClose}
-      maxWidthClass="max-w-xl"
+      maxWidthClass="max-w-3xl"
       footer={
         <SalesModalFooter
           onCancel={onClose}
@@ -422,6 +427,15 @@ export function EditCounterpartyModal({
           />
         </div>
         </form>
+        {!loadBusy && counterpartyId ? (
+          <div className="border-t border-[#E5E7EB] pt-4">
+            <ActivityPanel
+              entityType="counterparty"
+              entityId={counterpartyId}
+              canComment={mayCommentActivity}
+            />
+          </div>
+        ) : null}
       </div>
     </SalesModalShell>
   );

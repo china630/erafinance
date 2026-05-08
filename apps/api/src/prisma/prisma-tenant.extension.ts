@@ -1,6 +1,7 @@
 import { ForbiddenException } from "@nestjs/common";
 import { Prisma } from "@dayday/database";
 import { getTenantContext } from "./tenant-context";
+import { isRecoveryBypassTenantFilter } from "./recovery-context";
 
 /**
  * Связь пользователь ↔ организация: запросы идут по `userId` (все компании пользователя)
@@ -65,6 +66,9 @@ export function mergeWhereForUnique(where: unknown, orgId: string): Record<strin
 }
 
 function requireOrgOrSkip(): string | null {
+  if (isRecoveryBypassTenantFilter()) {
+    return null;
+  }
   const ctx = getTenantContext();
   if (!ctx) {
     return null;

@@ -16,10 +16,12 @@ export type PricingModuleSeedRow = {
 export const PRICING_MODULE_SEED_DEFAULTS: ReadonlyArray<PricingModuleSeedRow> = [
   { key: "kassa_pro", name: "Kassa Pro", pricePerMonth: 15, sortOrder: 0 },
   { key: "banking_pro", name: "Banking Pro", pricePerMonth: 19, sortOrder: 1 },
-  { key: "inventory", name: "Warehouse", pricePerMonth: 25, sortOrder: 2 },
-  { key: "manufacturing", name: "Manufacturing", pricePerMonth: 39, sortOrder: 3 },
-  { key: "hr_full", name: "HR", pricePerMonth: 19, sortOrder: 4 },
-  { key: "ifrs_mapping", name: "IFRS", pricePerMonth: 29, sortOrder: 5 },
+  { key: "tax_pro", name: "Tax Pro", pricePerMonth: 12, sortOrder: 2 },
+  { key: "trade_pro", name: "Trade Pro", pricePerMonth: 14, sortOrder: 3 },
+  { key: "inventory", name: "Warehouse", pricePerMonth: 25, sortOrder: 4 },
+  { key: "manufacturing", name: "Manufacturing", pricePerMonth: 39, sortOrder: 5 },
+  { key: "hr_full", name: "HR", pricePerMonth: 19, sortOrder: 6 },
+  { key: "ifrs_mapping", name: "IFRS", pricePerMonth: 29, sortOrder: 7 },
 ];
 
 /**

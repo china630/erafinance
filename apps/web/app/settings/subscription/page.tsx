@@ -8,7 +8,9 @@ import {
   Landmark,
   Lock,
   Package,
+  ReceiptText,
   Receipt,
+  Ship,
   Users,
   Wallet,
   X,
@@ -93,6 +95,10 @@ function moduleIcon(key: string) {
       return <Factory className={common} aria-hidden />;
     case "hr_full":
       return <Users className={common} aria-hidden />;
+    case "tax_pro":
+      return <ReceiptText className={common} aria-hidden />;
+    case "trade_pro":
+      return <Ship className={common} aria-hidden />;
     case "ifrs_mapping":
       return <Calculator className={common} aria-hidden />;
     default:

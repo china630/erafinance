@@ -1,0 +1,45 @@
+# Optional Prometheus + Grafana (compose override).
+# Usage from repo root:
+#   docker compose -f docker-compose.prod.yml -f docs/deploy/monitoring/docker-compose.monitoring.yml up -d
+#
+# Set GF_SECURITY_ADMIN_PASSWORD (and optionally GF_SERVER_ROOT_URL) before exposing Grafana.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PUBLISH_PORT:-9090}:9090"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:?set GF_SECURITY_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PUBLISH_PORT:-3001}:3000"
+    depends_on:
+      - prometheus
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+volumes:
+  prom_data:
+  grafana_data:

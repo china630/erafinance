@@ -1,7 +1,7 @@
-import { Controller, Get, Param, Res, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Res } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
-import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
+import { Throttle } from "@nestjs/throttler";
 import { Public } from "../auth/decorators/public.decorator";
 import { InvoicesService } from "./invoices.service";
 
@@ -11,7 +11,6 @@ import { InvoicesService } from "./invoices.service";
 @ApiTags("public-invoices")
 @Controller("public/invoices")
 @Public()
-@UseGuards(ThrottlerGuard)
 export class PublicInvoiceController {
   constructor(private readonly invoices: InvoicesService) {}
 

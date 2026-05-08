@@ -3,12 +3,22 @@
 #
 # ВАЖНО (Prisma): не монтируем `prisma/migrations` в `docker-entrypoint-initdb.d`.
 # Иначе SQL применяется в обход `prisma migrate deploy`, и Prisma получает "непустую БД без baseline" (P3005).
-# Миграции/сидинг/i18n — через контейнер `api` (см. `docs/deploy.ru.md`: `db:migrate:deploy`, `db:sync-i18n:prune` / `db:deploy`, `db:prod-init`).
+# Миграции/сидинг/i18n — через контейнер `api` (см. `docs/deploy/deploy.ru.md`: `db:migrate:deploy`, `db:sync-i18n:prune` / `db:deploy`, `db:prod-init`).
+#
+# Логи: json-file с ротацией (см. x-logging). BullMQ: при необходимости отдельный Redis DB — `REDIS_URL=redis://redis:6379/2`.
+# Опциональный мониторинг: `docs/deploy/monitoring/docker-compose.monitoring.yml`.
+
+x-logging: &json-file-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
 
 services:
   db:
     image: postgres:16-alpine
     restart: always
+    logging: *json-file-logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-dayday}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
@@ -27,7 +37,13 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
-    command: redis-server --appendonly yes
+    logging: *json-file-logging
+    command: >
+      redis-server
+      --appendonly yes
+      --save 60 1000
+      --maxmemory 512mb
+      --maxmemory-policy noeviction
     volumes:
       - ./redis-data:/data
     ports:
@@ -45,6 +61,7 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: always
+    logging: *json-file-logging
     env_file:
       - .env
     environment:
@@ -62,6 +79,18 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:'+(process.env.API_PORT||4000)+'/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
 
   web:
     build:
@@ -77,6 +106,7 @@ services:
         SENTRY_PROJECT_WEB: ${SENTRY_PROJECT_WEB:-}
         SENTRY_TUNNEL_PATH: ${SENTRY_TUNNEL_PATH:-}
     restart: always
+    logging: *json-file-logging
     env_file:
       - .env
     environment:
@@ -90,6 +120,18 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:3000/',r=>process.exit(r.statusCode&&r.statusCode<500?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 25s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
 
 volumes:
   pgdata:

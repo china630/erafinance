@@ -17,6 +17,7 @@ import {
   CalendarCheck,
   ChevronDown,
   ChevronRight,
+  Clock,
   ClipboardList,
   Coins,
   Contact2,
@@ -441,6 +442,13 @@ export function MainSidebar({
           icon={Home}
           onNavClick={onNavClick}
         />
+        <SideNavItem
+          href="/inbox/approvals"
+          label={t("nav.approvalsInbox")}
+          isActive={pathname.startsWith("/inbox/approvals")}
+          icon={FileCheck2}
+          onNavClick={onNavClick}
+        />
 
         <CollapsibleNavSection
           sectionKey="treasury"
@@ -650,6 +658,13 @@ export function MainSidebar({
             icon={PackageSearch}
             onNavClick={onNavClick}
           />
+          <SideNavSubItem
+            href="/manufacturing/overhead"
+            label={t("nav.manufacturingOverhead")}
+            isActive={pathname.startsWith("/manufacturing/overhead")}
+            icon={Coins}
+            onNavClick={onNavClick}
+          />
         </CollapsibleNavSection>
 
         <CollapsibleNavSection
@@ -688,6 +703,13 @@ export function MainSidebar({
             isActive={pathname.startsWith("/hr/timesheet")}
             icon={CalendarCheck}
             nested
+            onNavClick={onNavClick}
+          />
+          <SideNavSubItem
+            href="/psa/projects"
+            label={t("nav.psaProjects")}
+            isActive={pathname.startsWith("/psa")}
+            icon={Clock}
             onNavClick={onNavClick}
           />
           <SideNavItem
@@ -799,6 +821,13 @@ export function MainSidebar({
               label={t("nav.accountingIfrsNav")}
               isActive={pathname.startsWith("/accounting/ifrs-mapping")}
               icon={Link2}
+              onNavClick={onNavClick}
+            />
+            <SideNavSubItem
+              href="/finance/prepaid-expenses"
+              label={t("nav.prepaidExpenses")}
+              isActive={pathname.startsWith("/finance/prepaid-expenses")}
+              icon={ScrollText}
               onNavClick={onNavClick}
             />
           </CollapsibleNavSection>

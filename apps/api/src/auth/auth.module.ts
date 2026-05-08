@@ -12,6 +12,7 @@ import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { RolesGuard } from "./guards/roles.guard";
 import { SuperAdminGuard } from "./guards/super-admin.guard";
 import { JwtStrategy } from "./strategies/jwt.strategy";
+import { PiiCryptoService } from "../security/pii-crypto.service";
 
 @Module({
   imports: [
@@ -31,7 +32,14 @@ import { JwtStrategy } from "./strategies/jwt.strategy";
     }),
   ],
   controllers: [AuthController, TeamController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard, SuperAdminGuard],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtAuthGuard,
+    RolesGuard,
+    SuperAdminGuard,
+    PiiCryptoService,
+  ],
   exports: [AuthService, JwtModule, JwtAuthGuard, RolesGuard, SuperAdminGuard],
 })
 export class AuthModule {}

@@ -74,6 +74,7 @@ type InvoiceFormValues = {
   currency: SupportedCurrency;
   fxRateToAzn: string;
   vatInclusive: boolean;
+  isInternational: boolean;
   goods: InvoiceGoodsLineForm[];
   services: InvoiceServiceLineForm[];
 };
@@ -179,6 +180,7 @@ export function CreateInvoiceModal({
       currency: "AZN",
       fxRateToAzn: "1.0000",
       vatInclusive: false,
+      isInternational: false,
       goods: [blankGoodsLine()],
       services: [blankServiceLine()],
     },
@@ -251,6 +253,7 @@ export function CreateInvoiceModal({
       currency: "AZN",
       fxRateToAzn: "1.0000",
       vatInclusive: false,
+      isInternational: false,
       goods: [blankGoodsLine()],
       services: [blankServiceLine()],
     });
@@ -485,6 +488,7 @@ export function CreateInvoiceModal({
         currency: data.currency,
         fxRateToAzn: data.currency === "AZN" ? 1 : fx,
         vatInclusive: data.vatInclusive,
+        isInternational: data.isInternational,
         items,
       }),
     });
@@ -957,6 +961,21 @@ export function CreateInvoiceModal({
                   onChange={(e) => field.onChange(e.target.checked)}
                 />
                 {t("invoiceNew.vatInclusive")}
+              </label>
+            )}
+          />
+          <Controller
+            control={control}
+            name="isInternational"
+            render={({ field }) => (
+              <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[#34495E]">
+                <input
+                  type="checkbox"
+                  className={MODAL_CHECKBOX_CLASS}
+                  checked={field.value}
+                  onChange={(e) => field.onChange(e.target.checked)}
+                />
+                {t("trade.export.toggle")}
               </label>
             )}
           />

@@ -5,6 +5,7 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   MaxLength,
 } from "class-validator";
@@ -44,10 +45,27 @@ export class CreateOrganizationBankAccountDto {
   @Transform(({ value }) => String(value ?? "AZN").toUpperCase())
   currency?: (typeof CURRENCIES)[number];
 
-  @ApiProperty({ example: "222.01.01" })
+  /**
+   * Bank branch from system glossary (`BankBranch.id`).
+   *
+   * When provided and `ledgerAccountCode` is omitted, AccountingService
+   * auto-generates a NAS subaccount under mask `221.<bankCode>.<seq>` and
+   * assigns it to this organization bank account (TZ §6.0 / §14.0.1).
+   */
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  bankBranchId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Optional NAS ledger code (221/222/223/224/225). If omitted, must provide `bankBranchId` so the system can auto-generate `221.<bankCode>.<seq>`.",
+    example: "222.01.01",
+  })
+  @IsOptional()
   @IsString()
   @Matches(/^(221|222|223|224|225)(\.\d{2}){0,4}$/)
-  ledgerAccountCode!: string;
+  ledgerAccountCode?: string;
 
   @ApiPropertyOptional({ enum: ACCOUNT_TYPES, default: "MAIN" })
   @IsOptional()

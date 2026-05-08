@@ -5,6 +5,7 @@ import { UserRole } from "@dayday/database";
 import { RolesGuard } from "../../src/auth/guards/roles.guard";
 import { AuditorMutationGuard } from "../../src/auth/guards/auditor-mutation.guard";
 import { InventoryAuditController } from "../../src/inventory/inventory-audit.controller";
+import { InventoryReconciliationController } from "../../src/inventory/inventory-reconciliation.controller";
 
 function mockHttpContext(params: {
   method: string;
@@ -31,7 +32,7 @@ function mockHttpContext(params: {
 }
 
 describe("RBAC Bridge Sprint P1", () => {
-  it("PROCUREMENT получает запрет на /inventory/audits/:id/approve (RolesGuard -> false/403)", async () => {
+  it("PROCUREMENT получает запрет на /inventory/reconciliations/:id/complete (RolesGuard -> false/403)", async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [RolesGuard, Reflector],
     }).compile();
@@ -39,10 +40,10 @@ describe("RBAC Bridge Sprint P1", () => {
 
     const ctx = mockHttpContext({
       method: "POST",
-      path: "/api/inventory/audits/a1/approve",
+      path: "/api/inventory/reconciliations/a1/complete",
       role: UserRole.PROCUREMENT,
-      handler: InventoryAuditController.prototype.approveDraft,
-      controllerClass: InventoryAuditController,
+      handler: InventoryReconciliationController.prototype.complete,
+      controllerClass: InventoryReconciliationController,
     });
 
     expect(guard.canActivate(ctx)).toBe(false);

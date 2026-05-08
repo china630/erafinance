@@ -6,6 +6,7 @@ import {
   Post,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -13,7 +14,10 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
+import type { JwtPayload } from "jsonwebtoken";
 import type { Request, Response } from "express";
+import { JwtService } from "@nestjs/jwt";
 import { CurrentUser } from "./decorators/current-user.decorator";
 import { Public } from "./decorators/public.decorator";
 import { AuthService } from "./auth.service";
@@ -30,9 +34,29 @@ import type { AuthUser } from "./types/auth-user";
 @ApiTags("auth")
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly jwt: JwtService,
+  ) {}
+
+  private stripRefreshWithExp(out: {
+    refreshToken: string;
+    accessToken: string;
+    user: unknown;
+    organizations: unknown;
+    access?: unknown;
+  }) {
+    const { refreshToken: _r, ...rest } = out;
+    const decoded = this.jwt.decode(out.accessToken) as JwtPayload | null;
+    const expiresAt =
+      decoded?.exp != null
+        ? new Date(decoded.exp * 1000).toISOString()
+        : undefined;
+    return { ...rest, expiresAt };
+  }
 
   @Public()
+  @Throttle({ default: { limit: 40, ttl: 60_000 } })
   @Post("register-user")
   @ApiOperation({
     summary:
@@ -49,6 +73,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post("register")
   @ApiOperation({ summary: "Регистрация организации и владельца + план счетов АР" })
   async register(
@@ -62,6 +87,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 40, ttl: 60_000 } })
   @Post("login")
   @ApiOperation({ summary: "Вход, access token в теле, refresh в HttpOnly cookie" })
   async login(
@@ -75,6 +101,44 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @Post("extension/refresh")
+  @ApiOperation({
+    summary:
+      "Extension session: silent refresh (refresh_token_ext) or bootstrap from ERP tab (refresh_token)",
+  })
+  async extensionRefresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const origin = req.headers.origin as string | undefined;
+    const ext = req.cookies?.refresh_token_ext as string | undefined;
+    const reg = req.cookies?.refresh_token as string | undefined;
+    if (ext) {
+      this.auth.assertExtensionOrigin(origin);
+      const out = await this.auth.refreshExtensionFromExtCookie(ext);
+      this.auth.setExtensionRefreshCookie(res, out.refreshToken);
+      return this.stripRefreshWithExp(out);
+    }
+    if (reg) {
+      this.auth.assertWebOrigin(origin);
+      const out = await this.auth.refreshExtensionFromBootstrapCookie(reg);
+      this.auth.setExtensionRefreshCookie(res, out.refreshToken);
+      return this.stripRefreshWithExp(out);
+    }
+    throw new UnauthorizedException("Missing refresh credentials");
+  }
+
+  @Public()
+  @Post("extension/logout")
+  @ApiOperation({ summary: "Clear extension refresh cookie (refresh_token_ext)" })
+  extensionLogout(@Res({ passthrough: true }) res: Response) {
+    this.auth.clearExtensionRefreshCookie(res);
+    return { ok: true };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @Post("refresh")
   @ApiOperation({ summary: "Новая пара токенов по refresh cookie" })
   async refresh(

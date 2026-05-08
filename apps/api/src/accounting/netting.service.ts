@@ -20,6 +20,7 @@ import {
 } from "../ledger.constants";
 import { parseOrgIsVatPayer } from "../common/org-vat-payer.util";
 import { PrismaService } from "../prisma/prisma.service";
+import { decryptText } from "../security/pii-crypto.util";
 
 type Decimal = Prisma.Decimal;
 const Decimal = Prisma.Decimal;
@@ -199,9 +200,11 @@ export class NettingService {
   ) {
     const cp = await this.prisma.counterparty.findFirst({
       where: { id: counterpartyId, organizationId },
+      select: { id: true, nameCipher: true, isVatPayer: true },
     });
     if (!cp) throw new NotFoundException("Контрагент не найден");
 
+    const cpName = cp.nameCipher ? decryptText(cp.nameCipher) ?? "" : "";
     const receivable = await this.receivableForCounterparty(
       organizationId,
       counterpartyId,
@@ -215,7 +218,7 @@ export class NettingService {
     const canNet = maxNet.gt(0);
     return {
       counterpartyId: cp.id,
-      counterpartyName: cp.name,
+      counterpartyName: cpName,
       receivable: receivable.toFixed(4),
       payable531: payable.toFixed(4),
       suggestedAmount: maxNet.toFixed(4),
@@ -253,9 +256,11 @@ export class NettingService {
 
     const cp = await this.prisma.counterparty.findFirst({
       where: { id: counterpartyId, organizationId },
+      select: { id: true, nameCipher: true, isVatPayer: true },
     });
     if (!cp) throw new NotFoundException("Контрагент не найден");
 
+    const cpName = cp.nameCipher ? decryptText(cp.nameCipher) ?? "" : "";
     const receivable = await this.receivableForCounterparty(
       organizationId,
       counterpartyId,
@@ -358,7 +363,7 @@ export class NettingService {
         organizationId,
         date: payDate,
         reference: `NET-${counterpartyId.slice(0, 8)}`,
-        description: `Взаимозачёт: ${cp.name}`,
+        description: `Взаимозачёт: ${cpName}`,
         isFinal: true,
         counterpartyId,
         lines: [...baseLines, ...vatLines],
@@ -376,7 +381,7 @@ export class NettingService {
       return {
         transactionId,
         amount: amount.toFixed(4),
-        counterpartyName: cp.name,
+        counterpartyName: cpName,
         suggestVatInvoice: vatOnNetting,
         vatPosted: vatOnNetting && canPostVat,
         vatAmount: vatOnNetting ? vatStr : null,

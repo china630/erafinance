@@ -78,7 +78,7 @@ Thumbs.db
 # =============================================================================
 
 /screens/
-/docs/
+#/docs/
 /package-lock.json
 /_ko1_sheet_dump.json
 #/TZ.md

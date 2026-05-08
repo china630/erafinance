@@ -144,9 +144,8 @@ export class HoldingsService {
           select: {
             id: true,
             email: true,
-            firstName: true,
-            lastName: true,
-            fullName: true,
+            firstNameCipher: true,
+            lastNameCipher: true,
           },
         },
       },
@@ -177,8 +176,8 @@ export class HoldingsService {
             select: {
               id: true,
               email: true,
-              firstName: true,
-              lastName: true,
+              firstNameCipher: true,
+              lastNameCipher: true,
             },
           },
         },
@@ -209,7 +208,7 @@ export class HoldingsService {
         data: { role },
         include: {
           user: {
-            select: { id: true, email: true, firstName: true, lastName: true },
+            select: { id: true, email: true, firstNameCipher: true, lastNameCipher: true },
           },
         },
       });

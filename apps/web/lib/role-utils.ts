@@ -15,5 +15,10 @@ export function canAccessBilling(role: string | null | undefined): boolean {
 
 /** Фильтр P&L по департаменту: только Owner и Accountant. */
 export function canUsePlDepartmentFilter(role: string | undefined): boolean {
-  return role === "OWNER" || role === "ACCOUNTANT";
+  return (
+    role === "OWNER" ||
+    role === "ADMIN" ||
+    role === "ACCOUNTANT" ||
+    role === "DIRECTOR"
+  );
 }

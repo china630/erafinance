@@ -13,6 +13,7 @@ import {
 } from "@dayday/database";
 import { parseSignerDisplayName } from "../common/certificate-subject.util";
 import { PrismaService } from "../prisma/prisma.service";
+import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
 
 const MOCK_DELAY_MS = 2000;
 
@@ -259,7 +260,7 @@ export class SignatureService {
         status: DigitalSignatureStatus.COMPLETED,
       },
       include: {
-        organization: { select: { name: true, taxId: true } },
+        organization: { select: { name: true, taxIdCipher: true } },
       },
     });
     if (!log) return null;
@@ -282,7 +283,7 @@ export class SignatureService {
         signerName,
         organization: {
           name: log.organization.name,
-          taxId: log.organization.taxId,
+          taxId: decodeOrganizationTaxId(log.organization),
         },
         documentHashSha256: log.contentHashSha256,
         documentKind: log.documentKind,
@@ -304,7 +305,7 @@ export class SignatureService {
       signerName,
       organization: {
         name: log.organization.name,
-        taxId: log.organization.taxId,
+        taxId: decodeOrganizationTaxId(log.organization),
       },
       documentHashSha256: log.contentHashSha256,
       documentKind: log.documentKind,

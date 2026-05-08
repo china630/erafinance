@@ -1,8 +1,9 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { InventoryAuditStatus } from "@dayday/database";
 import {
   IsDateString,
   IsEnum,
+  IsOptional,
   IsUUID,
 } from "class-validator";
 
@@ -15,7 +16,12 @@ export class CreateInventoryAuditDto {
   @IsUUID()
   warehouseId!: string;
 
-  @ApiProperty({ enum: InventoryAuditStatus })
+  @ApiPropertyOptional({
+    enum: InventoryAuditStatus,
+    default: InventoryAuditStatus.DRAFT,
+    description: "Only DRAFT is supported; use /inventory/reconciliations for the full workflow",
+  })
+  @IsOptional()
   @IsEnum(InventoryAuditStatus)
-  status!: InventoryAuditStatus;
+  status?: InventoryAuditStatus;
 }

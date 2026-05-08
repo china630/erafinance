@@ -1,6 +1,7 @@
 import { PricingKind } from "@prisma/client";
 import { closePrismaPool, createPrismaClient } from "./prisma-client";
 import { TemplateGroup } from "@prisma/client";
+import { seedBankGlossary } from "./bank-glossary-seed";
 import {
   loadChartJson,
   loadNasSmallBusinessAccountsSync,
@@ -108,6 +109,9 @@ async function main() {
   await seedPricingModuleIfEmpty(prisma);
   const pmRows = await prisma.pricingModule.count();
   console.info(`[seed] pricing_modules: ${pmRows} row(s) (v12.4, empty → seed from PRICING_MODULE_SEED_DEFAULTS)`);
+
+  const bgN = await seedBankGlossary(prisma);
+  console.info(`[seed] bank_glossary upserted: ${bgN} row(s) (AZ banks 01–22)`);
 
   // Супер-админ платформы не создаётся здесь: см. prisma/docker-init/01-seed-data.sql (Postgres init).
 

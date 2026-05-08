@@ -2,7 +2,7 @@
 
 Единый документ для разработки: объединяет ядро Core MVP, расширения v2, интеграции v3 и слой монетизации v4. Сводные продуктовые решения — **[PRD.md](./PRD.md)** (§12 и др.). Детализация REST — **§0.0** ниже и Swagger API.
 
-**Оглавление (верхний уровень):** **§0.0** — реестр ключевых REST; §0 — статус синхронизации; §1 — инфраструктура; §2–§10 — модули **1–9**; **§6.0** — Treasury + касса/банк; **§7.0** — HR, табель, payroll, ЦФО; §11 — паттерн разработки (**§11.1** — web: `PageHeader`, сайдбар-only); §12–§14 — дорожные карты; §15 — Super-Admin; §16–§17 — hardening.
+**Оглавление (верхний уровень):** **§0.0** — реестр ключевых REST; §0 — статус синхронизации; §1 — инфраструктура; §2–§10 — модули **1–9**; **§6.0** — Treasury + касса/банк; **§7.0** — HR, табель, payroll, ЦФО; §11 — паттерн разработки (**§11.1** — web: `PageHeader`, сайдбар-only); §12–§14 — дорожные карты; **§13.6** — Browser Extension RPA (DayDay Assistant); §15 — Super-Admin; §16–§17 — hardening; **§21** — Dispute & Recovery (платформа).
 
 **Стандарт статусов (глобально для PRD/TZ):**
 - [x] **COMPLETED (scope):** задача реализована и зафиксирована.
@@ -28,6 +28,11 @@
 | GET | `/api/notifications/unread-count` | Количество непрочитанных (бейдж в шапке) |
 | PATCH | `/api/notifications/read-all` | Пометить все уведомления пользователя прочитанными |
 | PATCH | `/api/notifications/:id/read` | Пометить одно уведомление прочитанным |
+| POST | `/api/admin/platform/step-up/otp/request` | Super-admin: email OTP для step-up (`purpose`, см. §21) |
+| POST | `/api/admin/platform/step-up/otp/verify` | Super-admin: проверка OTP → краткоживущий `X-StepUp-Token` |
+| POST | `/api/admin/platform/dual-approval` | Super-admin: создать `DualApprovalRequest` |
+| POST | `/api/admin/platform/dual-approval/:id/approve` | Super-admin: второй approver → `APPROVED` |
+| POST | `/api/public/disputes/:id/counter-claim` | Публично: контр-заявление по JWT из ссылки (§21.4) |
 
 Полный перечень — OpenAPI `/api`. См. также `/api/treasury/*`, `POST /api/banking/manual-entry`, `POST /api/banking/transfers`, `POST /api/banking/conversions`, `POST /api/banking/cash-deposits`, `GET /api/holdings/:id/consolidated-pnl`, `GET /api/reporting/pl?departmentId=…`.
 
@@ -190,7 +195,23 @@
 2. **`POST /api/auth/switch`** — тело `{ organizationId }`; выдаётся новая пара токенов, в access JWT «вшит» выбранный `organizationId` при валидном membership.
 3. **Guards:** из JWT читаются `organizationId` и роль; перед обработкой запроса проверяется наличие строки в **OrganizationMembership**.
 4. **Join по VÖEN:** если организация найдена, создаётся **AccessRequest**; владелец/админ одобряет или отклоняет, при одобрении назначается роль.
-5. **Invite lifecycle (v95+):** `inviteUser(email, role)` создаёт запись приглашения, генерирует invite token и отправляет email со ссылкой принятия; `accept` создаёт membership по токену/идентификатору инвайта; `revoke` переводит pending-invite в отклонённый статус и блокирует дальнейшее принятие. **Безопасность (M1):** просроченный JWT приглашения отклоняется отдельным сообщением от «невалидного» токена; принятие инвайта **атомарно** резервирует строку (`UPDATE … WHERE status=PENDING`), повторное использование ссылки даёт **`409 Conflict`**; дубликат membership (`P2002`) трактуется как конфликт («уже участник организации»), в т.ч. при гонках между несколькими организациями/сессиями.
+5. **Register anti-duplication:** `POST /api/auth/register` перед созданием tenant проверяет отсутствие организации с тем же VÖEN через `tax_id_blind_index`, нормализуя вход (`trim`). На уровне БД действует `UNIQUE`-индекс `organizations_tax_id_blind_index_key`; при гонке Prisma `P2002` конвертируется в `409 Conflict` с сообщением `VÖEN already registered`.
+6. **Encryption-at-rest (stage 1):** для организаций используется cipher/blind схема (`tax_id_cipher`, `tax_id_blind_index`), plaintext-колонка `organizations.tax_id` удалена после cutover wave-6c. Чтение/выгрузки VÖEN в API выполняются через decrypt `tax_id_cipher`.
+7. **Encryption-at-rest (stage 2):** для VÖEN организаций включён DB-level unique guard `organizations_tax_id_blind_index_key` (`UNIQUE WHERE tax_id_blind_index IS NOT NULL`), ошибки `P2002` по этому индексу маппятся в `409 Conflict: VÖEN already registered`.
+8. **Encryption-at-rest (stage 3):** добавлены encrypted/blind поля для PII в `employees` (`fin_code_*`, `voen_*`, `first_name_cipher`, `last_name_cipher`), `counterparties` (`tax_id_*`, `name_cipher`) и `users` (`first_name_cipher`, `last_name_cipher`, `full_name_cipher`). В create/update flow (`EmployeesService`, `CounterpartiesController`/`CounterpartiesService`, `AuthService`) plaintext-колонки заполняются только детерминированными `__enc__*` placeholders, а реальные значения пишутся в cipher/index. Для uniqueness подключены DB guards `employees_org_fin_blind_uidx` и `counterparties_org_tax_blind_uidx`; backfill: `npm run db:migrate:pii-stage3`.
+9. **Encryption-at-rest (stage 4 / auth & dedupe cutover):** в lookup/auth-потоках (`register`, `createOrganizationForExistingUser`, `requestJoinByTaxId`) поиск организации по VÖEN выполняется только по `tax_id_blind_index` (без fallback на plaintext `tax_id`). В контрагентах проверка дублей при create/update и attach-flow тоже переведена на `tax_id_blind_index`; partial-поиск в UI остаётся смешанным до отдельного фронтового cutover шага.
+10. **Cutover readiness audit:** добавлен контроль `npm run db:audit:pii-cutover`, который проверяет отсутствие NULL в encrypted/blind колонках по `organizations`, `employees`, `counterparties`, `users` и блокирует завершение cutover при незаполненных данных.
+11. **PII read fallback (pre-drop safety):** в Prisma добавлено расширение `prismaPiiReadFallbackExtension`, которое при чтении (`find*`, `create/update/upsert` с return) восстанавливает plaintext-поля из cipher-полей (`taxId`, `firstName`, `lastName`, `fullName`, `finCode`, `voen`, `name`) если plaintext пустой/null; `fullName` дополнительно собирается из `firstName + lastName` для обратной совместимости API-контрактов. Это позволяет поэтапно убирать plaintext-колонки без мгновенного рефакторинга всех read-path.
+12. **Plaintext nullify (phase 1):** добавлен скрипт `npm run db:nullify:pii-plaintext:phase1` как исторический pre-drop этап для nullable plaintext-полей с подтверждённым cipher mirror (на текущем этапе users/employee nullable plaintext уже удалены в последующих wave).
+13. **Plaintext nullify (phase 2):** для non-null plaintext колонок применена санитизация в non-PII placeholders (`__enc__*`) при наличии cipher/index mirror: `employees.fin_code/first_name/last_name`, `counterparties.tax_id/name` (organization plaintext удалён в wave-6c).
+14. **Plaintext remaining audit:** отчёт `npm run db:audit:pii-plaintext` считает **risk-plaintext** по оставшимся legacy plaintext-колонкам сотрудников (`employees.fin_code/first_name/last_name`).
+15. **Pre-drop guard:** добавлен обязательный gate `npm run db:assert:pii-plaintext-zero`, который завершает процесс с ошибкой при любом `risk-plaintext > 0`. Используется как блокирующий шаг перед drop-миграциями plaintext колонок.
+16. **DB placeholder guards (transitional):** SQL `CHECK`-ограничения применялись на legacy plaintext-колонки во время cutover; после drop-waves (`users`, `counterparties`, `organizations.tax_id`) соответствующие ограничения сняты вместе с колонками.
+17. **Drop wave 1 (indexes/constraints):** удалены legacy DB-зависимости от plaintext-поиска (`employees.organization_id + fin_code` unique, `counterparties.organization_id + tax_id` index). Для dedupe/lookup остаются blind-index ограничения (`employees_org_fin_blind_uidx`, `counterparties_org_tax_blind_uidx`).
+18. **Drop wave 2 (column):** удалена plaintext-колонка `users.full_name`; запись больше не ведётся, а обратная совместимость ответа API поддерживается вычислением `fullName` из расшифрованных name-cipher полей.
+19. **Drop wave 3 (columns):** удалены plaintext-колонки `users.first_name` и `users.last_name`; runtime читает ФИО только из `first_name_cipher` / `last_name_cipher` (с вычислением `fullName` в API-ответах).
+20. **Drop wave 4 (column):** удалена plaintext-колонка `employees.voen`; для CONTRACTOR используется только `voen_cipher` / `voen_blind_index`, экспорт и API-чтение берут значение через дешифрование cipher-поля.
+16. **Invite lifecycle (v95+):** `inviteUser(email, role)` создаёт запись приглашения, генерирует invite token и отправляет email со ссылкой принятия; `accept` создаёт membership по токену/идентификатору инвайта; `revoke` переводит pending-invite в отклонённый статус и блокирует дальнейшее принятие. **Безопасность (M1):** просроченный JWT приглашения отклоняется отдельным сообщением от «невалидного» токена; принятие инвайта **атомарно** резервирует строку (`UPDATE … WHERE status=PENDING`), повторное использование ссылки даёт **`409 Conflict`**; дубликат membership (`P2002`) трактуется как конфликт («уже участник организации»), в т.ч. при гонках между несколькими организациями/сессиями.
 
 ### Система ролей (RBAC)
 
@@ -199,6 +220,7 @@
 | **OWNER** | Полный доступ, управление подпиской |
 | **ADMIN** | Управление пользователями и настройками |
 | **ACCOUNTANT** | Доступ к финансам и отчётам |
+| **DIRECTOR** | Директор юрлица: чтение ключевой финотчётности (P&L, ДДС, баланс, дебиторка) в рамках одной организации; участие в согласованиях по политике; без владения подпиской |
 | **USER** | Ограниченный доступ (только свои документы) |
 | **PROCUREMENT** | Создание закупочных документов, операции склада, создание черновиков оплат (KXO/Bank Draft) **без права Post/Approve** |
 | **AUDITOR** | Глобальный Read-Only: просмотр Ledger, Payroll, AuditLog и отчётов без права создавать/изменять данные |
@@ -214,7 +236,7 @@
 
 ### 2.0. RBAC enforcement updates (Bridge Sprint P1/P2)
 
-- **Inventory Post/Approve:** роль `PROCUREMENT` может работать с подготовительным контуром склада, но проведение `InventoryAudit.approve()` доступно только `OWNER` / `ADMIN` / `ACCOUNTANT`; попытки `PROCUREMENT` получают `403`.
+- **Inventory reconciliation:** любые мутации (`POST`, `PATCH`) по **`/api/inventory/reconciliations/*`** и **`/api/inventory/audits/*`** разрешены только **`OWNER`**, **`ADMIN`**, **`ACCOUNTANT`**; роль **`PROCUREMENT`** и ниже получают **`403`**. Чтение списка и карточки (`GET`) — у любого авторизованного пользователя организации (отдельный `RolesGuard` на эти маршруты не навешан).
 - **AUDITOR Read-Only:** роль `AUDITOR` имеет доступ к чтению (включая `AuditLog`), но любые HTTP-мутации (`POST`, `PATCH`, `PUT`, `DELETE`) глобально блокируются через `AuditorMutationGuard` с ответом `403`.
 
 ### Безопасность
@@ -265,6 +287,8 @@
 | **Атомарность** | `Prisma.$transaction`: при ошибке одной проводки откатывается вся транзакция |
 | **Блокировка** | Невозможность удаления/изменения проводок в «закрытых» периодах; закрытие периода — только **Owner** или **Admin** |
 | **Журнал (MVP)** | Правки проводок **допускаются**, каждое изменение — в **`AuditLog`**; неизменяемый журнал / только сторно — позже |
+
+**Стаб §5.E (РБП / prepaid):** помесячное признание предоплаченных расходов — отдельные сущности **`PrepaidExpense`** / **`PrepaidExpenseSchedule`** и проводки через **`AccountingService.postJournalInTransaction`** с теми же ограничениями закрытого периода, что и для прочих ручных операций. Детали — **§12.8.5**.
 
 **Дополнение (alış fakturası → склад):** у модели **`Transaction`** поле **`purchase_snapshot`** (`Json?`, колонка `purchase_snapshot`). После успешного **`AccountingService.postJournalInTransaction`** при проведении закупки (**`InventoryService.recordGoodsPurchase`**, **`recordDualPurchaseInvoice`**, **`recordServicePurchase`**) в той же **`prisma.$transaction`** выполняется **`transaction.update`**: в JSON сохраняется **`{ version: 1, lines: [{ kind, productId, quantity, productName, sku }] }`** (товары и услуги с признаком `kind`). Складские **`StockMovement`** из проведения закупки **не создаются**; физический приход — **`POST /api/inventory/receipts`** (см. §10.2.5). Документы без снимка (до миграции) отдают пустой **`lines`** в **`GET /api/inventory/purchase-invoices/:id`**.
 
@@ -338,7 +362,7 @@
 ### UI (реализация vX.Y): создание и обновление через модальные компоненты
 
 - Клиент (`apps/web`) для операций **create/update** по REST вызывает **модальные компоненты** с формами на страницах списков (паттерн «таблица + модалка»), а не отдельные полноэкранные страницы форм.
-- Примеры: **CreateInvoiceModal** / **ViewInvoiceModal** (просмотр счёта только в модалке на **`/sales/invoices`**, маршрут **`/sales/invoices/[id]`** → редирект с **`?invoice=`**); **акты сверки** — реестр **`/sales/reconciliation`**; **CreateCounterpartyModal** и форма редактирования на **`/crm/counterparties`**; **каталог** — **`/catalog/products`**: над таблицей — текстовый поиск по **наименованию** и **SKU**; кнопка добавления — **выпадающее меню** «+ Yeni məhsul» / «+ Yeni xidmət» (RU: новый товар / новая услуга); **`ProductModal`** (товар: **Ad, SKU, ƏDV, Qiymət**, `isService: false`) и **`CreateServiceModal`** / режим услуги (только **Ad, ƏDV, Qiymət**, `isService: true`, без SKU в UI); инвентаризация — **`InventoryAuditCreateFlow`** в модалке на **`/inventory/audits`**; основные средства — **`FixedAssetModal`** на **`/fixed-assets`**; **закупки** — реестр **`/purchases`** + **`PurchaseModal`**; перемещения — **`/inventory/transfers`** + **`TransferModal`**; корректировки — **`/inventory/adjustments`** + **`AdjustmentsModal`**; настройки склада — **`/inventory/settings`** (**`NewWarehouseModal`**).
+- Примеры: **CreateInvoiceModal** / **ViewInvoiceModal** (просмотр счёта только в модалке на **`/sales/invoices`**, маршрут **`/sales/invoices/[id]`** → редирект с **`?invoice=`**); **акты сверки** — реестр **`/sales/reconciliation`**; **CreateCounterpartyModal** и форма редактирования на **`/crm/counterparties`**; **каталог** — **`/catalog/products`**: над таблицей — текстовый поиск по **наименованию** и **SKU**; кнопка добавления — **выпадающее меню** «+ Yeni məhsul» / «+ Yeni xidmət» (RU: новый товар / новая услуга); **`ProductModal`** (товар: **Ad, SKU, ƏDV, Qiymət**, `isService: false`) и **`CreateServiceModal`** / режим услуги (только **Ad, ƏDV, Qiymət**, `isService: true`, без SKU в UI); **сличительная ведомость** — **`InventoryAuditCreateFlow`** и страницы **`/inventory/audits`**, **`/inventory/audits/[id]`**; с клиента мутации идут на канонический **`/api/inventory/reconciliations/*`** (снимок, REVIEW, **`complete`**); **`/api/inventory/audits`** — только совместимость (**`POST /`**, **`PATCH …/lines`**); **`approve`** / **`sync-system`** у **`/audits`** не использовать (**§10.1**); основные средства — **`FixedAssetModal`** на **`/fixed-assets`**; **закупки** — реестр **`/purchases`** + **`PurchaseModal`**; перемещения — **`/inventory/transfers`** + **`TransferModal`**; корректировки — **`/inventory/adjustments`** + **`AdjustmentsModal`**; настройки склада — **`/inventory/settings`** (**`NewWarehouseModal`**).
 - Устаревшие маршруты (**редиректы** на реестр; **исключение:** query **`?invoice=`** на **`/sales/invoices`** открывает **ViewInvoiceModal** после редиректа с **`/sales/invoices/[id]`**):
   - `/invoices/new` → `/sales/invoices`
   - `/invoices`, `/invoices/*` → `/sales/invoices`, `/sales/invoices/*`
@@ -352,6 +376,7 @@
   - `/fixed-assets/new` → `/fixed-assets`
   - `/manufacturing/recipe` → `/manufacturing/recipes`; `/manufacturing/release` → `/manufacturing/releases`
   - `/payroll/absences/new` → `/payroll`
+- **Сличительная ведомость:** редирект **`/inventory/audit/new` → `/inventory/audits`** касается только UI. Для REST интеграций и новых клиентов канон — **`/api/inventory/reconciliations/*`**; **`GET /api/inventory/reconciliations`** и **`GET …/:id`** дают те же документы, что видит веб на **`/inventory/audits`**. Детали и исключения **`/api/inventory/audits`** — **§10.1**.
 
 #### Иерархия левого меню и каталог `apps/web/app` (v2026.05.01, 1C/SAP-стиль)
 
@@ -360,7 +385,7 @@
 | **Kataloq və CRM** | `crm/counterparties/*`, `catalog/products/*` (**выше «Продаж» в сайдбаре**) |
 | **Satış** | `sales/invoices/*`, `sales/reconciliation` |
 | **Satınalma** | `purchases` |
-| **Anbar** | `inventory/*` (кроме закупок; `purchase` удалён) |
+| **Anbar** | `inventory/*` (кроме закупок; `purchase` удалён); сличительная ведомость — **`inventory/audits`** + REST **`/api/inventory/reconciliations/*`** (**§10.1**) |
 | **İstehsalat** | `manufacturing` → редирект на `manufacturing/recipes`; `manufacturing/releases` |
 
 ### Контрагенты (VÖEN / MDM lookup) — UI/REST
@@ -748,6 +773,8 @@
 - **Role enum:** `UserRole` расширен значениями **`HR_MANAGER`** и **`DEPARTMENT_HEAD`**.
 - **M6/M7 integration (v2026.04.29):** финальное бухгалтерское проведение payroll выполняется на шаге `SalaryRegistry.status = PAID`; проводки формируются по группам `departmentId` сотрудников (ЦФО) с записью аналитики через `Transaction.departmentId`.
 
+**Стаб §5.E.7 (PSA):** проектный учёт (**`Project`**, **`ProjectTask`**, **`TimeEntry`**) и связь сотрудника с логином (**опциональный** `Employee.userId` → `User`) — для billable hours и выставления счетов по проекту. Не смешивать с месячным **`Timesheet`** для payroll. Детали — **§12.8.7**.
+
 ### 7.0. Справочник `AbsenceType` и логика отсутствий (ТК AР; məzuniyyət növləri)
 
 **Источник требований:** практика бухучёта АР (в т.ч. разбор по **muhasib.az** — «Məzuniyyət haqqı hesablanması»), согласование с заказчиком (отпуска/больничные/без оплаты).
@@ -933,6 +960,8 @@
 - **Hash Chain Verify (v95+):** `POST /api/audit/verify-chain` проверяет цепочку `audit_logs` по порядку (`createdAt,id`), сверяет hash каждой записи (chain/legacy-совместимо) и возвращает список `compromisedIds` при нарушении целостности.
 - **Архив:** BullMQ-процесс **раз в месяц** переносит записи `AuditLog` старше **1 года** в **`AuditLogArchive`** (отключается `AUDIT_ARCHIVE_DISABLED=1`).
 
+**Стаб §5.E (Activity Stream):** пользовательская коллаборация (**`EntityActivity`**, **`EntityComment`**, **`Mention`**) — **отдельно** от `AuditLog`: не дублирует security-аудит; системные события ленты могут эмититься рядом с успешной мутацией (см. **§12.8.2**). Уведомления о @mention — через существующую модель **`Notification`** и REST **`/api/notifications`** (PRD §10.2).
+
 Продуктовое описание — [PRD.md](./PRD.md) §4.8.
 
 ---
@@ -960,29 +989,67 @@
 
 **Инварианты:** `validateBalance()` для проводок; запрет мутаций в закрытом периоде (как для прочих финопераций).
 
-### Инвентаризационная опись (v5.9)
+**Сличительная ведомость (`InventoryAudit`):** полный контракт, блокировка склада и матрица проводок — в подразделе **§10.1** ниже; новые интеграции и фронт должны опираться на **`/api/inventory/reconciliations/*`**, а не на устаревшие **`POST /api/inventory/audits/:id/approve`** / **`sync-system`**.
 
-- **Модель данных (Prisma):**
-  - **`InventoryAudit`**: `id`, `organizationId`, `warehouseId` (**1 аудит = 1 склад**), `date`, `status` (`DRAFT` | `APPROVED`).
-  - **`InventoryAuditLine`**: `id`, `organizationId`, `inventoryAuditId`, `productId`, `systemQty`, `factQty`, `costPrice`.
-  - Уникальность строки в рамках документа: `@@unique([inventoryAuditId, productId])`.
-- **UI / процесс:** **черновик (DRAFT)** создаётся для выбранного склада и формирует **снимок системных остатков** (автозаполнение строк `systemQty`, `factQty=systemQty`, `costPrice` из `StockItem.averageCost`). В DRAFT разрешено редактирование `factQty` и `costPrice`. Далее — проведение (approve).
+**Стаб §5.E.1 (Virtual stock):** read-only расчёт доступного выпуска ГП по **`ProductRecipe`** и остаткам **`StockItem`** на выбранном складе — **`GET /api/manufacturing/recipes/:id/available-output`**, логика в **`ManufacturingService`**. См. **§12.8.1**.
 
-#### §10.1 (v6.0) `InventoryAuditService` — транзакция проведения
+### Сличительная ведомость — `InventoryAudit` / Inventory Reconciliation (синхрон с PRD §7.10)
+
+**Назначение:** один документ на **один склад**; фиксация учётного и фактического количества по строкам, фаза пересчёта, классификация расхождений и **атомарное** проведение склада + NAS.
+
+**Модель данных (Prisma):**
+
+- **`InventoryAudit`**: `organizationId`, `warehouseId`, `date`, `status` (**`DRAFT` \| `COUNTING` \| `REVIEW` \| `COMPLETED` \| `CANCELLED`**), опционально `number`, `notes`, `responsibleEmployeeId`, `postedTransactionId`, таймстемпы фаз (`startedAt`, `completedAt`, `cancelledAt`), soft-delete поля при необходимости (см. миграции).
+- **`InventoryAuditLine`**: `inventoryAuditId`, `productId`, `systemQty`, `factQty`, `costPrice`, **`discrepancyKind`** (`NONE` \| `SURPLUS` \| `SHORTAGE_WRITEOFF` \| `SHORTAGE_EMPLOYEE`), опционально **`accountableEmployeeId`** (обязателен для `SHORTAGE_EMPLOYEE`), `postedAmountAzn`, `reasonNote`.
+- Уникальность строки в документе: `@@unique([inventoryAuditId, productId])`.
+- **Инвариант БД:** не более **одной** активной ведомости в статусе **`COUNTING`** или **`REVIEW`** на пару `(organizationId, warehouse_id)` — частичный уникальный индекс в PostgreSQL (`inventory_audits_active_per_warehouse_uidx`).
+
+**Жизненный цикл:**
+
+1. **`DRAFT`** — документ без снимка строк (или после создания до запуска пересчёта); склад **не** блокируется только из‑за DRAFT.
+2. **`POST /reconciliations/:id/start` (`startCounting`)** — создаёт строки со **снимком** `systemQty` / начальным `factQty` и `costPrice` из учёта; переводит в **`COUNTING`**; включает **блокировку склада** для новых движений.
+3. **`COUNTING`** — правка `factQty` / `costPrice` по строкам (`PATCH .../lines/:lineId` или совместимый `PATCH /inventory/audits/lines/:lineId`).
+4. **`POST .../submit`** — перевод в **`REVIEW`**; блокировка склада сохраняется.
+5. **`REVIEW`** — классификация расхождений: `PATCH .../lines/:lineId/classification` (`discrepancyKind`, для МОЛ — `accountableEmployeeId`).
+6. **`POST .../complete`** — **`COMPLETED`**: одна **`prisma.$transaction`** — `StockMovement` + проводки NAS + связь `postedTransactionId`.
+7. **`POST .../cancel`** — **`CANCELLED`** из `DRAFT` / `COUNTING` / `REVIEW` (снимает блокировку после завершения операции).
+
+**Блокировка склада:** пока по складу есть ведомость в **`COUNTING`** или **`REVIEW`**, любой код, создающий **`StockMovement`** по этому складу (закупка, перемещение, продажа, производство, акт физ. инвентаризации и т.д.), должен вызывать **`assertWarehouseNotUnderReconciliation`** — ответ **`409`** с кодом **`WAREHOUSE_LOCKED_FOR_RECONCILIATION`**.
+
+#### §10.1 Канонический API и RBAC
+
+**Базовый префикс:** **`/api/inventory/reconciliations`**.
+
+| Метод | Путь | Роли (мутации) | Назначение |
+|------|------|----------------|------------|
+| GET | `/api/inventory/reconciliations` | авторизованный | Список ведомостей |
+| GET | `/api/inventory/reconciliations/:id` | авторизованный | Карточка со строками |
+| POST | `/api/inventory/reconciliations` | OWNER, ADMIN, ACCOUNTANT | Создать **DRAFT** |
+| POST | `/api/inventory/reconciliations/:id/start` | OWNER, ADMIN, ACCOUNTANT | **COUNTING** + снимок + lock |
+| PATCH | `/api/inventory/reconciliations/:id/lines/:lineId` | OWNER, ADMIN, ACCOUNTANT | Обновить факт/цену в **COUNTING** |
+| POST | `/api/inventory/reconciliations/:id/submit` | OWNER, ADMIN, ACCOUNTANT | **COUNTING → REVIEW** |
+| PATCH | `/api/inventory/reconciliations/:id/lines/:lineId/classification` | OWNER, ADMIN, ACCOUNTANT | Классификация в **REVIEW** |
+| POST | `/api/inventory/reconciliations/:id/complete` | OWNER, ADMIN, ACCOUNTANT | **REVIEW → COMPLETED** (склад + ГК) |
+| POST | `/api/inventory/reconciliations/:id/cancel` | OWNER, ADMIN, ACCOUNTANT | Отмена документа |
+
+Мутации проходят **`AuditMutationInterceptor`** (см. §9). Деталь RBAC — §2.0.
+
+**Совместимость `/api/inventory/audits`:** `POST /` создаёт тот же **DRAFT**, что и **`POST /reconciliations`** (делегирование в `createReconciliationDraft`). `PATCH .../lines/:lineId` делегирует в **`setLineFact`**. Эндпоинты **`POST .../:id/approve`** и **`POST .../:id/sync-system`** **отключены** — клиент должен использовать поток **`reconciliations`** (`complete` / снимок при `start`).
+
+**Обратная несовместимость:** значение статуса **`APPROVED`** у `InventoryAudit` удалено из enum; исторические строки мигрированы в **`COMPLETED`**. Излишки в ГК отражаются на **631** (константа **`INVENTORY_SURPLUS_INCOME_ACCOUNT_CODE`**), не на **611**.
+
+#### §10.1.0 `InventoryAuditService.complete` — проводки (NAS) и склад
 
 **Note (audit sync):** Treasury cash orders were renamed **MKO/MXO → KMO/KXO**, and incoming cash orders (KMO) have an additional **KO-1** print form requirement (see §6.0).
 
-- **Approve (проведение) выполняется атомарно**: весь процесс оборачивается в **`prisma.$transaction`**.
-- **Ограничения (Compliance):**
-  - Запрещено проводить документ в статусе **APPROVED** повторно.
-  - Запрещено проведение и редактирование линий в **закрытом периоде** (проверка как в `AccountingService.postJournalInTransaction` через `closedPeriods`).
-- **Алгоритм approve:**
-  - Для каждой строки вычислить \( \Delta = factQty - systemQty \).
-  - Определить `invAcc` по складу: **201** (товары) или **204** (готовая продукция) из `Warehouse.inventoryAccountCode`.
-  - Если \( \Delta > 0 \): сумма \( amount = \Delta \times costPrice \) → проводка **Дт invAcc / Кт 611**, складское движение **IN**.
-  - Если \( \Delta < 0 \): сумма \( amount = |\Delta| \times costPrice \) → проводка **Дт 731 / Кт invAcc**, складское движение **OUT**.
-  - Все складские изменения (`StockItem.quantity`, `StockItem.averageCost` при оприходовании) и `StockMovement` (reason=ADJUSTMENT), а также создание `Transaction`/`JournalEntry` выполняются внутри одной транзакции.
-- **i18n (RU/AZ) для UI инвентаризации:** ключи `inventory.audit*` используются в **`InventoryAuditCreateFlow`** (модалка на `/inventory/audits`), на `/inventory/audits`, `/inventory/audits/[id]` и должны проходить `npm run i18n:audit` (см. §17). Ключи включают, например: `inventory.auditTitle`, `inventory.auditSubtitle`, `inventory.auditThSystem`, `inventory.auditThFact`, `inventory.auditThDiff`, `inventory.auditThCost`, `inventory.auditThAmountDiff`, `inventory.auditTotalDiff`, `inventory.auditStatusDraft`, `inventory.auditStatusApproved`.
+- Выполняется в **`prisma.$transaction`**; проверка **закрытого периода** по дате документа (как для прочих проведений); повторное **`complete`** запрещено.
+- Для каждой строки с ненулевым расхождением после **`REVIEW`**: \( \Delta = factQty - systemQty \); сумма оценки из **`costPrice`** и количества; `invAcc` = **201** или **204** из **`Warehouse.inventoryAccountCode`**.
+- **`SURPLUS`** (\( \Delta > 0 \)): **Дт invAcc / Кт 631**, складское движение **IN**, reason **ADJUSTMENT**.
+- **`SHORTAGE_WRITEOFF`** (\( \Delta < 0 \)): **Дт 731 / Кт invAcc**, движение **OUT** (списание по **`StockService.computeIssueUnitCost`** / политике учёта орг).
+- **`SHORTAGE_EMPLOYEE`** (\( \Delta < 0 \)): **Дт 244 / Кт invAcc**, движение **OUT**; требуется **`accountableEmployeeId`**.
+- Итоговая транзакция ГК: **`reference`** вида **`INV-RECON-{id}`**, финальная проводка с **`isFinal: true`** в рамках сервиса учёта.
+
+**i18n (RU/AZ):** ключи **`inventory.audit*`** (в т.ч. **`auditStatusDraft`**, **`auditStatusCounting`**, **`auditStatusReview`**, **`auditStatusCompleted`**, **`auditStatusCancelled`**; устаревший **`auditStatusApproved`** может сохраняться в каталоге для совместимости) — UI **`/inventory/audits`**, **`/inventory/audits/[id]`**, **`InventoryAuditCreateFlow`** / модалки; данные для экранов приходят с **`GET /api/inventory/reconciliations`** (список) и **`GET …/:id`**; см. **`npm run i18n:audit`** (§17).
 
 #### §10.1.1 Документы физической инвентаризации (`InventoryAdjustment`)
 
@@ -990,7 +1057,7 @@
 
 **Prisma:**
 
-- **`InventoryAdjustment`**: `organizationId`, `warehouseId`, `date`, `status` (`DRAFT` \| `POSTED`), `reason`, `doc_type` (`WRITE_OFF` \| `SURPLUS` \| `INVENTORY_COUNT`).
+- **`InventoryAdjustment`**: `organizationId`, `warehouseId`, `date`, `status` (`DRAFT` \| `POSTED`), `reason`, `doc_type` (**`WRITE_OFF`** \| **`SURPLUS`**).
 - **`InventoryAdjustmentLine`**: `adjustmentId`, `productId`, `expectedQuantity`, `actualQuantity`, `deltaQuantity`, `unitCost`.
 
 **API (Nest, `InventoryController`):**
@@ -1006,7 +1073,7 @@
 
 - Одна **`prisma.$transaction`**; проверка **закрытого периода** по `monthKeyUtc(date)`; повторное проведение запрещено (`status` уже `POSTED`).
 - Перед движениями **пересчитываются** `expectedQuantity` и `deltaQuantity` от **текущих** `StockItem` на складе документа (факт берётся из сохранённых строк).
-- **WRITE_OFF:** любая строка с `delta > 0` → **400**; **SURPLUS:** любая строка с `delta < 0` → **400**; **INVENTORY_COUNT:** допускаются оба знака.
+- **WRITE_OFF:** любая строка с `delta > 0` → **400**; **SURPLUS:** любая строка с `delta < 0` → **400**. Смешанные расхождения в одном документе — только через **сличительную ведомость** (`InventoryAudit`), не через `InventoryAdjustment`.
 - Склад: **`StockMovement`** type IN/OUT, reason **ADJUSTMENT**, `documentDate` = полдень UTC по дате документа, `note = INV_PHYS:{adjustmentId}`.
 - **Недостача:** `StockService.computeIssueUnitCost` (FIFO) на `|delta|`; проводки в одной транзакции — агрегат **Дт 731 — Кт invAcc** (201/204 по `Warehouse.inventoryAccountCode`).
 - **Излишек:** цена единицы = `line.unitCost` если > 0, иначе `StockItem.averageCost`; агрегат **Дт invAcc — Кт 631** (прочие доходы по излишкам, как в ручной корректировке `adjustStock`).
@@ -1017,6 +1084,8 @@
 #### §10.2 (v14.0) Модуль Manufacturing — спецификации (ProductRecipe)
 
 **Связь с ЦФО:** производственные и складские проводки, как и прочие операционные расходы, для P&L по подразделениям должны согласовываться с правилами **`departmentId`** в финансовых транзакциях — см. **§7.0.1** (в т.ч. быстрый расход и зарплатные проводки по ЦФО при **PAID** реестра выплат).
+
+**Стаб §5.E.6 (Cost allocation):** распределение пула косвенных затрат за календарный месяц на проведённые **`manufacturing release`** по драйверу (**`OverheadDriver`**, **`OverheadPool`**, **`OverheadAllocation`**). Детали REST и проводок — **§12.8.6**.
 
 #### Financial Reports (v16.1): Balance Sheet + Cash Flow
 
@@ -1106,6 +1175,8 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 - **`/inventory/movements`** — реестр движений; **`GET /api/inventory/movements`** — только по товарам (**`isService: false`**), опционально `note` / `notes` (CSV) для фильтрации по `stock_movements.note`.
 - **`/inventory/transfers`** — реестр строк **`TRANSFER_OUT`** (партия `transfer_batch_id` + сопоставление со **`TRANSFER_IN`**); создание — кнопка **+ Yeni köçürmə** → **`TransferModal`** (**`CreateTransferModal`**).
 - **`/inventory/adjustments`** — реестр движений с примечаниями **`INV_ADJ_IN`** / **`INV_ADJ_OUT`**; создание — **+ Yeni düzəliş** → **`AdjustmentsModal`** (**`CreateAdjustmentModal`**).
+- **`/inventory/audits`**, **`/inventory/audits/[id]`** — реестр и карточка **сличительной ведомости**; **`InventoryAuditCreateFlow`** и модалки дергают **`/api/inventory/reconciliations/*`** (список/деталь можно также **`GET /api/inventory/reconciliations`**). Не полагаться на **`POST /api/inventory/audits/:id/approve`** (**§10.1**).
+- **`/inventory/physical`** — акты **`InventoryAdjustment`** (WRITE_OFF / SURPLUS); см. **§10.1.1**.
 - **`/purchases`** — реестр закупок (приходы **PURCHASE**) + кнопка **+ Yeni alış** → **`PurchaseModal`** (только по клику; query из глобальной навигации не используется). В меню строки (товарные **`goods`** / **`dual`**) — **«Mədaxil orderi yarat»**: открывает **`CreateReceiptModal`** с предзаполненным **`basisTransactionId`**.
 - **`/inventory/receipts`** — реестр движений с **`reason=RECEIPT`**; кнопка нового прихода → **`CreateReceiptModal`** (`apps/web/components/inventory/create-receipt-modal.tsx`; алиас экспорта **`ReceiptModal`** из `app/inventory/receipts/receipt-modal.tsx`).
 
@@ -1357,6 +1428,71 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 3. Повторный `POST` не создаёт дубликаты проводок.
 4. Роль `PROCUREMENT` получает `403` на `/post`.
 
+### 12.8. Generic SaaS Strengthening (Waves 1–3)
+
+**Синхрон с продуктом:** [PRD.md](./PRD.md) §5.E. Ниже — техконтур по эпикам; критерии приёмки дублируются в PRD.
+
+| Подраздел | Эпик | Ключевые артефакты |
+|-----------|------|-------------------|
+| §12.8.1 | Virtual stock | `ManufacturingService.computeAvailableOutput`, `GET …/recipes/:id/available-output` |
+| §12.8.2 | Activity Stream | Prisma `EntityActivity`, `EntityComment`, `Mention`; модуль `activity-stream`; эмиттер из `AuditMutationInterceptor` или доменных сервисов |
+| §12.8.3 | Approval Workflow | `ApprovalPolicy`, `ApprovalRequest`, `ApprovalStep`; модуль `approvals`; CHECK на `REJECT` + comment |
+| §12.8.4 | Director | `UserRole.DIRECTOR`; `@Roles` на отчётах; `AccessControlService` |
+| §12.8.5 | Prepaid (РБП) | `PrepaidExpense`, `PrepaidExpenseSchedule`; BullMQ или ручной post-month |
+| §12.8.6 | Cost allocation | `ManufacturingOverheadService`; `GET|POST /api/manufacturing/overhead/drivers`, `PATCH …/drivers/:id`, `GET|POST /api/manufacturing/overhead/pools`, `POST …/allocate?period=` |
+| §12.8.7 | PSA mini | `PsaService` / `PsaModule`; `GET|POST|PATCH /api/psa/projects`, tasks + time-entries, `POST …/generate-invoice`, `GET …/profitability` |
+
+#### §12.8.1 Virtual stock
+
+- **Реализовано:** `GET /api/manufacturing/recipes/:recipeId/available-output?warehouseId=` → `ManufacturingService.computeAvailableOutput`.
+- Вход: `recipeId`, `warehouseId` (опционально — склад по умолчанию как в `releaseProduction`).
+- Выход: `maxOutputUnits` (string), `bottlenecks[]` (`needPerFgUnit`, `available`, `maxFgFromLine`, имена компонентов).
+- Без изменения остатков; tenant: `organizationId` из JWT.
+
+#### §12.8.2 Activity Stream
+
+- **Реализовано:** Prisma `EntityActivity`, `EntityComment`, `EntityCommentMention`; Nest **`activity-stream`** (`ActivityStreamController` / `ActivityStreamService` / `ActivityStreamEmitterService`).
+- REST: `GET /api/activity/:entityType/:entityId`; `POST …/comments`, `PATCH /api/activity/comments/:id`, `DELETE …/comments/:id` — под **`AuditMutationInterceptor`**.
+- `entityType` (slug): `invoice`, `counterparty`, `employee`, `product`, `inventory_audit`, `payroll_slip`, `customs_declaration`.
+- Системные события: после записи **`AuditLog`** вызывается **`ActivityStreamEmitterService.emitFromAuditMutation`** (маппинг Prisma-имени сущности из аудита → slug; без дублирования содержимого аудита).
+- @mention: разбор **`@email`** в теле комментария → строки `entity_comment_mentions` → **`NotificationService.createNotification`** с `link` на сущность (веб-путь по типу).
+
+#### §12.8.3 Approval Workflow
+
+- **Реализовано (MVP):** таблицы `approval_policies`, `approval_requests`, `approval_steps` + enum’ы `ApprovalDocumentType` / `ApprovalRequestStatus` / `ApprovalStepDecision`; Nest **`approvals`** (`ApprovalsController`, `ApprovalsService`); **CHECK** на шаге: reject только с непустым `comment`.
+- **Касса:** `POST /api/approvals/cash-orders/:id/submit` создаёт цепочку шагов из `approverRoles[]`; `CashOrderService.postOrder` вызывает `assertCashOrderMayPost` (политика по сумме/валюте `CASH_ORDER`).
+- **Inbox:** `GET /api/approvals/inbox`; решения: `POST /api/approvals/requests/:requestId/steps/:stepNo/approve|reject` (reject — DTO с `comment`).
+- **Дальше:** те же примитивы для закупок, `BANK_MANUAL_ENTRY`, `PAYROLL_RUN` — встраивание в соответствующие сервисы проведения.
+
+#### §12.8.4 Director
+
+- **Реализовано:** значение enum **`UserRole.DIRECTOR`** (миграция `UserRole`); роль только в **`OrganizationMembership`**.
+- Отчёты: `DIRECTOR` добавлен к guard’ам **`GET /api/reporting/pl`**, **`GET /api/reporting/receivables`**, набора **`GET /api/reports/*`** на базе `RECON_ROLES` (Cash Flow, Balance Sheet и т.д.); фильтр департамента в P&L — также для `DIRECTOR`/`ADMIN` (см. `ReportingController`).
+
+#### §12.8.5 Prepaid (РБП)
+
+- **Реализовано:** таблицы `prepaid_expenses`, `prepaid_expense_schedules`; Nest **`PrepaidModule`** (`PrepaidExpensesController` / `PrepaidExpensesService`).
+- Создание: генерация строк графика по календарным месяцам UTC (`YYYY-MM`), остаток округления на последний месяц.
+- Помесячное проведение: `POST /api/prepaid-expenses/:id/post-month?period=` → NAS-проводка через **`AccountingService`** (проверка закрытого периода внутри `postJournalInTransaction`); строка графика → `POSTED`, при отсутствии `PENDING` — статус РБП `FULLY_AMORTIZED`.
+- Счета по умолчанию: **`731`** (расход) / **`133`** (предоплата), переопределение полями сущности.
+
+#### §12.8.6 Cost allocation
+
+- **Реализовано:** таблицы `overhead_drivers`, `overhead_pools`, `overhead_allocations`, `manufacturing_releases` (связь выпуска с `transactions` и `stock_movements` по ГП); Nest **`ManufacturingOverheadService`** + **`ManufacturingOverheadController`** (`/api/manufacturing/overhead/...`, модуль **`manufacturing`**, entitlement **`manufacturing`**).
+- **Драйверы:** `VOLUME` (вес = `quantity` выпуска), `MATERIAL_COST` (вес = `material_cost`), `TIME` — равный вес на каждый release в месяце (MVP без shop-floor hours).
+- **Allocate:** `POST /api/manufacturing/overhead/allocate?period=YYYY-MM` — для каждого пула периода остаток = `totalAmount − sum(existing allocations)`; новые доли только у release без строки allocation; проводка **Дт `debit_account_code` / Кт `credit_account_code`** пакетом в одной `Transaction` на пул-итерацию; повторный вызов не дублирует уже созданные пары pool+release.
+
+#### §12.8.7 PSA mini
+
+- **Реализовано:** таблицы `psa_projects`, `psa_project_tasks`, `psa_time_entries`; FK **`psa_time_entries.employee_id` → `employees`**; **`invoices.project_id` → `psa_projects`**.
+- **REST:** `GET|POST /api/psa/projects`, `GET|PATCH /api/psa/projects/:id`, `GET|POST /api/psa/projects/:id/tasks`, `GET|POST /api/psa/projects/:id/time-entries`, `PATCH /api/psa/projects/:projectId/time-entries/:entryId`, `POST /api/psa/projects/:id/generate-invoice` (тело `{ dateFrom, dateTo }`, квота **`INVOICES_PER_MONTH`**), `GET /api/psa/projects/:id/profitability?dateFrom=&dateTo=`.
+- **Генерация инвойса:** только `TimeEntry.status = APPROVED`, `billable = true`, `billing_invoice_id IS NULL`; после создания черновика через **`InvoicesService.create`** (`projectId`) — строки помечаются **`INVOICED`** и связываются с инвойсом; услуга-заглушка **`__PSA_HOUR__`** в каталоге продуктов организации.
+- **`Employee.userId`:** опционально для self-service (поле в схеме); текущий UI — операционный ввод через `/psa/projects`.
+
+#### §12.8.8 Wave 3
+
+- Только продуктовый backlog в PRD §5.E.8; реализация вне текущего цикла.
+
 ---
 
 ## 13. Дорожная карта: v3 — интеграции и эксплуатация
@@ -1375,7 +1511,10 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 
 ### 13.2. e-taxes.gov.az и VÖEN
 
-- **Продуктовая архитектура DVX (ГНС):** гибридный контур **e-qaimə (закрытый B2B S2S, API-ключ организации)** vs **личевой счёт / сверки (PULL, переходный Live Session после ASAN İmza)** и **отказ от физических Android-ферм** — зафиксировано в **[PRD.md](./PRD.md) §6.1.1**; технические границы адаптера (хранение сессии, ротация, аудит, PII, соответствие ToS оператора) задаются при спайке/реализации и не подменяют продуктовое решение PRD.
+- **Продуктовая архитектура DVX (ГНС):** поэтапная стратегия интеграции с порталом **e-taxes.gov.az** — **[PRD.md](./PRD.md) §6.1.1** (по духу согласована с поэтапным подходом **ƏMAS / PRD §13.0**). **Целевой контур (фаза 3):** e-qaimə и прочие машинные поверхности — через **официальный закрытый B2B System-to-System API** (**API-ключ организации** или преемник по контракту DVX). **До полного S2S:** лицевой счёт / сверки — **PULL** с **переходным Live Session** после **ASAN İmza** и/или сценарий **фазы 2** (единое браузерное расширение — **§13.6**). **Инвариант:** **отказ от физических Android-ферм**. Технические границы адаптера (хранение сессии, ротация, аудит, PII, соответствие ToS оператора) задаются при спайке/реализации и не подменяют продуктовое решение PRD.
+- **Фаза 1 — файловый обмен (XML/Excel, backend/UI):** серверный контур генерирует **XML** деклараций (где применимо) и **Excel/CSV** пакеты для массовых операций; бухгалтер выполняет **ручную** загрузку/выгрузку на **e-taxes.gov.az**; в ERP сохраняются **журнал отправок**, статусы, метки времени, корреляционные ключи, версии выгрузки; повторные попытки — с **идемпотентностью** по бизнес-ключу (конкретные поля — на этапе реализации адаптера).
+- **Фаза 2 — RPA (Browser Extension):** пользовательский компонент **DayDay Assistant** (Chrome/Firefox, **Manifest V3**, единая кодовая база — **§13.6**) активируется **только** после **явного** действия пользователя на вкладке **e-taxes.gov.az** при уже открытой **аутентифицированной** сессии (включая **ASAN İmza**, если портал требует); расширение **предзаполняет** допустимые поля форм (в т.ч. **e-qaimə**), но кнопки **«İmzala» / Submit** нажимает **только человек**; события автозаполнения и ошибки интеграции фиксируются в **аудите** с привязкой к **`organizationId`**, выбранному в плагине (см. **§13.6** про multi-tenant gating).
+- **Текущий scope фазы 2 (DVX):** connector `etaxes` с flow **e-qaimə** использует endpoint `GET /api/invoices/:id/prefill`; подробный контракт протокола `PORTAL_PREFILL` (flow-dispatch) и entitlement `tax_pro` зафиксированы в **§13.6**.
 - **Исследование:** официальные API e-taxes / BTP; авторизация, форматы, лимиты, тестовый контур.
 - **Реализация:** вариант A — прямая отправка из API; вариант B — очередь через BTP-клиент / агент при нестабильном API; UI — «Отправить в e-taxes» + журнал попыток.
 - **VÖEN Lookup (MDM-first):** при вводе VÖEN UI сначала выполняет lookup в **глобальном реестре** `GlobalCounterparty` (MDM) и автозаполняет наименование/адрес/НДС-статус.
@@ -1437,6 +1576,32 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 - Все тяжёлые операции идут через Async-First pipeline (см. §1.4 и PRD §10.3).
 - Финансовая запись в Ledger выполняется транзакционно и балансно (см. §3), независимо от источника задачи (HTTP/job/replay).
 
+### 13.6. Browser Extension RPA (DayDay Assistant)
+
+**Назначение:** единый клиентский слой **RPA-помощника** для сценариев **фазы 2** интеграций с государственными порталами (**ƏMAS**, **e-taxes.gov.az / DVX** и др. по мере включения в продукт), без замены юридически значимых действий пользователя на стороне оператора портала.
+
+1. **Single Extension (единая кодовая база):** один артефакт браузерного расширения (**Manifest V3**; стек — **WXT** + React + TypeScript) с **модульными «коннекторами»** на домены порталов; запрещено плодить **отдельные** несвязанные репозитории расширений на каждый портал без архитектурного обоснования (fork допускается только как временный spike с последующей консолидацией). Исходники: `apps/extension/`; см. **`apps/extension/README.md`**.
+2. **Изоляция подписок (Multi-tenant SaaS gating):** платформа — **холдинговый SaaS** (**1 биллинг-юнит = 1 `organizationId`**). Расширение **не** опирается на предположение «достаточно JWT пользователя»: **entitlement** для функций автозаполнения проверяется **в контексте выбранной организации** (см. п.3), чтобы исключить утечку платных сценариев между компаниями одного пользователя.
+3. **User flow (контракт взаимодействия с API DayDay):**
+   - **Magic Auth / extension session:** `POST /api/auth/extension/refresh` в двух режимах: **bootstrap** — с Origin веб-приложения ERP и HttpOnly cookie стандартного `refresh_token` (как у SPA), ответ выставляет изолированную cookie **`refresh_token_ext`** (`path=/api/auth/extension`, `SameSite=None`, `Secure` в prod) и тело с **access JWT**; **silent** — с Origin `chrome-extension://…` / `moz-extension://…` и cookie `refresh_token_ext`, ротация refresh. Секрет refresh расширения: **`EXT_REFRESH_SECRET`** (fallback `JWT_SECRET`), TTL: **`EXT_REFRESH_EXPIRES`**. CORS: **`CORS_EXTENSION_ORIGINS`**, веб-Origins bootstrap: **`ERP_WEB_ORIGINS`**. Logout расширения: `POST /api/auth/extension/logout`. На вкладке ERP монтируется **`ExtensionBridge`** (`window.postMessage` ↔ content script расширения).
+   - пользователь проходит **аутентификацию в расширении** (выдача **JWT** тем же доверенным контуром, что и веб-клиент; хранение access-токена в **`chrome.storage.session`**, явный logout);
+   - пользователь выбирает **текущую организацию** (**Org switcher** в UI расширения; значение = активный `organizationId`);
+   - расширение вызывает **`GET /api/subscription/me`** (или канонический эквивалент из веб-клиента, зафиксированный в OpenAPI на момент реализации) с передачей **`organizationId`** выбранной компании (заголовок **`X-Organization-Id`** / query — **как в основном SPA**, единообразие обязательно);
+   - если для этой организации **не активен** требуемый модуль (**например** `tax_pro`, `hr_full` — точные коды **`ModuleEntitlement`** см. subscription-константы), расширение **блокирует** автозаполнение и показывает **локальный Paywall/Upsell** («Купите/активируйте модуль для **этой** компании») без обращения к полям портала;
+   - **VÖEN cross-check обязателен:** перед автозаполнением connector извлекает **активный VÖEN** из текущей сессии портала и сравнивает с `taxId` активной организации в DayDay ERP. При несовпадении (или при `null` VÖEN портала в явно authenticated-сессии) расширение показывает ошибку контекста и **запрещает** autofill до устранения конфликта;
+   - для flow `e-qaime` (DVX) расширение запрашивает `GET /api/invoices/:id/prefill`; entitlement для доступа к flow — `tax_pro`;
+   - prefill `GET /api/invoices/:id/prefill` в фазе 2 ограничен валютой **AZN** (non-AZN → `INVOICE_NOT_AZN`); для строк с освобождением от НДС (`vatRate=-1`) API нормализует ответ как `vatExempt=true`, `vatRatePct=0`;
+   - протокол `MSG.PORTAL_PREFILL` унифицирован по `flow`: `emuqavile` (payload `employeeId`) и `eqaime` (payload `invoiceId`), маршрутизация выполняется в background service worker;
+   - **Phase 10 / Bulk RPA (premium):** добавлены bulk-сообщения `MSG.PORTAL_BULK_PREFILL` / `MSG.PORTAL_BULK_RESULT` и API `POST /api/hr/employees/bulk-prefill`, `POST /api/invoices/bulk-prefill`, `POST /api/hr/employees/bulk-sync-result`, `POST /api/invoices/bulk-sync-result`; гейтинг обязателен по `hr_full` (ƏMAS) и `tax_pro` (DVX);
+   - **Rate-limit safety для порталов:** BulkRunner работает последовательно (no parallel submit), с jitter-паузой между итерациями, backoff на ошибках и circuit-breaker при серии ошибок/дрейфе VÖEN-контекста;
+   - результаты массовой синхронизации фиксируются в БД: статусы на `Invoice` / `Employee` + журнал прогона `integration_sync_runs` (portal, transport, counters, started/completed);
+   - **Excel fallback (free path):** `GET /api/integrations/dvx/invoices/export.xlsx`, `POST /api/integrations/dvx/invoices/import-result`, `GET /api/integrations/emas/employees/export.xlsx`, `POST /api/integrations/emas/employees/import-result` доступны без module-gating;
+   - при активном модуле расширение запрашивает у API **минимальный DTO** для предзаполнения (без массовой утечки PII в content-script; маскирование логов — **§15.0** / `DataMaskingService`). Контракты DTO (Zod) — пакет **`@dayday/api-contracts`**; общие строки RU/AZ — **`@dayday/i18n`** (включая ключи `extension.*`).
+   - **Marketing CTA в ERP:** веб-интерфейс показывает CTA «Установите DayDay Assistant» в `sales/invoices` (баннер) и `admin/integrations` (карточка). Ссылка управляется env-переменной `NEXT_PUBLIC_EXTENSION_INSTALL_URL` (дефолт локали: `/docs/extension`, на проде — URL Web Store).
+   - для уже существующих БД (где `pricing_modules` был инициализирован до `tax_pro`) применяется одноразовый idempotent-скрипт `npm run db:ensure-tax-pro-pricing -w @dayday/database`.
+
+**Нефункциональные требования:** соответствие **ToS** магазинов расширений и порталов; отсутствие «тихого» скрейпинга без explicit user gesture; запрет хранения **ASAN İmza** PIN/паролей DayDay; телеметрия ошибок — без сырого HTML портала в логах.
+
 ### Критерии приёмки v3.0 (сводно)
 
 1. Подписание PDF-инвойса и PDF акта сверки из UI с записью хеша в аудит.
@@ -1476,13 +1641,53 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 
 #### §14.0.1 Реестр банковских счетов организации (Smart Aliases)
 
-- **Prisma (`organization_bank_accounts`)**: `id`, `organizationId`, `iban`, `bankName`, `swift?`, `currency` (default `AZN`), `ledgerAccountCode`, `accountType` (`MAIN`/`SALARY`/`CARD`/`TENDER`/`CREDIT`/`VAT_DEPOSIT`), `isPrimary`, `isFrozen`, `isArchived`, `createdAt`, `updatedAt`.
+- **Prisma (`organization_bank_accounts`)**: `id`, `organizationId`, `iban`, `bankName`, `swift?`, `currency` (default `AZN`), `ledgerAccountCode`, `accountType` (`MAIN`/`SALARY`/`CARD`/`TENDER`/`CREDIT`/`VAT_DEPOSIT`), `isPrimary`, `isFrozen`, `isArchived`, `bankBranchId?` (FK → `bank_branches.id`, `ON DELETE SET NULL`), `createdAt`, `updatedAt`.
 - **Smart Alias**: обязательная связь `IBAN ↔ ledgerAccountCode` (NAS субсчет `221*..225*`, например `222.01.01`) для безопасного выбора счета в Treasury и payroll payout.
 - **API**:  
   - `GET /api/banking/bank-accounts` — активный список реестра;  
-  - `POST /api/banking/bank-accounts` — создание;  
-  - `PATCH /api/banking/bank-accounts/:id` — редактирование;  
+  - `POST /api/banking/bank-accounts` — создание; поля `bankBranchId` **или** `ledgerAccountCode` (взаимозаменяемы): при наличии `bankBranchId` и пустом `ledgerAccountCode` сервис вызывает **`BankSubaccountService`** и автогенерирует субсчет `221.<bankCode>.<seq>` (см. §14.0.2);  
+  - `PATCH /api/banking/bank-accounts/:id` — редактирование; впервые установленный `bankBranchId` без явного `ledgerAccountCode` так же запускает автогенерацию;  
   - `DELETE /api/banking/bank-accounts/:id` — удаление или архивирование при наличии ссылок в `salary_registries`.
+
+#### §14.0.2 Системный справочник банков и автогенерация субсчёта `221.<BankCode>.<Seq>`
+
+- **Источник правды (заголовки)** — таблица **`bank_glossary`** (без `organizationId`, общая для платформы): `id`, `nameAz`, `voen` (UNIQUE, 10 цифр), `code` (`CHAR(2)` UNIQUE, `01`–`22`), `correspondentIban` (UNIQUE, IBAN банка в ЦБА), `swift`, `headPhones` (`text[]`), `headAddress`, `isActive`, `createdAt`, `updatedAt`.
+- **Филиалы** — таблица **`bank_branches`**: `id`, `bankId` (FK → `bank_glossary.id`, `ON DELETE CASCADE`), `branchCode` (6-значный МФО), `name`, `swift?`, `address?`, `phones` (`text[]`), `isHeadOffice` (`bool`, head-office флаг), `isActive`. UNIQUE `(bank_id, branch_code)`, индекс `(bank_id, is_head_office)`. Для каждой `OrganizationBankAccount` хранится опциональная `bankBranchId` (FK → `bank_branches.id`).
+- **Авторитетный список 22 банков (TZ §14.0.2)** — фиксируется в `packages/database/prisma/bank-glossary-seed.ts` (тип `BankGlossarySeedRow` несёт `code`, `nameAz`, `voen`, `correspondentIban`, `swift`, `headBranchCode`, `headPhones`, `headAddress`):
+
+  | code | Bank (Az) | VÖEN | SWIFT |
+  |---|---|---|---|
+  | 01 | Melli İran Bankı Bakı filialı | 1300036291 | MELIAZ22 |
+  | 02 | Expressbank ASC | 1500031691 | AZENAZ22 |
+  | 03 | Bank Respublika ASC | 9900001901 | BRESAZ22 |
+  | 04 | UNİBANK KB ASC | 1300017201 | UBAZAZ22 |
+  | 05 | Azərbaycan Sənaye Bankı ASC | 9900007981 | CAPNAZ22 |
+  | 06 | Rabitəbank ASC | 9900001061 | RBTAAZ22 |
+  | 07 | Bank BTB ASC | 1302164881 | BBTBAZ22 |
+  | 08 | Yapı Kredi Bank Azərbaycan QSC | 9900009021 | KABAAZ22 |
+  | 09 | BANK VTB (AZƏRBAYCAN) ASC | 1400117231 | VTBAAZ22 |
+  | 10 | Bank of Baku ASC | 1700038881 | JBBKAZ22 |
+  | 11 | TURANBANK ASC | 1300016391 | TURAAZ22 |
+  | 12 | Premium Bank ASC | 9900006241 | AZALAZ22 |
+  | 13 | Azər-Türk Bank ASC | 9900006111 | AZRTAZ22 |
+  | 14 | ACCESSBANK QSC | 1400057421 | ACABAZ22 |
+  | 15 | ASC XALQ Bankı | 2000296061 | HAJCAZ22 |
+  | 16 | Paşa Bank ASC | 1700767721 | PAHAAZ22 |
+  | 17 | Bank Avrasiya ASC | 1700792251 | AVRAAZ22 |
+  | 18 | AFB BANK ASC | 1301703781 | AZFIAZ22 |
+  | 19 | Azərbaycan Beynəlxalq Bankı ASC (ABB) | 9900001881 | IBAZAZ2X |
+  | 20 | Kapital Bank ASC | 9900003611 | AIIBAZ2X |
+  | 21 | Ziraat Bank Azərbaycan ASC | 1303953611 | TCZBAZ22 |
+  | 22 | Yelo Bank ASC | 9900014901 | NICBAZ22 |
+- **Seed-функция `seedBankGlossary(prisma)`** идемпотентна и устойчива к перетасовке `voen` между `code`: внутри одной транзакции выполняется двухфазный upsert (placeholder VÖEN → реальный VÖEN), благодаря чему UNIQUE на `voen` не нарушается даже при swap'ах. Заодно создаётся head-office запись в `bank_branches` (`isHeadOffice=true`, `branchCode=headBranchCode`, `name="Baş ofis"`).
+- **Импорт филиалов из `docs/banks.md`** — отдельный CLI: `npm run db:import-banks-md` (apply) и `npm run db:import-banks-md:dry` (без подключения к БД, только отчёт). Логика: `parseBanksMd()` (`packages/database/prisma/banks-md-parser.ts`) → `importBanksMd()` (`banks-md-importer.ts`) → upsert в `bank_glossary` + `bank_branches`. Маппинг `head row → BankGlossary.code` идёт **по VÖEN** (а не по позиции в MD-файле). Несовпавшие VÖEN попадают в `unmatchedHeadVoens` и пропускаются. На контрольном прогоне 2026-05-07 матчатся все 22 банка, апсёртятся 22 записи в `bank_glossary` и 647 в `bank_branches` (22 head-office + 625 филиалов из `docs/banks.md`).
+- **Маска NAS-субсчёта**: `221.<BankCode>.<Sequence>` — `BankCode` берётся из `bank_glossary.code`, `Sequence` — двузначный (`01`–`99`) счётчик внутри **(organizationId × bankCode)** на основе уже существующих записей в `accounts` (NAS).
+- **Хук в модуле бухгалтерии**: **`apps/api/src/accounting/bank-subaccount.service.ts`** → `BankSubaccountService`, методы:
+  - `nextSubaccountCode(organizationId, bankCode, db)` — следующий двузначный `Sequence`, валидация маски, защита от переполнения (`> 99` → `BadRequestException`);
+  - `ensureSubaccountForBranch(organizationId, bankBranchId, opts, db)` — атомарно создаёт NAS-счёт `221.<bankCode>.<seq>` (тип `ASSET`, родитель — локальный `221`); идемпотентен по `(organizationId, bankBranchId, currency)`. Все операции выполняются внутри `prisma.$transaction` через `BankingService.createOrganizationBankAccount` / `updateOrganizationBankAccount`.
+- **Миграции БД**:
+  - `packages/database/prisma/migrations/20260508160000_bank_glossary_branches/migration.sql` — создаёт `bank_glossary`, `bank_branches`, добавляет `organization_bank_accounts.bank_branch_id` + индекс + FK `ON DELETE SET NULL`.
+  - `packages/database/prisma/migrations/20260509100000_bank_glossary_branches_enrich/migration.sql` — расширяет схему под полный импорт из `docs/banks.md`: `bank_glossary.correspondent_iban` (UNIQUE), `swift`, `head_phones text[]`, `head_address`; `bank_branches.phones text[]`, `is_head_office bool`. Идемпотентна (`ADD COLUMN IF NOT EXISTS`).
 
 #### Customer Portal Security (гостевая ссылка на счёт)
 
@@ -1557,7 +1762,7 @@ enum SubscriptionTier {
 
 ### 14.3. Демо (релиз продукта 4.1)
 
-При создании организации: `OrganizationSubscription` с `isTrial: true`, `tier: BUSINESS`, `expiresAt = now() + 14 days` (UTC vs локаль — зафиксировать в коде).
+При создании организации: `OrganizationSubscription` с `isTrial: true`, `tier: BUSINESS`, `expiresAt` = последний момент текущего UTC-календарного месяца (`23:59:59.999Z`).
 
 **Баннер на дашборде** при активном демо (`isTrial === true`, срок не истёк): тексты AZ/RU из PRD; ссылка на `/settings/subscription` или аналог — **на все дни** trial, не только при остатке ≤ 5 дней.
 
@@ -1565,7 +1770,7 @@ enum SubscriptionTier {
 
 **Главная страница:** курсы ЦБА; блок **закрытия месяца** показывается только если `GET /api/reporting/close-period-prompt` возвращает незакрытый **прошедший** UTC-месяц (самый ранний из долга); блок размещается **над** курсами; отдельная страница не обязательна. Краткие **P&L / баланс / ДДС (упрощ.)** — `GET /api/reporting/dashboard-mini` (текущий UTC-месяц, см. PRD §7.3.1).
 
-**READ_ONLY после истечения** без оплаты: мутации POST/PATCH/DELETE по бизнес-сущностям запрещены; просмотр и экспорт по политике; HTTP **403** с кодом вроде `SUBSCRIPTION_READ_ONLY` / `TRIAL_EXPIRED`. Белый список: оплата, просмотр подписки, logout.
+**После истечения demo:** организация переводится в post-paid (`isTrial=false`) без автоматического READ_ONLY; ограничения применяются только через billing enforcement (`SOFT_BLOCK`/`HARD_BLOCK`) при наличии неоплаченного счёта после cron-цикла.
 
 ### 14.4. Feature gating в UI (Next.js)
 
@@ -1765,7 +1970,7 @@ enum SubscriptionTier {
 #### 14.8.13. DR drill (автоматизированная проверка после restore)
 
 - **`npm run platform:dr-validate`** — `COUNT(*)` по таблицам `users`, `organizations`, `accounts`, `journal_entries`, `transactions`, `products`, `stock_items`, `counterparties`; опционально **`--baseline=*.json`** для поэлементного сравнения; несовпадение или нулевые `users`/`organizations` после restore → **exit 1**.
-- **`bash scripts/dr-drill.sh`** — последний архив **`backups/db/*.sql.gz`** → временный контейнер **PostgreSQL 16** → `psql` restore → `platform:dr-validate` → удаление контейнера (см. **`docs/DR_RUNBOOK.md` §8**).
+- **`bash scripts/dr-drill.sh`** — последний архив **`backups/db/*.sql.gz`** → временный контейнер **PostgreSQL 16** → `psql` restore → `platform:dr-validate` → удаление контейнера (см. **`docs/deploy/DR_RUNBOOK.md` §8**).
 
 ---
 
@@ -1776,7 +1981,7 @@ enum SubscriptionTier {
 3. UI скрывает меню и показывает paywall при прямом заходе без права.
 4. Создание сотрудника/инвойса блокируется при превышении квоты с предсказуемым кодом.
 5. Лимиты централизованы в `quotas.ts`, без «магических чисел» в сервисах.
-6. Демо: регистрация → trial BUSINESS, +14 дней; баннер на дашборде на все дни trial; после истечения без оплаты — READ_ONLY.
+6. Демо: регистрация → trial BUSINESS до конца текущего UTC-месяца; баннер на дашборде показывает дату окончания demo и отдельный текст первого post-paid месяца; счёт за входной месяц не создаётся.
 
 ### Зависимости и риски v4
 
@@ -2004,7 +2209,7 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 ### 16.6. DevOps & Monitoring Hardening
 
 - **Automated DB Backups:** скрипт `scripts/db-backup.sh` выполняет `pg_dump` с gzip-архивацией и ротацией (удаление бэкапов старше 7 дней, configurable `RETENTION_DAYS`).
-- **DR Runbook:** документ `docs/DR_RUNBOOK.md` фиксирует пошаговое восстановление БД из `*.sql.gz`, валидацию и rollback-порядок.
+- **DR Runbook:** документ `docs/deploy/DR_RUNBOOK.md` фиксирует пошаговое восстановление БД из `*.sql.gz`, валидацию и rollback-порядок.
 - **Audit Daily Check:** `@Cron('0 2 * * *')` запускает `AuditService.verifyChain()`; при разрывах цепочки пишется `error` лог с compromised IDs.
 - **External Critical Alerting (M8):** при `compromisedIds.length > 0` cron дополнительно отправляет критическое внешнее уведомление на `AUDIT_ALERT_WEBHOOK_URL` (Slack/Telegram-compatible webhook) с текстом:
   `"[CRITICAL] DayDay ERP: Обнаружено нарушение целостности Audit Log. Возможна ручная манипуляция в БД. Скомпрометированные ID: ..."`  
@@ -2049,12 +2254,13 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 | **2026.05.21** | Текущая | i18n: **`npm run db:deploy`**, **`db:sync-i18n:prune`**, prune в `sync-translation-overrides-from-resources.ts`, миграция `20260502180000_i18n_deploy_post_migrate_note`; `db:prod-init` / `db:dev-bootstrap` переведены на prune-синк. |
 | **2026.05.22** | Текущая | **`v1.0.0-RC1` (Release Candidate 1)** — синхронизация ТЗ с этапом: **UI/UX** — модальные окна на реестрах, **`PageHeader`**, сайдбар-only layout (**§11.1**); **Склад** и **Производство** разведены по разделам/маршрутам; **закупки товаров vs услуг** (поля вида закупки, склад, проводки); **VÖEN** — строгая валидация ответа интеграции (**§13.2**), в CRM — **`legalForm`** (ОПФ) и **`isVatPayer`** (**§4**); перекрёстные ссылки на [PRD.md](./PRD.md) §4.3. |
 | **2026.05.23** | Текущая | **i18n (web):** §17 — политика **RU/AZ** с дефолтом **`az`**, таблица **`ui-lang.ts`**, расширен охват **`i18n:audit`** на **`apps/web/lib`**, описаны merge оверрайдов (**`overwrite: true`**), **`processTranslationOverridesFlat`**, ремап ОПФ, аудит **`audit-translation-overrides.ts`**; строка «Локаль» в §1; синхронизация с PRD §7.6.1 / §12. |
-| **2026.05.24** | Текущая | **i18n:** в §17 зафиксированы **`dropCounterpartyLegalFormPoisonDottedKeys`**, ключ **`counterparties.legalFormField`**; команда **`db:audit-i18n-overrides`** в списке; в [docs/deploy.ru.md](../docs/deploy.ru.md) добавлен §**7.4** (локальный **`db:deploy`** + dry-run аудита). |
+| **2026.05.24** | Текущая | **i18n:** в §17 зафиксированы **`dropCounterpartyLegalFormPoisonDottedKeys`**, ключ **`counterparties.legalFormField`**; команда **`db:audit-i18n-overrides`** в списке; в [docs/deploy/deploy.ru.md](../docs/deploy/deploy.ru.md) добавлен §**7.4** (локальный **`db:deploy`** + dry-run аудита). |
 | **2026.05.25** | Текущая | **Web / маршруты:** модуль **«План счетов» (Hesablar planı)** — **`/accounting/chart`**, **`/accounting/mapping`**, **`/accounting/ifrs-mapping`**; пункты вынесены из сайдбара «Администрирование» в отдельную секцию. Удалены канонические пути **`/settings/chart`**, **`/settings/mapping`**, **`/settings/finance/ifrs-mapping`** (постоянные **301** редиректы в **`next.config.ts`** приложения **`apps/web`**). |
 | **2026.05.26** | Текущая | **§8.0 Integrations (ƏMAS):** отдельный адаптер + **BullMQ** для исходящих запросов и обработки ответов госсерверов; перекрёстная ссылка на [PRD.md](./PRD.md) §13. |
 | **2026.05.27** | Текущая | **§13.2 DVX:** перекрёстная ссылка на гибридную архитектуру ГНС — [PRD.md](./PRD.md) §6.1.1; первый буллет про продуктовый контур vs техдетали реализации. |
 | **2026.05.28** | Текущая | **§8.0 ƏMAS:** зафиксирована поэтапная стратегия (ссылка на [PRD.md](./PRD.md) §13.0); уточнено, что BullMQ/HTTP-адаптер — **фаза 3**; фазы 1–2 — отдельные компоненты до S2S. |
 | **2026.05.29** | Текущая | **§14.5 Квоты:** roadmap-пункт **WhatsApp** — пакеты сообщений, ссылка на [PRD.md](./PRD.md) §6.8 / §7.12.3. |
+| **2026.05.31** | Текущая | Отражена поэтапная стратегия интеграции с DVX (включая Chrome RPA) и зафиксирована архитектура единого браузерного расширения с проверкой подписки на уровне выбранной организации (Multi-tenant RPA Gating). |
 
 ### Принцип ведения истории (дальше)
 
@@ -2078,6 +2284,64 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 - **Транзакционная гарантия:** в одной **`prisma.$transaction`** создаются **`Organization`** (в т.ч. **`coaTemplateProfile`**, **`settings.templateGroup`**), подписка/членство и **`provisionChartOfAccountsFromTemplate`** (копирование NAS + bootstrap Multi-GAAP).
 
 Актуальная спецификация — **этот `TZ.md`**; при изменениях править только его.
+
+### 19. Phase 11 — International Trade & AI-OCR
+
+- Export flow: `Invoice.isInternational=true` marks export invoices, excludes DVX prefill, and renders Commercial Invoice PDF variant.
+- OCR flow: new `/api/ocr/invoices/upload` + `/api/ocr/invoices/:id` with queue-worker processing and `OcrJob` lifecycle (`PENDING|RUNNING|DONE|ERROR`).
+- Customs flow: `CustomsDeclaration` CRUD + attach endpoint creates cost-basis postings in one DB transaction (Dr `201`, Dr `241`, Cr `531`).
+
+### 20. Phase 12 — Customs widget RPA & Excel fallback
+
+- **Premium path (`trade_pro`):** browser extension connector `customs` on `e-customs.gov.az` / `*.customs.gov.az` (`apps/extension/src/connectors/customs/**`, entrypoint `customs.content.tsx`). User-triggered **BGD capture** posts to **`POST /api/customs/declarations/prefill-capture`** (Zod: `CustomsDeclarationPrefillCaptureSchema` in `@dayday/api-contracts`). Gating: **`SubscriptionGuard` + `@RequiresModule(trade_pro)`** (slug `trade_pro` in `OrganizationSubscription.activeModules` / constructor). Idempotency: unique `(organizationId, bgdNumber)` — duplicate returns `{ deduplicated: true }` without second insert.
+- **Sync logging:** `IntegrationSyncRun` with **`IntegrationPortal.CUSTOMS`**, flows `bgd-capture` (transport `RPA_WIDGET`) and `bgd-import` / `bgd-export` (transport `EXCEL_IMPORT`). Capture path wraps **insert + sync run start/complete** in one **`prisma.$transaction`** (same `TransactionClient` passed into `IntegrationSyncRunService.start/complete`).
+- **Safety:** reuse **VÖEN cross-check** in `FloatingWidget` (ERP active org `taxId` vs portal-detected VÖEN) before calling capture; extension does **not** auto-submit portal forms.
+- **Free path (no module gate):** **`GET /api/integrations/customs/declarations/export.xlsx`** (optional `?ids=`), **`POST /api/integrations/customs/declarations/import-excel`** (multipart), **`GET /api/integrations/customs/declarations/template.xlsx`** (blank `bgd-blank.xlsx` under `apps/api/src/integrations/templates/customs/`).
+- **Pricing catalog:** `trade_pro` row in `pricing_modules` — idempotent **`npm run db:ensure-trade-pro-pricing`** (`packages/database/scripts/ensure-trade-pro-pricing.ts`).
+
+### 20.1 Phase 12.1 — Full BGD capture (items + GATT pre-calc)
+
+- `POST /api/customs/declarations/prefill-capture` now supports both legacy flat capture and full capture (`CustomsDeclarationFullPrefillCaptureSchema`) with sender/receiver, currency rate and line items.
+- Extension customs flow keeps floating widget and additionally injects **"DayDay Capture"** button into portal action bars (`apps/extension/src/connectors/customs/injection.ts`) via MutationObserver.
+- `CustomsDeclaration` upgraded with `status` (`DRAFT|CAPTURED|ATTACHED|ARCHIVED`), sender/receiver fields and calc totals; line positions stored in new `customs_declaration_items`.
+- New tariff table `customs_tariff_rates` + seed script `npm run db:seed-customs-tariffs` + super-admin CRUD API `/api/admin/customs-tariff-rates`.
+- GATT pre-calc implemented server-side: longest-prefix HS match; duty/excise on statistical value; VAT on (value + duty + excise). Calculated values are persisted for portal-vs-ERP reconciliation.
+- Draft engine auto-links/creates counterparties by VÖEN where provided and always stores new captures as `DRAFT`.
+- Added `GET /api/customs/declarations/:id` to return declaration with items and mismatch percentages for web detail view `/customs/[id]`.
+- Existing customs Excel import/export remains backward-compatible and imports new rows as `DRAFT`.
+
+## 21. Dispute & Recovery (платформа)
+
+**[~] PARTIAL:** домен `apps/api/src/platform-recovery/` — step-up email-OTP (`X-StepUp-Token`), dual approval (`DualApprovalRequest`), `OwnershipDispute` + `OrganizationSecurityState`, freeze-guard по `SecurityMode`, логические snapshots (`OrganizationDataSnapshot`), rollback MVP (`TenantRollbackRecord`), ежедневная проверка цепочки `AuditLog` + `HARD_BLOCK_PLATFORM` при разрыве.
+
+### 21.1. Процедура (краткая диаграмма состояний)
+
+`EVIDENCE_REQUIRED → … → APPROVED → (dual approval + step-up) → EXECUTED` с обязательным **pre_transfer** snapshot и PDF-сертификатом в S3 (`evidence/…`, Object Lock по §storage).
+
+### 21.2. SLA (ориентиры)
+
+| Шаг | Ориентир |
+|-----|----------|
+| Открытие спора + уведомление incumbent | ≤ 1 рабочего дня (платформа) |
+| Cooldown / review | по регламенту Super-Admin (конфиг) |
+| Исполнение transfer после APPROVED | только при ≥2 approvers + валидный step-up |
+| Snapshot (MVP metadata / full worker) | best-effort < 5 мин для среднего тенанта (полный COPY — R3) |
+
+### 21.3. Retention
+
+Согласовано с **S3 Object Lock** (`invoices/pdf`, `evidence`, `attachments`, `snapshots`) — см. `apps/api/src/storage/storage.constants.ts` и PRD §7.13.
+
+### 21.4. Публичный контр-claim
+
+`GET /api/public/disputes/:id/meta?t=<JWT>` и `POST /api/public/disputes/:id/counter-claim` — JWT `typ=dispute_counter_claim`, без сессии пользователя.
+
+### 21.5. DR drill
+
+`npm run platform:dr-tenant-rollback` (скрипт-заглушка контракта) + `npm run platform:dr-validate` для smoke-проверки таблиц после восстановления.
+
+### 21.6. Метрики и алерты
+
+Счётчики событий (dispute opened, transfer executed, snapshot duration, rollback duration, audit gap) — интеграция с Prometheus/Sentry по мере внедрения SRE-контура; критичные разрывы цепочки аудита — webhook `AUDIT_ALERT_WEBHOOK_URL` + email super-admin.
 
 ---
 

@@ -1,4 +1,5 @@
 import { Controller, Get, Query } from "@nestjs/common";
+import { SkipThrottle } from "@nestjs/throttler";
 import { HEALTH_CHECK_PAYLOAD } from "./common/health-payload";
 import { Public } from "./auth/decorators/public.decorator";
 import {
@@ -11,6 +12,7 @@ export class AppController {
   constructor(private readonly cbar: CbarFxService) {}
 
   @Public()
+  @SkipThrottle()
   @Get("health")
   health() {
     return HEALTH_CHECK_PAYLOAD;

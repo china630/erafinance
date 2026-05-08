@@ -16,6 +16,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { STORAGE_SERVICE, type StorageService } from "../storage/storage.interface";
 import type { GenerateTaxDeclarationDto } from "./dto/generate-tax-declaration.dto";
 import { REVENUE_ACCOUNT_CODE } from "../ledger.constants";
+import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
 
 type DeclarationRecord = {
   id: string;
@@ -159,16 +160,17 @@ export class TaxExportService {
     }
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { id: true, name: true, taxId: true },
+      select: { id: true, name: true, taxIdCipher: true },
     });
     if (!org) throw new NotFoundException("Organization not found");
-    if (!org.taxId?.trim()) {
+    const orgTaxId = decodeOrganizationTaxId(org);
+    if (!orgTaxId.trim()) {
       throw new BadRequestException("Organization tax ID is required");
     }
 
     const agg = await this.aggregateSimplifiedTax(organizationId, dto.period);
     const xml = this.buildSimplifiedTaxXml({
-      orgTaxId: org.taxId,
+      orgTaxId,
       orgName: org.name,
       period: dto.period,
       periodFrom: agg.periodFrom,
@@ -178,7 +180,7 @@ export class TaxExportService {
     });
     const xlsx = await this.buildSimplifiedTaxXlsxBuffer({
       orgName: org.name,
-      orgTaxId: org.taxId,
+      orgTaxId,
       period: dto.period,
       periodFrom: agg.periodFrom,
       periodTo: agg.periodTo,

@@ -39,6 +39,12 @@ export class CreateCounterpartyDto {
   @IsString()
   address?: string;
 
+  @ApiPropertyOptional({ description: "ISO 3166-1 alpha-2 country code" })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z]{2}$/)
+  country?: string;
+
   @ApiPropertyOptional({ description: "Для отправки счёта на почту" })
   @IsOptional()
   @IsEmail()

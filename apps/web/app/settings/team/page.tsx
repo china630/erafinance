@@ -54,7 +54,7 @@ type InviteRow = {
   invitedBy?: { id: string; email: string; fullName: string | null } | null;
 };
 
-const ROLES = ["USER", "ACCOUNTANT", "ADMIN", "OWNER"] as const;
+const ROLES = ["USER", "ACCOUNTANT", "DIRECTOR", "ADMIN", "OWNER"] as const;
 
 export default function TeamSettingsPage() {
   const { t } = useTranslation();

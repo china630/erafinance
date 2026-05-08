@@ -5,6 +5,7 @@ import { DigitalSignatureStatus, SignedDocumentKind } from "@dayday/database";
 import { Job, Worker } from "bullmq";
 import { PrismaService } from "../prisma/prisma.service";
 import { QuotaService } from "../quota/quota.service";
+import { attachWorkerFailureAlert } from "../queue/bullmq-worker-alerts";
 import { connectionFromRedisUrl } from "../queue/bullmq.config";
 import { STORAGE_SERVICE, type StorageService } from "../storage/storage.interface";
 import {
@@ -35,9 +36,12 @@ export class InvoicePdfWorker implements OnModuleInit, OnModuleDestroy {
       async (job: Job<InvoicePdfJobPayload>) => this.handle(job),
       { connection },
     );
-    this.worker.on("failed", (job, err) => {
-      this.logger.error(`Job ${job?.id} failed: ${err?.message}`);
-    });
+    attachWorkerFailureAlert(
+      this.worker,
+      INVOICE_PDF_QUEUE,
+      this.logger,
+      this.config.get<string>("DAYDAY_BULLMQ_ALERT_WEBHOOK_URL") ?? undefined,
+    );
   }
 
   async onModuleDestroy(): Promise<void> {

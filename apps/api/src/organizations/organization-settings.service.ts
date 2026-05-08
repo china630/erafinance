@@ -17,6 +17,7 @@ import {
 import { mergeLockedPeriodUntil } from "../reporting/reporting-period.util";
 import type { PatchOrganizationSettingsDto } from "./dto/patch-organization-settings.dto";
 import { InventoryValuationMethod } from "@dayday/database";
+import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
 
 const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -130,7 +131,7 @@ export class OrganizationSettingsService {
 
     const fresh = await this.getSettingsRaw(organizationId);
     this.directory.scheduleUpsert({
-      taxId: fresh.taxId,
+      taxId: decodeOrganizationTaxId(fresh),
       name: fresh.name,
       legalAddress: fresh.legalAddress,
       phone: fresh.phone,
@@ -196,7 +197,7 @@ export class OrganizationSettingsService {
 
     const org = await this.getSettingsRaw(organizationId);
     this.directory.scheduleUpsert({
-      taxId: org.taxId,
+      taxId: decodeOrganizationTaxId(org),
       name: org.name,
       legalAddress: org.legalAddress,
       phone: org.phone,

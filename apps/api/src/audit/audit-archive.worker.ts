@@ -7,6 +7,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Prisma } from "@dayday/database";
 import { Job, Worker } from "bullmq";
+import { attachWorkerFailureAlert } from "../queue/bullmq-worker-alerts";
 import { connectionFromRedisUrl } from "../queue/bullmq.config";
 import { PrismaService } from "../prisma/prisma.service";
 import { runWithTenantContextAsync } from "../prisma/tenant-context";
@@ -35,9 +36,12 @@ export class AuditArchiveWorker implements OnModuleInit, OnModuleDestroy {
       async (job: Job) => this.handle(job),
       { connection },
     );
-    this.worker.on("failed", (job, err) => {
-      this.logger.error(`Job ${job?.id} failed: ${err?.message}`);
-    });
+    attachWorkerFailureAlert(
+      this.worker,
+      AUDIT_ARCHIVE_QUEUE,
+      this.logger,
+      this.config.get<string>("DAYDAY_BULLMQ_ALERT_WEBHOOK_URL") ?? undefined,
+    );
   }
 
   async onModuleDestroy(): Promise<void> {

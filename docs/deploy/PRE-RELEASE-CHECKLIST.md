@@ -1,0 +1,30 @@
+# Pre-Release Checklist
+
+Single source of truth for cross-cutting release tasks. **Stage A (Foundations)** execution log: [docs/launch/STAGE_A_FOUNDATIONS.md](../launch/STAGE_A_FOUNDATIONS.md) and [docs/launch/100_STEPS_TO_LIVE.md](../launch/100_STEPS_TO_LIVE.md) (steps 1–33).
+
+## Runtime & ORM (status: aligned with repo)
+
+- [x] **Node.js 22.x** — `package.json#engines.node`, Dockerfiles, GitHub Actions `node-version: 22`.
+- [x] **Prisma 7.x** — `packages/database` (`prisma`, `@prisma/client`, `@prisma/adapter-pg`), `prisma.config.ts`, driver adapter per [deploy.md](./deploy.md).
+- [x] **Replace legacy `package.json#prisma` config** — superseded by `prisma.config.ts` in `@dayday/database`.
+
+## Before each production deploy
+
+- [ ] `npm run db:migrate:deploy` (or `npm run db:deploy` if i18n prune is part of release) on target DB.
+- [ ] `npm run build` on the release commit (includes `i18n:audit`).
+- [ ] If `packages/i18n` changed: `npm run i18n:catalog` and commit `apps/api/src/admin/i18n-default-catalog-data.json`.
+- [ ] Smoke: auth, one ledger read, health (`GET /api/health`).
+- [ ] Optional drill: `npm run audit:verify` on a recent DB snapshot copy.
+
+## Go-Live (Stage E–F)
+
+Extended checklist and smoke matrix: [docs/launch/STAGE_E_GO_LIVE.md](../launch/STAGE_E_GO_LIVE.md) and [docs/launch/100_STEPS_TO_LIVE.md](../launch/100_STEPS_TO_LIVE.md) (steps 127–172).
+- [ ] Billing smoke for new org: registration in current month -> `isTrial=true` until month end (UTC), no invoice for signup month.
+- [ ] Billing smoke for first payable month: on next 1st day, invoice generated for full previous month usage; `SOFT_BLOCK/HARD_BLOCK` only for unpaid issued invoice after grace window.
+
+## Full verification after major ORM / runtime upgrades
+
+- [ ] `npm run db:generate`
+- [ ] `npm run build -w @dayday/database -w @dayday/api`
+- [ ] `npm run dev` smoke (API + Web)
+- [ ] Basic auth (login/register) against running API

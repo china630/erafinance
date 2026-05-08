@@ -115,11 +115,17 @@ export function AuditHistoryModal({
                     {r.warehouse?.name ?? t("common.emptyValue")}
                   </td>
                   <td className="whitespace-nowrap p-2 text-slate-600">
-                    {r.status === "APPROVED"
-                      ? t("inventory.auditStatusApproved")
+                    {r.status === "COMPLETED"
+                      ? t("inventory.auditStatusCompleted")
                       : r.status === "DRAFT"
                         ? t("inventory.auditStatusDraft")
-                        : r.status}
+                        : r.status === "COUNTING"
+                          ? t("inventory.auditStatusCounting")
+                          : r.status === "REVIEW"
+                            ? t("inventory.auditStatusReview")
+                            : r.status === "CANCELLED"
+                              ? t("inventory.auditStatusCancelled")
+                              : r.status}
                   </td>
                   <td className="whitespace-nowrap p-2 text-slate-600">
                     {r.createdAt?.slice(0, 19)?.replace("T", " ") ?? t("common.emptyValue")}

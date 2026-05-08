@@ -5,6 +5,7 @@ import {
   StockMovementReason,
 } from "@dayday/database";
 import { PrismaService } from "../prisma/prisma.service";
+import { decryptText } from "../security/pii-crypto.util";
 
 export function quarterUtcRange(
   year: number,
@@ -111,8 +112,12 @@ export class VatQuarterDataService {
         sales.push({
           date: eff,
           documentNumber: inv.number,
-          counterpartyName: inv.counterparty.name,
-          counterpartyVoen: inv.counterparty.taxId,
+          counterpartyName: inv.counterparty.nameCipher
+            ? decryptText(inv.counterparty.nameCipher) ?? ""
+            : "",
+          counterpartyVoen: inv.counterparty.taxIdCipher
+            ? decryptText(inv.counterparty.taxIdCipher) ?? ""
+            : "",
           description: desc,
           quantity: Number(line.quantity),
           amountWithoutVat: exVat.toFixed(4),

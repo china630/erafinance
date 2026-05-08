@@ -22,10 +22,15 @@ import { CheckQuota } from "../common/decorators/check-quota.decorator";
 import { QuotaGuard } from "../common/guards/quota.guard";
 import { OrganizationId } from "../common/org-id.decorator";
 import { QuotaResource } from "../quota/quota-resource";
+import { RequiresModule } from "../subscription/requires-module.decorator";
+import { SubscriptionGuard } from "../subscription/subscription.guard";
+import { ModuleEntitlement } from "../subscription/subscription.constants";
 import { CreateInvoiceDto } from "./dto/create-invoice.dto";
 import { AllocatePaymentDto } from "./dto/allocate-payment.dto";
 import { RecordInvoicePaymentDto } from "./dto/record-invoice-payment.dto";
 import { UpdateInvoiceStatusDto } from "./dto/update-invoice-status.dto";
+import { BulkPrefillInvoicesDto } from "./dto/bulk-prefill-invoices.dto";
+import { BulkSyncResultInvoicesDto } from "./dto/bulk-sync-result-invoices.dto";
 import { InvoicesService } from "./invoices.service";
 
 @ApiTags("invoices")
@@ -90,6 +95,34 @@ export class InvoicesController {
   })
   portalLink(@OrganizationId() orgId: string, @Param("id") id: string) {
     return this.invoices.ensurePortalShareLink(orgId, id);
+  }
+
+  @Get(":id/prefill")
+  @ApiOperation({ summary: "DTO for extension e-qaimə prefill" })
+  getPrefill(@OrganizationId() orgId: string, @Param("id") id: string) {
+    return this.invoices.getExtensionPrefill(orgId, id);
+  }
+
+  @Post("bulk-prefill")
+  @UseGuards(SubscriptionGuard, RolesGuard)
+  @RequiresModule(ModuleEntitlement.TAX_PRO)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({ summary: "Bulk DTO list for extension e-qaimə prefill" })
+  getBulkPrefill(@OrganizationId() orgId: string, @Body() dto: BulkPrefillInvoicesDto) {
+    return this.invoices.getExtensionPrefillBulk(orgId, dto.invoiceIds);
+  }
+
+  @Post("bulk-sync-result")
+  @UseGuards(SubscriptionGuard, RolesGuard)
+  @RequiresModule(ModuleEntitlement.TAX_PRO)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({ summary: "Persist bulk sync results for invoices (DVX)" })
+  saveBulkSyncResult(
+    @OrganizationId() orgId: string,
+    @Body() dto: BulkSyncResultInvoicesDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.invoices.saveBulkSyncResult(orgId, dto, user.userId);
   }
 
   @Get(":id")

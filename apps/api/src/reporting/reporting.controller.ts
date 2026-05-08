@@ -106,6 +106,7 @@ export class ReportingController {
     UserRole.OWNER,
     UserRole.ADMIN,
     UserRole.ACCOUNTANT,
+    UserRole.DIRECTOR,
     UserRole.USER,
     UserRole.AUDITOR,
     UserRole.WAREHOUSE_KEEPER,
@@ -124,10 +125,12 @@ export class ReportingController {
     if (
       requestedDepartment &&
       role !== UserRole.OWNER &&
-      role !== UserRole.ACCOUNTANT
+      role !== UserRole.ACCOUNTANT &&
+      role !== UserRole.DIRECTOR &&
+      role !== UserRole.ADMIN
     ) {
       throw new BadRequestException(
-        "Department filter is available only for OWNER and ACCOUNTANT",
+        "Department filter is available only for OWNER, ADMIN, ACCOUNTANT, and DIRECTOR",
       );
     }
     return this.reporting.profitAndLoss(
@@ -140,6 +143,16 @@ export class ReportingController {
   }
 
   @Get("pl/export")
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserRole.OWNER,
+    UserRole.ADMIN,
+    UserRole.ACCOUNTANT,
+    UserRole.DIRECTOR,
+    UserRole.USER,
+    UserRole.AUDITOR,
+    UserRole.WAREHOUSE_KEEPER,
+  )
   @ApiOperation({ summary: "Export Profit&Loss to PDF/XLSX" })
   async profitAndLossExport(
     @OrganizationId() organizationId: string,
@@ -155,10 +168,12 @@ export class ReportingController {
     if (
       requestedDepartment &&
       role !== UserRole.OWNER &&
-      role !== UserRole.ACCOUNTANT
+      role !== UserRole.ACCOUNTANT &&
+      role !== UserRole.DIRECTOR &&
+      role !== UserRole.ADMIN
     ) {
       throw new BadRequestException(
-        "Department filter is available only for OWNER and ACCOUNTANT",
+        "Department filter is available only for OWNER, ADMIN, ACCOUNTANT, and DIRECTOR",
       );
     }
     const data = await this.reporting.profitAndLoss(
@@ -231,6 +246,16 @@ export class ReportingController {
   }
 
   @Get("receivables")
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserRole.OWNER,
+    UserRole.ADMIN,
+    UserRole.ACCOUNTANT,
+    UserRole.DIRECTOR,
+    UserRole.USER,
+    UserRole.AUDITOR,
+    UserRole.WAREHOUSE_KEEPER,
+  )
   @ApiOperation({
     summary: "Дебиторка (счёт 211): долг контрагентов с начисленной выручкой без оплаты",
   })

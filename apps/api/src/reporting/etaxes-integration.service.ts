@@ -10,6 +10,7 @@ import { LedgerType } from "@dayday/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { REVENUE_ACCOUNT_CODE } from "../ledger.constants";
 import { endOfUtcDay, parseIsoDateOnly } from "./reporting-period.util";
+import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
 import {
   type VatQuarterPurchaseRow,
   type VatQuarterSalesRow,
@@ -278,14 +279,15 @@ export class ETaxesIntegrationService {
   }> {
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { name: true, taxId: true },
+      select: { name: true, taxIdCipher: true },
     });
     if (!org) throw new BadRequestException("Organization not found");
+    const orgTaxId = decodeOrganizationTaxId(org);
 
     const { fromStr, toStr, sales, purchases } =
       await this.vatQuarter.loadQuarterVatRows(organizationId, year, quarter);
 
-    const errors = this.validateRows(org.taxId, sales, purchases);
+    const errors = this.validateRows(orgTaxId, sales, purchases);
     const nas601 = await this.ledgerRevenueReference(
       organizationId,
       fromStr,
@@ -306,7 +308,7 @@ export class ETaxesIntegrationService {
         dateTo: toStr,
       },
       taxpayer: {
-        voen: normalizeVoenDigits(org.taxId) ?? org.taxId.replace(/\D/g, ""),
+        voen: normalizeVoenDigits(orgTaxId) ?? orgTaxId.replace(/\D/g, ""),
         legalName: org.name,
       },
       appendixSales: this.mapSalesToBtp(sales),

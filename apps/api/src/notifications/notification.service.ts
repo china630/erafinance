@@ -1,10 +1,18 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   NotificationSeverity,
   Prisma,
   UserRole,
 } from "@dayday/database";
 import { PrismaService } from "../prisma/prisma.service";
+import { MailService } from "../mail/mail.service";
+import {
+  OWNERSHIP_DISPUTE_IN_APP_TITLE,
+  ownershipDisputeEmailBody,
+  ownershipDisputeEmailSubject,
+  ownershipDisputeInAppMessage,
+} from "./ownership-dispute-notification.copy";
 import type { ListNotificationsQueryDto } from "./dto/list-notifications-query.dto";
 
 export type CreateNotificationInput = {
@@ -18,7 +26,13 @@ export type CreateNotificationInput = {
 
 @Injectable()
 export class NotificationService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(NotificationService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    private readonly config: ConfigService,
+  ) {}
 
   /**
    * Internal API: workers, cron, domain services. Requires tenant context with matching `organizationId`.
@@ -39,6 +53,49 @@ export class NotificationService {
   /**
    * Notify all OWNER and ACCOUNTANT members (e.g. payroll / billing).
    */
+  /**
+   * OWNERSHIP_DISPUTE_OPENED — in-app + optional email/SMS (+994 queue stub).
+   * `counterClaimToken` is a short-lived JWT for `/dispute/[id]?t=…` counter-claim flow.
+   */
+  async notifyOwnershipDisputeOpened(params: {
+    organizationId: string;
+    incumbentUserId: string;
+    disputeId: string;
+    counterClaimToken?: string;
+  }): Promise<void> {
+    const disputeUrlPath = `/dispute/${params.disputeId}${params.counterClaimToken ? `?t=${encodeURIComponent(params.counterClaimToken)}` : ""}`;
+    await this.createNotification({
+      organizationId: params.organizationId,
+      userId: params.incumbentUserId,
+      title: OWNERSHIP_DISPUTE_IN_APP_TITLE,
+      message: ownershipDisputeInAppMessage(params.disputeId),
+      severity: NotificationSeverity.CRITICAL,
+      link: disputeUrlPath,
+    });
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: params.incumbentUserId },
+      select: { email: true },
+    });
+    const webOrigin = (
+      this.config.get<string>("WEB_APP_PUBLIC_URL") ??
+      this.config.get<string>("WEB_URL") ??
+      "http://localhost:3000"
+    ).replace(/\/$/, "");
+
+    if (user?.email) {
+      await this.mail.sendMail({
+        to: user.email,
+        subject: ownershipDisputeEmailSubject(),
+        text: ownershipDisputeEmailBody(disputeUrlPath, webOrigin),
+      });
+    }
+
+    this.logger.log(
+      `[OWNERSHIP_DISPUTE_OPENED][SMS stub] +994 queue — dispute=${params.disputeId} (provider wiring R2.7+)`,
+    );
+  }
+
   async notifyFinanceUsers(
     organizationId: string,
     payload: {

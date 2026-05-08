@@ -1,10 +1,12 @@
 import { Body, Controller, Param, Post } from "@nestjs/common";
 import { ApiBody, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
 import { Public } from "../auth/decorators/public.decorator";
 import { BankingWebhookDto } from "./dto/banking-webhook.dto";
 import { BankIntegrationService } from "./bank-integration.service";
 
 @ApiTags("public")
+@Throttle({ default: { limit: 5000, ttl: 60_000 } })
 @Controller("public/banking")
 export class BankWebhookController {
   constructor(private readonly integration: BankIntegrationService) {}

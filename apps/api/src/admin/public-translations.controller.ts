@@ -1,5 +1,6 @@
 import { Controller, Get, Logger, Query } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { SkipThrottle } from "@nestjs/throttler";
 import { Public } from "../auth/decorators/public.decorator";
 import { AdminService } from "./admin.service";
 
@@ -9,6 +10,7 @@ import { AdminService } from "./admin.service";
  */
 @ApiTags("public-translations")
 @Public()
+@SkipThrottle()
 @Controller("public/translations")
 export class PublicTranslationsController {
   private readonly logger = new Logger(PublicTranslationsController.name);

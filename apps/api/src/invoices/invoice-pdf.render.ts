@@ -13,7 +13,8 @@ export type InvoicePdfModel = {
   dueDate: Date;
   totalAmount: { toString(): string };
   currency: string;
-  counterparty: { name: string; taxId: string };
+  isInternational?: boolean;
+  counterparty: { name: string; taxId: string; country?: string | null };
   items: Array<{
     description: string | null;
     quantity: { toString(): string };
@@ -53,13 +54,16 @@ export async function renderInvoicePdf(
     registerUnicodeFonts(doc);
     doc.font(PDF_FONT_UNICODE);
 
-    doc.fontSize(18).text(`Invoice ${invoice.number}`, { underline: true });
+    const title = invoice.isInternational ? "Commercial Invoice" : "Invoice";
+    doc.fontSize(18).text(`${title} ${invoice.number}`, { underline: true });
     doc.moveDown();
     doc.fontSize(10);
     doc.text(`Status: ${invoice.status}`);
     doc.text(`Due: ${invoice.dueDate.toISOString().slice(0, 10)}`);
     doc.text(
-      `Customer: ${invoice.counterparty.name} (VÖEN ${invoice.counterparty.taxId})`,
+      invoice.isInternational
+        ? `Buyer: ${invoice.counterparty.name}${invoice.counterparty.country ? ` (${invoice.counterparty.country})` : ""}`
+        : `Customer: ${invoice.counterparty.name} (VÖEN ${invoice.counterparty.taxId})`,
     );
     doc.moveDown();
     doc.text("Lines:");

@@ -24,6 +24,8 @@ function isPublicPath(pathname: string): boolean {
   if (pathname === "/login") return true;
   if (pathname === "/register") return true;
   if (pathname === "/register-org") return true;
+  if (pathname === "/help") return true;
+  if (pathname.startsWith("/dispute/")) return true;
   if (pathname.startsWith("/verify/")) return true;
   if (pathname.startsWith("/billing/")) return true; // success/cancel pages
   if (pathname.startsWith("/portal")) return true; // guest invoice portal (PRD §4.4.1)

@@ -10,6 +10,8 @@ export type AccessTokenPayload = {
   email: string;
   organizationId: string | null;
   role: UserRole | null;
+  /** Browser extension access tokens (POST /auth/extension/refresh). */
+  aud?: string;
 };
 
 @Injectable()

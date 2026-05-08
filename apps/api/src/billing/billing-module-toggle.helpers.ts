@@ -37,6 +37,9 @@ export function catalogModuleKeyToPatch(
   inventory?: boolean;
   manufacturing?: boolean;
   hr_full?: boolean;
+  tax_pro?: boolean;
+  trade_pro?: boolean;
+  recovery_pro?: boolean;
   ifrs_mapping?: boolean;
 } {
   switch (moduleKey) {
@@ -50,6 +53,12 @@ export function catalogModuleKeyToPatch(
       return { manufacturing: enabled, production: enabled };
     case "hr_full":
       return { hr_full: enabled };
+    case "tax_pro":
+      return { tax_pro: enabled };
+    case "trade_pro":
+      return { trade_pro: enabled };
+    case "recovery_pro":
+      return { recovery_pro: enabled };
     case "ifrs_mapping":
       return { ifrs_mapping: enabled, ifrs: enabled };
     default:

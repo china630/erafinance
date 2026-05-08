@@ -2,10 +2,12 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InvoiceStatus, Prisma, type UserRole } from "@dayday/database";
+import { InvoicePrefillSchema, type InvoicePrefill } from "@dayday/api-contracts";
 import { assertUserMayMutateInvoiceInPaidStatus } from "../auth/policies/invoice-finance.policy";
 import { AccountingService } from "../accounting/accounting.service";
 import {
@@ -33,6 +35,9 @@ import { MailService } from "../mail/mail.service";
 import { parseIsoDateOnly } from "../reporting/reporting-period.util";
 import { createInvoicePaymentMirrorLine } from "../banking/banking-registry.helper";
 import { CashOrderService } from "../kassa/cash-order.service";
+import { IntegrationSyncRunService } from "../integrations/integration-sync-run.service";
+import { BulkSyncResultInvoicesDto } from "./dto/bulk-sync-result-invoices.dto";
+import { decodeOrganizationTaxId, decryptText } from "../security/pii-crypto.util";
 
 type Decimal = Prisma.Decimal;
 const Decimal = Prisma.Decimal;
@@ -42,6 +47,18 @@ const MULTI_CURRENCY_ROUNDING_TOLERANCE = new Decimal("0.01");
 
 @Injectable()
 export class InvoicesService {
+  private readonly logger = new Logger(InvoicesService.name);
+
+  private decodeCounterparty(cp: {
+    nameCipher: string | null;
+    taxIdCipher: string | null;
+  }): { name: string; taxId: string | null } {
+    return {
+      name: cp.nameCipher ? decryptText(cp.nameCipher) ?? "" : "",
+      taxId: cp.taxIdCipher ? decryptText(cp.taxIdCipher) : null,
+    };
+  }
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly accounting: AccountingService,
@@ -51,6 +68,7 @@ export class InvoicesService {
     private readonly config: ConfigService,
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
     private readonly cashOrders: CashOrderService,
+    private readonly syncRuns: IntegrationSyncRunService,
   ) {}
 
   async list(organizationId: string) {
@@ -58,7 +76,7 @@ export class InvoicesService {
       where: { organizationId },
       orderBy: { createdAt: "desc" },
       include: {
-        counterparty: { select: { id: true, name: true, taxId: true } },
+        counterparty: { select: { id: true, nameCipher: true, taxIdCipher: true } },
         _count: { select: { items: true } },
         items: {
           select: {
@@ -69,6 +87,7 @@ export class InvoicesService {
       },
     });
     return rows.map((inv) => {
+      const cp = this.decodeCounterparty(inv.counterparty);
       const paidTotal = inv.paidAmount ?? new Decimal(0);
       const remaining = inv.totalAmount.sub(paidTotal);
       const hasGoodsLines = inv.items.some(
@@ -77,6 +96,11 @@ export class InvoicesService {
       const { items: _items, ...rest } = inv;
       return {
         ...rest,
+        counterparty: {
+          id: inv.counterparty.id,
+          name: cp.name,
+          taxId: cp.taxId,
+        },
         paidTotal: paidTotal.toFixed(4),
         remaining: remaining.toFixed(4),
         hasGoodsLines,
@@ -107,6 +131,183 @@ export class InvoicesService {
       remaining: remaining.toFixed(4),
       signatureLogs,
     };
+  }
+
+  async getExtensionPrefill(
+    organizationId: string,
+    invoiceId: string,
+  ): Promise<InvoicePrefill> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, organizationId },
+      include: {
+        counterparty: {
+          select: {
+            id: true,
+            nameCipher: true,
+            taxIdCipher: true,
+            legalForm: true,
+            address: true,
+            isVatPayer: true,
+          },
+        },
+        items: {
+          include: {
+            product: { select: { sku: true, name: true } },
+          },
+        },
+      },
+    });
+    if (!invoice) throw new NotFoundException("Invoice not found");
+    if ((invoice as { isInternational?: boolean }).isInternational) {
+      throw new BadRequestException({
+        code: "INVOICE_NOT_INTERNATIONAL_PREFILL",
+        message: "International invoices are excluded from DVX prefill",
+      });
+    }
+    if (invoice.currency !== "AZN") {
+      throw new BadRequestException({
+        code: "INVOICE_NOT_AZN",
+        message: "Only AZN invoices are supported for e-qaimə prefill",
+      });
+    }
+
+    const items = invoice.items.map((line) => {
+      const gross = Number(line.lineTotal.toString());
+      const vatRate = Number(line.vatRate.toString());
+      const vatExempt = vatRate < 0;
+      const vatBasePct = vatExempt ? 0 : vatRate;
+      const net = vatBasePct > 0 ? gross / (1 + vatBasePct / 100) : gross;
+      const vat = gross - net;
+      return {
+        name: line.description ?? line.product?.name ?? "Item",
+        sku: line.product?.sku ?? null,
+        quantity: Number(line.quantity.toString()),
+        unit: null,
+        unitPriceAzn: Number(line.unitPrice.toString()),
+        vatRatePct: vatBasePct,
+        vatExempt,
+        totalNetAzn: Number(net.toFixed(4)),
+        totalVatAzn: Number(vat.toFixed(4)),
+        totalGrossAzn: gross,
+      };
+    });
+
+    const totals = items.reduce(
+      (acc, line) => {
+        acc.netAzn += line.totalNetAzn;
+        acc.vatAzn += line.totalVatAzn;
+        acc.grossAzn += line.totalGrossAzn;
+        return acc;
+      },
+      { netAzn: 0, vatAzn: 0, grossAzn: 0 },
+    );
+    const totalAmountRaw = Number(invoice.totalAmount.toString());
+    if (Math.abs(totals.grossAzn - totalAmountRaw) > 0.05) {
+      this.logger.warn(
+        `Invoice prefill totals mismatch for ${invoice.id}: items=${totals.grossAzn.toFixed(4)} db=${totalAmountRaw.toFixed(4)}`,
+      );
+    }
+
+    const cpDecoded = this.decodeCounterparty(invoice.counterparty);
+    return InvoicePrefillSchema.parse({
+      id: invoice.id,
+      number: invoice.number,
+      issueDate: invoice.createdAt.toISOString(),
+      currency: "AZN",
+      counterparty: {
+        id: invoice.counterparty.id,
+        name: cpDecoded.name,
+        taxId: /^\d{10}$/.test(cpDecoded.taxId ?? "")
+          ? cpDecoded.taxId
+          : null,
+        legalForm: String(invoice.counterparty.legalForm),
+        address: invoice.counterparty.address ?? null,
+        isVatPayer: invoice.counterparty.isVatPayer,
+      },
+      items,
+      totals: {
+        netAzn: Number(totals.netAzn.toFixed(4)),
+        vatAzn: Number(totals.vatAzn.toFixed(4)),
+        grossAzn: Number(totals.grossAzn.toFixed(4)),
+      },
+      notes: null,
+      isInternational: false,
+    });
+  }
+
+  async getExtensionPrefillBulk(organizationId: string, invoiceIds: string[]) {
+    const normalized = Array.from(new Set(invoiceIds.map((id) => id.trim()).filter(Boolean)));
+    const rows: Array<{ invoiceId: string; data: InvoicePrefill }> = [];
+    for (const invoiceId of normalized) {
+      try {
+        rows.push({
+          invoiceId,
+          data: await this.getExtensionPrefill(organizationId, invoiceId),
+        });
+      } catch (error) {
+        if (
+          error instanceof BadRequestException &&
+          typeof (error.getResponse() as { code?: string })?.code === "string" &&
+          (error.getResponse() as { code?: string }).code === "INVOICE_NOT_INTERNATIONAL_PREFILL"
+        ) {
+          continue;
+        }
+        throw error;
+      }
+    }
+    const runId = await this.syncRuns.start({
+      organizationId,
+      portal: "DVX",
+      flow: "eqaime",
+      transport: "RPA_WIDGET",
+      totalCount: rows.length,
+    });
+    return { runId, items: rows };
+  }
+
+  async saveBulkSyncResult(
+    organizationId: string,
+    dto: BulkSyncResultInvoicesDto,
+    triggeredByUserId?: string,
+  ) {
+    const syncedAt = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      for (const item of dto.items) {
+        await tx.invoice.updateMany({
+          where: { organizationId, id: item.invoiceId },
+          data: {
+            dvxSyncStatus: item.status,
+            dvxSyncedAt: item.status === "SYNCED" ? syncedAt : null,
+            dvxSyncError: item.error ?? null,
+            dvxExternalId: item.externalId ?? null,
+          } as never,
+        });
+      }
+    });
+
+    const successCount = dto.items.filter((it) => it.status === "SYNCED").length;
+    const errorCount = dto.items.length - successCount;
+    try {
+      await this.syncRuns.complete({
+        runId: dto.runId,
+        successCount,
+        errorCount,
+        notes: { triggeredByUserId: triggeredByUserId ?? null },
+      });
+    } catch {
+      // Keep endpoint idempotent even if run was not pre-created.
+      const runId = await this.syncRuns.start({
+        organizationId,
+        portal: "DVX",
+        flow: "eqaime",
+        transport: "RPA_WIDGET",
+        totalCount: dto.items.length,
+        triggeredByUserId,
+      });
+      await this.syncRuns.complete({ runId, successCount, errorCount });
+    }
+
+    return { ok: true, successCount, errorCount };
   }
 
   async enqueueInvoicePdf(organizationId: string, invoiceId: string) {
@@ -153,7 +354,9 @@ export class InvoicesService {
           debitAccountCode,
           totalAmount: total,
           currency,
+          isInternational: dto.isInternational ?? false,
           warehouseId: warehouseId ?? null,
+          projectId: dto.projectId ?? null,
         },
       });
       for (const row of builtItems) {
@@ -213,7 +416,7 @@ export class InvoicesService {
       const existing = await tx.invoice.findFirst({
         where: { id, organizationId },
         include: {
-          counterparty: { select: { taxId: true } },
+          counterparty: { select: { taxIdCipher: true } },
         },
       });
       if (!existing) throw new NotFoundException("Invoice not found");
@@ -283,7 +486,10 @@ export class InvoicesService {
               debitAccountCode: existing.debitAccountCode,
               counterpartyId: existing.counterpartyId,
               currency: existing.currency,
-              counterpartyTaxId: existing.counterparty?.taxId ?? null,
+              counterpartyTaxId:
+                existing.counterparty?.taxIdCipher
+                  ? decryptText(existing.counterparty.taxIdCipher)
+                  : null,
             },
             remaining,
             new Date(),
@@ -361,7 +567,7 @@ export class InvoicesService {
       const existing = await tx.invoice.findFirst({
         where: { id: invoiceId, organizationId },
         include: {
-          counterparty: { select: { taxId: true } },
+          counterparty: { select: { taxIdCipher: true } },
         },
       });
       if (!existing) throw new NotFoundException("Invoice not found");
@@ -418,7 +624,10 @@ export class InvoicesService {
           debitAccountCode: debitCode,
           counterpartyId: existing.counterpartyId,
           currency: existing.currency,
-          counterpartyTaxId: existing.counterparty?.taxId ?? null,
+          counterpartyTaxId:
+            existing.counterparty?.taxIdCipher
+              ? decryptText(existing.counterparty.taxIdCipher)
+              : null,
         },
         payableAmount,
         payDate,
@@ -491,7 +700,7 @@ export class InvoicesService {
           { recognizedAt: "asc" },
           { createdAt: "asc" },
         ],
-        include: { counterparty: { select: { taxId: true } } },
+        include: { counterparty: { select: { taxIdCipher: true } } },
       });
       if (candidateInvoices.length === 0) {
         throw new BadRequestException(
@@ -626,7 +835,7 @@ export class InvoicesService {
     const existing = await tx.invoice.findFirst({
       where: { id: invoiceId, organizationId },
       include: {
-        counterparty: { select: { taxId: true } },
+        counterparty: { select: { taxIdCipher: true } },
       },
     });
     if (!existing) throw new NotFoundException("Invoice not found");
@@ -657,7 +866,7 @@ export class InvoicesService {
     const inv = await tx.invoice.findFirstOrThrow({
       where: { id: invoiceId },
       include: {
-        counterparty: { select: { taxId: true } },
+        counterparty: { select: { taxIdCipher: true } },
       },
     });
 
@@ -696,7 +905,10 @@ export class InvoicesService {
         debitAccountCode: inv.debitAccountCode,
         counterpartyId: inv.counterpartyId,
         currency: inv.currency,
-        counterpartyTaxId: inv.counterparty?.taxId ?? null,
+        counterpartyTaxId:
+          inv.counterparty?.taxIdCipher
+            ? decryptText(inv.counterparty.taxIdCipher)
+            : null,
       },
       payableAmount,
       valueDate,
@@ -1129,12 +1341,13 @@ export class InvoicesService {
     if (pl === "az" || pl === "ru" || pl === "en") {
       localeHint = pl;
     }
+    const cpDecoded = this.decodeCounterparty(inv.counterparty);
 
     return {
       localeHint,
       organization: {
         name: inv.organization.name,
-        taxId: inv.organization.taxId,
+        taxId: decodeOrganizationTaxId(inv.organization),
         logoUrl: inv.organization.logoUrl,
         legalAddress: inv.organization.legalAddress,
         bankAccounts: inv.organization.bankAccountsOrg.map((b) => ({
@@ -1146,8 +1359,8 @@ export class InvoicesService {
         })),
       },
       counterparty: {
-        name: inv.counterparty.name,
-        taxId: inv.counterparty.taxId,
+        name: cpDecoded.name,
+        taxId: cpDecoded.taxId ?? "",
       },
       invoice: {
         number: inv.number,

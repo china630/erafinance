@@ -21,6 +21,7 @@ import { PayrollExportService } from "./payroll-export.service";
 import { DepartmentHeadScopeService } from "./department-head-scope.service";
 import { NotificationModule } from "../notifications/notification.module";
 import { VacationBalanceService } from "./vacation-balance.service";
+import { IntegrationsModule } from "../integrations/integrations.module";
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { VacationBalanceService } from "./vacation-balance.service";
     AccountingModule,
     BankingModule,
     NotificationModule,
+    IntegrationsModule,
   ],
   controllers: [
     EmployeesController,

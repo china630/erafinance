@@ -14,6 +14,13 @@ import { GlobalCompanyDirectoryService } from "../global-directory/global-compan
 import { PrismaService } from "../prisma/prisma.service";
 import { TaxpayerIntegrationService } from "../tax/taxpayer-integration.service";
 import { CreateCounterpartyBankAccountDto } from "./dto/create-counterparty-bank-account.dto";
+import {
+  blindIndex,
+  decryptText,
+  encryptText,
+  normalizeName,
+  normalizeVoen,
+} from "../security/pii-crypto.util";
 
 /**
  * Counterparties MDM adapter:
@@ -38,6 +45,7 @@ export class CounterpartiesService {
     vatStatusFallback?: boolean | null;
   }) {
     const taxId = params.taxId.trim();
+    const taxIdBlindIndex = blindIndex("voen", normalizeVoen(taxId));
     if (!/^\d{10}$/.test(taxId)) {
       throw new ConflictException("VÖEN must be 10 digits");
     }
@@ -70,13 +78,21 @@ export class CounterpartiesService {
 
     // Create or attach local record inside the organization
     const existingLocal = await this.prisma.counterparty.findFirst({
-      where: { organizationId: params.organizationId, taxId },
+      where: {
+        organizationId: params.organizationId,
+        taxIdBlindIndex,
+      },
     });
     if (existingLocal) {
       if (!existingLocal.globalId) {
         return this.prisma.counterparty.update({
           where: { id: existingLocal.id },
-          data: { globalId: global.id },
+          data: {
+            globalId: global.id,
+            taxIdBlindIndex,
+            taxIdCipher: encryptText(normalizeVoen(taxId)),
+            nameCipher: encryptText(normalizeName(global.name)),
+          },
         });
       }
       return existingLocal;
@@ -87,8 +103,9 @@ export class CounterpartiesService {
       data: {
         organizationId: params.organizationId,
         globalId: global.id,
-        taxId,
-        name: global.name,
+        taxIdBlindIndex,
+        taxIdCipher: encryptText(normalizeVoen(taxId)),
+        nameCipher: encryptText(normalizeName(global.name)),
         kind: CounterpartyKind.LEGAL_ENTITY,
         role: CounterpartyRole.CUSTOMER,
         legalForm: CounterpartyLegalForm.LLC,
@@ -158,11 +175,16 @@ export class CounterpartiesService {
     if (!row) {
       return;
     }
+    const taxId = row.taxIdCipher ? decryptText(row.taxIdCipher)?.trim() ?? null : null;
+    const localName = row.nameCipher ? decryptText(row.nameCipher)?.trim() ?? null : null;
     const name =
-      row.global?.name?.trim() || row.name.trim() || row.taxId.trim();
+      row.global?.name?.trim() || localName || taxId || "";
     const legalAddress = row.global?.legalAddress ?? row.address ?? null;
+    if (!taxId) {
+      return;
+    }
     this.directory.scheduleUpsert({
-      taxId: row.taxId.trim(),
+      taxId,
       name,
       legalAddress,
       phone: null,

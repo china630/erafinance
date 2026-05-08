@@ -10,6 +10,7 @@ import { runWithTenantContextAsync } from "../prisma/tenant-context";
 import { BillingPlatformService } from "./billing-platform.service";
 import { BillingNotificationService } from "./billing-notification.service";
 import { OrganizationModuleService } from "./organization-module.service";
+import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
 
 const Decimal = Prisma.Decimal;
 
@@ -68,11 +69,40 @@ export class BillingMonthlyService {
     await runWithTenantContextAsync(
       { organizationId: null, skipTenantFilter: true },
       async () => {
-        const cutoff = new Date();
+        const expiredTrials = await this.prisma.organizationSubscription.findMany({
+          where: {
+            isTrial: true,
+            expiresAt: { lt: now },
+          },
+          select: { organizationId: true },
+        });
+        const transitionedFromDemoOrgIds = new Set<string>();
+        for (const sub of expiredTrials) {
+          const updated = await this.prisma.organizationSubscription.updateMany({
+            where: {
+              organizationId: sub.organizationId,
+              isTrial: true,
+              expiresAt: { lt: now },
+            },
+            data: { isTrial: false },
+          });
+          if (updated.count > 0) {
+            transitionedFromDemoOrgIds.add(sub.organizationId);
+            await this.billingNotifications.notifyDemoPeriodFinished(
+              sub.organizationId,
+              now,
+            );
+          }
+        }
+
+        /** Post-paid orgs are billable month-by-month for the completed calendar period.
+         *  Org transitioned from demo on this very run is excluded, so free entry month is never invoiced.
+         */
         const orgs = await this.prisma.organization.findMany({
           where: {
+            id: { notIn: Array.from(transitionedFromDemoOrgIds) },
             subscription: {
-              is: { expiresAt: { gt: cutoff } },
+              is: { isTrial: false },
             },
           },
           include: { subscription: true },
@@ -123,7 +153,7 @@ export class BillingMonthlyService {
             if (m <= 0) continue;
             items.push({
               organizationId: o.id,
-              description: `Post-paid monthly modules — ${o.name} (VÖEN ${o.taxId})`,
+              description: `Post-paid monthly modules — ${o.name} (VÖEN ${decodeOrganizationTaxId(o)})`,
               amount: new Decimal(roundMoney2(m)),
             });
             billedOrgIds.push(o.id);

@@ -519,10 +519,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const payrollHrActive =
       pathname.startsWith("/employees") ||
       pathname.startsWith("/hr/") ||
-      pathname.startsWith("/payroll");
+      pathname.startsWith("/payroll") ||
+      pathname.startsWith("/psa");
     const reportsActive =
       pathname.startsWith("/reporting") || pathname.startsWith("/reports");
-    const chartOfAccountsActive = pathname.startsWith("/accounting");
+    const chartOfAccountsActive =
+      pathname.startsWith("/accounting") || pathname.startsWith("/finance");
     const adminActive =
       pathname.startsWith("/companies") ||
       pathname.startsWith("/settings") ||

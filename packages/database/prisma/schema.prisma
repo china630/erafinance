@@ -9,7 +9,10 @@ datasource db {
 model Organization {
   id                           String                        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   name                         String
-  taxId                        String                        @map("tax_id")
+  /// Stage-1 WA0001: encrypted taxId payload for gradual cutover.
+  taxIdCipher                  String?                       @map("tax_id_cipher")
+  /// Stage-2 WA0001: deterministic blind index (HMAC) for equality search.
+  taxIdBlindIndex              String?                       @unique @map("tax_id_blind_index")
   currency                     String                        @default("AZN")
   /// *
   ///    * Юридический адрес (профиль организации, v19.0).
@@ -91,6 +94,10 @@ model Organization {
   bankPaymentDrafts            BankPaymentDraft[]
   ifrsMappingRules             IfrsMappingRule[]
   payrollSlips                 PayrollSlip[]
+  integrationSyncRuns          IntegrationSyncRun[]
+  ocrJobs                      OcrJob[]
+  customsDeclarations          CustomsDeclaration[]
+  customsDeclarationItems      CustomsDeclarationItem[]
   productRecipes               ProductRecipe[]
   products                     Product[]
   stockItems                   StockItem[]
@@ -100,6 +107,19 @@ model Organization {
   warehouses                   Warehouse[]
   warehouseBins                WarehouseBin[]
   notifications                Notification[]
+  ownershipDisputes            OwnershipDispute[]
+  securityState                OrganizationSecurityState?
+  dataSnapshots                OrganizationDataSnapshot[]
+  tenantRollbackRecords        TenantRollbackRecord[]
+  entityActivities             EntityActivity[]
+  entityComments               EntityComment[]
+  approvalPolicies             ApprovalPolicy[]
+  approvalRequests             ApprovalRequest[]
+  prepaidExpenses              PrepaidExpense[]
+  psaProjects                  PsaProject[]
+  overheadDrivers              OverheadDriver[]
+  overheadPools                OverheadPool[]
+  manufacturingReleases        ManufacturingRelease[]
 
   @@index([ownerId])
   @@index([holdingId, id])
@@ -116,37 +136,37 @@ enum CoaTemplateProfile {
 
 /// Глобальный справочник NAS (платформа): один код — одна строка; профили Small/Full через массив.
 model TemplateAccount {
-  id              String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  code            String               @unique
-  nameAz          String               @map("name_az")
-  nameRu          String               @map("name_ru")
-  nameEn          String               @map("name_en")
-  accountType     AccountType          @map("account_type")
-  parentCode      String?              @map("parent_code")
-  cashProfile     String?              @map("cash_profile")
-  sortOrder       Int                  @default(0) @map("sort_order")
-  isDeprecated    Boolean              @default(false) @map("is_deprecated")
+  id             String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code           String               @unique
+  nameAz         String               @map("name_az")
+  nameRu         String               @map("name_ru")
+  nameEn         String               @map("name_en")
+  accountType    AccountType          @map("account_type")
+  parentCode     String?              @map("parent_code")
+  cashProfile    String?              @map("cash_profile")
+  sortOrder      Int                  @default(0) @map("sort_order")
+  isDeprecated   Boolean              @default(false) @map("is_deprecated")
   /// В каких профилях онбординга счёт входит (полный коммерческий и/или малый бизнес).
-  templateGroups  CoaTemplateProfile[] @default([]) @map("template_groups")
-  createdAt       DateTime             @default(now()) @map("created_at")
-  updatedAt       DateTime             @updatedAt @map("updated_at")
-  accounts        Account[]
+  templateGroups CoaTemplateProfile[] @default([]) @map("template_groups")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  accounts       Account[]
 
   @@index([code])
   @@map("template_accounts")
 }
 
 model AccountBalance {
-  id             String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String      @map("organization_id") @db.Uuid
-  accountId      String      @map("account_id") @db.Uuid
-  ledgerType     LedgerType  @default(NAS) @map("ledger_type")
-  balanceDate    DateTime    @map("balance_date") @db.Date
-  debitBalance   Decimal     @default(0) @map("debit_balance") @db.Decimal(19, 4)
-  creditBalance  Decimal     @default(0) @map("credit_balance") @db.Decimal(19, 4)
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
-  account        Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  accountId      String       @map("account_id") @db.Uuid
+  ledgerType     LedgerType   @default(NAS) @map("ledger_type")
+  balanceDate    DateTime     @map("balance_date") @db.Date
+  debitBalance   Decimal      @default(0) @map("debit_balance") @db.Decimal(19, 4)
+  creditBalance  Decimal      @default(0) @map("credit_balance") @db.Decimal(19, 4)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  account        Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, accountId, ledgerType, balanceDate])
@@ -157,29 +177,92 @@ model AccountBalance {
 /// *
 ///  * Банковские счета организации (реквизиты для документов и интеграций), 1:N к Organization.
 model OrganizationBankAccount {
-  id                String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId    String                 @map("organization_id") @db.Uuid
-  bankName          String                 @map("bank_name")
+  id                String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId    String           @map("organization_id") @db.Uuid
+  bankName          String           @map("bank_name")
   /// Legacy field (kept for backward compatibility in old integrations/UI).
-  accountNumber     String?                @map("account_number")
-  currency          String                 @default("AZN")
+  accountNumber     String?          @map("account_number")
+  currency          String           @default("AZN")
   iban              String
   swift             String?
-  ledgerAccountCode String                 @map("ledger_account_code")
-  accountType       BankAccountType        @default(MAIN) @map("account_type")
-  isPrimary         Boolean                @default(false) @map("is_primary")
-  isFrozen          Boolean                @default(false) @map("is_frozen")
-  isArchived        Boolean                @default(false) @map("is_archived")
-  createdAt         DateTime               @default(now()) @map("created_at")
-  updatedAt         DateTime               @updatedAt @map("updated_at")
-  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  salaryRegistries SalaryRegistry[]
+  ledgerAccountCode String           @map("ledger_account_code")
+  accountType       BankAccountType  @default(MAIN) @map("account_type")
+  isPrimary         Boolean          @default(false) @map("is_primary")
+  isFrozen          Boolean          @default(false) @map("is_frozen")
+  isArchived        Boolean          @default(false) @map("is_archived")
+  /// FK to system bank branch directory (BankBranch). When set on create/update,
+  /// AccountingService auto-generates NAS subaccount 221.<bankCode>.<seq>.
+  bankBranchId      String?          @map("bank_branch_id") @db.Uuid
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankBranch        BankBranch?      @relation(fields: [bankBranchId], references: [id], onDelete: SetNull)
+  salaryRegistries  SalaryRegistry[]
+  deletedAt         DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId   String?          @map("deleted_by_user_id") @db.Uuid
+  deletedReason     String?          @map("deleted_reason")
 
   @@unique([organizationId, iban], map: "organization_bank_accounts_org_iban_uidx")
   @@index([organizationId, isArchived, createdAt], map: "organization_bank_accounts_org_arch_created_idx")
   @@index([organizationId, accountType], map: "organization_bank_accounts_org_type_idx")
   @@index([organizationId, ledgerAccountCode], map: "organization_bank_accounts_org_ledger_idx")
+  @@index([organizationId, deletedAt], map: "organization_bank_accounts_org_deleted_at_idx")
+  @@index([bankBranchId], map: "organization_bank_accounts_bank_branch_idx")
   @@map("organization_bank_accounts")
+}
+
+/// *
+///  * Системный справочник банков Азербайджана (без `organizationId`, общий для всей платформы).
+///  * Двузначный `code` (`01`–`22`) используется в маске NAS-субсчёта `221.<bankCode>.<seq>`.
+model BankGlossary {
+  id                String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  /// Официальное наименование банка на азербайджанском (для UI/печати).
+  nameAz            String       @map("name_az")
+  /// VÖEN банка (10 цифр), уникальный.
+  voen              String       @unique
+  /// Двузначный код банка в маске субсчёта `221.<code>.<seq>` (фиксирован для платформы).
+  code              String       @unique @db.Char(2)
+  /// Корреспондентский IBAN банка в ЦБА (одинаков для всех филиалов; см. docs/banks.md).
+  correspondentIban String?      @unique @map("correspondent_iban")
+  /// SWIFT-код банка (общий для всех филиалов, дублируется в `BankBranch.swift` для UI).
+  swift             String?
+  /// Контактные телефоны головного офиса.
+  headPhones        String[]     @default([]) @map("head_phones")
+  /// Юр./фактический адрес головного офиса.
+  headAddress       String?      @map("head_address")
+  isActive          Boolean      @default(true) @map("is_active")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  branches          BankBranch[]
+
+  @@map("bank_glossary")
+}
+
+/// *
+///  * Филиал банка из системного справочника. Используется при создании
+///  * `OrganizationBankAccount` для автогенерации субсчёта 221.<bankCode>.<seq>.
+model BankBranch {
+  id                       String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  bankId                   String                    @map("bank_id") @db.Uuid
+  /// 6-digit MFO code in Azerbaijan banking system (unique within bank).
+  branchCode               String                    @map("branch_code")
+  name                     String
+  swift                    String?
+  address                  String?
+  /// Контактные телефоны филиала; в `docs/banks.md` приходят через `;`.
+  phones                   String[]                  @default([]) @map("phones")
+  /// True для записи головного офиса банка (отображение «Baş ofis»).
+  isHeadOffice             Boolean                   @default(false) @map("is_head_office")
+  isActive                 Boolean                   @default(true) @map("is_active")
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @map("updated_at")
+  bank                     BankGlossary              @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  organizationBankAccounts OrganizationBankAccount[]
+
+  @@unique([bankId, branchCode], map: "bank_branches_bank_branch_code_uidx")
+  @@index([bankId], map: "bank_branches_bank_idx")
+  @@index([bankId, isHeadOffice], map: "bank_branches_bank_head_office_idx")
+  @@map("bank_branches")
 }
 
 /// *
@@ -200,18 +283,18 @@ model GlobalCompanyDirectory {
 /// *
 ///  * Подключённые модули по организации: цена на момент включения и политика отмены (pro-rata / конец периода).
 model OrganizationModule {
-  organizationId String       @map("organization_id") @db.Uuid
-  moduleKey      String       @map("module_key")
-  priceSnapshot  Decimal      @map("price_snapshot") @db.Decimal(12, 2)
-  activatedAt    DateTime     @default(now()) @map("activated_at")
-  pendingDeactivation Boolean @default(false) @map("pending_deactivation")
+  organizationId      String       @map("organization_id") @db.Uuid
+  moduleKey           String       @map("module_key")
+  priceSnapshot       Decimal      @map("price_snapshot") @db.Decimal(12, 2)
+  activatedAt         DateTime     @default(now()) @map("activated_at")
+  pendingDeactivation Boolean      @default(false) @map("pending_deactivation")
   /// *
   ///    * Заполнено при отключении: автопродление снято, доступ до accessUntil.
-  cancelledAt    DateTime?    @map("cancelled_at")
+  cancelledAt         DateTime?    @map("cancelled_at")
   /// *
   ///    * Конец текущего оплаченного периода (UTC), после — модуль снимается с activeModules.
-  accessUntil    DateTime?    @map("access_until") @db.Timestamptz(6)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  accessUntil         DateTime?    @map("access_until") @db.Timestamptz(6)
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@id([organizationId, moduleKey])
   @@map("organization_modules")
@@ -291,15 +374,19 @@ model BillingInvoiceItem {
 /// *
 ///  * Связь пользователь ↔ организация (роль в рамках организации).
 model OrganizationMembership {
-  userId         String       @map("user_id") @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  role           UserRole
-  joinedAt       DateTime     @default(now()) @map("joined_at")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String       @map("user_id") @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  role            UserRole
+  joinedAt        DateTime     @default(now()) @map("joined_at")
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?      @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?      @map("deleted_reason")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, organizationId])
   @@index([organizationId])
+  @@index([organizationId, deletedAt], map: "organization_memberships_org_deleted_at_idx")
   @@map("organization_memberships")
 }
 
@@ -317,9 +404,13 @@ model AccessRequest {
   decidedBy       User?               @relation("AccessRequestDecider", fields: [decidedByUserId], references: [id])
   organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   requester       User                @relation("AccessRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?             @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?             @map("deleted_reason")
 
   @@index([organizationId, status])
   @@index([requesterId])
+  @@index([organizationId, deletedAt], map: "access_requests_org_deleted_at_idx")
   @@map("access_requests")
 }
 
@@ -336,52 +427,65 @@ model OrganizationInvite {
   decidedAt       DateTime?    @map("decided_at")
   invitedBy       User?        @relation("InviteInviter", fields: [invitedByUserId], references: [id])
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?      @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?      @map("deleted_reason")
 
   @@index([organizationId, email])
+  @@index([organizationId, deletedAt], map: "organization_invites_org_deleted_at_idx")
   @@map("organization_invites")
 }
 
 /// *
 ///  * Подразделение (иерархия: parentId).
 model Department {
-  id             String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String        @map("organization_id") @db.Uuid
-  name           String
-  parentId       String?       @map("parent_id") @db.Uuid
-  managerId      String?       @map("manager_id") @db.Uuid
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
-  manager        Employee?     @relation("DepartmentManager", fields: [managerId], references: [id])
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  parent         Department?   @relation("DepartmentHierarchy", fields: [parentId], references: [id])
-  children       Department[]  @relation("DepartmentHierarchy")
-  jobPositions   JobPosition[]
-  transactions   Transaction[]
+  id              String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String        @map("organization_id") @db.Uuid
+  name            String
+  parentId        String?       @map("parent_id") @db.Uuid
+  managerId       String?       @map("manager_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  manager         Employee?     @relation("DepartmentManager", fields: [managerId], references: [id])
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent          Department?   @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children        Department[]  @relation("DepartmentHierarchy")
+  jobPositions    JobPosition[]
+  transactions    Transaction[]
+  psaProjects     PsaProject[]
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?       @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?       @map("deleted_reason")
 
   @@index([organizationId])
   @@index([parentId])
+  @@index([organizationId, deletedAt], map: "departments_org_deleted_at_idx")
   @@map("departments")
 }
 
 /// *
 ///  * Штатная единица (должность) в подразделении.
 model JobPosition {
-  id           String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  departmentId String     @map("department_id") @db.Uuid
-  name         String
-  totalSlots   Int        @map("total_slots")
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  id              String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  departmentId    String     @map("department_id") @db.Uuid
+  name            String
+  totalSlots      Int        @map("total_slots")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
   /// *
   ///    * Нижняя граница вилки оклада по штатке (AZN), справочно.
-  minSalary    Decimal    @map("min_salary") @db.Decimal(19, 4)
+  minSalary       Decimal    @map("min_salary") @db.Decimal(19, 4)
   /// *
   ///    * Верхняя граница вилки оклада по штатке (AZN), справочно.
-  maxSalary    Decimal    @map("max_salary") @db.Decimal(19, 4)
-  employees    Employee[]
-  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  maxSalary       Decimal    @map("max_salary") @db.Decimal(19, 4)
+  employees       Employee[]
+  department      Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?    @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?    @map("deleted_reason")
 
   @@index([departmentId])
+  @@index([departmentId, deletedAt], map: "job_positions_dept_deleted_at_idx")
   @@map("job_positions")
 }
 
@@ -487,62 +591,85 @@ model TranslationOverride {
 }
 
 /// *
-///  * Инвентаризационная опись: строки в `items` (JSON) — warehouseId, productId, factQty, inventoryAccountCode и др.
+///  * Сличительная ведомость (inventory reconciliation): snapshot + COUNTING/REVIEW + GL on COMPLETED.
 model InventoryAudit {
-  id             String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String               @map("organization_id") @db.Uuid
-  date           DateTime             @db.Date
-  status         InventoryAuditStatus
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
-  warehouseId    String               @map("warehouse_id") @db.Uuid
-  lines          InventoryAuditLine[]
-  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  warehouse      Warehouse            @relation(fields: [warehouseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                     String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId       String               @map("organization_id") @db.Uuid
+  date                   DateTime             @db.Date
+  status                 InventoryAuditStatus
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+  warehouseId            String               @map("warehouse_id") @db.Uuid
+  number                 String?              @map("number")
+  startedAt              DateTime?            @map("started_at") @db.Timestamptz(6)
+  completedAt            DateTime?            @map("completed_at") @db.Timestamptz(6)
+  cancelledAt            DateTime?            @map("cancelled_at") @db.Timestamptz(6)
+  responsibleEmployeeId  String?              @map("responsible_employee_id") @db.Uuid
+  responsibleEmployee    Employee?            @relation("InventoryAuditResponsible", fields: [responsibleEmployeeId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  notes                  String?              @map("notes")
+  postedTransactionId    String?              @map("posted_transaction_id") @db.Uuid
+  postedTransaction      Transaction?         @relation("InventoryAuditPosting", fields: [postedTransactionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  lines                  InventoryAuditLine[]
+  organization           Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  warehouse              Warehouse            @relation(fields: [warehouseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  deletedAt              DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId        String?              @map("deleted_by_user_id") @db.Uuid
+  deletedReason          String?              @map("deleted_reason")
 
   @@index([organizationId])
   @@index([organizationId, warehouseId, date], map: "inventory_audits_org_wh_date_idx")
+  @@index([organizationId, deletedAt], map: "inventory_audits_org_deleted_at_idx")
+  @@index([organizationId, warehouseId, status], map: "inventory_audits_org_wh_status_idx")
   @@map("inventory_audits")
 }
 
 model Warehouse {
-  id                   String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId       String           @map("organization_id") @db.Uuid
-  name                 String
-  location             String           @default("")
-  createdAt            DateTime         @default(now()) @map("created_at")
-  updatedAt            DateTime         @updatedAt @map("updated_at")
-  inventoryAccountCode String           @default("201") @map("inventory_account_code")
+  id                    String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId        String                @map("organization_id") @db.Uuid
+  name                  String
+  location              String                @default("")
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
+  inventoryAccountCode  String                @default("201") @map("inventory_account_code")
   inventory_adjustments InventoryAdjustment[]
-  inventory_audits     InventoryAudit[]
-  invoices             Invoice[]
-  stockItems           StockItem[]
-  stockMovements       StockMovement[]
-  bins                 WarehouseBin[]
-  users                User[]
-  organization         Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inventory_audits      InventoryAudit[]
+  invoices              Invoice[]
+  stockItems            StockItem[]
+  stockMovements        StockMovement[]
+  bins                  WarehouseBin[]
+  users                 User[]
+  manufacturingReleases ManufacturingRelease[]
+  organization          Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deletedAt             DateTime?             @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId       String?               @map("deleted_by_user_id") @db.Uuid
+  deletedReason         String?               @map("deleted_reason")
 
   @@index([organizationId])
+  @@index([organizationId, deletedAt], map: "warehouses_org_deleted_at_idx")
   @@map("warehouses")
 }
 
 model StockItem {
-  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  warehouseId    String       @map("warehouse_id") @db.Uuid
-  productId      String       @map("product_id") @db.Uuid
-  binId          String?      @map("bin_id") @db.Uuid
-  quantity       Decimal      @default(0) @db.Decimal(19, 4)
-  averageCost    Decimal      @default(0) @map("average_cost") @db.Decimal(19, 4)
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
-  bin            WarehouseBin? @relation(fields: [binId], references: [id], onDelete: SetNull)
-  warehouse      Warehouse    @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  id              String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String        @map("organization_id") @db.Uuid
+  warehouseId     String        @map("warehouse_id") @db.Uuid
+  productId       String        @map("product_id") @db.Uuid
+  binId           String?       @map("bin_id") @db.Uuid
+  quantity        Decimal       @default(0) @db.Decimal(19, 4)
+  averageCost     Decimal       @default(0) @map("average_cost") @db.Decimal(19, 4)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product         Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  bin             WarehouseBin? @relation(fields: [binId], references: [id], onDelete: SetNull)
+  warehouse       Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?       @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?       @map("deleted_reason")
 
   @@unique([organizationId, warehouseId, productId])
   @@index([organizationId, warehouseId])
+  @@index([organizationId, deletedAt], map: "stock_items_org_deleted_at_idx")
   @@map("stock_items")
 }
 
@@ -571,6 +698,7 @@ model StockMovement {
   product         Product             @relation(fields: [productId], references: [id])
   bin             WarehouseBin?       @relation(fields: [binId], references: [id], onDelete: SetNull)
   warehouse       Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  manufacturingReleaseFg ManufacturingRelease? @relation("MfgReleaseFgStockMovement")
 
   @@index([organizationId, warehouseId, documentDate, createdAt])
   @@index([organizationId, productId, documentDate, createdAt])
@@ -578,21 +706,25 @@ model StockMovement {
 }
 
 model WarehouseBin {
-  id             String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String        @map("organization_id") @db.Uuid
-  warehouseId    String        @map("warehouse_id") @db.Uuid
-  code           String
-  barcode        String?
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  warehouse      Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
-  stockItems     StockItem[]
-  stockMovements StockMovement[]
+  id              String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String          @map("organization_id") @db.Uuid
+  warehouseId     String          @map("warehouse_id") @db.Uuid
+  code            String
+  barcode         String?
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  warehouse       Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  stockItems      StockItem[]
+  stockMovements  StockMovement[]
+  deletedAt       DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?         @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?         @map("deleted_reason")
 
   @@unique([warehouseId, code])
   @@index([organizationId, warehouseId])
   @@index([warehouseId, barcode])
+  @@index([organizationId, deletedAt], map: "warehouse_bins_org_deleted_at_idx")
   @@map("warehouse_bins")
 }
 
@@ -621,131 +753,164 @@ model CbarOfficialRate {
 }
 
 model Employee {
-  id                         String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId             String           @map("organization_id") @db.Uuid
+  id                         String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId             String                   @map("organization_id") @db.Uuid
   /// *
   ///    * ФИН, ровно 7 символов (валидация в API)
-  finCode                    String           @map("fin_code")
-  firstName                  String           @map("first_name")
-  lastName                   String           @map("last_name")
-  startDate                  DateTime         @map("start_date") @db.Date
+  finCode                    String                   @map("fin_code")
+  finCodeCipher              String?                  @map("fin_code_cipher")
+  finCodeBlindIndex          String?                  @map("fin_code_blind_index")
+  firstName                  String                   @map("first_name")
+  firstNameCipher            String?                  @map("first_name_cipher")
+  lastName                   String                   @map("last_name")
+  lastNameCipher             String?                  @map("last_name_cipher")
+  startDate                  DateTime                 @map("start_date") @db.Date
   /// *
   ///    * Дата выхода на работу (миграционная/кадровая точка отсчёта).
-  hireDate                   DateTime         @map("hire_date") @db.Date
+  hireDate                   DateTime                 @map("hire_date") @db.Date
   /// *
   ///    * Оклад gross (AZN), частный ненефтяной сектор
-  salary                     Decimal          @map("salary") @db.Decimal(19, 4)
-  createdAt                  DateTime         @default(now()) @map("created_at")
-  updatedAt                  DateTime         @updatedAt @map("updated_at")
-  kind                       EmployeeKind     @default(EMPLOYEE) @map("kind")
+  salary                     Decimal                  @map("salary") @db.Decimal(19, 4)
+  createdAt                  DateTime                 @default(now()) @map("created_at")
+  updatedAt                  DateTime                 @updatedAt @map("updated_at")
+  kind                       EmployeeKind             @default(EMPLOYEE) @map("kind")
   /// *
   ///    * VÖEN (10 цифр) — обязателен для CONTRACTOR в API
-  voen                       String?          @map("voen")
+  voenCipher                 String?                  @map("voen_cipher")
+  voenBlindIndex             String?                  @map("voen_blind_index")
   /// *
   ///    * Фиксированные соц. удержания с выплаты подрядчику в месяц (AZN), опционально.
   ///    * Учитываются при расчёте net вместе с 5% подоходного налога.
-  contractorMonthlySocialAzn Decimal?         @map("contractor_monthly_social_azn") @db.Decimal(19, 4)
+  contractorMonthlySocialAzn Decimal?                 @map("contractor_monthly_social_azn") @db.Decimal(19, 4)
   /// *
   ///    * Initial balance for average salary calculations (pre-ERP payroll history), AZN.
-  initialSalaryBalance       Decimal          @default(0) @map("initial_salary_balance") @db.Decimal(19, 4)
+  initialSalaryBalance       Decimal                  @default(0) @map("initial_salary_balance") @db.Decimal(19, 4)
   /// *
   ///    * Остаток отпускных дней на дату миграции (Opening Balances Wizard).
-  initialVacationDays        Decimal          @default(0) @map("initial_vacation_days") @db.Decimal(8, 2)
+  initialVacationDays        Decimal                  @default(0) @map("initial_vacation_days") @db.Decimal(8, 2)
   /// *
   ///    * Текущий накопленный баланс дней основного отпуска (пересчёт cron, TZ §7.0.3).
-  vacationDaysBalance        Decimal          @default(0) @map("vacation_days_balance") @db.Decimal(8, 2)
+  vacationDaysBalance        Decimal                  @default(0) @map("vacation_days_balance") @db.Decimal(8, 2)
   /// *
   ///    * Норма дней отпуска в год (ТК АР — не менее 21; по умолчанию 21).
-  baseVacationDaysPerYear    Int              @default(21) @map("base_vacation_days_per_year")
+  baseVacationDaysPerYear    Int                      @default(21) @map("base_vacation_days_per_year")
   /// *
   ///    * Учёт в ежедневном перерасчёте отпускного баланса (только ACTIVE штатники).
   employmentStatus           EmployeeEmploymentStatus @default(ACTIVE) @map("employment_status")
   /// *
   ///    * Среднемесячный доход за последние 12 месяцев для миграционного расчёта отпускных.
-  avgMonthlySalaryLastYear   Decimal?         @map("avg_monthly_salary_last_year") @db.Decimal(19, 4)
-  positionId                 String           @map("position_id") @db.Uuid
+  avgMonthlySalaryLastYear   Decimal?                 @map("avg_monthly_salary_last_year") @db.Decimal(19, 4)
+  positionId                 String                   @map("position_id") @db.Uuid
   /// *
   ///    * Субсчёт 244.x для подотчёта (если задан).
-  accountableAccountCode244  String?          @map("accountable_account_code_244")
+  accountableAccountCode244  String?                  @map("accountable_account_code_244")
   patronymic                 String?
+  emasSyncStatus             IntegrationSyncStatus    @default(NOT_SYNCED) @map("emas_sync_status")
+  emasSyncedAt               DateTime?                @map("emas_synced_at") @db.Timestamptz(6)
+  emasSyncError              String?                  @map("emas_sync_error")
+  emasExternalId             String?                  @map("emas_external_id")
+  /// Optional link to platform user (PSA time entries, self-service HR).
+  userId                     String?                  @map("user_id") @db.Uuid
+  linkedUser                 User?                    @relation("EmployeeLinkedUser", fields: [userId], references: [id], onDelete: SetNull)
+  deletedAt                  DateTime?                @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId            String?                  @map("deleted_by_user_id") @db.Uuid
+  deletedReason              String?                  @map("deleted_reason")
   absences                   Absence[]
   advanceReports             AdvanceReport[]
   cashDesks                  CashDesk[]
-  cashOrders                 CashOrder[]      @relation("CashOrderEmployee")
-  managedDepartments         Department[]     @relation("DepartmentManager")
-  organization               Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  jobPosition                JobPosition      @relation(fields: [positionId], references: [id])
+  cashOrders                 CashOrder[]              @relation("CashOrderEmployee")
+  managedDepartments         Department[]             @relation("DepartmentManager")
+  organization               Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  jobPosition                JobPosition              @relation(fields: [positionId], references: [id])
   payrollSlips               PayrollSlip[]
   timesheetEntries           TimesheetEntry[]
+  inventoryAuditsResponsible InventoryAudit[]       @relation("InventoryAuditResponsible")
+  inventoryAuditLinesAccountable InventoryAuditLine[] @relation("InventoryAuditLineAccountable")
+  psaTimeEntries                 PsaTimeEntry[]
 
-  @@unique([organizationId, finCode])
+  @@unique([organizationId, finCodeBlindIndex], map: "employees_org_fin_blind_uidx")
   @@index([positionId])
+  @@index([organizationId, voenBlindIndex], map: "employees_org_voen_blind_idx")
   @@index([organizationId, createdAt])
+  @@index([organizationId, deletedAt], map: "employees_org_deleted_at_idx")
+  @@index([userId])
   @@map("employees")
 }
 
 model PayrollRun {
-  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String           @map("organization_id") @db.Uuid
-  year           Int
-  month          Int
-  status         PayrollRunStatus @default(DRAFT)
-  transactionId  String?          @map("transaction_id") @db.Uuid
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  id               String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId   String           @map("organization_id") @db.Uuid
+  year             Int
+  month            Int
+  status           PayrollRunStatus @default(DRAFT)
+  transactionId    String?          @map("transaction_id") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
   /// *
   ///    * Утверждённый табель месяца (импорт учёта рабочего времени при создании ведомости).
-  timesheetId    String?          @map("timesheet_id") @db.Uuid
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  timesheet      Timesheet?       @relation(fields: [timesheetId], references: [id])
-  transaction    Transaction?     @relation(fields: [transactionId], references: [id])
-  slips          PayrollSlip[]
+  timesheetId      String?          @map("timesheet_id") @db.Uuid
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  timesheet        Timesheet?       @relation(fields: [timesheetId], references: [id])
+  transaction      Transaction?     @relation(fields: [transactionId], references: [id])
+  slips            PayrollSlip[]
   salaryRegistries SalaryRegistry[]
+  deletedAt        DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId  String?          @map("deleted_by_user_id") @db.Uuid
+  deletedReason    String?          @map("deleted_reason")
 
   @@unique([organizationId, year, month])
   @@index([organizationId, status])
+  @@index([organizationId, deletedAt], map: "payroll_runs_org_deleted_at_idx")
   @@map("payroll_runs")
 }
 
 model SalaryRegistry {
-  id             String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String               @map("organization_id") @db.Uuid
-  payrollRunId   String               @map("payroll_run_id") @db.Uuid
-  bankAccountId  String               @map("bank_account_id") @db.Uuid
-  status         SalaryRegistryStatus @default(DRAFT)
-  payoutFormat   SalaryPayoutFormat   @map("payout_format")
-  externalId     String?              @map("external_id")
-  exportUrl      String?              @map("export_url")
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
-  bankAccount    OrganizationBankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  payrollRun     PayrollRun           @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  id              String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String                  @map("organization_id") @db.Uuid
+  payrollRunId    String                  @map("payroll_run_id") @db.Uuid
+  bankAccountId   String                  @map("bank_account_id") @db.Uuid
+  status          SalaryRegistryStatus    @default(DRAFT)
+  payoutFormat    SalaryPayoutFormat      @map("payout_format")
+  externalId      String?                 @map("external_id")
+  exportUrl       String?                 @map("export_url")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+  bankAccount     OrganizationBankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payrollRun      PayrollRun              @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?                 @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?                 @map("deleted_reason")
 
   @@index([organizationId, payrollRunId])
   @@index([organizationId, status])
+  @@index([organizationId, deletedAt], map: "salary_registries_org_deleted_at_idx")
   @@map("salary_registries")
 }
 
 model BankPaymentDraft {
-  id             String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String                 @map("organization_id") @db.Uuid
-  amount         Decimal                @db.Decimal(19, 4)
-  currency       String                 @default("AZN")
-  recipientIban  String                 @map("recipient_iban")
-  purpose        String
-  provider       String?
-  providerDraftId String?               @map("provider_draft_id")
-  status         BankPaymentDraftStatus @default(PENDING)
-  rejectionReason String?               @map("rejection_reason")
-  createdAt      DateTime               @default(now()) @map("created_at")
-  updatedAt      DateTime               @updatedAt @map("updated_at")
-  sentAt         DateTime?              @map("sent_at")
-  completedAt    DateTime?              @map("completed_at")
-  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id              String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String                 @map("organization_id") @db.Uuid
+  amount          Decimal                @db.Decimal(19, 4)
+  currency        String                 @default("AZN")
+  recipientIban   String                 @map("recipient_iban")
+  purpose         String
+  provider        String?
+  providerDraftId String?                @map("provider_draft_id")
+  status          BankPaymentDraftStatus @default(PENDING)
+  rejectionReason String?                @map("rejection_reason")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  sentAt          DateTime?              @map("sent_at")
+  completedAt     DateTime?              @map("completed_at")
+  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?                @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?                @map("deleted_reason")
 
   @@index([organizationId, status])
   @@index([organizationId, createdAt])
+  @@index([organizationId, deletedAt], map: "bank_payment_drafts_org_deleted_at_idx")
   @@map("bank_payment_drafts")
 }
 
@@ -777,53 +942,65 @@ model PayrollSlip {
   employee                  Employee     @relation(fields: [employeeId], references: [id])
   organization              Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   payrollRun                PayrollRun   @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  deletedAt                 DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId           String?      @map("deleted_by_user_id") @db.Uuid
+  deletedReason             String?      @map("deleted_reason")
 
   @@unique([payrollRunId, employeeId])
   @@index([organizationId, payrollRunId])
+  @@index([organizationId, deletedAt], map: "payroll_slips_org_deleted_at_idx")
   @@map("payroll_slips")
 }
 
 /// *
 ///  * Отпуск / больничный (справочник периодов отсутствия).
 model Absence {
-  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  employeeId     String       @map("employee_id") @db.Uuid
-  startDate      DateTime     @map("start_date") @db.Date
-  endDate        DateTime     @map("end_date") @db.Date
-  note           String       @default("")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+  id              String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  employeeId      String       @map("employee_id") @db.Uuid
+  startDate       DateTime     @map("start_date") @db.Date
+  endDate         DateTime     @map("end_date") @db.Date
+  note            String       @default("")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
   /// *
   ///    * Учитывается в табеле (синхронизация M/X).
-  approved       Boolean      @default(true) @map("approved")
-  absenceTypeId  String       @map("absence_type_id") @db.Uuid
-  absenceType    AbsenceType  @relation(fields: [absenceTypeId], references: [id])
-  employee       Employee     @relation(fields: [employeeId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  approved        Boolean      @default(true) @map("approved")
+  absenceTypeId   String       @map("absence_type_id") @db.Uuid
+  absenceType     AbsenceType  @relation(fields: [absenceTypeId], references: [id])
+  employee        Employee     @relation(fields: [employeeId], references: [id])
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?      @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?      @map("deleted_reason")
 
   @@index([organizationId, employeeId])
   @@index([organizationId, startDate])
   @@index([absenceTypeId])
+  @@index([organizationId, deletedAt], map: "absences_org_deleted_at_idx")
   @@map("absences")
 }
 
 /// *
 ///  * Табель учёта рабочего времени (месяц).
 model Timesheet {
-  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String           @map("organization_id") @db.Uuid
-  year           Int
-  month          Int
-  status         TimesheetStatus  @default(DRAFT)
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
-  payrollRuns    PayrollRun[]
-  entries        TimesheetEntry[]
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id              String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String           @map("organization_id") @db.Uuid
+  year            Int
+  month           Int
+  status          TimesheetStatus  @default(DRAFT)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  payrollRuns     PayrollRun[]
+  entries         TimesheetEntry[]
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?          @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?          @map("deleted_reason")
 
   @@unique([organizationId, year, month])
   @@index([organizationId, year, month])
+  @@index([organizationId, deletedAt], map: "timesheets_org_deleted_at_idx")
   @@map("timesheets")
 }
 
@@ -843,39 +1020,51 @@ model TimesheetEntry {
   updatedAt         DateTime           @updatedAt @map("updated_at")
   employee          Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   timesheet         Timesheet          @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  deletedAt         DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId   String?            @map("deleted_by_user_id") @db.Uuid
+  deletedReason     String?            @map("deleted_reason")
 
   @@unique([timesheetId, employeeId, dayDate])
   @@index([timesheetId, employeeId])
+  @@index([timesheetId, deletedAt], map: "timesheet_entries_ts_deleted_at_idx")
   @@map("timesheet_entries")
 }
 
 model User {
-  id                        String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  email                     String                   @unique
-  passwordHash              String                   @map("password_hash")
-  createdAt                 DateTime                 @default(now()) @map("created_at")
-  updatedAt                 DateTime                 @updatedAt @map("updated_at")
+  id                            String                     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email                         String                     @unique
+  passwordHash                  String                     @map("password_hash")
+  createdAt                     DateTime                   @default(now()) @map("created_at")
+  updatedAt                     DateTime                   @updatedAt @map("updated_at")
   /// *
   ///    * Глобальный супер-админ платформы (без привязки к org в JWT).
-  isSuperAdmin              Boolean                  @default(false) @map("is_super_admin")
-  /// *
-  ///    * Совместимость / отображение: можно дублировать «Имя Фамилия» или старые данные.
-  fullName                  String?                  @map("full_name")
-  avatarUrl                 String?                  @map("avatar_url")
-  firstName                 String?                  @map("first_name")
-  lastName                  String?                  @map("last_name")
-  defaultWarehouseId        String?                  @map("default_warehouse_id") @db.Uuid
-  accessRequestsDecidedBy   AccessRequest[]          @relation("AccessRequestDecider")
-  accessRequestsAsRequester AccessRequest[]          @relation("AccessRequestRequester")
-  auditLogs                 AuditLog[]
-  holdingMemberships        HoldingMembership[]
-  holdings                  Holding[]
-  invitesSent               OrganizationInvite[]     @relation("InviteInviter")
-  memberships               OrganizationMembership[]
-  ownedOrganizations        Organization[]           @relation("OrganizationOwner")
-  subscriptionInvoices      SubscriptionInvoice[]
-  warehouses                Warehouse?               @relation(fields: [defaultWarehouseId], references: [id])
-  notifications             Notification[]
+  isSuperAdmin                  Boolean                    @default(false) @map("is_super_admin")
+  fullNameCipher                String?                    @map("full_name_cipher")
+  avatarUrl                     String?                    @map("avatar_url")
+  firstNameCipher               String?                    @map("first_name_cipher")
+  lastNameCipher                String?                    @map("last_name_cipher")
+  defaultWarehouseId            String?                    @map("default_warehouse_id") @db.Uuid
+  accessRequestsDecidedBy       AccessRequest[]            @relation("AccessRequestDecider")
+  accessRequestsAsRequester     AccessRequest[]            @relation("AccessRequestRequester")
+  auditLogs                     AuditLog[]
+  holdingMemberships            HoldingMembership[]
+  holdings                      Holding[]
+  invitesSent                   OrganizationInvite[]       @relation("InviteInviter")
+  memberships                   OrganizationMembership[]
+  ownedOrganizations            Organization[]             @relation("OrganizationOwner")
+  subscriptionInvoices          SubscriptionInvoice[]
+  warehouses                    Warehouse?                 @relation(fields: [defaultWarehouseId], references: [id])
+  notifications                 Notification[]
+  dualApprovalRequestsRequested DualApprovalRequest[]      @relation("DualApprovalRequester")
+  disputesAsClaimant            OwnershipDispute[]         @relation("DisputeClaimant")
+  disputesAsIncumbent           OwnershipDispute[]         @relation("DisputeIncumbent")
+  snapshotsTriggered            OrganizationDataSnapshot[]
+  entityActivitiesAsActor       EntityActivity[]           @relation("EntityActivityActor")
+  entityCommentsAuthored        EntityComment[]            @relation("EntityCommentAuthor")
+  commentMentionsReceived       EntityCommentMention[]    @relation("EntityCommentMentionUser")
+  linkedEmployees               Employee[]                 @relation("EmployeeLinkedUser")
+  approvalRequestsRequested     ApprovalRequest[]        @relation("ApprovalRequestRequester")
+  approvalStepsDecided            ApprovalStep[]           @relation("ApprovalStepApprover")
 
   @@index([defaultWarehouseId])
   @@map("users")
@@ -889,55 +1078,401 @@ enum NotificationSeverity {
 }
 
 model Notification {
-  id             String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId         String               @map("user_id") @db.Uuid
+  id              String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String               @map("user_id") @db.Uuid
   /// Nullable for future platform-wide messages; product MVP uses org context.
-  organizationId String?              @map("organization_id") @db.Uuid
-  title          String
-  message        String               @db.Text
-  severity       NotificationSeverity @default(INFO)
-  link           String?
-  isRead         Boolean              @default(false) @map("is_read")
-  createdAt      DateTime             @default(now()) @map("created_at")
-  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization   Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId  String?              @map("organization_id") @db.Uuid
+  title           String
+  message         String               @db.Text
+  severity        NotificationSeverity @default(INFO)
+  link            String?
+  isRead          Boolean              @default(false) @map("is_read")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?              @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?              @map("deleted_reason")
 
   @@index([userId, organizationId, isRead])
   @@index([organizationId, createdAt])
+  @@index([userId, deletedAt], map: "notifications_user_deleted_at_idx")
   @@map("notifications")
 }
 
-model Account {
-  id             String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String                @map("organization_id") @db.Uuid
+/// System timeline row (mutation-derived or domain events); not a substitute for `AuditLog`.
+model EntityActivity {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  entityType     String       @map("entity_type") @db.VarChar(64)
+  entityId       String       @map("entity_id") @db.Uuid
+  actorUserId    String?      @map("actor_user_id") @db.Uuid
+  verb           String       @db.VarChar(32)
+  summary        String?
+  payload        Json?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorUser      User?        @relation("EntityActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, entityType, entityId, createdAt(sort: Desc)])
+  @@map("entity_activities")
+}
+
+model EntityComment {
+  id               String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId   String                  @map("organization_id") @db.Uuid
+  entityType       String                  @map("entity_type") @db.VarChar(64)
+  entityId         String                  @map("entity_id") @db.Uuid
+  authorUserId     String                  @map("author_user_id") @db.Uuid
+  body             String                  @db.Text
+  deletedAt        DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId  String?                 @map("deleted_by_user_id") @db.Uuid
+  deletedReason    String?                 @map("deleted_reason")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  authorUser       User                    @relation("EntityCommentAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  mentions         EntityCommentMention[]
+
+  @@index([organizationId, entityType, entityId, createdAt(sort: Desc)])
+  @@map("entity_comments")
+}
+
+model EntityCommentMention {
+  id              String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  commentId       String        @map("comment_id") @db.Uuid
+  mentionedUserId String        @map("mentioned_user_id") @db.Uuid
+  comment         EntityComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  mentionedUser   User          @relation("EntityCommentMentionUser", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, mentionedUserId])
+  @@map("entity_comment_mentions")
+}
+
+enum ApprovalDocumentType {
+  CASH_ORDER
+  PURCHASE_INVOICE
+  PAYROLL_RUN
+  BANK_MANUAL_ENTRY
+}
+
+enum ApprovalRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApprovalStepDecision {
+  APPROVED
+  REJECTED
+}
+
+model ApprovalPolicy {
+  id               String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId   String                 @map("organization_id") @db.Uuid
+  documentType     ApprovalDocumentType   @map("document_type")
+  amountFrom       Decimal?               @map("amount_from") @db.Decimal(19, 4)
+  amountTo         Decimal?               @map("amount_to") @db.Decimal(19, 4)
+  currency         String                 @default("AZN")
+  approverRoles    UserRole[]             @map("approver_roles")
+  requireOwner     Boolean                @default(false) @map("require_owner")
+  requireDirector  Boolean                @default(false) @map("require_director")
+  isActive         Boolean                @default(true) @map("is_active")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, documentType, isActive])
+  @@map("approval_policies")
+}
+
+model ApprovalRequest {
+  id                  String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId      String                 @map("organization_id") @db.Uuid
+  documentType        ApprovalDocumentType   @map("document_type")
+  entityId            String                 @map("entity_id") @db.Uuid
+  status              ApprovalRequestStatus  @default(PENDING)
+  requestedByUserId   String                 @map("requested_by_user_id") @db.Uuid
+  currentStepNo       Int                    @default(1) @map("current_step_no")
+  totalSteps          Int                    @map("total_steps")
+  finalDecisionAt     DateTime?              @map("final_decision_at")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requestedByUser     User                   @relation("ApprovalRequestRequester", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  steps               ApprovalStep[]
+
+  @@index([organizationId, status, createdAt(sort: Desc)])
+  @@index([organizationId, documentType, entityId])
+  @@map("approval_requests")
+}
+
+model ApprovalStep {
+  id               String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  requestId        String               @map("request_id") @db.Uuid
+  stepNo           Int                  @map("step_no")
+  assignedRole     UserRole             @map("assigned_role")
+  approverUserId   String?              @map("approver_user_id") @db.Uuid
+  decision         ApprovalStepDecision?
+  comment          String?
+  decidedAt        DateTime?            @map("decided_at")
+  request          ApprovalRequest      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  approverUser     User?                @relation("ApprovalStepApprover", fields: [approverUserId], references: [id], onDelete: SetNull)
+
+  @@unique([requestId, stepNo])
+  @@index([requestId, stepNo])
+  @@map("approval_steps")
+}
+
+enum PrepaidExpenseStatus {
+  ACTIVE
+  FULLY_AMORTIZED
+  CANCELLED
+}
+
+enum PrepaidExpenseScheduleStatus {
+  PENDING
+  POSTED
+  SKIPPED_CLOSED
+}
+
+model PrepaidExpense {
+  id                   String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId       String                   @map("organization_id") @db.Uuid
+  counterpartyId       String?                  @map("counterparty_id") @db.Uuid
+  totalAmount          Decimal                  @map("total_amount") @db.Decimal(19, 4)
+  currency             String                   @default("AZN")
+  startDate            DateTime                 @map("start_date") @db.Date
+  endDate              DateTime                 @map("end_date") @db.Date
+  monthlyAmount        Decimal                  @map("monthly_amount") @db.Decimal(19, 4)
+  status               PrepaidExpenseStatus     @default(ACTIVE)
+  expenseAccountCode   String                   @default("731") @map("expense_account_code")
+  prepaidAccountCode   String                   @default("133") @map("prepaid_account_code")
+  createdAt            DateTime                 @default(now()) @map("created_at")
+  updatedAt            DateTime                 @updatedAt @map("updated_at")
+  organization         Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  counterparty         Counterparty?            @relation(fields: [counterpartyId], references: [id], onDelete: SetNull)
+  schedules            PrepaidExpenseSchedule[]
+
+  @@index([organizationId, status, createdAt(sort: Desc)])
+  @@map("prepaid_expenses")
+}
+
+model PrepaidExpenseSchedule {
+  id                    String                        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  prepaidExpenseId      String                        @map("prepaid_expense_id") @db.Uuid
+  period                String
+  amount                Decimal                       @db.Decimal(19, 4)
+  status                PrepaidExpenseScheduleStatus  @default(PENDING)
+  postedTransactionId   String?                       @map("posted_transaction_id") @db.Uuid
+  prepaidExpense        PrepaidExpense                @relation(fields: [prepaidExpenseId], references: [id], onDelete: Cascade)
+  postedTransaction     Transaction?                  @relation(fields: [postedTransactionId], references: [id], onDelete: SetNull)
+
+  @@unique([prepaidExpenseId, period])
+  @@index([prepaidExpenseId, period])
+  @@map("prepaid_expense_schedules")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectBillingMode {
+  FIXED
+  HOURLY
+}
+
+enum ProjectTaskStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+enum TimeEntryStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  INVOICED
+}
+
+enum OverheadDriverType {
+  VOLUME
+  TIME
+  MATERIAL_COST
+}
+
+model PsaProject {
+  id             String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String              @map("organization_id") @db.Uuid
   code           String
+  name           String
+  counterpartyId String              @map("counterparty_id") @db.Uuid
+  status         ProjectStatus       @default(ACTIVE)
+  billingMode    ProjectBillingMode  @default(HOURLY) @map("billing_mode")
+  hourlyRate     Decimal?            @map("hourly_rate") @db.Decimal(19, 4)
+  currency       String              @default("AZN")
+  departmentId   String?             @map("department_id") @db.Uuid
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  counterparty   Counterparty        @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+  department     Department?         @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  tasks          PsaProjectTask[]
+  timeEntries    PsaTimeEntry[]
+  invoices       Invoice[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+  @@map("psa_projects")
+}
+
+model PsaProjectTask {
+  id             String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  projectId      String             @map("project_id") @db.Uuid
+  name           String
+  status         ProjectTaskStatus  @default(OPEN)
+  estimatedHours Decimal?           @map("estimated_hours") @db.Decimal(19, 4)
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  project        PsaProject         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  timeEntries    PsaTimeEntry[]
+
+  @@index([projectId])
+  @@map("psa_project_tasks")
+}
+
+model PsaTimeEntry {
+  id                   String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  projectId            String           @map("project_id") @db.Uuid
+  taskId              String?          @map("task_id") @db.Uuid
+  employeeId          String           @map("employee_id") @db.Uuid
+  date                 DateTime         @db.Date
+  hours                Decimal          @db.Decimal(19, 4)
+  billable             Boolean          @default(true)
+  hourlyRateSnapshot   Decimal          @map("hourly_rate_snapshot") @db.Decimal(19, 4)
+  status               TimeEntryStatus  @default(DRAFT)
+  billingInvoiceId     String?          @map("billing_invoice_id") @db.Uuid
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+  project              PsaProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task                 PsaProjectTask?  @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  employee             Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  billingInvoice       Invoice?         @relation("PsaTimeEntryBillingInvoice", fields: [billingInvoiceId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, date])
+  @@index([employeeId])
+  @@map("psa_time_entries")
+}
+
+model ManufacturingRelease {
+  id                             String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId                 String          @map("organization_id") @db.Uuid
+  recipeId                       String          @map("recipe_id") @db.Uuid
+  finishedProductId              String          @map("finished_product_id") @db.Uuid
+  warehouseId                    String          @map("warehouse_id") @db.Uuid
+  quantity                       Decimal         @db.Decimal(19, 4)
+  materialCost                   Decimal         @map("material_cost") @db.Decimal(19, 4)
+  documentDate                   DateTime        @map("document_date") @db.Date
+  finishedGoodsTransactionId     String?         @unique @map("finished_goods_transaction_id") @db.Uuid
+  finishedGoodsStockMovementId   String?         @unique @map("finished_goods_stock_movement_id") @db.Uuid
+  createdAt                      DateTime        @default(now()) @map("created_at")
+  organization                   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recipe                         ProductRecipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  finishedProduct                Product         @relation(fields: [finishedProductId], references: [id], onDelete: Cascade)
+  warehouse                      Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  finishedGoodsTransaction       Transaction?    @relation("MfgReleaseFgTransaction", fields: [finishedGoodsTransactionId], references: [id], onDelete: SetNull)
+  finishedGoodsStockMovement     StockMovement?  @relation("MfgReleaseFgStockMovement", fields: [finishedGoodsStockMovementId], references: [id], onDelete: SetNull)
+  overheadAllocations            OverheadAllocation[]
+
+  @@index([organizationId, documentDate])
+  @@map("manufacturing_releases")
+}
+
+model OverheadDriver {
+  id             String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  name           String
+  type           OverheadDriverType
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pools          OverheadPool[]
+
+  @@index([organizationId])
+  @@map("overhead_drivers")
+}
+
+model OverheadPool {
+  id                 String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId     String   @map("organization_id") @db.Uuid
+  period             String
+  totalAmount        Decimal  @map("total_amount") @db.Decimal(19, 4)
+  sourceAccountCode  String   @map("source_account_code")
+  creditAccountCode  String   @default("741") @map("credit_account_code")
+  debitAccountCode   String   @default("204") @map("debit_account_code")
+  driverId           String   @map("driver_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  driver             OverheadDriver @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  allocations        OverheadAllocation[]
+
+  @@unique([organizationId, period, driverId], map: "overhead_pools_org_period_driver_key")
+  @@map("overhead_pools")
+}
+
+model OverheadAllocation {
+  id                     String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  poolId                 String               @map("pool_id") @db.Uuid
+  manufacturingReleaseId String               @map("manufacturing_release_id") @db.Uuid
+  amount                 Decimal              @db.Decimal(19, 4)
+  releaseTransactionId   String?              @map("release_transaction_id") @db.Uuid
+  pool                   OverheadPool         @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  manufacturingRelease   ManufacturingRelease @relation(fields: [manufacturingReleaseId], references: [id], onDelete: Cascade)
+  releaseTransaction       Transaction?         @relation("OverheadAllocReleaseTransaction", fields: [releaseTransactionId], references: [id], onDelete: SetNull)
+
+  @@unique([poolId, manufacturingReleaseId], map: "overhead_allocations_pool_release_key")
+  @@index([poolId])
+  @@map("overhead_allocations")
+}
+
+model Account {
+  id                String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId    String                @map("organization_id") @db.Uuid
+  code              String
   /// Официальное / каноническое наименование на азербайджанском (NAS / MMÜS).
-  nameAz         String                @map("name_az")
+  nameAz            String                @map("name_az")
   /// Русскоязычное наименование (NAS / MMÜS).
-  nameRu         String                @map("name_ru")
+  nameRu            String                @map("name_ru")
   /// Англоязычное наименование (NAS / MMÜS).
-  nameEn         String                @map("name_en")
-  type           AccountType
-  parentId       String?               @map("parent_id") @db.Uuid
-  createdAt      DateTime              @default(now()) @map("created_at")
-  updatedAt      DateTime              @updatedAt @map("updated_at")
+  nameEn            String                @map("name_en")
+  type              AccountType
+  parentId          String?               @map("parent_id") @db.Uuid
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
   /// *
   ///    * Валюта учёта остатка по счёту (AZN, USD, EUR). Для переоценки — не-AZN.
-  currency       String                @default("AZN")
+  currency          String                @default("AZN")
   /// *
   ///    * Книга: NAS (основной план) или IFRS (параллельный учёт).
-  ledgerType     LedgerType            @default(NAS) @map("ledger_type")
-  chartEntryId   String?               @map("chart_entry_id") @db.Uuid
-  templateAccountId String?            @map("template_account_id") @db.Uuid
-  mappingsAsIfrs AccountMapping[]      @relation("AccountMappingIfrs")
-  mappingsAsNas  AccountMapping[]      @relation("AccountMappingNas")
-  chartEntry       ChartOfAccountsEntry? @relation(fields: [chartEntryId], references: [id])
-  templateAccount  TemplateAccount?      @relation(fields: [templateAccountId], references: [id], onDelete: SetNull)
-  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  parent         Account?              @relation("AccountHierarchy", fields: [parentId], references: [id])
-  children       Account[]             @relation("AccountHierarchy")
-  balances       AccountBalance[]
-  journalEntries JournalEntry[]
+  ledgerType        LedgerType            @default(NAS) @map("ledger_type")
+  chartEntryId      String?               @map("chart_entry_id") @db.Uuid
+  templateAccountId String?               @map("template_account_id") @db.Uuid
+  mappingsAsIfrs    AccountMapping[]      @relation("AccountMappingIfrs")
+  mappingsAsNas     AccountMapping[]      @relation("AccountMappingNas")
+  chartEntry        ChartOfAccountsEntry? @relation(fields: [chartEntryId], references: [id])
+  templateAccount   TemplateAccount?      @relation(fields: [templateAccountId], references: [id], onDelete: SetNull)
+  organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent            Account?              @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children          Account[]             @relation("AccountHierarchy")
+  balances          AccountBalance[]
+  journalEntries    JournalEntry[]
+  deletedAt         DateTime?             @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId   String?               @map("deleted_by_user_id") @db.Uuid
+  deletedReason     String?               @map("deleted_reason")
 
   @@unique([organizationId, code, ledgerType])
   @@index([organizationId, createdAt])
@@ -945,42 +1480,51 @@ model Account {
   @@index([organizationId, ledgerType])
   @@index([chartEntryId])
   @@index([templateAccountId])
+  @@index([organizationId, deletedAt], map: "accounts_org_deleted_at_idx")
   @@map("accounts")
 }
 
 /// *
 ///  * Сопоставление счёта NAS ↔ IFRS для теневых проводок (Multi-GAAP).
 model AccountMapping {
-  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  nasAccountId   String       @map("nas_account_id") @db.Uuid
-  ifrsAccountId  String       @map("ifrs_account_id") @db.Uuid
+  id              String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  nasAccountId    String       @map("nas_account_id") @db.Uuid
+  ifrsAccountId   String       @map("ifrs_account_id") @db.Uuid
   /// *
   ///    * Коэффициент пересчёта суммы строки NAS → IFRS (1 = 1:1).
-  ratio          Decimal      @default(1) @db.Decimal(19, 8)
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  ifrsAccount    Account      @relation("AccountMappingIfrs", fields: [ifrsAccountId], references: [id])
-  nasAccount     Account      @relation("AccountMappingNas", fields: [nasAccountId], references: [id], onDelete: Cascade)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ratio           Decimal      @default(1) @db.Decimal(19, 8)
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  ifrsAccount     Account      @relation("AccountMappingIfrs", fields: [ifrsAccountId], references: [id])
+  nasAccount      Account      @relation("AccountMappingNas", fields: [nasAccountId], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?      @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?      @map("deleted_reason")
 
   @@unique([organizationId, nasAccountId])
   @@index([organizationId])
+  @@index([organizationId, deletedAt], map: "account_mappings_org_deleted_at_idx")
   @@map("account_mappings")
 }
 
 model IfrsMappingRule {
-  id                   String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId       String       @map("organization_id") @db.Uuid
-  sourceNasAccountCode String       @map("source_nas_account_code")
-  targetIfrsAccountCode String      @map("target_ifrs_account_code")
-  isActive             Boolean      @default(true) @map("is_active")
-  createdAt            DateTime     @default(now()) @map("created_at")
-  updatedAt            DateTime     @updatedAt @map("updated_at")
-  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                    String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId        String       @map("organization_id") @db.Uuid
+  sourceNasAccountCode  String       @map("source_nas_account_code")
+  targetIfrsAccountCode String       @map("target_ifrs_account_code")
+  isActive              Boolean      @default(true) @map("is_active")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deletedAt             DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId       String?      @map("deleted_by_user_id") @db.Uuid
+  deletedReason         String?      @map("deleted_reason")
 
   @@unique([organizationId, sourceNasAccountCode, targetIfrsAccountCode])
   @@index([organizationId, sourceNasAccountCode, isActive])
+  @@index([organizationId, deletedAt], map: "ifrs_mapping_rules_org_deleted_at_idx")
   @@map("ifrs_mapping_rules")
 }
 
@@ -1036,6 +1580,11 @@ model Transaction {
   counterparty                 Counterparty?                 @relation(fields: [counterpartyId], references: [id])
   department                   Department?                   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   organization                 Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customsDeclarations          CustomsDeclaration[]
+  inventoryAuditsPosted        InventoryAudit[]         @relation("InventoryAuditPosting")
+  prepaidSchedulesPosted       PrepaidExpenseSchedule[]
+  manufacturingReleasesFg      ManufacturingRelease[]   @relation("MfgReleaseFgTransaction")
+  overheadAllocationsRelease   OverheadAllocation[]     @relation("OverheadAllocReleaseTransaction")
 
   @@index([organizationId, date])
   @@index([organizationId, isFinal, date], map: "transactions_org_status_period_idx")
@@ -1070,50 +1619,64 @@ model JournalEntry {
 }
 
 model Counterparty {
-  id             String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String                    @map("organization_id") @db.Uuid
-  name           String
-  taxId          String                    @map("tax_id")
-  kind           CounterpartyKind
-  role           CounterpartyRole          @default(CUSTOMER)
-  legalForm      CounterpartyLegalForm     @default(LLC) @map("legal_form")
-  address        String?
-  createdAt      DateTime                  @default(now()) @map("created_at")
-  updatedAt      DateTime                  @updatedAt @map("updated_at")
-  email          String?
+  id              String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String                    @map("organization_id") @db.Uuid
+  nameCipher      String?                   @map("name_cipher")
+  taxIdCipher     String?                   @map("tax_id_cipher")
+  taxIdBlindIndex String?                   @map("tax_id_blind_index")
+  kind            CounterpartyKind
+  role            CounterpartyRole          @default(CUSTOMER)
+  legalForm       CounterpartyLegalForm     @default(LLC) @map("legal_form")
+  address         String?
+  country         String?                   @map("country")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+  email           String?
   /// Плательщик НДС (учётный статус контрагента)
-  isVatPayer     Boolean                   @default(false) @map("is_vat_payer")
-  globalId       String?                   @map("global_id") @db.Uuid
+  isVatPayer      Boolean                   @default(false) @map("is_vat_payer")
+  globalId        String?                   @map("global_id") @db.Uuid
   /// *
   ///    * Предпочитаемый язык портала счёта для клиента: `az` | `ru` | `en` (nullable).
-  portalLocale   String?                   @map("portal_locale")
-  bankAccounts   CounterpartyBankAccount[]
-  cashOrders     CashOrder[]
-  global         GlobalCounterparty? @relation(fields: [globalId], references: [id])
-  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  invoices       Invoice[]
-  transactions   Transaction[]
+  portalLocale    String?                   @map("portal_locale")
+  bankAccounts    CounterpartyBankAccount[]
+  cashOrders      CashOrder[]
+  global          GlobalCounterparty?       @relation(fields: [globalId], references: [id])
+  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices        Invoice[]
+  transactions    Transaction[]
+  prepaidExpenses PrepaidExpense[]
+  psaProjects                     PsaProject[]
+  customsDeclarationsAsSender     CustomsDeclaration[] @relation("CustomsDeclarationSender")
+  customsDeclarationsAsReceiver CustomsDeclaration[] @relation("CustomsDeclarationReceiver")
+  deletedAt                       DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId                 String?              @map("deleted_by_user_id") @db.Uuid
+  deletedReason                   String?              @map("deleted_reason")
 
-  @@index([organizationId, taxId])
+  @@unique([organizationId, taxIdBlindIndex], map: "counterparties_org_tax_blind_uidx")
   @@index([organizationId, createdAt])
   @@index([globalId])
+  @@index([organizationId, deletedAt], map: "counterparties_org_deleted_at_idx")
   @@map("counterparties")
 }
 
 model CounterpartyBankAccount {
-  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  counterpartyId String       @map("counterparty_id") @db.Uuid
-  bankName       String       @map("bank_name")
-  iban           String
-  swift          String?      @map("swift")
-  currency       String       @default("AZN") @map("currency")
-  isPrimary      Boolean      @default(false) @map("is_primary")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  counterparty   Counterparty @relation(fields: [counterpartyId], references: [id], onDelete: Cascade)
+  id              String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  counterpartyId  String       @map("counterparty_id") @db.Uuid
+  bankName        String       @map("bank_name")
+  iban            String
+  swift           String?      @map("swift")
+  currency        String       @default("AZN") @map("currency")
+  isPrimary       Boolean      @default(false) @map("is_primary")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  counterparty    Counterparty @relation(fields: [counterpartyId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?      @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?      @map("deleted_reason")
 
   @@unique([counterpartyId, iban], map: "counterparty_bank_accounts_cp_iban_uidx")
   @@index([counterpartyId], map: "counterparty_bank_accounts_counterparty_id_idx")
+  @@index([counterpartyId, deletedAt], map: "counterparty_bank_accounts_cp_deleted_at_idx")
   @@map("counterparty_bank_accounts")
 }
 
@@ -1147,46 +1710,56 @@ model DigitalSignatureLog {
 }
 
 model Product {
-  id                     String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId         String               @map("organization_id") @db.Uuid
-  name                   String
-  sku                    String
-  price                  Decimal              @db.Decimal(19, 4)
-  vatRate                Decimal              @map("vat_rate") @db.Decimal(5, 2)
-  createdAt              DateTime             @default(now()) @map("created_at")
-  updatedAt              DateTime             @updatedAt @map("updated_at")
-  isService              Boolean              @default(false) @map("is_service")
+  id                       String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId           String                    @map("organization_id") @db.Uuid
+  name                     String
+  sku                      String
+  price                    Decimal                   @db.Decimal(19, 4)
+  vatRate                  Decimal                   @map("vat_rate") @db.Decimal(5, 2)
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @map("updated_at")
+  isService                Boolean                   @default(false) @map("is_service")
   inventoryAdjustmentLines InventoryAdjustmentLine[]
-  inventoryAuditLines    InventoryAuditLine[]
-  invoiceItems           InvoiceItem[]
-  recipeLinesAsComponent ProductRecipeLine[]      @relation("RecipeComponentProduct")
-  recipeByproducts       ProductRecipeByproduct[] @relation("RecipeByproductProduct")
-  recipeFinished         ProductRecipe?           @relation("RecipeFinishedProduct")
-  organization           Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  stockItems             StockItem[]
-  stockMovements         StockMovement[]
+  inventoryAuditLines      InventoryAuditLine[]
+  invoiceItems             InvoiceItem[]
+  recipeLinesAsComponent   ProductRecipeLine[]       @relation("RecipeComponentProduct")
+  recipeByproducts         ProductRecipeByproduct[]  @relation("RecipeByproductProduct")
+  recipeFinished           ProductRecipe?            @relation("RecipeFinishedProduct")
+  manufacturingReleases    ManufacturingRelease[]
+  organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stockItems               StockItem[]
+  stockMovements           StockMovement[]
+  deletedAt                DateTime?                 @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId          String?                   @map("deleted_by_user_id") @db.Uuid
+  deletedReason            String?                   @map("deleted_reason")
 
   @@unique([organizationId, sku])
   @@index([organizationId])
+  @@index([organizationId, deletedAt], map: "products_org_deleted_at_idx")
   @@map("products")
 }
 
 /// *
 ///  * Спецификация: из каких продуктов-составляющих состоит готовая продукция.
 model ProductRecipe {
-  id                String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId    String              @map("organization_id") @db.Uuid
+  id                String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId    String                   @map("organization_id") @db.Uuid
   /// *
   ///    * Одна спецификация на продукт (id продукта уникален в системе).
-  finishedProductId String              @unique @map("finished_product_id") @db.Uuid
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
+  finishedProductId String                   @unique @map("finished_product_id") @db.Uuid
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
   lines             ProductRecipeLine[]
   byproducts        ProductRecipeByproduct[]
-  finishedProduct   Product             @relation("RecipeFinishedProduct", fields: [finishedProductId], references: [id], onDelete: Cascade)
-  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  manufacturingReleases ManufacturingRelease[]
+  finishedProduct   Product                  @relation("RecipeFinishedProduct", fields: [finishedProductId], references: [id], onDelete: Cascade)
+  organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deletedAt         DateTime?                @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId   String?                  @map("deleted_by_user_id") @db.Uuid
+  deletedReason     String?                  @map("deleted_reason")
 
   @@index([organizationId])
+  @@index([organizationId, deletedAt], map: "product_recipes_org_deleted_at_idx")
   @@map("product_recipes")
 }
 
@@ -1202,9 +1775,13 @@ model ProductRecipeLine {
   wasteFactor        Decimal       @default(0) @map("waste_factor") @db.Decimal(19, 6)
   component          Product       @relation("RecipeComponentProduct", fields: [componentProductId], references: [id])
   recipe             ProductRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  deletedAt          DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId    String?       @map("deleted_by_user_id") @db.Uuid
+  deletedReason      String?       @map("deleted_reason")
 
   @@unique([recipeId, componentProductId])
   @@index([recipeId])
+  @@index([recipeId, deletedAt], map: "product_recipe_lines_recipe_deleted_at_idx")
   @@map("product_recipe_lines")
 }
 
@@ -1218,9 +1795,13 @@ model ProductRecipeByproduct {
   updatedAt       DateTime      @updatedAt @map("updated_at")
   product         Product       @relation("RecipeByproductProduct", fields: [productId], references: [id])
   recipe          ProductRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?       @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?       @map("deleted_reason")
 
   @@unique([recipeId, productId])
   @@index([recipeId])
+  @@index([recipeId, deletedAt], map: "product_recipe_byproducts_recipe_deleted_at_idx")
   @@map("product_recipe_byproducts")
 }
 
@@ -1244,80 +1825,237 @@ model FixedAsset {
   updatedAt          DateTime                      @updatedAt @map("updated_at")
   depreciationMonths FixedAssetDepreciationMonth[]
   organization       Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deletedAt          DateTime?                     @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId    String?                       @map("deleted_by_user_id") @db.Uuid
+  deletedReason      String?                       @map("deleted_reason")
 
   @@unique([organizationId, inventoryNumber])
   @@index([organizationId, purchaseDate])
+  @@index([organizationId, deletedAt], map: "fixed_assets_org_deleted_at_idx")
   @@map("fixed_assets")
 }
 
 /// *
 ///  * Факт начисления амортизации по ОС за календарный месяц (идемпотентность при закрытии).
 model FixedAssetDepreciationMonth {
-  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  fixedAssetId   String       @map("fixed_asset_id") @db.Uuid
-  year           Int
-  month          Int
-  amount         Decimal      @db.Decimal(19, 4)
-  transactionId  String?      @map("transaction_id") @db.Uuid
-  createdAt      DateTime     @default(now()) @map("created_at")
-  fixedAsset     FixedAsset   @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  transaction    Transaction? @relation(fields: [transactionId], references: [id])
+  id              String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  fixedAssetId    String       @map("fixed_asset_id") @db.Uuid
+  year            Int
+  month           Int
+  amount          Decimal      @db.Decimal(19, 4)
+  transactionId   String?      @map("transaction_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at")
+  fixedAsset      FixedAsset   @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transaction     Transaction? @relation(fields: [transactionId], references: [id])
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?      @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?      @map("deleted_reason")
 
   @@unique([fixedAssetId, year, month])
   @@index([organizationId, year, month])
+  @@index([organizationId, deletedAt], map: "fixed_asset_depreciation_months_org_deleted_at_idx")
   @@map("fixed_asset_depreciation_months")
 }
 
 model Invoice {
-  id                String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId    String              @map("organization_id") @db.Uuid
-  number            String
-  status            InvoiceStatus       @default(DRAFT)
-  dueDate           DateTime            @map("due_date") @db.Date
-  counterpartyId    String              @map("counterparty_id") @db.Uuid
+  id                         String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId             String                @map("organization_id") @db.Uuid
+  number                     String
+  status                     InvoiceStatus         @default(DRAFT)
+  dueDate                    DateTime              @map("due_date") @db.Date
+  counterpartyId             String                @map("counterparty_id") @db.Uuid
   /// *
   ///    * Дт при оплате: 101 касса / 221 банк (см. ТЗ)
-  debitAccountCode  String              @default("101") @map("debit_account_code")
-  totalAmount       Decimal             @default(0) @map("total_amount") @db.Decimal(19, 4)
-  paidAmount        Decimal             @default(0) @map("paid_amount") @db.Decimal(19, 4)
-  currency          String              @default("AZN")
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
-  warehouseId       String?             @map("warehouse_id") @db.Uuid
+  debitAccountCode           String                @default("101") @map("debit_account_code")
+  totalAmount                Decimal               @default(0) @map("total_amount") @db.Decimal(19, 4)
+  paidAmount                 Decimal               @default(0) @map("paid_amount") @db.Decimal(19, 4)
+  currency                   String                @default("AZN")
+  isInternational            Boolean               @default(false) @map("is_international")
+  createdAt                  DateTime              @default(now()) @map("created_at")
+  updatedAt                  DateTime              @updatedAt @map("updated_at")
+  warehouseId                String?               @map("warehouse_id") @db.Uuid
   /// *
   ///    * Списание склада и проводка 701/201 выполнены (обычно при оплате)
-  inventorySettled  Boolean             @default(false) @map("inventory_settled")
+  inventorySettled           Boolean               @default(false) @map("inventory_settled")
   /// *
   ///    * Дт 211 / Кт 601 отражены (отгрузка / начисление выручки)
-  revenueRecognized Boolean             @default(false) @map("revenue_recognized")
+  revenueRecognized          Boolean               @default(false) @map("revenue_recognized")
   /// *
   ///    * Дт 101|221 / Кт 211 отражены (оплата от дебитора)
-  paymentReceived   Boolean             @default(false) @map("payment_received")
+  paymentReceived            Boolean               @default(false) @map("payment_received")
   /// *
   ///    * Момент первого проведения Дт 211 — Кт 601 (для акта сверки и сальдо)
-  recognizedAt      DateTime?           @map("recognized_at")
+  recognizedAt               DateTime?             @map("recognized_at")
   /// Linked revenue recognition transaction id (Dr 211 / Cr 601) for idempotent posting.
-  revenuePostedTransactionId String?    @map("revenue_posted_transaction_id") @db.Uuid
+  revenuePostedTransactionId String?               @map("revenue_posted_transaction_id") @db.Uuid
   /// *
   ///    * Гостевая ссылка на портал счёта (opaque token); выдаётся менеджеру, без JWT.
-  publicToken       String?             @unique @map("public_token") @db.VarChar(200)
-  matchedBankLines  BankStatementLine[] @relation("InvoiceBankMatch")
-  cashOrders        CashOrder[]
-  items             InvoiceItem[]
-  paymentAllocations PaymentAllocation[]
-  payments          InvoicePayment[]
-  counterparty      Counterparty        @relation(fields: [counterpartyId], references: [id])
-  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  warehouse         Warehouse?          @relation(fields: [warehouseId], references: [id])
-  stockMovements    StockMovement[]
+  publicToken                String?               @unique @map("public_token") @db.VarChar(200)
+  dvxSyncStatus              IntegrationSyncStatus @default(NOT_SYNCED) @map("dvx_sync_status")
+  dvxSyncedAt                DateTime?             @map("dvx_synced_at") @db.Timestamptz(6)
+  dvxSyncError               String?               @map("dvx_sync_error")
+  dvxExternalId              String?               @map("dvx_external_id")
+  projectId                  String?               @map("project_id") @db.Uuid
+  matchedBankLines           BankStatementLine[]   @relation("InvoiceBankMatch")
+  cashOrders                 CashOrder[]
+  items                      InvoiceItem[]
+  paymentAllocations         PaymentAllocation[]
+  payments                   InvoicePayment[]
+  counterparty               Counterparty          @relation(fields: [counterpartyId], references: [id])
+  organization               Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  warehouse                  Warehouse?            @relation(fields: [warehouseId], references: [id])
+  psaProject                 PsaProject?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  stockMovements             StockMovement[]
+  psaTimeEntriesBilled       PsaTimeEntry[]        @relation("PsaTimeEntryBillingInvoice")
+  deletedAt                  DateTime?             @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId            String?               @map("deleted_by_user_id") @db.Uuid
+  deletedReason              String?               @map("deleted_reason")
 
   @@unique([organizationId, number])
   @@index([organizationId, status])
   @@index([organizationId, createdAt])
   @@index([organizationId, counterpartyId])
+  @@index([organizationId, deletedAt], map: "invoices_org_deleted_at_idx")
   @@map("invoices")
+}
+
+model IntegrationSyncRun {
+  id                String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId    String               @map("organization_id") @db.Uuid
+  portal            IntegrationPortal
+  flow              String
+  transport         IntegrationTransport
+  startedAt         DateTime             @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt       DateTime?            @map("completed_at") @db.Timestamptz(6)
+  totalCount        Int                  @default(0) @map("total_count")
+  successCount      Int                  @default(0) @map("success_count")
+  errorCount        Int                  @default(0) @map("error_count")
+  triggeredByUserId String?              @map("triggered_by_user_id") @db.Uuid
+  notes             Json?                @default("{}")
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, portal, startedAt])
+  @@map("integration_sync_runs")
+}
+
+model OcrJob {
+  id                String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId    String       @map("organization_id") @db.Uuid
+  status            OcrJobStatus @default(PENDING)
+  provider          String
+  fileKey           String       @map("file_key")
+  fileMime          String       @map("file_mime")
+  resultJson        Json?        @map("result_json")
+  errorJson         Json?        @map("error_json")
+  attemptCount      Int          @default(0) @map("attempt_count")
+  triggeredByUserId String?      @map("triggered_by_user_id") @db.Uuid
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, createdAt])
+  @@map("ocr_jobs")
+}
+
+enum CustomsDeclarationStatus {
+  DRAFT
+  CAPTURED
+  ATTACHED
+  ARCHIVED
+}
+
+model CustomsDeclaration {
+  id                          String                     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId              String                     @map("organization_id") @db.Uuid
+  bgdNumber                   String                     @map("bgd_number")
+  bgdDate                     DateTime                   @map("bgd_date") @db.Date
+  currency                    String
+  customsValueAzn             Decimal                    @map("customs_value_azn") @db.Decimal(19, 4)
+  customsDutyAzn              Decimal                    @map("customs_duty_azn") @db.Decimal(19, 4)
+  customsVatAzn               Decimal                    @map("customs_vat_azn") @db.Decimal(19, 4)
+  feesAzn                     Decimal                    @map("fees_azn") @db.Decimal(19, 4)
+  attachmentKey               String?                    @map("attachment_key")
+  linkedPurchaseTransactionId String?                    @map("linked_purchase_transaction_id") @db.Uuid
+  notes                       String?
+  createdAt                   DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization                Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  linkedPurchaseTransaction   Transaction?               @relation(fields: [linkedPurchaseTransactionId], references: [id], onDelete: SetNull)
+  deletedAt                   DateTime?                  @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId             String?                    @map("deleted_by_user_id") @db.Uuid
+  deletedReason               String?                    @map("deleted_reason")
+  status                      CustomsDeclarationStatus   @default(DRAFT)
+  regimeCode                  String?                    @map("regime_code")
+  currencyRate                Decimal?                   @map("currency_rate") @db.Decimal(19, 6)
+  senderVoen                  String?                    @map("sender_voen")
+  senderName                  String?                    @map("sender_name")
+  receiverVoen                String?                    @map("receiver_voen")
+  receiverName                String?                    @map("receiver_name")
+  senderCounterpartyId        String?                    @map("sender_counterparty_id") @db.Uuid
+  receiverCounterpartyId      String?                    @map("receiver_counterparty_id") @db.Uuid
+  totalInvoiceValue           Decimal?                   @map("total_invoice_value") @db.Decimal(19, 4)
+  totalStatisticalValueAzn    Decimal?                   @map("total_statistical_value_azn") @db.Decimal(19, 4)
+  calculatedDutyAzn           Decimal?                   @map("calculated_duty_azn") @db.Decimal(19, 4)
+  calculatedVatAzn            Decimal?                   @map("calculated_vat_azn") @db.Decimal(19, 4)
+  senderCounterparty          Counterparty?              @relation("CustomsDeclarationSender", fields: [senderCounterpartyId], references: [id], onDelete: SetNull)
+  receiverCounterparty        Counterparty?              @relation("CustomsDeclarationReceiver", fields: [receiverCounterpartyId], references: [id], onDelete: SetNull)
+  items                       CustomsDeclarationItem[]
+
+  @@unique([organizationId, bgdNumber])
+  @@index([organizationId, bgdDate])
+  @@index([organizationId, deletedAt], map: "customs_declarations_org_deleted_at_idx")
+  @@index([organizationId, status])
+  @@map("customs_declarations")
+}
+
+model CustomsDeclarationItem {
+  id                   String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId       String             @map("organization_id") @db.Uuid
+  declarationId        String             @map("declaration_id") @db.Uuid
+  sequenceNumber       Int                @map("sequence_number")
+  hsCode               String             @map("hs_code")
+  description          String
+  quantity             Decimal            @db.Decimal(19, 4)
+  unit                 String?
+  weightNetKg          Decimal            @map("weight_net_kg") @db.Decimal(19, 4)
+  weightGrossKg        Decimal            @map("weight_gross_kg") @db.Decimal(19, 4)
+  invoiceValue         Decimal            @map("invoice_value") @db.Decimal(19, 4)
+  statisticalValueAzn  Decimal            @map("statistical_value_azn") @db.Decimal(19, 4)
+  dutyRatePercent      Decimal            @map("duty_rate_percent") @db.Decimal(7, 4)
+  vatRatePercent       Decimal            @map("vat_rate_percent") @db.Decimal(7, 4)
+  excisePercent        Decimal            @map("excise_percent") @db.Decimal(7, 4)
+  calculatedDutyAzn    Decimal            @map("calculated_duty_azn") @db.Decimal(19, 4)
+  calculatedVatAzn     Decimal            @map("calculated_vat_azn") @db.Decimal(19, 4)
+  calculatedExciseAzn  Decimal            @map("calculated_excise_azn") @db.Decimal(19, 4)
+  portalDutyAzn        Decimal?           @map("portal_duty_azn") @db.Decimal(19, 4)
+  portalVatAzn         Decimal?           @map("portal_vat_azn") @db.Decimal(19, 4)
+  notes                String?
+  declaration          CustomsDeclaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([declarationId, sequenceNumber])
+  @@index([organizationId, hsCode])
+  @@map("customs_declaration_items")
+}
+
+model CustomsTariffRate {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  hsCode          String    @unique @map("hs_code")
+  description     String?
+  dutyRatePercent Decimal   @map("duty_rate_percent") @db.Decimal(7, 4)
+  vatRatePercent  Decimal   @map("vat_rate_percent") @db.Decimal(7, 4)
+  excisePercent   Decimal   @default(0) @map("excise_percent") @db.Decimal(7, 4)
+  effectiveFrom   DateTime  @map("effective_from") @db.Date
+  effectiveTo     DateTime? @map("effective_to") @db.Date
+  notes           String?
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([hsCode, effectiveFrom])
+  @@map("customs_tariff_rates")
 }
 
 model PaymentAllocation {
@@ -1349,28 +2087,36 @@ model TaxDeclarationExport {
   createdAt        DateTime                   @default(now()) @map("created_at")
   updatedAt        DateTime                   @updatedAt @map("updated_at")
   organization     Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deletedAt        DateTime?                  @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId  String?                    @map("deleted_by_user_id") @db.Uuid
+  deletedReason    String?                    @map("deleted_reason")
 
   @@index([organizationId, period], map: "tax_decl_org_period_idx")
   @@index([organizationId, status], map: "tax_decl_org_status_idx")
+  @@index([organizationId, deletedAt], map: "tax_declaration_exports_org_deleted_at_idx")
   @@map("tax_declaration_exports")
 }
 
 /// *
 ///  * Оплата инвойса (частичная или полная); сумма проводок Дт касса/банк — Кт 211 = amount.
 model InvoicePayment {
-  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  invoiceId      String       @map("invoice_id") @db.Uuid
-  amount         Decimal      @db.Decimal(19, 4)
-  date           DateTime     @db.Date
-  transactionId  String?      @map("transaction_id") @db.Uuid
-  createdAt      DateTime     @default(now()) @map("created_at")
-  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  transaction    Transaction? @relation(fields: [transactionId], references: [id])
+  id              String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  invoiceId       String       @map("invoice_id") @db.Uuid
+  amount          Decimal      @db.Decimal(19, 4)
+  date            DateTime     @db.Date
+  transactionId   String?      @map("transaction_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at")
+  invoice         Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transaction     Transaction? @relation(fields: [transactionId], references: [id])
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?      @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?      @map("deleted_reason")
 
   @@index([organizationId, invoiceId])
   @@index([organizationId, date])
+  @@index([organizationId, deletedAt], map: "invoice_payments_org_deleted_at_idx")
   @@map("invoice_payments")
 }
 
@@ -1479,44 +2225,52 @@ model CashOrder {
 /// *
 ///  * Авансовый отчёт подотчётного лица (закрытие 244).
 model AdvanceReport {
-  id             String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String              @map("organization_id") @db.Uuid
-  employeeId     String              @map("employee_id") @db.Uuid
-  reportDate     DateTime            @map("report_date") @db.Date
+  id              String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String              @map("organization_id") @db.Uuid
+  employeeId      String              @map("employee_id") @db.Uuid
+  reportDate      DateTime            @map("report_date") @db.Date
   /// *
   ///    * Строки расходов: [{ amount, description }]
-  expenseLines   Json                @default("[]") @map("expense_lines")
-  totalDeclared  Decimal             @map("total_declared") @db.Decimal(19, 4)
-  purpose        String              @default("")
-  status         AdvanceReportStatus @default(DRAFT)
-  transactionId  String?             @unique @map("transaction_id") @db.Uuid
-  createdAt      DateTime            @default(now()) @map("created_at")
-  updatedAt      DateTime            @updatedAt @map("updated_at")
-  employee       Employee            @relation(fields: [employeeId], references: [id])
-  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  transaction    Transaction?        @relation("AdvanceReportPostedTx", fields: [transactionId], references: [id])
+  expenseLines    Json                @default("[]") @map("expense_lines")
+  totalDeclared   Decimal             @map("total_declared") @db.Decimal(19, 4)
+  purpose         String              @default("")
+  status          AdvanceReportStatus @default(DRAFT)
+  transactionId   String?             @unique @map("transaction_id") @db.Uuid
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  employee        Employee            @relation(fields: [employeeId], references: [id])
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transaction     Transaction?        @relation("AdvanceReportPostedTx", fields: [transactionId], references: [id])
+  deletedAt       DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?             @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?             @map("deleted_reason")
 
   @@index([organizationId, employeeId])
+  @@index([organizationId, deletedAt], map: "advance_reports_org_deleted_at_idx")
   @@map("advance_reports")
 }
 
 model InvoiceItem {
-  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  invoiceId      String       @map("invoice_id") @db.Uuid
-  productId      String?      @map("product_id") @db.Uuid
-  description    String?
-  quantity       Decimal      @db.Decimal(19, 4)
-  unitPrice      Decimal      @map("unit_price") @db.Decimal(19, 4)
-  vatRate        Decimal      @map("vat_rate") @db.Decimal(5, 2)
-  lineTotal      Decimal      @map("line_total") @db.Decimal(19, 4)
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  product        Product?     @relation(fields: [productId], references: [id])
+  id              String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  invoiceId       String       @map("invoice_id") @db.Uuid
+  productId       String?      @map("product_id") @db.Uuid
+  description     String?
+  quantity        Decimal      @db.Decimal(19, 4)
+  unitPrice       Decimal      @map("unit_price") @db.Decimal(19, 4)
+  vatRate         Decimal      @map("vat_rate") @db.Decimal(5, 2)
+  lineTotal       Decimal      @map("line_total") @db.Decimal(19, 4)
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  invoice         Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product         Product?     @relation(fields: [productId], references: [id])
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?      @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?      @map("deleted_reason")
 
   @@index([organizationId, invoiceId])
+  @@index([organizationId, deletedAt], map: "invoice_items_org_deleted_at_idx")
   @@map("invoice_items")
 }
 
@@ -1603,12 +2357,16 @@ model CashDesk {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  employee     Employee?    @relation(fields: [employeeId], references: [id])
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  cashOrders   CashOrder[]
+  employee        Employee?    @relation(fields: [employeeId], references: [id])
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cashOrders      CashOrder[]
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?      @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?      @map("deleted_reason")
 
   @@index([employeeId])
   @@index([organizationId])
+  @@index([organizationId, deletedAt], map: "cash_desks_org_deleted_at_idx")
   @@map("cash_desks")
 }
 
@@ -1623,27 +2381,31 @@ model CashFlowItem {
   bankStatementLines BankStatementLine[]
   organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   cashOrders         CashOrder[]
+  deletedAt          DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId    String?             @map("deleted_by_user_id") @db.Uuid
+  deletedReason      String?             @map("deleted_reason")
 
   @@unique([organizationId, code])
   @@index([organizationId])
+  @@index([organizationId, deletedAt], map: "cash_flow_items_org_deleted_at_idx")
   @@map("cash_flow_items")
 }
 
 model ChartOfAccountsEntry {
-  id           String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   templateGroup TemplateGroup @default(COMMERCIAL) @map("template_group")
-  code         String
-  nameAz       String      @map("name_az")
-  nameRu       String      @map("name_ru")
-  nameEn       String      @map("name_en")
-  accountType  AccountType @map("account_type")
+  code          String
+  nameAz        String        @map("name_az")
+  nameRu        String        @map("name_ru")
+  nameEn        String        @map("name_en")
+  accountType   AccountType   @map("account_type")
   /// Код родителя в том же справочнике (иерархия NAS); null — корень.
-  parentCode   String?     @map("parent_code")
-  cashProfile  String?     @map("cash_profile")
-  sortOrder    Int         @default(0) @map("sort_order")
-  isDeprecated Boolean     @default(false) @map("is_deprecated")
-  createdAt    DateTime    @default(now()) @map("created_at")
-  accounts     Account[]
+  parentCode    String?       @map("parent_code")
+  cashProfile   String?       @map("cash_profile")
+  sortOrder     Int           @default(0) @map("sort_order")
+  isDeprecated  Boolean       @default(false) @map("is_deprecated")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  accounts      Account[]
 
   @@unique([templateGroup, code])
   @@map("chart_of_accounts_entries")
@@ -1694,63 +2456,211 @@ model Holding {
 }
 
 model InventoryAuditLine {
-  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId   String   @map("organization_id") @db.Uuid
-  inventoryAuditId String   @map("inventory_audit_id") @db.Uuid
-  productId        String   @map("product_id") @db.Uuid
-  systemQty        Decimal  @map("system_qty") @db.Decimal(19, 4)
-  factQty          Decimal  @map("fact_qty") @db.Decimal(19, 4)
-  costPrice        Decimal  @map("cost_price") @db.Decimal(19, 4)
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                    String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId        String                   @map("organization_id") @db.Uuid
+  inventoryAuditId      String                   @map("inventory_audit_id") @db.Uuid
+  productId             String                   @map("product_id") @db.Uuid
+  systemQty             Decimal                  @map("system_qty") @db.Decimal(19, 4)
+  factQty               Decimal                  @map("fact_qty") @db.Decimal(19, 4)
+  costPrice             Decimal                  @map("cost_price") @db.Decimal(19, 4)
+  discrepancyKind       InventoryDiscrepancyKind @default(NONE) @map("discrepancy_kind")
+  accountableEmployeeId String?                  @map("accountable_employee_id") @db.Uuid
+  accountableEmployee   Employee?                @relation("InventoryAuditLineAccountable", fields: [accountableEmployeeId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  postedAmountAzn       Decimal                  @default(0) @map("posted_amount_azn") @db.Decimal(19, 4)
+  reasonNote            String?                  @map("reason_note")
+  createdAt             DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  inventoryAudit InventoryAudit @relation(fields: [inventoryAuditId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "inventory_audit_lines_audit_fkey")
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "inventory_audit_lines_org_fkey")
-  product        Product        @relation(fields: [productId], references: [id], onUpdate: NoAction, map: "inventory_audit_lines_product_fkey")
+  inventoryAudit  InventoryAudit @relation(fields: [inventoryAuditId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "inventory_audit_lines_audit_fkey")
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "inventory_audit_lines_org_fkey")
+  product         Product        @relation(fields: [productId], references: [id], onUpdate: NoAction, map: "inventory_audit_lines_product_fkey")
+  deletedAt       DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?        @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?        @map("deleted_reason")
 
   @@unique([inventoryAuditId, productId], map: "inventory_audit_lines_audit_product_uidx")
   @@index([organizationId, inventoryAuditId], map: "inventory_audit_lines_org_audit_idx")
   @@index([organizationId, productId], map: "inventory_audit_lines_org_product_idx")
+  @@index([organizationId, deletedAt], map: "inventory_audit_lines_org_deleted_at_idx")
   @@map("inventory_audit_lines")
 }
 
 /// *
 ///  * Документ физической инвентаризации / списания / оприходования (черновик → проведение).
 model InventoryAdjustment {
-  id             String                     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String                     @map("organization_id") @db.Uuid
-  warehouseId    String                     @map("warehouse_id") @db.Uuid
-  date           DateTime                   @db.Date
-  status         InventoryAdjustmentStatus  @default(DRAFT)
-  reason         String                     @default("")
-  docType        InventoryAdjustmentDocType @map("doc_type")
-  createdAt      DateTime                   @default(now()) @map("created_at")
-  updatedAt      DateTime                   @updatedAt @map("updated_at")
-  lines          InventoryAdjustmentLine[]
-  organization   Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  warehouse      Warehouse                  @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  id              String                     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String                     @map("organization_id") @db.Uuid
+  warehouseId     String                     @map("warehouse_id") @db.Uuid
+  date            DateTime                   @db.Date
+  status          InventoryAdjustmentStatus  @default(DRAFT)
+  reason          String                     @default("")
+  docType         InventoryAdjustmentDocType @map("doc_type")
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+  lines           InventoryAdjustmentLine[]
+  organization    Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  warehouse       Warehouse                  @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?                  @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId String?                    @map("deleted_by_user_id") @db.Uuid
+  deletedReason   String?                    @map("deleted_reason")
 
   @@index([organizationId, warehouseId, date])
   @@index([organizationId, status])
+  @@index([organizationId, deletedAt], map: "inventory_adjustments_org_deleted_at_idx")
   @@map("inventory_adjustments")
 }
 
 model InventoryAdjustmentLine {
-  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  adjustmentId     String   @map("adjustment_id") @db.Uuid
-  productId        String   @map("product_id") @db.Uuid
-  expectedQuantity Decimal  @map("expected_quantity") @db.Decimal(19, 4)
-  actualQuantity   Decimal  @map("actual_quantity") @db.Decimal(19, 4)
-  deltaQuantity    Decimal  @map("delta_quantity") @db.Decimal(19, 4)
-  unitCost         Decimal  @default(0) @map("unit_cost") @db.Decimal(19, 4)
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id               String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  adjustmentId     String              @map("adjustment_id") @db.Uuid
+  productId        String              @map("product_id") @db.Uuid
+  expectedQuantity Decimal             @map("expected_quantity") @db.Decimal(19, 4)
+  actualQuantity   Decimal             @map("actual_quantity") @db.Decimal(19, 4)
+  deltaQuantity    Decimal             @map("delta_quantity") @db.Decimal(19, 4)
+  unitCost         Decimal             @default(0) @map("unit_cost") @db.Decimal(19, 4)
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
   adjustment       InventoryAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
   product          Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  deletedAt        DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  deletedByUserId  String?             @map("deleted_by_user_id") @db.Uuid
+  deletedReason    String?             @map("deleted_reason")
 
   @@unique([adjustmentId, productId])
   @@index([productId])
+  @@index([adjustmentId, deletedAt], map: "inventory_adjustment_lines_adj_deleted_at_idx")
   @@map("inventory_adjustment_lines")
+}
+
+// --- Platform recovery: dispute, dual approval, snapshots, rollback (PRD §7.13 / TZ §21) ---
+
+enum DualApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  EXECUTED
+}
+
+enum DisputeStatus {
+  EVIDENCE_REQUIRED
+  EVIDENCE_REVIEW
+  INCUMBENT_NOTIFIED
+  COOLDOWN
+  APPROVED
+  REJECTED
+  EXECUTED
+  REVERTED
+}
+
+enum DisputeSeverity {
+  SOFT
+  HARD
+}
+
+enum SecurityMode {
+  NORMAL
+  DISPUTE
+  POST_TRANSFER_LOCK
+  ROLLBACK_IN_PROGRESS
+  HARD_BLOCK_PLATFORM
+}
+
+enum TenantRollbackStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  ABORTED
+}
+
+model DualApprovalRequest {
+  id                String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  purpose           String
+  payload           Json               @default("{}")
+  requesterId       String             @map("requester_id") @db.Uuid
+  approverIds       String[]           @default([]) @map("approver_ids") @db.Uuid
+  status            DualApprovalStatus @default(PENDING)
+  expiresAt         DateTime           @map("expires_at") @db.Timestamptz(6)
+  executedAt        DateTime?          @map("executed_at") @db.Timestamptz(6)
+  createdAt         DateTime           @default(now()) @map("created_at")
+  requester         User               @relation("DualApprovalRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  ownershipDisputes OwnershipDispute[]
+
+  @@index([status, expiresAt])
+  @@map("dual_approval_requests")
+}
+
+model OwnershipDispute {
+  id                     String                      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId         String                      @map("organization_id") @db.Uuid
+  claimantUserId         String                      @map("claimant_user_id") @db.Uuid
+  incumbentUserId        String                      @map("incumbent_user_id") @db.Uuid
+  status                 DisputeStatus               @default(EVIDENCE_REQUIRED)
+  severity               DisputeSeverity             @default(SOFT)
+  evidenceKeys           String[]                    @default([]) @map("evidence_keys")
+  verifiedAgainst        Json?                       @map("verified_against")
+  cooldownEndsAt         DateTime?                   @map("cooldown_ends_at") @db.Timestamptz(6)
+  approvalRequestId      String?                     @map("approval_request_id") @db.Uuid
+  legalCaseRef           String?                     @map("legal_case_ref")
+  signedCertificateKey   String?                     @map("signed_certificate_key")
+  counterClaimNote       String?                     @map("counter_claim_note")
+  createdAt              DateTime                    @default(now()) @map("created_at")
+  executedAt             DateTime?                   @map("executed_at") @db.Timestamptz(6)
+  organization           Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  claimant               User                        @relation("DisputeClaimant", fields: [claimantUserId], references: [id], onDelete: Cascade)
+  incumbent              User                        @relation("DisputeIncumbent", fields: [incumbentUserId], references: [id], onDelete: Cascade)
+  approvalRequest        DualApprovalRequest?        @relation(fields: [approvalRequestId], references: [id], onDelete: SetNull)
+  activeInSecurityStates OrganizationSecurityState[] @relation("ActiveDispute")
+
+  @@index([organizationId, status])
+  @@map("ownership_disputes")
+}
+
+model OrganizationSecurityState {
+  organizationId  String            @id @map("organization_id") @db.Uuid
+  mode            SecurityMode      @default(NORMAL)
+  lockUntil       DateTime?         @map("lock_until") @db.Timestamptz(6)
+  activeDisputeId String?           @map("active_dispute_id") @db.Uuid
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activeDispute   OwnershipDispute? @relation("ActiveDispute", fields: [activeDisputeId], references: [id], onDelete: SetNull)
+
+  @@map("organization_security_states")
+}
+
+model OrganizationDataSnapshot {
+  id                String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId    String                 @map("organization_id") @db.Uuid
+  reason            String
+  s3Key             String                 @map("s3_key")
+  sha256            String                 @db.VarChar(64)
+  sizeBytes         BigInt                 @map("size_bytes")
+  takenAt           DateTime               @default(now()) @map("taken_at") @db.Timestamptz(6)
+  expiresAt         DateTime               @map("expires_at") @db.Timestamptz(6)
+  triggeredByUserId String?                @map("triggered_by_user_id") @db.Uuid
+  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  triggeredBy       User?                  @relation(fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+  rollbackRecords   TenantRollbackRecord[]
+
+  @@index([organizationId, takenAt])
+  @@map("organization_data_snapshots")
+}
+
+model TenantRollbackRecord {
+  id             String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String                   @map("organization_id") @db.Uuid
+  snapshotId     String                   @map("snapshot_id") @db.Uuid
+  status         TenantRollbackStatus     @default(PENDING)
+  progressJson   Json?                    @map("progress_json")
+  errorMessage   String?                  @map("error_message")
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  completedAt    DateTime?                @map("completed_at") @db.Timestamptz(6)
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  snapshot       OrganizationDataSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@map("tenant_rollback_records")
 }
 
 /// *
@@ -1780,6 +2690,7 @@ enum UserRole {
   HR_OFFICER
   HR_MANAGER
   DEPARTMENT_HEAD
+  DIRECTOR
 }
 
 enum AccountType {
@@ -1943,10 +2854,22 @@ enum StockMovementReason {
 }
 
 /// *
-///  * Инвентаризационная опись (v5.9): системные остатки vs факт, проведение — корректировки склада.
+///  * Сличительная ведомость: жизненный цикл DRAFT → COUNTING → REVIEW → COMPLETED (+ CANCELLED).
 enum InventoryAuditStatus {
   DRAFT
-  APPROVED
+  COUNTING
+  REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+/// *
+///  * Классификация расхождений по строке ведомости (после пересчёта / на этапе REVIEW).
+enum InventoryDiscrepancyKind {
+  NONE
+  SURPLUS
+  SHORTAGE_WRITEOFF
+  SHORTAGE_EMPLOYEE
 }
 
 /// *
@@ -1961,7 +2884,6 @@ enum InventoryAdjustmentStatus {
 enum InventoryAdjustmentDocType {
   WRITE_OFF
   SURPLUS
-  INVENTORY_COUNT
 }
 
 /// *
@@ -2092,4 +3014,29 @@ enum TemplateGroup {
   GOVERNMENT
   /// Упрощённый план для малого бизнеса (подмножество NAS / MMÜS).
   SMALL_BUSINESS
+}
+
+enum IntegrationSyncStatus {
+  NOT_SYNCED
+  IN_PROGRESS
+  SYNCED
+  ERROR
+}
+
+enum IntegrationPortal {
+  DVX
+  EMAS
+  CUSTOMS
+}
+
+enum IntegrationTransport {
+  RPA_WIDGET
+  EXCEL_IMPORT
+}
+
+enum OcrJobStatus {
+  PENDING
+  RUNNING
+  DONE
+  ERROR
 }

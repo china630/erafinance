@@ -6,6 +6,7 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import type { NextFunction, Request, Response } from "express";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import { HEALTH_CHECK_PAYLOAD } from "./common/health-payload";
 import { HttpApiExceptionFilter } from "./common/http-api-exception.filter";
 import { AppModule } from "./app.module";
@@ -15,6 +16,15 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.enableShutdownHooks();
   app.use(cookieParser());
+  if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+    app.use(
+      helmet({
+        contentSecurityPolicy: false,
+        crossOriginResourcePolicy: { policy: "cross-origin" },
+      }),
+    );
+  }
   const devOriginOk = (origin: string | undefined): boolean => {
     if (!origin) return true;
     try {
@@ -30,11 +40,31 @@ async function bootstrap() {
     }
   };
 
+  const extensionOriginAllowed = (origin: string | undefined): boolean => {
+    if (!origin?.length) return false;
+    if (
+      /^chrome-extension:\/\/.+/i.test(origin) ||
+      /^moz-extension:\/\/.+/i.test(origin)
+    ) {
+      if (process.env.NODE_ENV !== "production") return true;
+      const allow = (process.env.CORS_EXTENSION_ORIGINS ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return allow.includes(origin);
+    }
+    return false;
+  };
+
   app.enableCors({
     origin: (
       origin: string | undefined,
       cb: (err: Error | null, allow?: boolean) => void,
     ) => {
+      if (extensionOriginAllowed(origin)) {
+        cb(null, true);
+        return;
+      }
       if (process.env.NODE_ENV === "production") {
         const fromEnv = (process.env.CORS_ORIGINS ?? "")
           .split(",")
@@ -81,7 +111,7 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle("DayDay ERP API")
     .setDescription(
-      "Core MVP: JWT Bearer (access). Refresh token — HttpOnly cookie для POST /api/auth/refresh.",
+      "Core MVP: JWT Bearer (access). Refresh token — HttpOnly cookie для POST /api/auth/refresh. Extension: POST /api/auth/extension/refresh (cookie refresh_token_ext, см. TZ §13.6).",
     )
     .setVersion("0.1.0")
     .addBearerAuth(

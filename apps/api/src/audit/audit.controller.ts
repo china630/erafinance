@@ -106,9 +106,8 @@ export class AuditController {
     const userSelect = {
       id: true,
       email: true,
-      fullName: true,
-      firstName: true,
-      lastName: true,
+      firstNameCipher: true,
+      lastNameCipher: true,
     } as const;
 
     const page = Math.max(1, Number.parseInt(pageRaw ?? "0", 10) || 0);
@@ -160,9 +159,8 @@ export class AuditController {
           select: {
             id: true,
             email: true,
-            fullName: true,
-            firstName: true,
-            lastName: true,
+            firstNameCipher: true,
+            lastNameCipher: true,
           },
         },
       },

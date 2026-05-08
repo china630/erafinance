@@ -12,14 +12,30 @@ import {
   Prisma,
 } from "@dayday/database";
 import { PrismaService } from "../prisma/prisma.service";
+import { IntegrationSyncRunService } from "../integrations/integration-sync-run.service";
+import { BulkSyncResultEmployeesDto } from "./dto/bulk-sync-result-employees.dto";
 import { CreateEmployeeDto } from "./dto/create-employee.dto";
 import { UpdateEmployeeDto } from "./dto/update-employee.dto";
+import {
+  blindIndex,
+  decryptText,
+  encryptText,
+  normalizeFin,
+  normalizeName,
+  normalizeVoen,
+  placeholderEmployeeFin,
+  placeholderEmployeeFirstName,
+  placeholderEmployeeLastName,
+} from "../security/pii-crypto.util";
 
 const Decimal = Prisma.Decimal;
 
 @Injectable()
 export class EmployeesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly syncRuns: IntegrationSyncRunService,
+  ) {}
 
   list(
     organizationId: string,
@@ -100,34 +116,44 @@ export class EmployeesService {
             organizationId,
             dto.positionId,
           );
+          const finCode = dto.finCode.trim();
+          const voenRaw =
+            kind === EmployeeKind.CONTRACTOR
+              ? dto.voen!.trim()
+              : (dto.voen?.trim() ?? null);
+          const firstName = dto.firstName.trim();
+          const lastName = dto.lastName.trim();
+          const createData: Record<string, unknown> = {
+            organizationId,
+            kind,
+            finCode: placeholderEmployeeFin(finCode),
+            finCodeBlindIndex: blindIndex("fin", normalizeFin(finCode)),
+            finCodeCipher: encryptText(normalizeFin(finCode)),
+            voenBlindIndex: voenRaw ? blindIndex("voen", normalizeVoen(voenRaw)) : null,
+            voenCipher: voenRaw ? encryptText(normalizeVoen(voenRaw)) : null,
+            firstName: placeholderEmployeeFirstName(firstName),
+            firstNameCipher: encryptText(normalizeName(firstName)),
+            lastName: placeholderEmployeeLastName(lastName),
+            lastNameCipher: encryptText(normalizeName(lastName)),
+            patronymic: dto.patronymic.trim(),
+            positionId: dto.positionId,
+            startDate: new Date(dto.startDate),
+            hireDate: new Date(dto.hireDate),
+            salary: new Decimal(dto.salary),
+            initialVacationDays: new Decimal(dto.initialVacationDays ?? 0),
+            avgMonthlySalaryLastYear:
+              dto.avgMonthlySalaryLastYear != null
+                ? new Decimal(dto.avgMonthlySalaryLastYear)
+                : null,
+            initialSalaryBalance: new Decimal(dto.initialSalaryBalance ?? 0),
+            contractorMonthlySocialAzn:
+              kind === EmployeeKind.CONTRACTOR &&
+              dto.contractorMonthlySocialAzn != null
+                ? new Decimal(dto.contractorMonthlySocialAzn)
+                : null,
+          };
           return tx.employee.create({
-            data: {
-              organizationId,
-              kind,
-              finCode: dto.finCode.trim(),
-              voen:
-                kind === EmployeeKind.CONTRACTOR
-                  ? dto.voen!.trim()
-                  : (dto.voen?.trim() ?? null),
-              firstName: dto.firstName.trim(),
-              lastName: dto.lastName.trim(),
-              patronymic: dto.patronymic.trim(),
-              positionId: dto.positionId,
-              startDate: new Date(dto.startDate),
-              hireDate: new Date(dto.hireDate),
-              salary: new Decimal(dto.salary),
-              initialVacationDays: new Decimal(dto.initialVacationDays ?? 0),
-              avgMonthlySalaryLastYear:
-                dto.avgMonthlySalaryLastYear != null
-                  ? new Decimal(dto.avgMonthlySalaryLastYear)
-                  : null,
-              initialSalaryBalance: new Decimal(dto.initialSalaryBalance ?? 0),
-              contractorMonthlySocialAzn:
-                kind === EmployeeKind.CONTRACTOR &&
-                dto.contractorMonthlySocialAzn != null
-                  ? new Decimal(dto.contractorMonthlySocialAzn)
-                  : null,
-            },
+            data: createData as Prisma.EmployeeUncheckedCreateInput,
             include: {
               jobPosition: {
                 include: { department: { select: { id: true, name: true } } },
@@ -139,6 +165,10 @@ export class EmployeesService {
       );
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        const target = `${e.meta?.target ?? ""}`;
+        if (target.includes("employees_org_fin_blind_uidx")) {
+          throw new ConflictException("ФИН уже занят в организации");
+        }
         throw new ConflictException("ФИН уже занят в организации");
       }
       throw e;
@@ -158,22 +188,117 @@ export class EmployeesService {
     return row;
   }
 
+  /** Minimal DTO for DayDay Assistant (ƏMAS e-müqavilə prefill). */
+  async getExtensionPrefill(organizationId: string, id: string) {
+    const row = await this.getOne(organizationId, id);
+    const start = row.startDate.toISOString().slice(0, 10);
+    return {
+      employeeId: row.id,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      finCode: row.finCode,
+      positionTitle: row.jobPosition.name,
+      departmentName: row.jobPosition.department?.name ?? null,
+      salaryGrossAzn: row.salary.toFixed(2),
+      contractStartDate: start,
+      contractEndDate: null as string | null,
+      contractId: row.id,
+    };
+  }
+
+  async getExtensionPrefillBulk(organizationId: string, employeeIds: string[]) {
+    const normalized = Array.from(new Set(employeeIds.map((id) => id.trim()).filter(Boolean)));
+    const items = await Promise.all(
+      normalized.map(async (employeeId) => ({
+        employeeId,
+        data: await this.getExtensionPrefill(organizationId, employeeId),
+      })),
+    );
+    const runId = await this.syncRuns.start({
+      organizationId,
+      portal: "EMAS",
+      flow: "emuqavile",
+      transport: "RPA_WIDGET",
+      totalCount: items.length,
+    });
+    return { runId, items };
+  }
+
+  async saveBulkSyncResult(
+    organizationId: string,
+    dto: BulkSyncResultEmployeesDto,
+    triggeredByUserId?: string,
+  ) {
+    const syncedAt = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      for (const item of dto.items) {
+        await tx.employee.updateMany({
+          where: { organizationId, id: item.employeeId },
+          data: {
+            emasSyncStatus: item.status,
+            emasSyncedAt: item.status === "SYNCED" ? syncedAt : null,
+            emasSyncError: item.error ?? null,
+            emasExternalId: item.externalId ?? null,
+          } as never,
+        });
+      }
+    });
+
+    const successCount = dto.items.filter((it) => it.status === "SYNCED").length;
+    const errorCount = dto.items.length - successCount;
+    try {
+      await this.syncRuns.complete({
+        runId: dto.runId,
+        successCount,
+        errorCount,
+        notes: { triggeredByUserId: triggeredByUserId ?? null },
+      });
+    } catch {
+      const runId = await this.syncRuns.start({
+        organizationId,
+        portal: "EMAS",
+        flow: "emuqavile",
+        transport: "RPA_WIDGET",
+        totalCount: dto.items.length,
+        triggeredByUserId,
+      });
+      await this.syncRuns.complete({ runId, successCount, errorCount });
+    }
+
+    return { ok: true, successCount, errorCount };
+  }
+
   async update(organizationId: string, id: string, dto: UpdateEmployeeDto) {
     const current = await this.getOne(organizationId, id);
     const kind = dto.kind ?? current.kind;
     if (kind === EmployeeKind.CONTRACTOR) {
       const voen =
         dto.voen?.trim() ??
-        (current.voen?.trim() ? current.voen.trim() : "");
+        ((current as { voenCipher?: string | null }).voenCipher
+          ? (decryptText((current as { voenCipher?: string | null }).voenCipher ?? "")?.trim() ?? "")
+          : "");
       if (!/^\d{10}$/.test(voen)) {
         throw new BadRequestException("Для подрядчика укажите VÖEN (10 цифр)");
       }
     }
     const data: Record<string, unknown> = {};
     if (dto.kind != null) data.kind = dto.kind;
-    if (dto.finCode != null) data.finCode = dto.finCode.trim();
-    if (dto.firstName != null) data.firstName = dto.firstName.trim();
-    if (dto.lastName != null) data.lastName = dto.lastName.trim();
+    if (dto.finCode != null) {
+      const fin = dto.finCode.trim();
+      data.finCode = placeholderEmployeeFin(fin);
+      data.finCodeBlindIndex = blindIndex("fin", normalizeFin(fin));
+      data.finCodeCipher = encryptText(normalizeFin(fin));
+    }
+    if (dto.firstName != null) {
+      const firstName = dto.firstName.trim();
+      data.firstName = placeholderEmployeeFirstName(firstName);
+      data.firstNameCipher = encryptText(normalizeName(firstName));
+    }
+    if (dto.lastName != null) {
+      const lastName = dto.lastName.trim();
+      data.lastName = placeholderEmployeeLastName(lastName);
+      data.lastNameCipher = encryptText(normalizeName(lastName));
+    }
     if (dto.patronymic !== undefined) {
       const p = dto.patronymic.trim();
       data.patronymic = p.length ? p : null;
@@ -183,7 +308,9 @@ export class EmployeesService {
     if (dto.hireDate != null) data.hireDate = new Date(dto.hireDate);
     if (dto.salary != null) data.salary = new Decimal(dto.salary);
     if (dto.voen !== undefined) {
-      data.voen = dto.voen.trim() || null;
+      const voen = dto.voen.trim() || null;
+      data.voenBlindIndex = voen ? blindIndex("voen", normalizeVoen(voen)) : null;
+      data.voenCipher = voen ? encryptText(normalizeVoen(voen)) : null;
     }
     if (dto.contractorMonthlySocialAzn !== undefined) {
       data.contractorMonthlySocialAzn =
@@ -215,13 +342,17 @@ export class EmployeesService {
     }
     const nextKind = (data.kind as EmployeeKind | undefined) ?? current.kind;
     if (nextKind === EmployeeKind.EMPLOYEE) {
-      data.voen = null;
+      data.voenBlindIndex = null;
+      data.voenCipher = null;
       data.contractorMonthlySocialAzn = null;
     } else if (nextKind === EmployeeKind.CONTRACTOR) {
       const v =
-        (data.voen as string | null | undefined) ?? current.voen ?? null;
-      data.voen =
-        typeof v === "string" && v.trim() ? v.trim() : v;
+        (typeof data.voenCipher === "string" ? (decryptText(data.voenCipher)?.trim() ?? null) : null) ??
+        ((current as { voenCipher?: string | null }).voenCipher
+          ? (decryptText((current as { voenCipher?: string | null }).voenCipher ?? "")?.trim() ?? null)
+          : null);
+      data.voenCipher = v ? encryptText(normalizeVoen(v)) : null;
+      data.voenBlindIndex = v ? blindIndex("voen", normalizeVoen(v)) : null;
     }
     const positionChanged =
       dto.positionId != null && dto.positionId !== current.positionId;
@@ -257,6 +388,10 @@ export class EmployeesService {
       return await runUpdate(this.prisma);
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        const target = `${e.meta?.target ?? ""}`;
+        if (target.includes("employees_org_fin_blind_uidx")) {
+          throw new ConflictException("ФИН уже занят в организации");
+        }
         throw new ConflictException("ФИН уже занят в организации");
       }
       throw e;

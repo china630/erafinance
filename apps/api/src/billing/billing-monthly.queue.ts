@@ -31,6 +31,9 @@ export class BillingMonthlyQueueService implements OnModuleInit, OnModuleDestroy
         repeat: { pattern: "0 0 1 * *" },
         jobId: "billing-monthly-subscription",
         removeOnComplete: true,
+        removeOnFail: 12,
+        attempts: 3,
+        backoff: { type: "exponential", delay: 60_000 },
       },
     );
     this.logger.log(

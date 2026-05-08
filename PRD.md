@@ -18,7 +18,7 @@
 | **Технологический стек** | Next.js, NestJS, Prisma, PostgreSQL, Redis, BullMQ, Docker Compose |
 | **Репозиторий** | Monorepo: `apps/web`, `apps/api`, `packages/database` |
 | **Связанные документы** | [TZ.md](./TZ.md) |
-| **Карта разделов** | §1–2 — видение и цели; §3 — архитектура; §4 — модули продукта **1–9** и **§4.12** — зафиксированные доработки по плану улучшения ERP (**§4.4.2** — международные продажи/закупки); §5–7 — дорожная карта (v2–v4), в т.ч. **§5.1** — системные шаблоны и онбординг (v1.1 / v2.0); **§6.1.1** — Integrations: DVX (гибрид ГНС); **§6.8** — Integrations: WhatsApp Business API; §8 — рамки текущей редакции; §9 — модель данных; §10–11 — NFR и приёмка; §12 — зафиксированные решения; **§13** — Integrations: **ƏMAS** (в т.ч. **§13.0** поэтапная стратегия DOST RIM) |
+| **Карта разделов** | §1–2 — видение и цели; §3 — архитектура; §4 — модули продукта **1–9** и **§4.12** — зафиксированные доработки по плану улучшения ERP (**§4.4.2** — международные продажи/закупки); §5–7 — дорожная карта (v2–v4), в т.ч. **§5.1** — системные шаблоны и онбординг (v1.1 / v2.0); **§6.1.1** — Integrations: DVX (**поэтапная стратегия**: файлы → RPA → S2S); **§6.8** — Integrations: WhatsApp Business API; §8 — рамки текущей редакции; §9 — модель данных; §10–11 — NFR и приёмка; §12 — зафиксированные решения; **§13** — Integrations: **ƏMAS** (в т.ч. **§13.0** поэтапная стратегия DOST RIM) |
 
 ---
 
@@ -90,6 +90,16 @@
 - **Изоляция identity:** профиль пользователя (email, пароль) отделён от данных организаций.
 - **Владение (ownership):** при создании организации пользователь автоматически получает роль **OWNER**.
 - **Присоединение к компании:** поиск существующей организации по **VÖEN**; если она уже зарегистрирована, отправляется **запрос на доступ (Access Request)** владельцу; владелец получает уведомление и может подтвердить или отклонить запрос, назначив роль.
+- **Антидублирование VÖEN:** при `RegisterOrg` VÖEN проверяется до создания tenant, а также защищён **UNIQUE-ограничением БД**; при совпадении регистрация блокируется с понятным ответом `VÖEN already registered` и рекомендацией использовать join-flow по VÖEN.
+- **Шифрование VÖEN at-rest (stage 1):** для организаций VÖEN дополнительно хранится в зашифрованном поле и в blind-index поле для быстрого equality-поиска (без изменения текущего API-контракта на этапе миграции).
+- **Шифрование VÖEN at-rest (stage 2):** регистрация и join-flow по VÖEN используют blind-index как основной путь поиска; на уровне БД включено уникальное ограничение на blind-index (для не-NULL значений).
+- **Шифрование PII at-rest (stage 3):** расширено шифрование на карточки сотрудников, контрагентов и профили пользователей (runtime write-path: placeholder-only в plaintext колонках + encrypted/blind поля с backfill-скриптом).
+- **Шифрование PII at-rest (stage 4):** регистрация/join-flow переведены на blind-index-only lookup по VÖEN; для точного поиска контрагента по VÖEN применяется blind-index приоритет.
+- **Шифрование PII at-rest (cutover audit):** добавлена техническая проверка готовности `db:audit:pii-cutover` для контроля заполненности encrypted/blind полей перед удалением plaintext-зависимостей.
+- **Шифрование PII at-rest (read safety):** перед удалением plaintext-колонок включён fallback-чтение из cipher-полей на уровне Prisma, чтобы избежать регрессий в существующих экранах/отчётах.
+- **Шифрование PII at-rest (phase nullify):** введён поэтапный nullify plaintext (сначала nullable-поля с подтверждённым cipher-mirror) и отдельный аудит остаточного plaintext перед drop-миграциями.
+- **Шифрование PII at-rest (phase nullify-2):** для non-null plaintext полей применена безопасная санитизация (placeholder-only), чтобы убрать риск хранения «чистого» PII до финальных drop-миграций.
+- **Шифрование PII at-rest (pre-drop gate):** перед удалением plaintext-колонок введён блокирующий контроль `db:assert:pii-plaintext-zero`.
 - **Интерфейс переключения:** глобальный **селектор организаций (Switcher)** в UI, позволяющий менять контекст без повторного логина.
 
 ### 3.3. Финансовый движок (Double-Entry Bookkeeping)
@@ -355,19 +365,26 @@ At **data model and UX** level, sales and purchase documents must carry an expli
 - **Согласованность с отчётом «Anbar qalığı»:** остатки по ячейкам считаются по **`stock_movements`** (**`SUM(IN) − SUM(OUT)`**); перемещение **OUT** уменьшает источник, **IN** увеличивает целевую позицию.
 - **API / UI:** **`POST /api/inventory/transfers`** (тело **`CreateTransferDto`**: **`date`**, **`lines`**: `productId`, `quantity`, `sourceWarehouseId`, опционально `sourceBinId`, `targetWarehouseId`, опционально `targetBinId`); модалка **`CreateTransferModal`** (`apps/web/components/inventory/create-transfer-modal.tsx`); быстрый вызов с отчёта **`/inventory/balances`** — кнопка **Yerdəyişmə** в шапке.
 
+#### Сличительная ведомость (inventory reconciliation, `InventoryAudit`)
+
+- **Суть:** полный цикл пересчёта по складу с блокировкой движений на этапах **COUNTING** / **REVIEW**, классификацией расхождений и атомарным **`complete`** (склад + NAS). Продуктовые правила и статусы — **§7.10**; контракт API и блокировки — **[TZ.md](./TZ.md) §10.1**.
+- **UI:** реестр и карточка **`/inventory/audits`**, **`/inventory/audits/[id]`**; создание/мастер — **`InventoryAuditCreateFlow`** и связанные модалки; устаревший путь **`/inventory/audit/new`** редиректит на **`/inventory/audits`**.
+- **REST (канон):** **`/api/inventory/reconciliations/*`** — все мутации полного цикла (**`start`**, **`submit`**, классификация строк, **`complete`**, **`cancel`**); чтение — **`GET /api/inventory/reconciliations`**, **`GET …/:id`** (те же документы, что показывает веб).
+- **Совместимость:** префикс **`/api/inventory/audits`** сохранён для **`POST /`** (черновик = тот же DRAFT) и **`PATCH …/lines/:lineId`**; эндпоинты **`POST …/:id/approve`** и **`POST …/:id/sync-system`** **не использовать** (ответ с указанием перейти на **`reconciliations`**).
+
 ### 4.10A. Модуль 10: Производство (İstehsalat) — автономный веб-модуль
 
 **Назначение:** спецификации (BOM / **ProductRecipe**) и **выпуск готовой продукции** (**Manufacturing release**).
 
 **Независимость от склада в UX:** навигация «İstehsalat» не вложена в «Anbar»; маршруты **`/manufacturing`**, **`/manufacturing/recipes`**, **`/manufacturing/releases`** (канонические URL; старые **`/manufacturing/recipe`** и **`/release`** — редирект). Бизнес-логика выпуска по-прежнему создаёт складские **`StockMovement`** (списание компонентов / приход ГП) — это интеграция с **модулем 9**, а не дублирование складских экранов.
 
-**Инвентаризация:** документ фиксации **фактических остатков** по номенклатуре (количество по складам/партиям — по политике учёта). **Сравнение** с **системными** остатками; вывод **разницы** (излишки / недостачи) для утверждения ответственным лицом.
+**Инвентаризация (сличительная ведомость):** документ фиксации **фактических остатков** по номенклатуре на складе — см. **`InventoryAudit`** и подраздел **«Сличительная ведомость»** выше в модуле 9 и **§7.10**. **Сравнение** с **системными** остатками после **`start`**; **разница** классифицируется и проводится в **`complete`**.
 
 **Оприходование / списание:** по результатам инвентаризации (или иной складской коррекции) — **автоматическое формирование финансовых проводок** с отнесением на счета **прочих доходов** и **прочих расходов** (и при необходимости на счета ТМЦ / себестоимости) в соответствии с утверждённой методикой отражения отклонений; суммы согласуются с оценкой товара (средняя себестоимость, партионный учёт — по настройкам модуля).
 
 #### 4.10.0. Документы физической инвентаризации (`InventoryAdjustment`)
 
-Отдельно от **инвентаризационной описи** (`InventoryAudit`, снимок всех остатков по складу) поддерживаются **многострочные акты пересчёта** с выбором номенклатуры: сущности **`InventoryAdjustment`** и **`InventoryAdjustmentLine`** (ожидаемое количество из `StockItem`, факт из формы, **delta = факт − учёт**). Статусы документа: **DRAFT → POSTED**. Тип документа: **WRITE_OFF** (только недостача), **SURPLUS** (только излишек), **INVENTORY_COUNT** (оба направления в одном документе).
+Отдельно от **сличительной ведомости** (`InventoryAudit` / **Inventory Reconciliation**, см. §7.10 и подраздел **«Сличительная ведомость»** в §4.10 выше) поддерживаются **многострочные акты пересчёта** с выбором номенклатуры: сущности **`InventoryAdjustment`** и **`InventoryAdjustmentLine`** (ожидаемое количество из `StockItem`, факт из формы, **delta = факт − учёт**). Статусы документа: **DRAFT → POSTED**. Тип документа: **WRITE_OFF** (только недостача), **SURPLUS** (только излишек). Смешанные расхождения в одном документе — через **ведомость** (`InventoryAudit`), не через `InventoryAdjustment`. **Не смешивать** экраны: акты корректировки — **`/inventory/physical`** и **`/api/inventory/physical-adjustments/*`**; ведомость — **`/inventory/audits`** и **`/api/inventory/reconciliations/*`**.
 
 При **проведении** система в одной БД-транзакции обновляет **`StockItem`**, создаёт **`StockMovement`** (reason **ADJUSTMENT**, примечание `INV_PHYS:{id}`) и **одну сводную проводку** по суммарным суммам: недостача — **Дт 731 — Кт 201/204** (счёт запасов по складу); излишек — **Дт 201/204 — Кт 631**. Списание недостачи оценивается по **FIFO** (`computeIssueUnitCost`); оприходование излишка — по цене из строки документа, если задана, иначе по средней с карточки склада. UI: **`/inventory/physical`**. Детали API — [TZ.md](./TZ.md) §10.1.1.
 
@@ -426,7 +443,7 @@ At **data model and UX** level, sales and purchase documents must carry an expli
 | **Банк** | Ручная операция: **POST banking/manual-entry** + форма на странице банка; строка реестра с происхождением **MANUAL_BANK_ENTRY**; привязка статьи ДДС к строке выписки (поле в модели). |
 | **Казначейство (API)** | Модуль **Treasury**: `GET/POST /treasury/cash-flow-items`, `GET/POST /treasury/cash-desks`. |
 | **Склад** | Многострочная закупка (таблица + API); склад по умолчанию в настройках; исправление COGS при нулевой средней себестоимости (fallback на цену строки); **инвентаризационная опись** (API + UI; детализация строк с именами в ответе); документы **оприходование излишков** и **списание** (отдельные эндпоинты и страницы); **физическая инвентаризация / акты корректировки** (`InventoryAdjustment` + UI `/inventory/physical`, проводки 731/201 и 201/631, FIFO на списании). |
-| **Основательная инвентаризация** | Переход от **JSON-хранения** строк описи к **реляционной** структуре **1:N** (`InventoryAudit` → `InventoryAuditLine`); **черновик** создаёт **снимок системных остатков** по складу (автозаполнение строк), в **DRAFT** разрешено редактирование `factQty` и `costPrice`; проведение (**approve**) выполняется **атомарно** в `prisma.$transaction` с созданием **проводок** (по плану счетов: **201/204 ↔ 611/731**) и **складских движений** (`StockMovement`, reason=ADJUSTMENT). |
+| **Сличительная ведомость (Inventory Reconciliation)** | `InventoryAudit` → `InventoryAuditLine`: жизненный цикл **DRAFT → COUNTING → REVIEW → COMPLETED** (+ **CANCELLED**). Снимок `systemQty` при переходе в **COUNTING**; на **COUNTING/REVIEW** склад **заблокирован** для любых `StockMovement` по этому складу (см. TZ). Классификация расхождений: **SURPLUS**, **SHORTAGE_WRITEOFF**, **SHORTAGE_EMPLOYEE**; при **COMPLETED** — одна `prisma.$transaction`: движения + NAS (**Дт 201/204 — Кт 631** излишки; **Дт 731 — Кт 201/204** списание; **Дт 244 — Кт 201/204** долг на МОЛ). UI **`/inventory/audits`**; канон REST **`/api/inventory/reconciliations/*`**; **`/api/inventory/audits`** — узкая совместимость без **`approve`/`sync-system`** (§7.10, TZ §10.1). |
 | **Инвойсы** | Валюта счёта **AZN/USD/EUR**; **НДС построчно** (**0% / 18% / освобождение** в строке; без глобальной ставки НДС в шапке); режим **цены с НДС / без НДС** в шапке (`vatInclusive`). **Смешанные строки:** в одном счёте допускаются и товары, и услуги; признак **«услуга»** задаётся у **номенклатуры** (`Product.isService`), а не глобально по документу; складские предупреждения и **списание со склада (COGS / StockMovement)** применяются **только** к строкам с **`isService === false`**. В PDF строки подписываются как **Məhsul** / **Xidmət** по флагу номенклатуры. |
 | **HR** | Отчество, FIN; справочник **`AbsenceType`** и связь **`Absence.absenceTypeId`** (FK); календарь отсутствий вынесен в отдельный визуальный экран **`/hr/analytics`** («Инфографика»), а **`/payroll`** сфокусирован на операционном учёте зарплаты (ведомости/листовки, фильтр периода, действия расчёта/проведения); калькуляторы **əmək məzuniyyəti (÷30,4)** и **xəstəlik (14 gün + staj %)** вынесены в модальные окна (единый паттерн `FORM_INPUT_CLASS` + футер с **Ləğv et**); создание сотрудника/подразделения/штатной единицы переведено в модальные окна; табель и расчёт ведомости с привязкой к табелю используют формулы ТК АР и среднюю по **проведённым `payroll_slips`** за 12 месяцев — **[TZ.md](./TZ.md) §7.0**. |
 | **Контрагенты** | Типы «Поставщик/Покупатель», «Прочее»; дубли по VÖEN; обязательное имя; **ОПФ** (`legalForm`) по перечню АР; **плательщик НДС** (`isVatPayer`) для **e-qaimə**; **merge** с переносом связей и **ответом `integrity`** (пост-проверка ссылок на удалённый id). |
@@ -513,6 +530,48 @@ If `ProjectedBalance` drops below zero on a date, UI marks it as **cash-gap risk
 - [x] **COMPLETED —** идемпотентность по `fixedAssetId + year + month`.
 - [x] **COMPLETED —** UI `/fixed-assets` (реестр, book value, запуск амортизации).
 
+### 5.E. Generic SaaS Strengthening (Waves 1–3)
+
+**Цель:** усилить продукт по линии «generic SMB SaaS ERP» (collaboration, согласования, роли, производственная аналитика, РБП, PSA) без выхода за рамки B2B SaaS и модулей PRD §4. **Технические контракты** — [TZ.md](./TZ.md) §12.8 и точечные стабы §3, §7, §9, §10.
+
+| Волна | Эпики (ссылка на подраздел) | Статус реализации |
+|-------|-----------------------------|-------------------|
+| **Wave 1** | §5.E.2 Activity Stream, §5.E.3 Approval Workflow, §5.E.4 Director | По плану: см. чеклисты в подразделах |
+| **Wave 2** | §5.E.1 Virtual stock, §5.E.5 Prepaid (РБП), §5.E.6 Cost allocation, §5.E.7 PSA mini | E6–E7: см. чеклисты §5.E.6–§5.E.7 |
+| **Wave 3** | CRM Pipeline/Deals, user-defined Custom Fields, Disassembly, Resource Calendar, Mobile WMS scan | **Только roadmap** (без кода в этом цикле) |
+
+#### 5.E.1. Virtual stock (доступный выпуск по BOM)
+
+- [x] **COMPLETED —** read-only **`GET /api/manufacturing/recipes/:recipeId/available-output?warehouseId=`** возвращает **`maxOutputUnits`** и **`bottlenecks`** (потребность на 1 шт. ГП, доступно, макс. по строке); UI блок на **`/manufacturing/releases`**; unit-тесты **`manufacturing.service.spec.ts`** (узкое место / нулевой остаток / `wasteFactor`).
+
+#### 5.E.2. Activity Stream / Chatter
+
+- [x] **COMPLETED —** таймлайн **`GET /api/activity/:entityType/:entityId`** (события `EntityActivity` + комментарии `EntityComment`); **`POST|PATCH|DELETE`** комментариев; парсинг **`@email`** → `EntityCommentMention` + **`NotificationService.createNotification`**; эмиттер системных строк из **`AuditService.persistAfterMutation`** (`ActivityStreamEmitterService`); UI **`ActivityPanel`**: `/inventory/audits/[id]`, вкладка в **`ViewInvoiceModal`**, блок в **`EditCounterpartyModal`**; unit-тесты **`activity-stream.service.spec.ts`**; RBAC: роли с комментированием (не `AUDITOR` на мутациях — глобальный guard); soft-delete комментария.
+
+#### 5.E.3. Approval Workflow + лимиты
+
+- [x] **COMPLETED (MVP — касса):** Prisma `ApprovalPolicy`, `ApprovalRequest`, `ApprovalStep` + DB **CHECK** на `REJECT` с непустым `comment`; REST **`/api/approvals/inbox`**, **`POST …/cash-orders/:id/submit`**, **`POST …/requests/:id/steps/:stepNo/approve|reject`**; блокировка **`CashOrderService.postOrder`** при активной политике `CASH_ORDER` и отсутствии `APPROVED`; уведомления на шаг; UI **`/inbox/approvals`**. Расширение на закупку/банк/payroll — следующий инкремент.
+
+#### 5.E.4. Роль Director (директор юрлица)
+
+- [x] **COMPLETED —** `UserRole.DIRECTOR` в enum + миграция; **`GET /api/reporting/pl`**, **`GET /api/reporting/receivables`**, **`GET /api/reports/cash-flow`**, **`GET /api/reports/balance-sheet`** (через `RECON_ROLES`) и фильтр департамента P&L; приглашение/смена роли на странице **«Команда»**; TZ §2 таблица ролей.
+
+#### 5.E.5. Prepaid expenses (РБП)
+
+- [x] **COMPLETED —** Prisma `PrepaidExpense` / `PrepaidExpenseSchedule` + миграция; REST **`GET|POST /api/prepaid-expenses`**, **`POST …/:id/post-month?period=YYYY-MM`** (проводка **Дт expense / Кт prepaid** через `AccountingService.postJournalInTransaction`, уважает закрытые периоды из `settings.reporting.closedPeriods`); равные доли + остаток на последний месяц; UI **`/finance/prepaid-expenses`**; unit-тест нарезки месяцев **`prepaid-expenses.service.spec.ts`**.
+
+#### 5.E.6. Cost allocation (накладные на выпуск)
+
+- [x] **COMPLETED —** Prisma `OverheadDriver`, `OverheadPool`, `OverheadAllocation`, `ManufacturingRelease` (строка выпуска с привязкой к проводке выпуска и движению ГП); REST **`GET|POST /api/manufacturing/overhead/drivers`**, **`PATCH …/drivers/:id`**, **`GET /api/manufacturing/overhead/pools?period=`**, **`POST …/pools`**, **`POST …/allocate?period=YYYY-MM`** (драйверы `VOLUME|TIME|MATERIAL_COST`, идемпотентность по паре pool+release через остаток бюджета пула); UI **`/manufacturing/overhead`**.
+
+#### 5.E.7. PSA mini (проекты, time entries, счёт по часам)
+
+- [x] **COMPLETED —** Prisma `PsaProject` / `PsaProjectTask` / `PsaTimeEntry`, `Invoice.projectId`; опционально **`Employee.userId`** (поле уже в схеме); REST **`/api/psa/projects`** (CRU), задачи и time entries под проектом, **`POST …/projects/:id/generate-invoice`**, **`GET …/projects/:id/profitability?dateFrom=&dateTo=`**; продукт-заглушка **`__PSA_HOUR__`** для строк счёта; UI **`/psa/projects`**.
+
+#### 5.E.8. Wave 3 (roadmap only)
+
+- CRM Pipeline/Deals поверх контрагентов; JSONB user-defined поля по сущностям; Disassembly партий; ресурсный календарь (мастера/оборудование); мобильный scan для инвентаризации.
+
 ### 5.2. v3.1 — масштабируемость и производительность (Roadmap)
 
 - Внедрение горизонтального автоскейлинга воркеров через API DigitalOcean / Kubernetes.
@@ -534,13 +593,28 @@ If `ProjectedBalance` drops below zero on a date, UI marks it as **cash-gap risk
 - **VÖEN Lookup:** автозаполнение по 10-значному VÖEN; fallback при недоступности API.
 - **e-taxes.gov.az:** прямая подача данных (НДС, удержания — в объёме доступного API); журнал отправок и статусов.
 
-#### 6.1.1. Integrations: DVX (State Tax Service of Azerbaijan) — hybrid architecture
+#### 6.1.1. Integrations: DVX (State Tax Service of Azerbaijan)
 
-Product-approved **hybrid** integration with the **State Tax Service (DVX / e-taxes ecosystem)** separates machine-to-machine surfaces by maturity of official APIs and SaaS scalability:
+Product-approved **phased integration strategy** for the **State Tax Service (DVX / e-taxes.gov.az ecosystem)** mirrors the staged approach used for **ƏMAS** (**PRD §13.0 — phased integration strategy**): preserve compliant tax outcomes for Azerbaijani tenants while **de-risking** dependency on immature official APIs and keeping the platform **horizontally scalable**.
 
-1. **E-Qaimə (electronic VAT invoices) — PUSH/PULL:** Implemented through the **official closed B2B System-to-System API**, authenticated with a **per-organization API key**, for **seamless background exchange** (issue/receive/status) without a dependency on consumer-only UI flows.
-2. **Reconciliation and personal tax account (licensed taxpayer cabinet) — PULL:** Until **full official API coverage** exists for these surfaces, the platform **may** use a **Live Session** model: after a **one-time interactive user authentication** with **ASAN İmza**, the **authorized session** enables **automated background retrieval** of applicable portal data into DayDay ERP (exact scope, refresh policy, retention, and security controls are specified in [TZ.md](./TZ.md) when the adapter is implemented).
-3. **Out of scope:** **Physical Android device farms** (hardware simulation of mobile clients) are **rejected** as a baseline approach in favor of **horizontally scalable SaaS** (API-first workers, session-bound adapters where legally and technically permitted, standard observability per §6.3 / Integration Health).
+#### Phase 1 — File exchange (XML / Excel)
+
+- **Declarations & mass operations:** DayDay ERP **generates** machine-readable outputs (**XML** for tax declarations where applicable, **Excel/CSV** templates for bulk filings and reconciliation packages) for accountant review.
+- **Manual portal step:** the accountant performs **manual upload / download** on **e-taxes.gov.az** (outbound filings, attachments, extracts). DayDay maintains a **submission journal** (status, timestamps, correlation keys, operator notes) aligned with compliance workflows in **[TZ.md](./TZ.md) §13.2**.
+
+#### Phase 2 — RPA (Browser Extension)
+
+- **Single extension (Chrome / Firefox / Chromium family — store targets TBD)** for users who already have an **authenticated session** on **e-taxes.gov.az**, including **ASAN İmza** where the portal requires it.
+- **Explicit user action only:** on an explicit user click, the extension **pre-fills** eligible portal forms (for example **e-qaimə** flows) from data selected in DayDay ERP. The user **must personally activate** the portal’s own **“Sign” / “Submit”** actions; the extension **does not** replace legal approval, human review, or portal Terms of Use compliance.
+- **Shared architecture** with other government portals (ƏMAS, DVX) and **subscription gating per selected organization** are specified in **[TZ.md](./TZ.md) §13.6**.
+- **Phase 10 split monetization:** bulk operations are available in two equal tracks — **Premium Bulk RPA** in the extension (gated by `tax_pro` for DVX, `hr_full` for ƏMAS, and **`trade_pro`** for e-customs BGD capture) and **Free Excel fallback** (export/import endpoints in ERP backend) for all authenticated users.
+
+#### Phase 3 — Official B2B S2S API
+
+- **Transition** to the **official closed B2B System-to-System API** once available and contractually cleared (**per-organization API key** or successor mechanism), enabling **background** issue/receive/status flows without consumer-only UI dependency.
+- **Cabinet / reconciliation surfaces** without full S2S coverage may continue **Phase 1** exports and/or **Phase 2** extension-assisted flows, optionally complemented by a **Live Session** server adapter (exact scope, refresh policy, retention, and security controls — **[TZ.md](./TZ.md) §13.2**).
+
+**Cross-phase invariant (unchanged):** **Physical Android device farms** (hardware simulation of mobile clients) remain **rejected** as a baseline approach in favor of **horizontally scalable SaaS** (file export, audited extension RPA, API-first workers, session-bound adapters where legally and technically permitted, standard observability per **§6.3 / Integration Health**).
 
 ### 6.0. External IBAN Validation API
 
@@ -686,7 +760,9 @@ Product-approved **hybrid** integration with the **State Tax Service (DVX / e-ta
 - Превышение лимита → предсказуемая блокировка или upsell без потери данных.
 - Владелец видит подписку и может продлить без поддержки (MVP).
 - End-to-end тестовый платёж на staging.
-- Демо: 14 дней Business, плашка на дашборде на все дни trial, затем READ_ONLY.
+- Демо: до конца календарного месяца регистрации (UTC), плашка на дашборде на весь входной месяц.
+- 1-го числа после входного месяца счёт за бесплатный месяц **не** выставляется; отправляется уведомление о старте платного периода.
+- Первый post-paid счёт выставляется 1-го числа следующего месяца за полный прошедший платный месяц.
 
 ### 7.5. Вне объёма v4
 
@@ -717,6 +793,10 @@ Product-approved **hybrid** integration with the **State Tax Service (DVX / e-ta
 **Не использовать** произвольные копии каталога в корне репозитория (например `*_i18n-default-catalog*.new.json`): они **не** участвуют в сборке и провоцициют рассинхрон с продом. Единственный плоский снимок для сервера — п.2.
 
 **Деплой на прод:** после применения миграций Prisma выполнять **`npm run db:deploy`** из корня (или эквивалент: `migrate deploy` + **`npm run db:sync-i18n:prune`**), чтобы таблица **`translation_overrides`** совпадала по множеству ключей и значениям **RU/AZ** с текущим `resources.ts` и обновился кэш i18n. Подробности — [TZ.md](./TZ.md) §17.
+
+**Чеклист релиза расширения DayDay Assistant (Staging/Prod):** [docs/deploy/EXTENSION_MVP_DEPLOY.md](./docs/deploy/EXTENSION_MVP_DEPLOY.md).
+
+**Центр деплой-документации (сценарии + порядок для on-call):** [docs/deploy/README.md](./docs/deploy/README.md).
 
 ### 7.7. Платформа (v5.6): гарантированная изоляция тенантов (Data Safety)
 
@@ -771,19 +851,27 @@ Product-approved **hybrid** integration with the **State Tax Service (DVX / e-ta
 - `ACCOUNTANT` (и выше по политике endpoint) сохраняет исключительное право финального проведения.
 - Payroll financial isolation: только `OWNER` и `ACCOUNTANT` работают с `PayrollRun`, payroll-tax финансовыми данными и выплатными реестрами; `HR_MANAGER` и `DEPARTMENT_HEAD` получают `403` на денежные endpoints.
 
-### 7.10. Процессная инвентаризация (v5.9 — Final Consistency / RC1)
+### 7.10. Сличительная ведомость (Inventory Reconciliation)
 
-**Цель:** перейти от разовых ручных корректировок к документу **«Инвентаризационная опись»** с фиксацией излишков и недостач и проведением в один шаг.
+**Цель:** документ **сличительная ведомость** по складу с фиксацией **учётного** и **фактического** количества, фазой пересчёта и атомарным проведением.
 
 | Принцип | Описание |
 |--------|----------|
-| **Сущность** | **InventoryAudit (1 склад)** + строки **InventoryAuditLine (N)**: `systemQty`, `factQty`, `costPrice`. Черновик формирует **снимок системных остатков** по выбранному складу; далее фиксируется факт и оценка расхождений. |
-| **Проведение** | При **APPROVED** выполняется атомарное проведение в **одной** `prisma.$transaction`: создаются **проводки** по отклонениям (излишек: **Дт 201/204 — Кт 611**, недостача: **Дт 731 — Кт 201/204**) и **движения склада** (`StockMovement`, reason=ADJUSTMENT), после чего статус описи меняется на APPROVED (см. также TZ §10.1). |
-| **Доступ** | Ручные проводки и проведение описи — по политикам RBAC (не ниже бухгалтера там, где задано в API). |
+| **Сущность** | **InventoryAudit (1 склад)** + строки **InventoryAuditLine (N)**: `systemQty`, `factQty`, `costPrice`, `discrepancyKind`, опционально **МОЛ** (`accountableEmployeeId` для **SHORTAGE_EMPLOYEE**). |
+| **Жизненный цикл** | **DRAFT** (без строк) → **COUNTING** (снимок остатков, редактирование факта) → **REVIEW** (классификация расхождений) → **COMPLETED** (склад + NAS в **одной** `prisma.$transaction`) или **CANCELLED**. |
+| **Блокировка склада** | Пока документ в **COUNTING** или **REVIEW**, любые операции, создающие **StockMovement** по этому складу, получают **409** (`WAREHOUSE_LOCKED_FOR_RECONCILIATION`). |
+| **Проводки (NAS)** | Излишек: **Дт 201/204 — Кт 631**; списание в убыток: **Дт 731 — Кт 201/204**; долг на МОЛ: **Дт 244 — Кт 201/204** (см. `ledger.constants.ts`). |
+| **UI** | **`/inventory/audits`**, **`/inventory/audits/[id]`**, **`InventoryAuditCreateFlow`**; редирект **`/inventory/audit/new` → `/inventory/audits`**. |
+| **REST (канон)** | **`/api/inventory/reconciliations/*`** — полный цикл (перечень методов — [TZ.md](./TZ.md) §10.1). Веб-клиент использует этот префикс для мутаций. |
+| **Совместимость REST** | **`/api/inventory/audits`**: допустимы **`POST /`** (DRAFT) и **`PATCH …/lines`**; **`POST …/:id/approve`** и **`POST …/:id/sync-system`** отключены — только **`reconciliations`**. |
+| **Чтение** | `GET /api/inventory/reconciliations` и `GET .../:id` — любой авторизованный пользователь организации (без отдельного ограничения роли в контроллере). |
+| **Доступ (мутации)** | **OWNER / ADMIN / ACCOUNTANT** на все `POST`/`PATCH` по ведомости (см. TZ §9–§10.1, `AuditMutationInterceptor`); **PROCUREMENT** получает **403**. |
+
+**Обратная несовместимость:** статус **APPROVED** у `InventoryAudit` удалён (данные мигрированы в **COMPLETED**). У `InventoryAdjustment.docType` значение **INVENTORY_COUNT** удалено (данные мигрированы в **WRITE_OFF** / **SURPLUS**).
 
 ### 7.11. Платформа (v6.0): усиление атомарности (неделимый блок БД)
 
-**Цель:** любой документ, порождающий связанные финансовые и складские эффекты (в частности **Инвойс**, **Инвентаризационная опись**, **Зарплата**), обязан завершать **все** связанные операции (проводки, движения ТМЦ, смена статусов с проводками) внутри **одного** неделимого блока транзакции БД (`prisma.$transaction` или эквивалент), без частичной фиксации при ошибке на любом шаге.
+**Цель:** любой документ, порождающий связанные финансовые и складские эффекты (в частности **Инвойс**, **сличительная ведомость (inventory reconciliation)** / **`InventoryAdjustment`**, **Зарплата**), обязан завершать **все** связанные операции (проводки, движения ТМЦ, смена статусов с проводками) внутри **одного** неделимого блока транзакции БД (`prisma.$transaction` или эквивалент), без частичной фиксации при ошибке на любом шаге.
 
 ### 7.12. Billing & Subscription (v10.0) — владение, Hybrid LEGO, квоты, счета платформы
 
@@ -869,11 +957,22 @@ Product-approved **hybrid** integration with the **State Tax Service (DVX / e-ta
 - **Период биллинга:** в счёте фиксируется строковый `billingPeriod` в формате `YYYY-MM` (например, `2026-04`) для дедупликации и аудита.
 - **Отключение в конце месяца:** при отключении модуль помечается как `pendingDeactivation`, продолжает работать до конца календарного месяца и фактически выключается после monthly billing.
 - **Напоминание 25-го числа:** cron `0 10 25 * *` отправляет in-app уведомление владельцу о предстоящем счёте и необходимости проверить активные модули.
+- **Завершение бесплатного входного месяца:** в первый post-paid день отправляется отдельное уведомление о том, что бесплатный период завершён и начался платный период использования.
 - **Grace Period (enforcement):**
   - **1-е число:** после выставления счёта организация переводится в `SOFT_BLOCK`; экспортные функции (маршруты `/export`, PDF/XLSX, XML налоговых деклараций) блокируются с `402 Payment Required`, при этом рабочие мутации остаются доступными.
   - **6-е число:** для организаций с неоплаченным счётом за прошлый `billingPeriod` запускается эскалация `SOFT_BLOCK -> HARD_BLOCK` (cron `0 0 6 * *`), система переводится в режим **Read-only** (разрешены только `GET/HEAD/OPTIONS`, кроме платежных billing endpoints).
 - **Снятие ограничений:** при успешной оплате платформенного счёта `billingStatus` возвращается в `ACTIVE`.
 - **Состояния доступа:** `billingStatus` = `ACTIVE` / `SOFT_BLOCK` / `HARD_BLOCK` (детальные API-правила — [TZ.md](./TZ.md) §14.8.11).
+
+### 7.13. Tenant Recovery Pack (Dispute & Recovery)
+
+**[~] PARTIAL (scope):** платформенный контур восстановления и юридически оформленной передачи владельца (`OwnershipDispute`, per-tenant snapshots, rollback MVP, audit chain hardening). Детали процедур, SLA и API — **[TZ.md](./TZ.md) §21**.
+
+| Тема | Позиция продукта |
+|------|------------------|
+| **ENTERPRISE** | Базовый **Recovery Pack** включён: soft-delete широкого охвата, S3 Object Lock для критичных префиксов, Super-Admin security UI, dispute pipeline с dual approval + email step-up, снимки и откат по снимку (MVP). |
+| **STARTER / BUSINESS** | Тот же базовый контур платформы; **расширенный retention** снимков / evidence и **point-in-time replay** (R5.2) — опциональный модуль **`recovery_pro`** (коммерческая опция, см. биллинг). |
+| **Доказательность** | PDF-сертификат передачи, хэши в `AuditLog`, уведомления incumbent (email + in-app + SMS-очередь). |
 
 ---
 
@@ -890,7 +989,7 @@ Product-approved **hybrid** integration with the **State Tax Service (DVX / e-ta
 
 | Сущность | Ключевые поля |
 |----------|----------------|
-| **Organization** | `id`, `name`, `taxId` (VÖEN), `currency`, `settings`, **`coaTemplateProfile`** (`COMMERCIAL_FULL` / `COMMERCIAL_SMALL`), **`ownerId`** (FK на пользователя — владелец для биллинга), **`billingStatus`** (`ACTIVE` / `SOFT_BLOCK` / `HARD_BLOCK`), подписка через `OrganizationSubscription` |
+| **Organization** | `id`, `name`, `taxIdCipher` + `taxIdBlindIndex` (VÖEN в encrypted/blind виде), `currency`, `settings`, **`coaTemplateProfile`** (`COMMERCIAL_FULL` / `COMMERCIAL_SMALL`), **`ownerId`** (FK на пользователя — владелец для биллинга), **`billingStatus`** (`ACTIVE` / `SOFT_BLOCK` / `HARD_BLOCK`), подписка через `OrganizationSubscription` |
 | **OrgModule** (целевая нормализация) | `(organizationId, moduleKey)`, `priceSnapshot`, `activatedAt` — включённые модули по организации (см. §7.12, TZ §14.8); параллельно может жить `OrganizationSubscription.customConfig` до миграции |
 | **BillingInvoice** (платформа) | Счёт к владельцу за подписку: `ownerUserId`, `totalAmount`, `status`, `periodStart` / `periodEnd`, `pdfLink`; строки — **`BillingInvoiceItem`** (`organizationId`, описание, сумма). Не смешивать с **Sales Invoice** |
 | **User** | `id`, `email`, `passwordHash`; роль и тенант — через **OrganizationMembership**; опционально `isSuperAdmin` (платформа) |
@@ -902,7 +1001,7 @@ Product-approved **hybrid** integration with the **State Tax Service (DVX / e-ta
 | **Counterparty** | `id`, `name`, `taxId`, **`kind`** (производный от **`legalForm`** для учёта), `role`, **`legalForm`**, **`isVatPayer`**, `organizationId`, опционально `globalId`, `portalLocale`, … |
 | **CounterpartyBankAccount** | `id`, `counterpartyId`, `bankName`, `iban`, `swift`, `currency` (по умолчанию AZN), `isPrimary`, … — **несколько счетов** на одного контрагента |
 | **Invoice** | `id`, `number`, `customerId`, `amount`, `status`, `organizationId` |
-| **InventoryAudit (v5.9)** | `id`, `organizationId`, `date`, `status`, `items` (JSON — строки инвентаризации) |
+| **InventoryAudit** | `id`, `organizationId`, `warehouseId`, `date`, `status` (`DRAFT` \| `COUNTING` \| `REVIEW` \| `COMPLETED` \| `CANCELLED`), строки реляционно в **InventoryAuditLine**; опционально `postedTransactionId`, `responsibleEmployeeId`, таймстемпы фаз |
 | **Подписка (v4)** | Модель уровня `OrganizationSubscription`: план, `isTrial`, `expiresAt`, статус, периоды оплаты — детализация в ТЗ/миграциях |
 
 ---
@@ -967,6 +1066,7 @@ Product-approved **hybrid** integration with the **State Tax Service (DVX / e-ta
 **Целевые сценарии (согласовано с ТЗ):**
 
 - **Биллинг (post-paid):** напоминание **25-го числа** владельцу/финансовым ролям о том, что **1-го числа** будет сформирован платёжный документ и стоит проверить активные модули — см. [TZ.md](./TZ.md) **§14.8.9**; запись создаётся через **`NotificationService`** (cron).
+- **Переход demo -> post-paid:** 1-го числа после бесплатного входного месяца отправляется уведомление «бесплатный период завершён, начался платный период» без выставления счёта за входной месяц.
 - **Payroll:** после успешного завершения ключевого шага (например, реестр выплат переведён в **PAID** с проводками) — **INFO**-уведомление бухгалтерам/владельцу со ссылкой на реестр выплат.
 - **Расширение:** фоновые задачи BullMQ (импорт, тяжёлые пересчёты) могут писать уведомления тем же сервисом по завершении или при ошибке (**WARNING** / **CRITICAL**).
 
@@ -990,9 +1090,10 @@ Product-approved **hybrid** integration with the **State Tax Service (DVX / e-ta
 | Тема | Требование |
 |------|------------|
 | **Объектное хранилище (обязательно для приёмки прод-сборки)** | Логотипы организаций, PDF счетов и прочие вложения сохраняются через **`STORAGE_SERVICE`** с **`STORAGE_DRIVER=s3`** и настроенными переменными **`S3_*`** (bucket, region, credentials, при необходимости `S3_PUBLIC_BASE_URL`). Локальная разработка может использовать **`STORAGE_DRIVER=local`** и `STORAGE_LOCAL_ROOT` без облака. |
-| **Disaster Recovery (DR)** | Должны существовать регулярные резервные копии PostgreSQL (`pg_dump` + ротация), а также документированный runbook восстановления (`docs/DR_RUNBOOK.md`) с проверкой целостности, порядком восстановления и rollback-сценарием. |
+| **Disaster Recovery (DR)** | Должны существовать регулярные резервные копии PostgreSQL (`pg_dump` + ротация), а также документированный runbook восстановления (`docs/deploy/DR_RUNBOOK.md`) с проверкой целостности, порядком восстановления и rollback-сценарием. |
 | **Профиль** | В карточке организации доступны: **юридический адрес**, **телефон**, **ФИО/наименование руководителя** (текст для печати), **логотип** (файл → URL в объектном хранилище), **VÖEN** и наименование (как сейчас). |
 | **Банковские реквизиты** | [x] **COMPLETED (bank-accounts-registry-api-unified):** управляются в выделенном реестре **`Settings → Bank Accounts`** (`/settings/bank-accounts`): банк, **IBAN**, SWIFT, валюта, тип счёта и NAS-субсчёт. Единый API-контур реестра: **`/api/banking/bank-accounts`**. Для IBAN применяется локальная проверка **MOD-97** (`AZ` + 26 символов) и серверная валидация `POST /api/banking/validate-iban`. |
+| **Системный справочник банков АР** | Единая таблица **`bank_glossary`** (22 банка АР с фиксированным двузначным `code` `01`–`22` и официальными VÖEN) и связанная **`bank_branches`**; при создании/обновлении `OrganizationBankAccount` достаточно указать `bankBranchId`, и **`BankSubaccountService`** в модуле бухгалтерии автоматически создаст NAS-субсчёт по маске **`221.<BankCode>.<Sequence>`** (Sequence — двузначный, инкрементальный per-organization × per-bank). Идемпотентен. Подробности — [TZ.md](./TZ.md) §14.0.2. |
 | **Smart Aliases (banking)** | Для банковских счетов организации действует привязка **IBAN ↔ NAS account/subaccount** (`ledgerAccountCode`, например `222.01.01`): в UI показывается alias (банк/валюта), а код NAS остаётся источником правды для бухгалтерских операций и интеграций. |
 | **Статус блокировки счёта** | Атрибут `isFrozen` фиксирует налоговый арест/распоряжение. Заблокированный счёт отображается в реестре, но не используется как источник списания в платежах, переводах и конвертациях. |
 | **Классификация счетов** | Поле `BankAccountType`: `MAIN`, `SALARY`, `CARD`, `TENDER`, `CREDIT`, `VAT_DEPOSIT`; признак `isPrimary` задаёт счёт по умолчанию в платежных сценариях. |
@@ -1133,12 +1234,16 @@ DayDay ERP **не навязывает** обязательную синхрон
 | **2026.05.21** | Текущая | **i18n / деплой:** команда **`npm run db:deploy`** (migrate + sync переводов в БД с prune), скрипт **`db:sync-i18n:prune`**, миграция-заметка **`20260502180000_i18n_deploy_post_migrate_note`**; PRD §7.6.1 / TZ §17 / README. |
 | **2026.05.22** | Текущая | **`v1.0.0-RC1` (Release Candidate 1)** — финализация описания этапа: **полный UI/UX рефакторинг** (переход на **модальные окна** create/update, стандартизация layout: **`PageHeader`**, навигация только через **сайдбар**); **разделение модулей Склада и Производства** (маршруты и меню); **разделение закупок товаров и услуг** (контур `/purchases`, виды закупки, склад/проводки по сценарию); **строгая интеграция VÖEN** (валидация ответа внешнего API, без HTML-заглушек в данных), справочник **ОПФ** и признак **плательщика НДС** в CRM — **§4.3**, детали в [TZ.md](./TZ.md) §4 и §13.2. |
 | **2026.05.23** | Текущая | **i18n (web):** зафиксированы политика языка **RU/AZ** с дефолтом **`az`**, общие хелперы **`ui-lang.ts`**, merge оверрайдов с **`overwrite: true`** и пайплайн **`processTranslationOverridesFlat`**; обновлены **§7.6.1**, **§12**, [TZ.md](./TZ.md) §17, README. |
-| **2026.05.24** | Текущая | **i18n / деплой:** защита ветки **`counterparties`** от «ядовитых» ключей **`counterparties.legalForm.*`** в БД (**`dropCounterpartyLegalFormPoisonDottedKeys`**), ключ подписи ОПФ **`legalFormField`**; [docs/deploy.ru.md](./docs/deploy.ru.md) §**7.4** — локальный **`npm run db:deploy`** и **`db:audit-i18n-overrides`**; уточнён **TZ §17**. |
+| **2026.05.24** | Текущая | **i18n / деплой:** защита ветки **`counterparties`** от «ядовитых» ключей **`counterparties.legalForm.*`** в БД (**`dropCounterpartyLegalFormPoisonDottedKeys`**), ключ подписи ОПФ **`legalFormField`**; [docs/deploy/deploy.ru.md](./docs/deploy/deploy.ru.md) §**7.4** — локальный **`npm run db:deploy`** и **`db:audit-i18n-overrides`**; уточнён **TZ §17**. |
 | **2026.05.26** | Текущая | **ƏMAS (MLSA):** зафиксирована стратегическая двунаправленная интеграция с **Əmək və Məşğulluq Alt Sistemi** — PULL/PUSH, гибридные режимы (**Full Sync / Manual / Selective**), статусы синхронизации сотрудника, условная валидация VÖEN/FIN/договора, массовая сверка (Reconciliation); техтребования адаптера и BullMQ — **[TZ.md](./TZ.md) §8.0**; перенумерация раздела истории документа → **§14**. |
 | **2026.05.27** | Текущая | **Integrations (DVX):** утверждена **гибридная архитектура** интеграции с ГНС — **§6.1.1**: e-qaimə через закрытый **B2B S2S API** (API-ключ организации); лицевой счёт / сверки — **PULL** с переходным **Live Session** после разовой **ASAN İmza** до полного API; отказ от **физических Android-ферм** в пользу масштабируемости SaaS. |
 | **2026.05.28** | Текущая | **ƏMAS (DOST RIM):** утверждена **поэтапная стратегия** интеграции — **§13.0** (фаза 1: Excel/PDF-Docx; фаза 2: Chrome RPA для e-müqavilə; фаза 3: официальный B2B S2S); связка транспорта с **§13.1**; ссылка из **§4.6**; карта разделов — **§13**. |
 | **2026.05.29** | Текущая | **Integrations (WhatsApp):** зафиксированы **§6.8** (официальный WhatsApp Business API, BSP Meta/Infobip/Twilio), бизнес-ценность (инвойсы, акты сверки, ссылки на оплату, дебиторские уведомления), монетизация **пакетами сообщений** и биллинг в **Settings → Subscription**; строка в таблице квот **§7.12.3**; карта разделов — **§6.8**. |
 | **2026.05.30** | Текущая | **Международная торговля (Import/Export):** добавлен **§4.4.2** — разделение **Daxili / Xarici**, экспорт (İxrac: без обязательной e-qaimə, Commercial Invoice, таможня), импорт (İdxal: AI‑Vision OCR для предзаполнения **Alış Fakturası**, BGD как база для себестоимости/ƏDV, сценарий **Qeyri-rezidentin e-qaiməsi** для услуг). |
+| **2026.05.31** | Текущая | Отражена поэтапная стратегия интеграции с DVX (включая Chrome RPA) и зафиксирована архитектура единого браузерного расширения с проверкой подписки на уровне выбранной организации (Multi-tenant RPA Gating). |
+| **2026.06.01** | Текущая | **Phase 11:** международные инвойсы (`isInternational`) и Commercial Invoice PDF, AI-OCR импорт foreign supplier invoices, BGD/Customs declarations с проводками себестоимости и входящего НДС; техконтракты и пайплайн — [TZ.md](./TZ.md) §19. |
+| **2026.06.02** | Текущая | **Phase 12:** Customs — premium **DayDay Assistant** capture с `e-customs.gov.az` (модуль **`trade_pro`**, `POST /api/customs/declarations/prefill-capture`, `IntegrationPortal.CUSTOMS`) и бесплатный **Excel** import/export для BGD; техконтракт — [TZ.md](./TZ.md) §20. |
+| **2026.06.03** | Текущая | **Phase 12.1:** Trade Pro Customs upgraded to full BGD capture (line items, sender/receiver VÖEN, HS-based GATT pre-calc, injected portal action button + widget, super-admin tariff rates) with detail review UI; техконтракт — [TZ.md](./TZ.md) §20.1. |
 
 ### 14.1. Принцип ведения истории (дальше)
 

@@ -29,15 +29,19 @@ import {
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
   PRIMARY_BUTTON_CLASS,
+  SECONDARY_BUTTON_CLASS,
   TABLE_ROW_ICON_BTN_CLASS,
 } from "../../../lib/design-system";
 import { formatInvoiceStatus } from "../../../lib/invoice-status";
 import { formatMoneyAzn } from "../../../lib/format-money";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { PageHeader } from "../../../components/layout/page-header";
+import { ExtensionInstallBanner } from "../../../components/extension-install-banner";
+import { RpaUpsellModal } from "../../../components/rpa-upsell-modal";
 import { EmptyState } from "../../../components/empty-state";
 import { CreateInvoiceModal, ViewInvoiceModal } from "../../../components/sales/modals";
 import { CreateShipmentModal } from "../../../components/inventory/create-shipment-modal";
+import { useSubscription } from "../../../lib/subscription-context";
 
 type Row = {
   id: string;
@@ -52,6 +56,7 @@ type Row = {
   inventorySettled?: boolean;
   revenuePostedTransactionId?: string | null;
   hasGoodsLines?: boolean;
+  isInternational?: boolean;
 };
 
 function canCreateShipmentOrder(r: Row): boolean {
@@ -81,6 +86,9 @@ export default function InvoicesPage() {
   const [invoiceActionsMenuId, setInvoiceActionsMenuId] = useState<string | null>(null);
   const [shipmentModalOpen, setShipmentModalOpen] = useState(false);
   const [shipmentBasisTransactionId, setShipmentBasisTransactionId] = useState<string | undefined>();
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [upsellOpen, setUpsellOpen] = useState(false);
+  const { effectiveSnapshot } = useSubscription();
 
   const invoiceFromUrl = search.get("invoice");
   useEffect(() => {
@@ -216,6 +224,48 @@ export default function InvoicesPage() {
     }
   }
 
+  function toggleSelected(id: string, checked: boolean) {
+    setSelectedIds((cur) => {
+      if (checked) return Array.from(new Set([...cur, id]));
+      return cur.filter((x) => x !== id);
+    });
+  }
+
+  async function exportBulkExcel() {
+    if (selectedIds.length === 0) return;
+    const res = await apiFetch(
+      `/api/integrations/dvx/invoices/export.xlsx?ids=${encodeURIComponent(selectedIds.join(","))}`,
+    );
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "dvx-invoices-export.xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importBulkExcel(file: File) {
+    const fd = new FormData();
+    fd.append("file", file);
+    await apiFetch("/api/integrations/dvx/invoices/import-result", {
+      method: "POST",
+      body: fd,
+    });
+    await load();
+  }
+
+  function runBulkWidget() {
+    if (!effectiveSnapshot?.modules.taxPro) {
+      setUpsellOpen(true);
+      return;
+    }
+    window.localStorage.setItem("daydayAssistantBulkFlow", "eqaime");
+    window.localStorage.setItem("daydayAssistantBulkIds", JSON.stringify(selectedIds));
+    alert("Bulk payload prepared for DayDay Assistant");
+  }
+
   if (!ready) {
     return (
       <div className="text-gray-600">
@@ -233,11 +283,43 @@ export default function InvoicesPage() {
       <PageHeader
         title={t("invoices.title")}
         actions={
-          <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => setCreateOpen(true)}>
-            + {t("invoices.new")}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={SECONDARY_BUTTON_CLASS}
+              disabled={selectedIds.length === 0}
+              onClick={runBulkWidget}
+            >
+              {t("bulk.invoices.rpa")}
+            </button>
+            <button
+              type="button"
+              className={SECONDARY_BUTTON_CLASS}
+              disabled={selectedIds.length === 0}
+              onClick={() => void exportBulkExcel()}
+            >
+              {t("bulk.invoices.export")}
+            </button>
+            <label className={SECONDARY_BUTTON_CLASS}>
+              {t("bulk.invoices.import")}
+              <input
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void importBulkExcel(f);
+                  e.currentTarget.value = "";
+                }}
+              />
+            </label>
+            <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => setCreateOpen(true)}>
+              + {t("invoices.new")}
+            </button>
+          </div>
         }
       />
+      <ExtensionInstallBanner variant="banner" dismissible />
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
       {loading && <p className="text-gray-600">{t("common.loading")}</p>}
@@ -263,7 +345,22 @@ export default function InvoicesPage() {
                 key={r.id}
                 className="rounded-2xl border border-[#D5DADF] bg-white p-4 shadow-sm text-[13px] space-y-2"
               >
-                <div className="font-semibold text-[#34495E]">{r.number}</div>
+                <div className="font-semibold text-[#34495E]">
+                  {r.number}
+                  {r.isInternational ? (
+                    <span className="ml-2 rounded-full bg-[#EAF2F8] px-2 py-0.5 text-[11px] font-medium text-[#2471A3]">
+                      {t("trade.export.chip")}
+                    </span>
+                  ) : null}
+                </div>
+                <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(r.id)}
+                    onChange={(e) => toggleSelected(r.id, e.target.checked)}
+                  />
+                  {t("bulk.invoices.select")}
+                </label>
                 <div className="text-[#34495E]">{r.counterparty.name}</div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-[#34495E]">
                   <span>
@@ -442,6 +539,15 @@ export default function InvoicesPage() {
               <thead>
                 <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
                   <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("invoices.number")}</th>
+                  <th className={DATA_TABLE_TH_CENTER_CLASS}>
+                    <input
+                      type="checkbox"
+                      checked={rows.length > 0 && selectedIds.length === rows.length}
+                      onChange={(e) =>
+                        setSelectedIds(e.target.checked ? rows.map((x) => x.id) : [])
+                      }
+                    />
+                  </th>
                   <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("invoices.counterparty")}</th>
                   <th className={DATA_TABLE_TH_CENTER_CLASS}>{t("invoices.status")}</th>
                   <th className={`hidden lg:table-cell ${DATA_TABLE_TH_RIGHT_CLASS}`}>
@@ -467,6 +573,18 @@ export default function InvoicesPage() {
                     <tr className={DATA_TABLE_TR_CLASS}>
                       <td className={`${DATA_TABLE_TD_CLASS} font-semibold text-[#34495E]`}>
                         {r.number}
+                        {r.isInternational ? (
+                          <span className="ml-2 rounded-full bg-[#EAF2F8] px-2 py-0.5 text-[11px] font-medium text-[#2471A3]">
+                            {t("trade.export.chip")}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className={DATA_TABLE_TD_CENTER_CLASS}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(r.id)}
+                          onChange={(e) => toggleSelected(r.id, e.target.checked)}
+                        />
                       </td>
                       <td className={DATA_TABLE_TD_CLASS}>{r.counterparty.name}</td>
                       <td className={DATA_TABLE_TD_CENTER_CLASS}>
@@ -669,6 +787,7 @@ export default function InvoicesPage() {
         }}
         onSaved={() => void load()}
       />
+      <RpaUpsellModal open={upsellOpen} onClose={() => setUpsellOpen(false)} moduleKey="taxPro" />
     </div>
   );
 }

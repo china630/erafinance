@@ -13,7 +13,18 @@ import {
   StockMovementType,
 } from "@dayday/database";
 import { AccountingService, type PostTransactionLine } from "../accounting/accounting.service";
+import { assertWarehouseNotUnderReconciliation } from "../inventory/inventory-reconciliation-lock";
 import { PrismaService } from "../prisma/prisma.service";
+import {
+  blindIndex,
+  encryptText,
+  normalizeFin,
+  normalizeName,
+  normalizeVoen,
+  placeholderEmployeeFin,
+  placeholderEmployeeFirstName,
+  placeholderEmployeeLastName,
+} from "../security/pii-crypto.util";
 import { OpeningBalanceFinanceLineDto } from "./dto/opening-balance-finance-line.dto";
 import { OpeningBalanceHrLineDto } from "./dto/opening-balance-hr-line.dto";
 import { OpeningBalanceInventoryLineDto } from "./dto/opening-balance-inventory-line.dto";
@@ -168,9 +179,13 @@ export class OpeningBalancesService {
           data: {
             organizationId,
             kind,
-            finCode: row.finCode.trim(),
-            firstName: row.firstName.trim(),
-            lastName: row.lastName.trim(),
+            finCode: placeholderEmployeeFin(row.finCode.trim()),
+            finCodeCipher: encryptText(normalizeFin(row.finCode.trim())),
+            finCodeBlindIndex: blindIndex("fin", normalizeFin(row.finCode.trim())),
+            firstName: placeholderEmployeeFirstName(row.firstName.trim()),
+            firstNameCipher: encryptText(normalizeName(row.firstName.trim())),
+            lastName: placeholderEmployeeLastName(row.lastName.trim()),
+            lastNameCipher: encryptText(normalizeName(row.lastName.trim())),
             patronymic: row.patronymic.trim(),
             positionId: row.positionId,
             startDate: new Date(row.hireDate), // baseline for Absences/Timesheet.
@@ -182,10 +197,18 @@ export class OpeningBalancesService {
                 ? new Decimal(row.avgMonthlySalaryLastYear)
                 : null,
             initialSalaryBalance: new Decimal(row.initialSalaryBalance ?? 0),
-            voen:
+            voenCipher:
               kind === EmployeeKind.CONTRACTOR
-                ? row.voen!.trim()
-                : (row.voen?.trim() ?? null),
+                ? encryptText(normalizeVoen(row.voen!.trim()))
+                : (row.voen?.trim()
+                    ? encryptText(normalizeVoen(row.voen.trim()))
+                    : null),
+            voenBlindIndex:
+              kind === EmployeeKind.CONTRACTOR
+                ? blindIndex("voen", normalizeVoen(row.voen!.trim()))
+                : (row.voen?.trim()
+                    ? blindIndex("voen", normalizeVoen(row.voen.trim()))
+                    : null),
           },
         });
         created += 1;
@@ -215,6 +238,8 @@ export class OpeningBalancesService {
         if (!warehouse) {
           throw new NotFoundException(`Warehouse ${line.warehouseId} not found`);
         }
+        await assertWarehouseNotUnderReconciliation(tx, organizationId, warehouse.id);
+
         const product = await tx.product.findFirst({
           where: { id: line.productId, organizationId },
           select: { id: true, name: true },

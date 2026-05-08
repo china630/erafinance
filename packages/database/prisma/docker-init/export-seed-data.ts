@@ -219,9 +219,6 @@ ON CONFLICT ("id") DO UPDATE SET
   "id",
   "email",
   "password_hash",
-  "first_name",
-  "last_name",
-  "full_name",
   "avatar_url",
   "is_super_admin",
   "created_at",
@@ -232,16 +229,13 @@ VALUES\n`);
         superAdmins
           .map(
             (r) =>
-              `  ('${r.id}'::uuid, '${escLiteral(r.email)}', '${escLiteral(r.passwordHash)}', ${sqlNullableString(r.firstName)}, ${sqlNullableString(r.lastName)}, ${sqlNullableString(r.fullName)}, ${sqlNullableString(r.avatarUrl)}, TRUE, '${ts(r.createdAt)}'::timestamptz, '${ts(r.updatedAt)}'::timestamptz)`,
+              `  ('${r.id}'::uuid, '${escLiteral(r.email)}', '${escLiteral(r.passwordHash)}', ${sqlNullableString(r.avatarUrl)}, TRUE, '${ts(r.createdAt)}'::timestamptz, '${ts(r.updatedAt)}'::timestamptz)`,
           )
           .join(",\n"),
       );
       parts.push(`
 ON CONFLICT ("email") DO UPDATE SET
   "password_hash" = EXCLUDED."password_hash",
-  "first_name" = EXCLUDED."first_name",
-  "last_name" = EXCLUDED."last_name",
-  "full_name" = EXCLUDED."full_name",
   "avatar_url" = EXCLUDED."avatar_url",
   "is_super_admin" = EXCLUDED."is_super_admin",
   "updated_at" = EXCLUDED."updated_at";

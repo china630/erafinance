@@ -10,6 +10,7 @@ import { FORM_INPUT_CLASS } from "../../lib/form-styles";
 import type { AuthUser, OrgSummary } from "../../lib/auth-context";
 import { useAuth } from "../../lib/auth-context";
 import { LanguageSwitcher } from "../language-switcher";
+import { PublicLegalFooter } from "../../components/public-legal-footer";
 
 export default function RegisterPage() {
   const { t } = useTranslation();
@@ -135,6 +136,7 @@ export default function RegisterPage() {
             {t("auth.registerOrgLink")}
           </Link>
         </p>
+        <PublicLegalFooter />
       </div>
     </main>
   );

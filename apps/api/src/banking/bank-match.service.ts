@@ -14,6 +14,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { InvoicesService } from "../invoices/invoices.service";
 import { extractInvoiceNumbersFromText } from "./utils/invoice-numbers-in-text";
 import { normalizeVoen } from "./utils/voen";
+import { decryptText } from "../security/pii-crypto.util";
 
 @Injectable()
 export class BankMatchService {
@@ -41,10 +42,10 @@ export class BankMatchService {
 
     const cps = await this.prisma.counterparty.findMany({
       where: { organizationId },
-      select: { id: true, taxId: true },
+      select: { id: true, taxIdCipher: true },
     });
     const cpIds = cps
-      .filter((c) => normalizeVoen(c.taxId) === voen)
+      .filter((c) => normalizeVoen(c.taxIdCipher ? decryptText(c.taxIdCipher) : null) === voen)
       .map((c) => c.id);
     if (cpIds.length === 0) {
       return { line, candidates: [] as const };
@@ -63,7 +64,7 @@ export class BankMatchService {
         },
       },
       include: {
-        counterparty: { select: { name: true, taxId: true } },
+        counterparty: { select: { nameCipher: true, taxIdCipher: true } },
         payments: { select: { amount: true } },
       },
       orderBy: { dueDate: "asc" },
@@ -71,7 +72,9 @@ export class BankMatchService {
     });
 
     const filtered = candidates.filter((inv) => {
-      const invVoen = normalizeVoen(inv.counterparty.taxId);
+      const invVoen = normalizeVoen(
+        inv.counterparty.taxIdCipher ? decryptText(inv.counterparty.taxIdCipher) : null,
+      );
       if (invVoen !== voen) return false;
       const paid = inv.payments.reduce(
         (s, p) => s.add(p.amount),
@@ -81,7 +84,20 @@ export class BankMatchService {
       return remaining.gte(line.amount) && remaining.gt(0);
     });
 
-    return { line, candidates: filtered };
+    return {
+      line,
+      candidates: filtered.map((inv) => ({
+        ...inv,
+        counterparty: {
+          name: inv.counterparty.nameCipher
+            ? decryptText(inv.counterparty.nameCipher) ?? ""
+            : "",
+          taxId: inv.counterparty.taxIdCipher
+            ? decryptText(inv.counterparty.taxIdCipher) ?? ""
+            : "",
+        },
+      })),
+    };
   }
 
   /**
@@ -124,7 +140,11 @@ export class BankMatchService {
 
       if (!options.skipVoenCheck) {
         const lineVoen = normalizeVoen(line.counterpartyTaxId);
-        const invVoen = normalizeVoen(invoice.counterparty.taxId);
+        const invVoen = normalizeVoen(
+          invoice.counterparty.taxIdCipher
+            ? decryptText(invoice.counterparty.taxIdCipher)
+            : null,
+        );
         if (!lineVoen || lineVoen !== invVoen) {
           throw new BadRequestException(
             "VÖEN does not match invoice counterparty",

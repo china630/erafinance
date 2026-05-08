@@ -4,7 +4,8 @@ export type QuotaKind =
   | "maxEmployees"
   | "maxInvoicesPerMonth"
   | "maxOrganizations"
-  | "maxStorageGb";
+  | "maxStorageGb"
+  | "maxOcrJobsPerMonth";
 
 export type QuotaExceededBody = {
   /** HTTP 402 — см. PRD §7.12.3.1 / TZ §14.8.7 */
@@ -41,6 +42,11 @@ function messages(
       return {
         az: `Yaddaş limiti dolub (~${current} GB / ${limit} GB). Daha yüksək tarifə keçin.`,
         ru: `Достигнут лимит хранилища (~${current} GB из ${limit} GB). Перейдите на более высокий тариф.`,
+      };
+    case "maxOcrJobsPerMonth":
+      return {
+        az: `Bu ay üçün OCR sorğularının limiti dolub (${current}/${limit}). Növbəti ay və ya ENTERPRISE.`,
+        ru: `Достигнут лимит OCR-запросов за текущий месяц (${current}/${limit}). Дождитесь следующего месяца или смените тариф.`,
       };
     default:
       return {

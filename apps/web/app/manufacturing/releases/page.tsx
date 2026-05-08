@@ -18,6 +18,21 @@ type Recipe = {
   finishedProduct?: { id: string; name: string };
 };
 
+type AvailableOutput = {
+  recipeId: string;
+  finishedProductId: string;
+  finishedProductName: string;
+  warehouseId: string;
+  maxOutputUnits: string;
+  bottlenecks: Array<{
+    componentProductId: string;
+    componentName: string;
+    needPerFgUnit: string;
+    available: string;
+    maxFgFromLine: string;
+  }>;
+};
+
 const lbl = "block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5";
 
 function ManufacturingReleaseContent() {
@@ -30,6 +45,8 @@ function ManufacturingReleaseContent() {
   const [relWh, setRelWh] = useState("");
   const [recipeId, setRecipeId] = useState("");
   const [relQty, setRelQty] = useState("1");
+  const [virtualOut, setVirtualOut] = useState<AvailableOutput | null>(null);
+  const [virtualErr, setVirtualErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -57,6 +74,25 @@ function ManufacturingReleaseContent() {
     if (!ready || !token) return;
     void load();
   }, [load, ready, token]);
+
+  const loadVirtualOutput = useCallback(async () => {
+    if (!token || !recipeId || !relWh) return;
+    setVirtualErr(null);
+    const res = await apiFetch(
+      `/api/manufacturing/recipes/${encodeURIComponent(recipeId)}/available-output?warehouseId=${encodeURIComponent(relWh)}`,
+    );
+    if (!res.ok) {
+      setVirtualOut(null);
+      setVirtualErr(t("manufacturing.availableOutputLoadErr"));
+      return;
+    }
+    setVirtualOut((await res.json()) as AvailableOutput);
+  }, [token, recipeId, relWh, t]);
+
+  useEffect(() => {
+    if (!ready || !token || !recipeId || !relWh) return;
+    void loadVirtualOutput();
+  }, [loadVirtualOutput, ready, token, recipeId, relWh]);
 
   async function release(e: React.FormEvent) {
     e.preventDefault();
@@ -115,6 +151,59 @@ function ManufacturingReleaseContent() {
           </div>
         </div>
       )}
+
+      <section className="bg-white p-6 shadow-sm rounded-xl border border-slate-100 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-slate-800">{t("manufacturing.availableOutputTitle")}</h2>
+          <button
+            type="button"
+            onClick={() => void loadVirtualOutput()}
+            className="text-xs font-medium text-action hover:underline"
+          >
+            {t("manufacturing.availableOutputRefresh")}
+          </button>
+        </div>
+        {virtualErr && <p className="text-red-600 text-xs">{virtualErr}</p>}
+        {virtualOut && (
+          <div className="space-y-2 text-sm">
+            <p>
+              <span className="text-slate-500">{t("manufacturing.availableOutputMax")}:</span>{" "}
+              <span className="font-mono font-semibold text-slate-900">{virtualOut.maxOutputUnits}</span>{" "}
+              <span className="text-slate-600">({virtualOut.finishedProductName})</span>
+            </p>
+            <p className="text-xs text-slate-500">{t("manufacturing.availableOutputBottleneckHint")}</p>
+            <div className="overflow-x-auto rounded-lg border border-slate-100">
+              <table className="min-w-full text-xs">
+                <thead className="bg-slate-50 text-left text-slate-600">
+                  <tr>
+                    <th className="px-2 py-1.5">{t("manufacturing.availableOutputComponent")}</th>
+                    <th className="px-2 py-1.5 text-right">{t("manufacturing.availableOutputNeedPerUnit")}</th>
+                    <th className="px-2 py-1.5 text-right">{t("manufacturing.availableOutputAvailable")}</th>
+                    <th className="px-2 py-1.5 text-right">{t("manufacturing.availableOutputFromLine")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {virtualOut.bottlenecks.map((b) => (
+                    <tr key={b.componentProductId} className="border-t border-slate-100">
+                      <td className="px-2 py-1.5">{b.componentName}</td>
+                      <td className="px-2 py-1.5 text-right font-mono">{b.needPerFgUnit}</td>
+                      <td className="px-2 py-1.5 text-right font-mono">{b.available}</td>
+                      <td className="px-2 py-1.5 text-right font-mono">{b.maxFgFromLine}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRelQty(virtualOut.maxOutputUnits)}
+              className="text-xs font-medium text-action hover:underline"
+            >
+              {t("manufacturing.availableOutputUseQty")}
+            </button>
+          </div>
+        )}
+      </section>
 
       <section
         id="manufacturing-release"

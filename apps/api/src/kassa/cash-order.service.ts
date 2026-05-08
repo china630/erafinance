@@ -32,7 +32,9 @@ import {
 } from "../common/cash-account-code.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReportingService } from "../reporting/reporting.service";
+import { decodeOrganizationTaxId, decryptText } from "../security/pii-crypto.util";
 import { TreasuryService } from "../treasury/treasury.service";
+import { ApprovalsService } from "../approvals/approvals.service";
 
 type Tx = Prisma.TransactionClient;
 
@@ -60,6 +62,7 @@ export class CashOrderService {
     private readonly accounting: AccountingService,
     private readonly reporting: ReportingService,
     private readonly treasury: TreasuryService,
+    private readonly approvals: ApprovalsService,
   ) {}
 
   async nextOrderNumberTx(
@@ -205,14 +208,29 @@ export class CashOrderService {
       where: { organizationId, ...dateRange },
       orderBy: [{ date: "desc" }, { orderNumber: "desc" }],
       include: {
-        counterparty: { select: { id: true, name: true, taxId: true } },
+        counterparty: { select: { id: true, nameCipher: true, taxIdCipher: true } },
         employee: {
           select: { id: true, firstName: true, lastName: true, finCode: true },
         },
         cashFlowItem: { select: { id: true, code: true, name: true } },
         cashDesk: { select: { id: true, name: true } },
       },
-    });
+    }).then((rows) =>
+      rows.map((row) => ({
+        ...row,
+        counterparty: row.counterparty
+          ? {
+              ...row.counterparty,
+              name: row.counterparty.nameCipher
+                ? decryptText(row.counterparty.nameCipher) ?? ""
+                : "",
+              taxId: row.counterparty.taxIdCipher
+                ? decryptText(row.counterparty.taxIdCipher) ?? ""
+                : "",
+            }
+          : null,
+      })),
+    );
   }
 
   async createDraftPko(
@@ -482,6 +500,7 @@ export class CashOrderService {
     if (order.status !== CashOrderStatus.DRAFT) {
       throw new ConflictException("Order is not draft");
     }
+    await this.approvals.assertCashOrderMayPost(organizationId, orderId);
     if (order.skipJournalPosting) {
       return this.prisma.cashOrder.update({
         where: { id: order.id },
@@ -578,12 +597,14 @@ export class CashOrderService {
       include: {
         counterparty: true,
         employee: true,
-        organization: { select: { name: true, taxId: true } },
+        organization: { select: { name: true, taxIdCipher: true } },
       },
     });
     if (!order) throw new NotFoundException("Cash order not found");
 
-    const cp = order.counterparty?.name ?? "";
+    const cp = order.counterparty?.nameCipher
+      ? decryptText(order.counterparty.nameCipher) ?? ""
+      : "";
     const emp = order.employee
       ? `${order.employee.firstName} ${order.employee.lastName}`
       : "";
@@ -632,7 +653,7 @@ export class CashOrderService {
     <h1>${documentTitleAz}</h1>
     <p class="sub">№ ${order.orderNumber}</p>
     <p><strong>Tarix:</strong> ${order.date.toISOString().slice(0, 10)}</p>
-    <p><strong>Təşkilat:</strong> ${order.organization.name} &nbsp;·&nbsp; VÖEN: ${order.organization.taxId ?? "—"}</p>
+    <p><strong>Təşkilat:</strong> ${order.organization.name} &nbsp;·&nbsp; VÖEN: ${decodeOrganizationTaxId(order.organization) || "—"}</p>
     <table>
       <tr><td class="lbl">Kontragent / işçi</td><td>${party}</td></tr>
       <tr><td class="lbl">Təyinat</td><td>${order.purpose}</td></tr>

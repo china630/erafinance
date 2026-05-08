@@ -11,6 +11,11 @@ type Tx = Prisma.TransactionClient;
 type Decimal = Prisma.Decimal;
 const Decimal = Prisma.Decimal;
 
+/**
+ * FIFO/AVCO helpers for inventory costing. Stock movements are created in {@link InventoryService}
+ * (and manufacturing / opening balances); those paths must call
+ * {@link assertWarehouseNotUnderReconciliation} before persisting movements when a warehouse is in reconciliation.
+ */
 @Injectable()
 export class StockService {
   constructor(private readonly prisma: PrismaService) {}

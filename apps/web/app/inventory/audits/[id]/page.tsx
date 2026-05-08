@@ -25,6 +25,7 @@ import {
 } from "../../../../lib/design-system";
 import { isRestrictedUserRole } from "../../../../lib/role-utils";
 import { useRequireAuth } from "../../../../lib/use-require-auth";
+import { ActivityPanel } from "../../../../components/activity/ActivityPanel";
 
 type AuditLineDetail = {
   id: string;
@@ -69,12 +70,16 @@ export default function InventoryAuditDetailPage() {
   const [row, setRow] = useState<AuditDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncOpen, setSyncOpen] = useState(false);
-  const [approveOpen, setApproveOpen] = useState(false);
-  const [syncBusy, setSyncBusy] = useState(false);
-  const [approveBusy, setApproveBusy] = useState(false);
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [submitBusy, setSubmitBusy] = useState(false);
+  const [completeBusy, setCompleteBusy] = useState(false);
   const [savingLineId, setSavingLineId] = useState<string | null>(null);
   const pendingTimers = useRef<Record<string, number>>({});
+  const rowRef = useRef<AuditDetail | null>(null);
+  useEffect(() => {
+    rowRef.current = row;
+  }, [row]);
 
   const load = useCallback(async () => {
     if (!token || !id) {
@@ -105,7 +110,27 @@ export default function InventoryAuditDetailPage() {
   }, []);
 
   const lines = row?.lines ?? [];
-  const isDraft = row?.status === "DRAFT";
+  const isCounting = row?.status === "COUNTING";
+  const isReview = row?.status === "REVIEW";
+
+  function statusLabel(s: string): string {
+    switch (s) {
+      case "DRAFT":
+        return t("inventory.auditStatusDraft");
+      case "COUNTING":
+        return t("inventory.auditStatusCounting");
+      case "REVIEW":
+        return t("inventory.auditStatusReview");
+      case "COMPLETED":
+        return t("inventory.auditStatusCompleted");
+      case "CANCELLED":
+        return t("inventory.auditStatusCancelled");
+      case "APPROVED":
+        return t("inventory.auditStatusApproved");
+      default:
+        return s;
+    }
+  }
 
   const totals = useMemo(() => {
     let sumAbs = 0;
@@ -120,23 +145,28 @@ export default function InventoryAuditDetailPage() {
   }, [lines]);
 
   function patchLineDebounced(lineId: string, next: { factQty?: string; costPrice?: string }) {
-    if (!token || !isDraft) return;
+    if (!token) return;
     const ms = 400;
     const existing = pendingTimers.current[lineId];
     if (existing) window.clearTimeout(existing);
     pendingTimers.current[lineId] = window.setTimeout(() => {
       setSavingLineId(lineId);
-      void apiFetch(`/api/inventory/audits/lines/${encodeURIComponent(lineId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(next.factQty != null ? { factQty: toNum(next.factQty) } : {}),
-          ...(next.costPrice != null ? { costPrice: toNum(next.costPrice) } : {}),
-        }),
-      })
-        .then(async (res) => {
-          if (!res.ok) throw new Error(await res.text());
-        })
+      void (async () => {
+        const r = rowRef.current;
+        if (!r?.id || r.status !== "COUNTING") return;
+        const res = await apiFetch(
+          `/api/inventory/reconciliations/${encodeURIComponent(r.id)}/lines/${encodeURIComponent(lineId)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...(next.factQty != null ? { factQty: toNum(next.factQty) } : {}),
+              ...(next.costPrice != null ? { costPrice: toNum(next.costPrice) } : {}),
+            }),
+          },
+        );
+        if (!res.ok) throw new Error(await res.text());
+      })()
         .catch((e) => {
           toast.error(t("common.saveErr"), { description: String(e) });
         })
@@ -144,37 +174,54 @@ export default function InventoryAuditDetailPage() {
     }, ms);
   }
 
-  async function runSync() {
+  async function handleSubmitForReview() {
     if (!token || !id) return;
-    setSyncBusy(true);
-    const res = await apiFetch(`/api/inventory/audits/${encodeURIComponent(id)}/sync-system`, {
+    setSubmitBusy(true);
+    const res = await apiFetch(`/api/inventory/reconciliations/${encodeURIComponent(id)}/submit`, {
       method: "POST",
     });
-    setSyncBusy(false);
+    setSubmitBusy(false);
     if (!res.ok) {
       toast.error(t("common.saveErr"), { description: await res.text() });
       return;
     }
-    setRow((await res.json()) as AuditDetail);
+    await load();
     toast.success(t("common.save"));
-    setSyncOpen(false);
+    setSubmitOpen(false);
   }
 
-  async function handleApprove() {
-    if (!token || !id) return;
-    setApproveBusy(true);
-    const res = await apiFetch(`/api/inventory/audits/${encodeURIComponent(id)}/approve`, {
-      method: "POST",
-    });
-    setApproveBusy(false);
-    if (!res.ok) {
-      toast.error(t("common.saveErr"), { description: await res.text() });
-      return;
+  async function handleComplete() {
+    if (!token || !id || !row?.lines) return;
+    setCompleteBusy(true);
+    const eps = 1e-4;
+    try {
+      for (const line of row.lines) {
+        const d = toNum(numStr(line.factQty)) - toNum(numStr(line.systemQty));
+        if (Math.abs(d) < eps) continue;
+        const discrepancyKind = d > 0 ? "SURPLUS" : "SHORTAGE_WRITEOFF";
+        const cr = await apiFetch(
+          `/api/inventory/reconciliations/${encodeURIComponent(id)}/lines/${encodeURIComponent(line.id)}/classification`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ discrepancyKind }),
+          },
+        );
+        if (!cr.ok) throw new Error(await cr.text());
+      }
+      const res = await apiFetch(`/api/inventory/reconciliations/${encodeURIComponent(id)}/complete`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await load();
+      toast.success(t("inventory.auditOkCompleted"));
+      notifyListRefresh("inventory-audits");
+      setCompleteOpen(false);
+    } catch (e) {
+      toast.error(t("common.saveErr"), { description: String(e) });
+    } finally {
+      setCompleteBusy(false);
     }
-    setRow((await res.json()) as AuditDetail);
-    toast.success(t("inventory.auditOkApproved"));
-    notifyListRefresh("inventory-audits");
-    setApproveOpen(false);
   }
 
   if (!ready) {
@@ -187,7 +234,8 @@ export default function InventoryAuditDetailPage() {
   if (!token) return null;
 
   return (
-    <div className="max-w-5xl space-y-8">
+    <div className="max-w-6xl space-y-8 lg:flex lg:items-start lg:gap-8">
+      <div className="min-w-0 flex-1 space-y-8">
       <PageHeader
         title={t("inventory.auditDetailTitle")}
         subtitle={
@@ -195,25 +243,21 @@ export default function InventoryAuditDetailPage() {
             <span>
               {typeof row.date === "string" ? row.date.slice(0, 10) : "—"} ·{" "}
               {row.warehouse?.name ? `${row.warehouse.name} · ` : null}
-              {row.status === "APPROVED"
-                ? t("inventory.auditStatusApproved")
-                : row.status === "DRAFT"
-                  ? t("inventory.auditStatusDraft")
-                  : row.status}
+              {statusLabel(row.status)}
             </span>
           ) : undefined
         }
         actions={
           <>
-            {mayPost && isDraft && (
-              <>
-                <button type="button" className={SECONDARY_BUTTON_CLASS} onClick={() => setSyncOpen(true)}>
-                  {t("inventory.auditSyncSystem")}
-                </button>
-                <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => setApproveOpen(true)}>
-                  {t("inventory.auditPostDoc")}
-                </button>
-              </>
+            {mayPost && isCounting && (
+              <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => setSubmitOpen(true)}>
+                {t("inventory.auditSubmitReview")}
+              </button>
+            )}
+            {mayPost && isReview && (
+              <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => setCompleteOpen(true)}>
+                {t("inventory.auditPostComplete")}
+              </button>
             )}
             <Link href="/inventory/audits" className={SECONDARY_BUTTON_CLASS}>
               {t("inventory.auditHistoryBack")}
@@ -257,7 +301,7 @@ export default function InventoryAuditDetailPage() {
                       </td>
                       <td className={DATA_TABLE_TD_RIGHT_CLASS}>{numStr(l.systemQty)}</td>
                       <td className={`${DATA_TABLE_TD_RIGHT_CLASS} max-w-[9rem]`}>
-                        {isDraft ? (
+                        {isCounting ? (
                           <input
                             type="number"
                             min={0}
@@ -301,7 +345,7 @@ export default function InventoryAuditDetailPage() {
             {t("inventory.auditTotalDiff")}:{" "}
             <span className="font-semibold tabular-nums">{totals.sumAbs.toFixed(2)}</span>
           </p>
-          {isDraft && (
+          {(isCounting || isReview) && (
             <p className="text-xs text-slate-500">{t("inventory.auditApproveHint")}</p>
           )}
         </>
@@ -310,25 +354,32 @@ export default function InventoryAuditDetailPage() {
       {!loading && row && lines.length === 0 && (
         <p className="text-sm text-slate-600">{t("inventory.auditDetailNoLines")}</p>
       )}
+      </div>
+
+      {id ? (
+        <div className="shrink-0 lg:w-[min(100%,320px)] lg:sticky lg:top-4">
+          <ActivityPanel entityType="inventory_audit" entityId={id} canComment={mayPost} />
+        </div>
+      ) : null}
 
       <AuditDetailConfirmModal
-        open={syncOpen}
-        title={t("inventory.auditSyncSystem")}
-        onClose={() => setSyncOpen(false)}
-        busy={syncBusy}
-        onConfirm={() => void runSync()}
+        open={submitOpen}
+        title={t("inventory.auditSubmitReview")}
+        onClose={() => setSubmitOpen(false)}
+        busy={submitBusy}
+        onConfirm={() => void handleSubmitForReview()}
       >
-        <p className="m-0">{t("inventory.auditSyncModalBody")}</p>
+        <p className="m-0">{t("inventory.auditConfirmSubmitReviewBody")}</p>
       </AuditDetailConfirmModal>
 
       <AuditDetailConfirmModal
-        open={approveOpen}
-        title={t("inventory.auditPostDoc")}
-        onClose={() => setApproveOpen(false)}
-        busy={approveBusy}
-        onConfirm={() => void handleApprove()}
+        open={completeOpen}
+        title={t("inventory.auditPostComplete")}
+        onClose={() => setCompleteOpen(false)}
+        busy={completeBusy}
+        onConfirm={() => void handleComplete()}
       >
-        <p className="m-0">{t("inventory.auditConfirmApproveBody")}</p>
+        <p className="m-0">{t("inventory.auditConfirmCompleteBody")}</p>
       </AuditDetailConfirmModal>
     </div>
   );

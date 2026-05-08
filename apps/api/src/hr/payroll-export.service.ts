@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import ExcelJS from "exceljs";
 import { PrismaService } from "../prisma/prisma.service";
+import { decryptText } from "../security/pii-crypto.util";
 
 @Injectable()
 export class PayrollExportService {
@@ -40,7 +41,7 @@ export class PayrollExportService {
     for (const s of run.slips) {
       const fio = `${s.employee.lastName} ${s.employee.firstName}`.trim();
       sheet.addRow({
-        voen: s.employee.voen ?? "",
+        voen: s.employee.voenCipher ? (decryptText(s.employee.voenCipher) ?? "") : "",
         fio,
         gross: Number(s.gross),
         pit: Number(s.incomeTax),
@@ -52,8 +53,7 @@ export class PayrollExportService {
     }
 
     for (const c of sheet.columns) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      c.numFmt = c.key && c.key !== "voen" && c.key !== "fio" ? "0.00" : undefined!;
+      c.numFmt = c.key && c.key !== "voen" && c.key !== "fio" ? "0.00" : undefined;
     }
 
     const raw = await wb.xlsx.writeBuffer();

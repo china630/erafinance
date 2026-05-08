@@ -11,6 +11,12 @@ import {
 } from "@dayday/database";
 import type { TierQuotas } from "../constants/quotas";
 import { PrismaService } from "../prisma/prisma.service";
+import {
+  blindIndex,
+  decodeOrganizationTaxId,
+  decryptText,
+  normalizeVoen,
+} from "../security/pii-crypto.util";
 import { SystemConfigService } from "../system-config/system-config.service";
 import type { AdminSubscriptionPatchDto } from "./dto/admin-subscription-patch.dto";
 import type {
@@ -83,9 +89,6 @@ export class AdminService {
       ? {
           OR: [
             { email: { contains: trimmed, mode: "insensitive" } },
-            { fullName: { contains: trimmed, mode: "insensitive" } },
-            { firstName: { contains: trimmed, mode: "insensitive" } },
-            { lastName: { contains: trimmed, mode: "insensitive" } },
           ],
         }
       : {};
@@ -98,9 +101,8 @@ export class AdminService {
         select: {
           id: true,
           email: true,
-          firstName: true,
-          lastName: true,
-          fullName: true,
+          firstNameCipher: true,
+          lastNameCipher: true,
           isSuperAdmin: true,
           createdAt: true,
           _count: { select: { memberships: true } },
@@ -115,9 +117,15 @@ export class AdminService {
       items: rows.map((u) => ({
         id: u.id,
         email: u.email,
-        firstName: u.firstName,
-        lastName: u.lastName,
-        fullName: u.fullName,
+        firstName: u.firstNameCipher ? decryptText(u.firstNameCipher) : null,
+        lastName: u.lastNameCipher ? decryptText(u.lastNameCipher) : null,
+        fullName: [
+          u.firstNameCipher ? decryptText(u.firstNameCipher) : null,
+          u.lastNameCipher ? decryptText(u.lastNameCipher) : null,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .trim() || null,
         isSuperAdmin: u.isSuperAdmin,
         membershipCount: u._count.memberships,
         createdAt: u.createdAt.toISOString(),
@@ -132,10 +140,15 @@ export class AdminService {
   ) {
     const skip = (page - 1) * pageSize;
     const trimmed = q?.trim();
+    const normalizedVoen = trimmed ? normalizeVoen(trimmed) : "";
+    const voenBlind =
+      normalizedVoen.length > 0 ? blindIndex("voen", normalizedVoen) : null;
     const where: Prisma.OrganizationWhereInput = trimmed
       ? {
           OR: [
-            { taxId: { contains: trimmed, mode: "insensitive" } },
+            ...(voenBlind
+              ? [{ taxIdBlindIndex: { equals: voenBlind } } as Prisma.OrganizationWhereInput]
+              : []),
             { name: { contains: trimmed, mode: "insensitive" } },
           ],
         }
@@ -164,7 +177,7 @@ export class AdminService {
       items: rows.map((o) => ({
         id: o.id,
         name: o.name,
-        taxId: o.taxId,
+        taxId: decodeOrganizationTaxId(o),
         currency: o.currency,
         createdAt: o.createdAt.toISOString(),
         primaryUserId: o.memberships[0]?.userId ?? null,
@@ -273,7 +286,7 @@ export class AdminService {
       items: rows.map((m) => ({
         organizationId: m.organizationId,
         organizationName: m.organization.name,
-        taxId: m.organization.taxId,
+        taxId: decodeOrganizationTaxId(m.organization),
         role: m.role,
         joinedAt: m.joinedAt.toISOString(),
         subscription: m.organization.subscription

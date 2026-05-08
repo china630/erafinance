@@ -5,11 +5,12 @@ import { cookies, headers } from "next/headers";
 import { Providers } from "./providers";
 import { AppShell } from "./app-shell";
 import LoginPage from "./login/page";
+import { ExtensionBridge } from "../components/extension-bridge";
 
-/** SSR-заглушка; актуальный title/description по языку выставляет SeoHeadSync в Providers. */
+/** SSR fallback; locale-specific title/description are applied in `SeoHeadSync` (Providers). */
 export const metadata: Metadata = {
   title: "DayDay ERP",
-  description: "SaaS accounting for businesses in Azerbaijan",
+  description: "SaaS-учёт для бизнеса в Азербайджане / Azərbaycan üçün SaaS uçot",
 };
 export default async function RootLayout({
   children,
@@ -25,16 +26,25 @@ export default async function RootLayout({
     pathname === "/login" ||
     pathname === "/register" ||
     pathname === "/register-org" ||
+    pathname === "/help" ||
     pathname.startsWith("/verify/") ||
+    pathname.startsWith("/dispute/") ||
     portalPath;
+  /** Portal, email verify, dispute counter-claim, and help — no `AppShell` chrome. */
+  const barePublicLayout =
+    portalPath ||
+    pathname.startsWith("/verify/") ||
+    pathname.startsWith("/dispute/") ||
+    pathname === "/help";
 
   return (
     <html lang="az" suppressHydrationWarning>
       <body style={{ fontFamily: "system-ui", margin: 0 }}>
+        <ExtensionBridge />
         <Providers>
           {!token && !publicPath ? (
             <LoginPage />
-          ) : portalPath ? (
+          ) : barePublicLayout ? (
             children
           ) : (
             <Suspense fallback={<div className="min-h-screen bg-[#EBEDF0]" />}>

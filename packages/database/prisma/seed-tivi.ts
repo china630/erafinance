@@ -443,7 +443,6 @@ async function main(): Promise<void> {
         startDate: new Date(Date.UTC(2024, 0, 15)),
         salary: gross,
         kind: EmployeeKind.EMPLOYEE,
-        voen: null,
         accountableAccountCode244: accountable244,
       },
     });

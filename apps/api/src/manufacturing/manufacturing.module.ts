@@ -3,11 +3,13 @@ import { AccountingModule } from "../accounting/accounting.module";
 import { PrismaModule } from "../prisma/prisma.module";
 import { StockModule } from "../stock/stock.module";
 import { ManufacturingController } from "./manufacturing.controller";
+import { ManufacturingOverheadController } from "./manufacturing-overhead.controller";
+import { ManufacturingOverheadService } from "./manufacturing-overhead.service";
 import { ManufacturingService } from "./manufacturing.service";
 
 @Module({
   imports: [PrismaModule, AccountingModule, StockModule],
-  controllers: [ManufacturingController],
-  providers: [ManufacturingService],
+  controllers: [ManufacturingController, ManufacturingOverheadController],
+  providers: [ManufacturingService, ManufacturingOverheadService],
 })
 export class ManufacturingModule {}
