@@ -6,7 +6,7 @@ Operational companion to `100_STEPS_TO_LIVE.md` §D: what is implemented in the 
 
 | Item | Location |
 |------|-----------|
-| `PricingModule` rows | Seeded via `packages/database/prisma/seed.ts` + `pricing-module-seed.ts`; optional scripts `packages/database/scripts/ensure-*-pricing.ts`. |
+| `PricingModule` rows | Seeded via `packages/database/prisma/seed.ts` (layer `core`) + `prisma/lib/core/pricing-module-seed.ts`; optional scripts `packages/database/scripts/ensure-*-pricing.ts`. |
 | `SystemConfig` | `apps/api/src/system-config/system-config.service.ts` — `billing.price.{TIER}`, `quota.tier.{TIER}`, `billing.foundation_monthly_azn`, `billing.yearly_discount_percent`, `billing.quota_unit_pricing_v1`, **`quota.ocr_jobs_per_org_month_v1`** (number, default **200** if unset). |
 
 Super-Admin can adjust prices/quotas in line with `AdminModule` / pricing APIs where exposed.

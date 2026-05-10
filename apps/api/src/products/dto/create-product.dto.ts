@@ -35,10 +35,10 @@ export class CreateProductDto {
   isService?: boolean;
 
   @ApiPropertyOptional({
-    description:
-      "Единица измерения (шт, кг, м): не хранится отдельным полем; добавляется к отображаемому имени в скобках",
+    description: "Код единицы измерения из системного каталога (pcs, kg, m, m2, pack, litre, hour)",
   })
   @IsOptional()
   @IsString()
-  unitOfMeasure?: string;
+  @MinLength(1)
+  unitOfMeasureCode?: string;
 }

@@ -34,7 +34,7 @@ export class UpsertCustomsTariffRateDto {
   @IsOptional()
   excisePercent?: number;
 
-  @ApiPropertyOptional({ description: "ISO date; defaults to 2000-01-01" })
+  @ApiPropertyOptional({ description: "ISO date. Row identity is (hsCode, effectiveFrom); same hs + new date = new revision." })
   @IsOptional()
   @IsDateString()
   effectiveFrom?: string;

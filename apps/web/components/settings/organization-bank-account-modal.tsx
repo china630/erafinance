@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { X } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { validateAzIban } from "../../lib/iban";
+import { ORGANIZATION_BANK_ACCOUNT_CURRENCIES, ORGANIZATION_BANK_ACCOUNT_TYPES } from "@dayday/api-contracts";
 import { AsyncCombobox } from "../ui/async-combobox";
 import {
   MODAL_CLOSE_BUTTON_CLASS,
@@ -16,14 +17,10 @@ import {
   MODAL_INPUT_CLASS,
 } from "../../lib/design-system";
 import { Button } from "../ui/button";
+import { useAuth } from "../../lib/auth-context";
+import { FALLBACK_CURRENCY_CODES } from "../../lib/currencies";
 
-type AccountType =
-  | "MAIN"
-  | "SALARY"
-  | "CARD"
-  | "TENDER"
-  | "CREDIT"
-  | "VAT_DEPOSIT";
+type AccountType = (typeof ORGANIZATION_BANK_ACCOUNT_TYPES)[number];
 
 type Row = {
   id: string;
@@ -43,8 +40,7 @@ type AccountOpt = {
   displayName: string;
 };
 
-const ACCOUNT_TYPES: AccountType[] = ["MAIN", "SALARY", "CARD", "TENDER", "CREDIT", "VAT_DEPOSIT"];
-const ALLOWED_CURRENCIES = ["AZN", "USD", "EUR", "RUB", "TRY"] as const;
+const ACCOUNT_TYPES = [...ORGANIZATION_BANK_ACCOUNT_TYPES] satisfies AccountType[];
 
 function isAllowedBankCode(code: string): boolean {
   return /^(221|222|223|224|225)(\.\d{2}){0,4}$/.test(code.trim());
@@ -64,12 +60,20 @@ export function OrganizationBankAccountModal({
   initial?: Row | null;
 }) {
   const { t } = useTranslation();
+  const { currencyCodes } = useAuth();
+  const allowedCurrencies = useMemo(() => {
+    const base =
+      currencyCodes.length > 0 ? currencyCodes : [...FALLBACK_CURRENCY_CODES];
+    const wl = ORGANIZATION_BANK_ACCOUNT_CURRENCIES as readonly string[];
+    const intersected = base.filter((c) => wl.includes(c));
+    return intersected.length > 0 ? intersected : [...ORGANIZATION_BANK_ACCOUNT_CURRENCIES];
+  }, [currencyCodes]);
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [bankName, setBankName] = useState("");
   const [iban, setIban] = useState("");
   const [swift, setSwift] = useState("");
-  const [currency, setCurrency] = useState<(typeof ALLOWED_CURRENCIES)[number]>("AZN");
+  const [currency, setCurrency] = useState<string>("AZN");
   const [accountType, setAccountType] = useState<AccountType>("MAIN");
   const [isPrimary, setIsPrimary] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
@@ -82,7 +86,11 @@ export function OrganizationBankAccountModal({
       setBankName(initial.bankName ?? "");
       setIban(initial.iban ?? "");
       setSwift(initial.swift ?? "");
-      setCurrency(ALLOWED_CURRENCIES.includes(initial.currency as any) ? (initial.currency as any) : "AZN");
+      setCurrency(
+        allowedCurrencies.includes(String(initial.currency ?? "").toUpperCase())
+          ? String(initial.currency).toUpperCase()
+          : "AZN",
+      );
       setAccountType(initial.accountType ?? "MAIN");
       setIsPrimary(initial.isPrimary === true);
       setIsFrozen(initial.isFrozen === true);
@@ -99,7 +107,7 @@ export function OrganizationBankAccountModal({
     setIsFrozen(false);
     setLedgerAccountCode("");
     setLedgerSelectedLabel("");
-  }, [open, mode, initial]);
+  }, [open, mode, initial, allowedCurrencies]);
 
   const title = useMemo(() => (mode === "create" ? t("bankAccountsRegistry.modalCreateTitle") : t("bankAccountsRegistry.modalEditTitle")), [mode, t]);
 
@@ -221,7 +229,7 @@ export function OrganizationBankAccountModal({
             <label className={MODAL_FIELD_LABEL_CLASS}>
               {t("bankAccountsRegistry.currency")}
               <select value={currency} onChange={(e) => setCurrency(e.target.value as any)} className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}>
-                {ALLOWED_CURRENCIES.map((c) => (
+                {allowedCurrencies.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>

@@ -672,7 +672,11 @@ export class BankingService {
         data.accountNumber = iban;
       }
       if (dto.swift !== undefined) data.swift = dto.swift?.trim() || null;
-      if (dto.currency !== undefined) data.currency = dto.currency.toUpperCase();
+      if (dto.currency !== undefined) {
+        data.currencyRef = {
+          connect: { code: dto.currency.toUpperCase() },
+        };
+      }
       if (dto.ledgerAccountCode !== undefined) {
         data.ledgerAccountCode = dto.ledgerAccountCode.trim();
       } else if (autoLedgerCode) {

@@ -136,3 +136,24 @@ export function apiFetch(path: string, init: RequestInit = {}): Promise<Response
     return res;
   });
 }
+
+/**
+ * POST with `keepalive` for `pagehide` / unmount (includes Authorization header).
+ * Fire-and-forget; errors are swallowed by the browser on unload.
+ */
+export function apiPostKeepalive(path: string, body: unknown): void {
+  if (typeof window === "undefined") return;
+  const headers = new Headers({ "Content-Type": "application/json" });
+  const token = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  const url = path.startsWith("http") ? path : `${apiBaseUrl()}${path}`;
+  void fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    keepalive: true,
+    credentials: "include",
+  });
+}

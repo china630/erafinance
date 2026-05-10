@@ -1,0 +1,31 @@
+{
+  "$schemaNote": "Maps numeric codes from AZ customs law appendix 'XİF MN-də tətbiq edilən ölçü vahidləri' to product units_of_measure.code (packages/database/prisma/seeds/trade/units-of-measure.ts). Codes without a product row use best-effort nearest kind.",
+  "mappings": [
+    { "lawCode": "166", "unitOfMeasureCode": "kg", "lawSymbolAz": "kq" },
+    { "lawCode": "163", "unitOfMeasureCode": "kg", "lawSymbolAz": "qr", "comment": "Gram → store as kg for ERP inventory unless gram UoM is added" },
+    { "lawCode": "055", "unitOfMeasureCode": "m2", "lawSymbolAz": "m2" },
+    { "lawCode": "113", "unitOfMeasureCode": "litre", "lawSymbolAz": "m3", "comment": "Cubic metre: extend units_of_measure with m3 when needed; placeholder volume family" },
+    { "lawCode": "114", "unitOfMeasureCode": "litre", "lawSymbolAz": "1000 m3", "comment": "1000 m3 — same as 113 for product mapping" },
+    { "lawCode": "112", "unitOfMeasureCode": "litre", "lawSymbolAz": "l" },
+    { "lawCode": "130", "unitOfMeasureCode": "litre", "lawSymbolAz": "1000 l" },
+    { "lawCode": "006", "unitOfMeasureCode": "m", "lawSymbolAz": "m" },
+    { "lawCode": "162", "unitOfMeasureCode": "pcs", "lawSymbolAz": "kar", "comment": "Metric carat — COUNT surrogate for declarations" },
+    { "lawCode": "796", "unitOfMeasureCode": "pcs", "lawSymbolAz": "əd" },
+    { "lawCode": "797", "unitOfMeasureCode": "pcs", "lawSymbolAz": "100 əd" },
+    { "lawCode": "798", "unitOfMeasureCode": "pcs", "lawSymbolAz": "1000 əd" },
+    { "lawCode": "715", "unitOfMeasureCode": "pack", "lawSymbolAz": "cüt" },
+    { "lawCode": "246", "unitOfMeasureCode": "hour", "lawSymbolAz": "1000 kVt·saat" },
+    { "lawCode": "305", "unitOfMeasureCode": "pcs", "lawSymbolAz": "KÜ", "comment": "Curie — COUNT surrogate" },
+    { "lawCode": "831", "unitOfMeasureCode": "litre", "lawSymbolAz": "L/100% spirt" },
+    { "lawCode": "861", "unitOfMeasureCode": "kg", "lawSymbolAz": "kq N" },
+    { "lawCode": "859", "unitOfMeasureCode": "kg", "lawSymbolAz": "kq KOH" },
+    { "lawCode": "863", "unitOfMeasureCode": "kg", "lawSymbolAz": "kq NaOH" },
+    { "lawCode": "852", "unitOfMeasureCode": "kg", "lawSymbolAz": "kq K2O" },
+    { "lawCode": "841", "unitOfMeasureCode": "kg", "lawSymbolAz": "kq H2O2" },
+    { "lawCode": "865", "unitOfMeasureCode": "kg", "lawSymbolAz": "kq P205" },
+    { "lawCode": "845", "unitOfMeasureCode": "kg", "lawSymbolAz": "kq 90% q.m." },
+    { "lawCode": "867", "unitOfMeasureCode": "kg", "lawSymbolAz": "kq U" },
+    { "lawCode": "185", "unitOfMeasureCode": "kg", "lawSymbolAz": "t ygq", "comment": "tonnage capacity — WEIGHT surrogate" },
+    { "lawCode": "306", "unitOfMeasureCode": "pcs", "lawSymbolAz": "q P/İ" }
+  ]
+}

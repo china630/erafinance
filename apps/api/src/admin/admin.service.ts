@@ -4,10 +4,12 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import {
+  AccountType,
+  cashProfileForNasCode,
+  OrganizationKind,
   PaymentOrderStatus,
   Prisma,
   SubscriptionTier,
-  TemplateGroup,
 } from "@dayday/database";
 import type { TierQuotas } from "../constants/quotas";
 import { PrismaService } from "../prisma/prisma.service";
@@ -30,6 +32,7 @@ import type { PatchYearlyDiscountDto } from "./dto/patch-yearly-discount.dto";
 import type { SetBillingPriceDto } from "./dto/set-billing-price.dto";
 import type { SetTierQuotasDto } from "./dto/set-tier-quotas.dto";
 import type { TranslationUpsertDto } from "./dto/translation-upsert.dto";
+import type { PatchChartTemplateEntryDto } from "./dto/patch-chart-template-entry.dto";
 import type { UpsertChartTemplateEntryDto } from "./dto/upsert-chart-template-entry.dto";
 import { getDefaultFlatTranslations } from "./i18n-default-catalog";
 import { PricingService } from "./pricing.service";
@@ -459,6 +462,13 @@ export class AdminService {
     const overrideRows = await this.prisma.translationOverride.findMany({
       where: { locale: loc },
       orderBy: { key: "asc" },
+      select: {
+        id: true,
+        key: true,
+        value: true,
+        isActive: true,
+        updatedAt: true,
+      },
     });
     const overrideByKey = new Map(overrideRows.map((r) => [r.key, r]));
 
@@ -485,11 +495,17 @@ export class AdminService {
     const items = pageKeys.map((key) => {
       const o = overrideByKey.get(key);
       const defaultVal = defaults[key] ?? "";
+      const stored = o?.value ?? defaultVal;
+      const active = o?.isActive !== false;
+      const effective = o && !active ? defaultVal : stored;
       return {
         id: o?.id ?? null,
         key,
-        value: o ? o.value : defaultVal,
+        value: stored,
+        effectiveValue: effective,
+        defaultValue: defaultVal,
         isOverride: !!o,
+        isActive: o ? active : true,
         updatedAt: o?.updatedAt.toISOString() ?? null,
       };
     });
@@ -507,20 +523,30 @@ export class AdminService {
       where: {
         locale_key: { locale, key: dto.key },
       },
-      create: { locale, key: dto.key, value: dto.value },
-      update: { value: dto.value },
+      create: { locale, key: dto.key, value: dto.value, isActive: true },
+      update: { value: dto.value, isActive: true },
     });
     return row;
   }
 
-  async deleteTranslation(id: string) {
-    const r = await this.prisma.translationOverride.deleteMany({
-      where: { id },
-    });
-    if (r.count === 0) {
+  async patchTranslationOverride(
+    id: string,
+    patch: { value?: string; isActive?: boolean },
+  ) {
+    if (patch.value === undefined && patch.isActive === undefined) {
+      throw new BadRequestException("Provide value and/or isActive");
+    }
+    try {
+      return await this.prisma.translationOverride.update({
+        where: { id },
+        data: {
+          ...(patch.value !== undefined ? { value: patch.value } : {}),
+          ...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
+        },
+      });
+    } catch {
       throw new NotFoundException("Translation override not found");
     }
-    return { ok: true };
   }
 
   async syncTranslationsCache() {
@@ -540,7 +566,7 @@ export class AdminService {
   async publicTranslationsFlat(locale: string): Promise<Record<string, string>> {
     const loc = locale.trim().toLowerCase();
     const rows = await this.prisma.translationOverride.findMany({
-      where: { locale: loc },
+      where: { locale: loc, isActive: true },
       select: { key: true, value: true },
     });
     const out: Record<string, string> = {};
@@ -609,18 +635,76 @@ export class AdminService {
    * Глобальный шаблон NAS (`chart_of_accounts_entries`) — источник для новых организаций
    * (`syncAzChartForOrganization` читает БД, если в каталоге есть строки).
    */
-  listChartTemplateEntries() {
+  listChartTemplateEntries(includeUsage = false) {
     return this.prisma.chartOfAccountsEntry.findMany({
-      orderBy: [
-        { templateGroup: "asc" },
-        { sortOrder: "asc" },
-        { code: "asc" },
-      ],
+      orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { code: "asc" }],
+      ...(includeUsage
+        ? { include: { _count: { select: { accounts: true } } } }
+        : {}),
+    });
+  }
+
+  async patchChartTemplateEntry(id: string, dto: PatchChartTemplateEntryDto) {
+    const row = await this.prisma.chartOfAccountsEntry.findUnique({
+      where: { id },
+    });
+    if (!row) {
+      throw new NotFoundException("Chart template row not found");
+    }
+    if (dto.kind !== undefined && dto.kind !== row.kind) {
+      throw new BadRequestException("kind is immutable for an existing row");
+    }
+    if (dto.code !== undefined && dto.code.trim() !== row.code) {
+      throw new BadRequestException("code is immutable for an existing row");
+    }
+    const kind = row.kind;
+    const code = row.code;
+    const nameAz = dto.nameAz?.trim() ?? row.nameAz;
+    const nameRu = dto.nameRu?.trim() ?? row.nameRu;
+    const nameEn = dto.nameEn?.trim() ?? row.nameEn;
+    let parentCode =
+      dto.parentCode !== undefined
+        ? dto.parentCode?.trim() || null
+        : row.parentCode;
+    if (parentCode === code) {
+      throw new BadRequestException("parentCode cannot equal code");
+    }
+    if (parentCode) {
+      const parent = await this.prisma.chartOfAccountsEntry.findFirst({
+        where: { kind, code: parentCode },
+      });
+      if (!parent) {
+        throw new BadRequestException(`Unknown parentCode in ${kind}: ${parentCode}`);
+      }
+    }
+    let cashProfile =
+      dto.cashProfile !== undefined
+        ? dto.cashProfile?.trim() || null
+        : row.cashProfile;
+    if (!cashProfile) {
+      cashProfile = cashProfileForNasCode(kind, code);
+    }
+    const accountType = dto.accountType ?? row.accountType;
+    const sortOrder = dto.sortOrder ?? row.sortOrder;
+    const isDeprecated = dto.isDeprecated ?? row.isDeprecated;
+
+    return this.prisma.chartOfAccountsEntry.update({
+      where: { id },
+      data: {
+        nameAz,
+        nameRu,
+        nameEn,
+        accountType: accountType as AccountType,
+        parentCode,
+        cashProfile,
+        sortOrder,
+        isDeprecated,
+      },
     });
   }
 
   async upsertChartTemplateEntry(dto: UpsertChartTemplateEntryDto) {
-    const templateGroup = dto.templateGroup ?? TemplateGroup.COMMERCIAL;
+    const kind = dto.kind ?? OrganizationKind.COMMERCIAL;
     const code = dto.code.trim();
     const nameAz = dto.nameAz.trim();
     const nameRu = dto.nameRu.trim();
@@ -632,33 +716,27 @@ export class AdminService {
     }
     if (parentCode) {
       const parent = await this.prisma.chartOfAccountsEntry.findFirst({
-        where: { templateGroup, code: parentCode },
+        where: { kind, code: parentCode },
       });
       if (!parent) {
-        throw new BadRequestException(
-          `Unknown parentCode in ${templateGroup}: ${parentCode}`,
-        );
+        throw new BadRequestException(`Unknown parentCode in ${kind}: ${parentCode}`);
       }
     }
     let cashProfile = dto.cashProfile?.trim() || null;
     if (!cashProfile) {
-      if (code === "101" || code.startsWith("101.")) {
-        cashProfile = "AZN";
-      } else if (code === "102" || code.startsWith("102.")) {
-        cashProfile = "FX";
-      }
+      cashProfile = cashProfileForNasCode(kind, code);
     }
     const sortOrder = dto.sortOrder ?? 0;
     const isDeprecated = dto.isDeprecated ?? false;
     return this.prisma.chartOfAccountsEntry.upsert({
       where: {
-        templateGroup_code: {
-          templateGroup,
+        kind_code: {
+          kind,
           code,
         },
       },
       create: {
-        templateGroup,
+        kind,
         code,
         nameAz,
         nameRu,

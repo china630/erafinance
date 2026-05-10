@@ -40,4 +40,11 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   isService?: boolean;
+
+  @ApiPropertyOptional({
+    description: "Код единицы измерения из системного каталога (pcs, kg, m, m2, pack, litre, hour)",
+  })
+  @IsOptional()
+  @IsString()
+  unitOfMeasureCode?: string;
 }

@@ -1,8 +1,22 @@
 import { Type } from "class-transformer";
-import { IsEnum, IsInt, IsNumber, Max, Min, MinLength, IsOptional } from "class-validator";
+import {
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsNumber,
+  Max,
+  Min,
+  MinLength,
+  IsOptional,
+} from "class-validator";
 import { SubscriptionTier } from "@dayday/database";
 
 export class CheckoutDto {
+  /** Default: PAŞA Bank redirect / mock. Use `drakaris` for yığım integration. */
+  @IsOptional()
+  @IsIn(["pasha_bank", "drakaris"])
+  provider?: "pasha_bank" | "drakaris";
+
   /** Если задан — сумма заказа берётся из SystemConfig для тарифа. */
   @IsOptional()
   @IsEnum(SubscriptionTier)

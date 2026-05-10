@@ -367,6 +367,7 @@ export class InvoicesService {
             productId: row.productId,
             description: row.description,
             quantity: row.quantity,
+            unitOfMeasureCode: row.unitOfMeasureCode,
             unitPrice: row.unitPrice,
             vatRate: row.vatRate,
             lineTotal: row.lineTotal,
@@ -1177,6 +1178,7 @@ export class InvoicesService {
       unitPrice: Decimal;
       vatRate: Decimal;
       lineTotal: Decimal;
+      unitOfMeasureCode: string | null;
     }>;
     total: Decimal;
   }> {
@@ -1187,6 +1189,7 @@ export class InvoicesService {
       unitPrice: Decimal;
       vatRate: Decimal;
       lineTotal: Decimal;
+      unitOfMeasureCode: string | null;
     }> = [];
     let total = new Decimal(0);
     const vatInclusive = !!opts?.vatInclusive;
@@ -1197,6 +1200,7 @@ export class InvoicesService {
       let unitPriceInput = new Decimal(row.unitPrice);
       let vatRate = new Decimal(row.vatRate);
 
+      let unitOfMeasureCode: string | null = null;
       if (row.productId) {
         const p = await this.prisma.product.findFirst({
           where: { id: row.productId, organizationId },
@@ -1206,6 +1210,19 @@ export class InvoicesService {
         unitPriceInput = new Decimal(row.unitPrice);
         vatRate = new Decimal(row.vatRate);
         description = description ?? p.name;
+        unitOfMeasureCode = p.unitOfMeasureCode;
+      }
+
+      const uomFromDto = row.unitOfMeasureCode?.trim();
+      if (uomFromDto) {
+        const u = await this.prisma.unitOfMeasure.findUnique({
+          where: { code: uomFromDto },
+          select: { code: true },
+        });
+        if (!u) {
+          throw new BadRequestException(`Unknown unitOfMeasureCode: ${uomFromDto}`);
+        }
+        unitOfMeasureCode = u.code;
       }
 
       const vr = vatRate.toNumber();
@@ -1240,6 +1257,7 @@ export class InvoicesService {
         unitPrice: unitPriceNet,
         vatRate,
         lineTotal,
+        unitOfMeasureCode,
       });
     }
 

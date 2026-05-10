@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   Res,
   UseGuards,
@@ -18,6 +19,8 @@ import {
 } from "@nestjs/swagger";
 import type { Response } from "express";
 import { AuthService } from "../auth/auth.service";
+import { SystemConfigService } from "../system-config/system-config.service";
+import { AdminCatalogService } from "./admin-catalog.service";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { SuperAdminGuard } from "../auth/guards/super-admin.guard";
@@ -36,6 +39,19 @@ import { SetBillingPriceDto } from "./dto/set-billing-price.dto";
 import { SetTierQuotasDto } from "./dto/set-tier-quotas.dto";
 import { TranslationUpsertDto } from "./dto/translation-upsert.dto";
 import { UpsertChartTemplateEntryDto } from "./dto/upsert-chart-template-entry.dto";
+import { PatchChartTemplateEntryDto } from "./dto/patch-chart-template-entry.dto";
+import { PatchTranslationOverrideDto } from "./dto/patch-translation-override.dto";
+import { PutSystemConfigDto } from "./dto/put-system-config.dto";
+import { CreateCurrencyDto, PatchCurrencyDto } from "./dto/admin-currency.dto";
+import {
+  CreateUnitOfMeasureDto,
+  PatchUnitOfMeasureDto,
+} from "./dto/admin-unit-of-measure.dto";
+import { CreateTaxRateDto, PatchTaxRateDto } from "./dto/admin-tax-rate.dto";
+import {
+  PatchTemplateAccountDto,
+  UpsertTemplateAccountDto,
+} from "./dto/admin-template-account.dto";
 
 @ApiTags("admin")
 @ApiBearerAuth("bearer")
@@ -45,6 +61,8 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly auth: AuthService,
+    private readonly systemConfig: SystemConfigService,
+    private readonly catalog: AdminCatalogService,
   ) {}
 
   @Get("stats")
@@ -197,10 +215,13 @@ export class AdminController {
     return this.admin.upsertTranslation(dto);
   }
 
-  @Delete("translations/:id")
-  @ApiOperation({ summary: "Удалить переопределение" })
-  deleteTranslation(@Param("id", ParseUUIDPipe) id: string) {
-    return this.admin.deleteTranslation(id);
+  @Patch("translations/:id")
+  @ApiOperation({ summary: "Update translation override value and/or soft-disable (no hard delete)" })
+  patchTranslation(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: PatchTranslationOverrideDto,
+  ) {
+    return this.admin.patchTranslationOverride(id, dto);
   }
 
   @Post("translations/sync")
@@ -241,14 +262,157 @@ export class AdminController {
     summary:
       "Глобальный шаблон NAS (chart_of_accounts_entries) — источник для новых организаций",
   })
-  chartTemplateList() {
-    return this.admin.listChartTemplateEntries();
+  chartTemplateList(@Query("withUsage") withUsage?: string) {
+    const inc = withUsage === "1" || withUsage === "true";
+    return this.admin.listChartTemplateEntries(inc);
+  }
+
+  @Patch("chart-template/:id")
+  @ApiOperation({ summary: "Частичное обновление строки NAS шаблона (kind/code неизменны)" })
+  chartTemplatePatch(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: PatchChartTemplateEntryDto,
+  ) {
+    return this.admin.patchChartTemplateEntry(id, dto);
   }
 
   @Post("chart-template")
   @ApiOperation({ summary: "Создать или обновить строку глобального плана NAS" })
   chartTemplateUpsert(@Body() dto: UpsertChartTemplateEntryDto) {
     return this.admin.upsertChartTemplateEntry(dto);
+  }
+
+  @Get("system-config")
+  @ApiOperation({ summary: "Platform system_config rows (whitelist, Super-Admin)" })
+  listSystemConfig() {
+    return this.systemConfig.listAdminSystemConfigRows();
+  }
+
+  @Put("system-config/:key")
+  @ApiOperation({ summary: "Upsert a whitelisted system_config key" })
+  putSystemConfig(@Param("key") key: string, @Body() dto: PutSystemConfigDto) {
+    return this.systemConfig
+      .putAdminSystemConfig(decodeURIComponent(key), dto.value)
+      .then(() => ({ ok: true }));
+  }
+
+  @Post("system-config/:key/reset")
+  @ApiOperation({ summary: "Remove DB row so built-in defaults apply" })
+  resetSystemConfig(@Param("key") key: string) {
+    return this.systemConfig
+      .resetAdminSystemConfig(decodeURIComponent(key))
+      .then(() => ({ ok: true }));
+  }
+
+  @Get("currencies")
+  @ApiOperation({ summary: "All currencies with relation usage counts" })
+  adminCurrencies() {
+    return this.catalog.listCurrencies();
+  }
+
+  @Post("currencies")
+  @ApiOperation({ summary: "Create currency" })
+  adminCreateCurrency(@Body() dto: CreateCurrencyDto) {
+    return this.catalog.createCurrency(dto);
+  }
+
+  @Patch("currencies/:id")
+  @ApiOperation({ summary: "Patch currency (code immutable)" })
+  adminPatchCurrency(@Param("id", ParseUUIDPipe) id: string, @Body() dto: PatchCurrencyDto) {
+    return this.catalog.patchCurrency(id, dto);
+  }
+
+  @Get("units-of-measure")
+  @ApiOperation({ summary: "Units of measure with usage counts" })
+  adminUom() {
+    return this.catalog.listUnitsOfMeasure();
+  }
+
+  @Post("units-of-measure")
+  @ApiOperation({ summary: "Create unit of measure" })
+  adminCreateUom(@Body() dto: CreateUnitOfMeasureDto) {
+    return this.catalog.createUnitOfMeasure(dto);
+  }
+
+  @Patch("units-of-measure/:id")
+  @ApiOperation({ summary: "Patch unit of measure (code immutable)" })
+  adminPatchUom(@Param("id", ParseUUIDPipe) id: string, @Body() dto: PatchUnitOfMeasureDto) {
+    return this.catalog.patchUnitOfMeasure(id, dto);
+  }
+
+  @Get("tax-rates")
+  @ApiOperation({ summary: "Tax rates with usage counts" })
+  adminTaxRates() {
+    return this.catalog.listTaxRates();
+  }
+
+  @Post("tax-rates")
+  @ApiOperation({ summary: "Create tax rate" })
+  adminCreateTaxRate(@Body() dto: CreateTaxRateDto) {
+    return this.catalog.createTaxRate(dto);
+  }
+
+  @Patch("tax-rates/:id")
+  @ApiOperation({ summary: "Patch tax rate (code immutable)" })
+  adminPatchTaxRate(@Param("id", ParseUUIDPipe) id: string, @Body() dto: PatchTaxRateDto) {
+    return this.catalog.patchTaxRate(id, dto);
+  }
+
+  @Get("template-accounts")
+  @ApiOperation({ summary: "Global NAS template accounts" })
+  adminTemplateAccounts() {
+    return this.catalog.listTemplateAccounts();
+  }
+
+  @Post("template-accounts")
+  @ApiOperation({ summary: "Upsert template account row" })
+  adminUpsertTemplateAccount(@Body() dto: UpsertTemplateAccountDto) {
+    return this.catalog.upsertTemplateAccount(dto);
+  }
+
+  @Patch("template-accounts/:id")
+  @ApiOperation({ summary: "Patch template account row" })
+  adminPatchTemplateAccount(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: PatchTemplateAccountDto,
+  ) {
+    return this.catalog.patchTemplateAccount(id, dto);
+  }
+
+  @Get("mdm/companies")
+  @ApiOperation({ summary: "Global company directory (read-only)" })
+  adminMdmCompanies(
+    @Query("q") q?: string,
+    @Query("page") pageRaw?: string,
+    @Query("pageSize") pageSizeRaw?: string,
+  ) {
+    const page = Math.max(1, Number.parseInt(pageRaw ?? "1", 10) || 1);
+    const pageSize = Math.min(
+      100,
+      Math.max(1, Number.parseInt(pageSizeRaw ?? "25", 10) || 25),
+    );
+    return this.catalog.listGlobalCompanies(q, page, pageSize);
+  }
+
+  @Get("mdm/counterparties")
+  @ApiOperation({ summary: "Global counterparties MDM (read-only)" })
+  adminMdmCounterparties(
+    @Query("q") q?: string,
+    @Query("page") pageRaw?: string,
+    @Query("pageSize") pageSizeRaw?: string,
+  ) {
+    const page = Math.max(1, Number.parseInt(pageRaw ?? "1", 10) || 1);
+    const pageSize = Math.min(
+      100,
+      Math.max(1, Number.parseInt(pageSizeRaw ?? "25", 10) || 25),
+    );
+    return this.catalog.listGlobalCounterparties(q, page, pageSize);
+  }
+
+  @Get("reference/snapshot")
+  @ApiOperation({ summary: "Enums and contract whitelists (read-only)" })
+  adminReferenceSnapshot() {
+    return this.catalog.getReferenceSnapshot();
   }
 
   @Post("impersonate/:userId")

@@ -1,6 +1,8 @@
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- CreateEnum
 CREATE TYPE "CoaTemplateProfile" AS ENUM ('COMMERCIAL_FULL', 'COMMERCIAL_SMALL');
 

@@ -24,8 +24,10 @@ import { coerceSupportedCurrency, type SupportedCurrency } from "../../../lib/cu
 import { fetchExchangeRateMock } from "../../../lib/mock-exchange-rates";
 import { useLedger } from "../../../lib/ledger-context";
 import { notifyListRefresh } from "../../../lib/list-refresh-bus";
+import { useAuth } from "../../../lib/auth-context";
 import {
-  INVOICE_VAT_RATE_VALUES,
+  DEFAULT_INVOICE_VAT_RATES,
+  fetchInvoiceVatRatesFromApi,
   type InvoiceVatRateValue,
   type VatRateFormString,
   formStringToVatRate,
@@ -87,8 +89,11 @@ function blankServiceLine(): InvoiceServiceLineForm {
   return { productId: "", description: "", quantity: "0", unitPrice: "0", vatRate: "18" };
 }
 
-function lineVatPercentFromForm(vatRate: VatRateFormString | undefined): number {
-  const r = formStringToVatRate(String(vatRate ?? "18")) ?? 18;
+function lineVatPercentFromForm(
+  vatRate: VatRateFormString | undefined,
+  allowedRates: readonly number[],
+): number {
+  const r = formStringToVatRate(String(vatRate ?? "18"), allowedRates) ?? 18;
   return vatPercentForMath(r);
 }
 
@@ -157,6 +162,8 @@ export function CreateInvoiceModal({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const { currencyCodes } = useAuth();
+  const [vatRateOptions, setVatRateOptions] = useState<number[]>(() => [...DEFAULT_INVOICE_VAT_RATES]);
   const { ledgerType, ready: ledgerReady } = useLedger();
   const [busy, setBusy] = useState(false);
   const [netting, setNetting] = useState<NettingPreview | null>(null);
@@ -260,6 +267,11 @@ export function CreateInvoiceModal({
   }, [open, reset]);
 
   useEffect(() => {
+    if (!open) return;
+    void fetchInvoiceVatRatesFromApi().then(setVatRateOptions);
+  }, [open]);
+
+  useEffect(() => {
     if (!open) {
       invoiceFxPrevRef.current = null;
     }
@@ -269,13 +281,13 @@ export function CreateInvoiceModal({
   useEffect(() => {
     if (!open) return;
     /* Use getValues so after reset() in the sibling effect we read AZN, not a stale useWatch snapshot. */
-    const cur = coerceSupportedCurrency(getValues("currency"));
+    const cur = coerceSupportedCurrency(getValues("currency"), currencyCodes);
     if (cur === "AZN") {
       setValue("fxRateToAzn", "1.0000", { shouldValidate: true, shouldDirty: true });
       return;
     }
     setValue("fxRateToAzn", fetchExchangeRateMock(cur), { shouldValidate: true, shouldDirty: true });
-  }, [open, watchedCurrency, getValues, setValue]);
+  }, [open, watchedCurrency, getValues, setValue, currencyCodes]);
 
   /**
    * Reprices all lines that already have a product when currency or FX changes:
@@ -284,7 +296,7 @@ export function CreateInvoiceModal({
   useEffect(() => {
     if (!open) return;
 
-    const cur = coerceSupportedCurrency(getValues("currency"));
+    const cur = coerceSupportedCurrency(getValues("currency"), currencyCodes);
     const prev = invoiceFxPrevRef.current;
 
     let fxStr: string;
@@ -346,7 +358,7 @@ export function CreateInvoiceModal({
     }
 
     invoiceFxPrevRef.current = { currency: cur, fxStr };
-  }, [open, watchedCurrency, watchedFx, getValues, setValue]);
+  }, [open, watchedCurrency, watchedFx, getValues, setValue, currencyCodes]);
 
   useEffect(() => {
     if (!open) {
@@ -388,7 +400,7 @@ export function CreateInvoiceModal({
         const u = Number(String(row.unitPrice).replace(",", "."));
         if (!Number.isFinite(q) || q <= 0 || !Number.isFinite(u) || u < 0) continue;
         if (!row.productId) continue;
-        const vrPct = lineVatPercentFromForm(row.vatRate);
+        const vrPct = lineVatPercentFromForm(row.vatRate, vatRateOptions);
         const unitNet = u;
         const s = calculateInvoiceLineTotals(q, unitNet, vrPct);
         net += s.net;
@@ -403,7 +415,7 @@ export function CreateInvoiceModal({
       const u = Number(String(r.unitPrice).replace(",", "."));
       if (!Number.isFinite(q) || q <= 0 || !Number.isFinite(u) || u < 0) continue;
       if (!r.productId) continue;
-      const vrPct = lineVatPercentFromForm(r.vatRate);
+      const vrPct = lineVatPercentFromForm(r.vatRate, vatRateOptions);
       const unitNet = u;
       const s = calculateInvoiceLineTotals(q, unitNet, vrPct);
       net += s.net;
@@ -411,7 +423,7 @@ export function CreateInvoiceModal({
       gross += s.gross;
     }
     return { net, vat, gross };
-  }, [watchedGoods, watchedServices]);
+  }, [watchedGoods, watchedServices, vatRateOptions]);
 
   const fxNum = Number(String(watchedFx ?? "1").replace(",", "."));
   const fxOk = Number.isFinite(fxNum) && fxNum > 0;
@@ -523,7 +535,7 @@ export function CreateInvoiceModal({
     }));
     if (p) {
       const priceAzn = Number(p.price) || 0;
-      const cur = coerceSupportedCurrency(getValues("currency"));
+      const cur = coerceSupportedCurrency(getValues("currency"), currencyCodes);
       const fx = cur === "AZN" ? 1 : parseFxRate(getValues("fxRateToAzn"));
       const docUnit = catalogAznUnitToDocUnit(priceAzn, cur, fx);
       setValue(`goods.${index}.unitPrice`, formatInvoiceUnitPrice4(docUnit));
@@ -542,7 +554,7 @@ export function CreateInvoiceModal({
     }));
     if (p) {
       const priceAzn = Number(p.price) || 0;
-      const cur = coerceSupportedCurrency(getValues("currency"));
+      const cur = coerceSupportedCurrency(getValues("currency"), currencyCodes);
       const fx = cur === "AZN" ? 1 : parseFxRate(getValues("fxRateToAzn"));
       const docUnit = catalogAznUnitToDocUnit(priceAzn, cur, fx);
       setValue(`services.${index}.unitPrice`, formatInvoiceUnitPrice4(docUnit));
@@ -579,7 +591,7 @@ export function CreateInvoiceModal({
             <tbody>
               {goodsFields.map((field, idx) => {
                 const row = (watchedGoods ?? [])[idx] as InvoiceGoodsLineForm | undefined;
-                const vrPct = row ? lineVatPercentFromForm(row.vatRate) : 0;
+                const vrPct = row ? lineVatPercentFromForm(row.vatRate, vatRateOptions) : 0;
                 const displayPrice = (() => {
                   if (!row) return "";
                   const v = Number(String(row.unitPrice).replace(",", "."));
@@ -616,7 +628,7 @@ export function CreateInvoiceModal({
                       >
                         <SelectTrigger className="" />
                         <SelectContent>
-                          {INVOICE_VAT_RATE_VALUES.map((rate) => (
+                          {vatRateOptions.map((rate) => (
                             <SelectItem key={rate} value={String(rate)}>
                               {vatLineSelectLabel(rate, t)}
                             </SelectItem>
@@ -707,7 +719,7 @@ export function CreateInvoiceModal({
             <tbody>
               {serviceFields.map((field, idx) => {
                 const row = (watchedServices ?? [])[idx] as InvoiceServiceLineForm | undefined;
-                const vrPct = row ? lineVatPercentFromForm(row.vatRate) : 0;
+                const vrPct = row ? lineVatPercentFromForm(row.vatRate, vatRateOptions) : 0;
                 const displayPrice = (() => {
                   if (!row) return "";
                   const v = Number(String(row.unitPrice).replace(",", "."));
@@ -757,7 +769,7 @@ export function CreateInvoiceModal({
                       >
                         <SelectTrigger className="" />
                         <SelectContent>
-                          {INVOICE_VAT_RATE_VALUES.map((rate) => (
+                          {vatRateOptions.map((rate) => (
                             <SelectItem key={rate} value={String(rate)}>
                               {vatLineSelectLabel(rate, t)}
                             </SelectItem>

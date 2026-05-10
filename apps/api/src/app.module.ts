@@ -46,6 +46,8 @@ import { ReportsModule } from "./reports/reports.module";
 import { NotificationModule } from "./notifications/notification.module";
 import { OcrModule } from "./ocr/ocr.module";
 import { CustomsModule } from "./customs/customs.module";
+import { SystemCatalogModule } from "./system-catalog/system-catalog.module";
+import { EarlyAccessModule } from "./early-access/early-access.module";
 import { PlatformRecoveryModule } from "./platform-recovery/platform-recovery.module";
 import { DisputeFreezeGuard } from "./platform-recovery/dispute/dispute-freeze.guard";
 
@@ -96,6 +98,8 @@ const apiEnvFiles = apiEnvFilePaths();
     NotificationModule,
     OcrModule,
     CustomsModule,
+    SystemCatalogModule,
+    EarlyAccessModule,
     PlatformRecoveryModule,
   ],
   controllers: [AppController],

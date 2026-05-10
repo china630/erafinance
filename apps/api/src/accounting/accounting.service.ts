@@ -9,8 +9,8 @@ import {
   FixedAssetStatus,
   InvoiceStatus,
   LedgerType,
+  OrganizationKind,
   Prisma,
-  TemplateGroup,
   UserRole,
 } from "@dayday/database";
 import { assertMayPostManualJournal } from "../auth/policies/invoice-finance.policy";
@@ -402,16 +402,14 @@ export class AccountingService {
     return { month, allPassed, checks };
   }
 
-  private async findChartEntryForCode(tx: Prisma.TransactionClient, code: string) {
-    let entry = await tx.chartOfAccountsEntry.findFirst({
-      where: { templateGroup: TemplateGroup.COMMERCIAL, code },
+  private async findChartEntryForCode(
+    tx: Prisma.TransactionClient,
+    code: string,
+    kind: OrganizationKind,
+  ) {
+    return tx.chartOfAccountsEntry.findFirst({
+      where: { kind, code },
     });
-    if (!entry) {
-      entry = await tx.chartOfAccountsEntry.findFirst({
-        where: { templateGroup: TemplateGroup.SMALL_BUSINESS, code },
-      });
-    }
-    return entry;
   }
 
   /**
@@ -425,6 +423,11 @@ export class AccountingService {
     ledgerType: LedgerType,
   ): Promise<void> {
     if (ledgerType !== LedgerType.NAS) return;
+    const org = await tx.organization.findUnique({
+      where: { id: organizationId },
+      select: { kind: true },
+    });
+    const kind = org?.kind ?? OrganizationKind.COMMERCIAL;
     const unique = [...new Set(codes)];
     const existing = await tx.account.findMany({
       where: { organizationId, ledgerType, code: { in: unique } },
@@ -433,7 +436,14 @@ export class AccountingService {
     const have = new Set(existing.map((e) => e.code));
     for (const code of unique) {
       if (!have.has(code)) {
-        await this.ensureNasAccountExists(tx, organizationId, code, ledgerType, new Set());
+        await this.ensureNasAccountExists(
+          tx,
+          organizationId,
+          code,
+          ledgerType,
+          kind,
+          new Set(),
+        );
       }
     }
   }
@@ -443,6 +453,7 @@ export class AccountingService {
     organizationId: string,
     code: string,
     ledgerType: LedgerType,
+    kind: OrganizationKind,
     stack: Set<string>,
   ): Promise<void> {
     if (ledgerType !== LedgerType.NAS) return;
@@ -458,11 +469,18 @@ export class AccountingService {
     }
     stack.add(code);
 
-    const entry = await this.findChartEntryForCode(tx, code);
+    const entry = await this.findChartEntryForCode(tx, code, kind);
     if (entry) {
       let parentId: string | null = null;
       if (entry.parentCode) {
-        await this.ensureNasAccountExists(tx, organizationId, entry.parentCode, ledgerType, stack);
+        await this.ensureNasAccountExists(
+          tx,
+          organizationId,
+          entry.parentCode,
+          ledgerType,
+          kind,
+          stack,
+        );
         const parent = await tx.account.findFirst({
           where: { organizationId, ledgerType, code: entry.parentCode },
           select: { id: true },
@@ -492,7 +510,7 @@ export class AccountingService {
       throw new NotFoundException(`Account code ${code} not found for organization`);
     }
 
-    await this.ensureNasAccountExists(tx, organizationId, fb.parentCode, ledgerType, stack);
+    await this.ensureNasAccountExists(tx, organizationId, fb.parentCode, ledgerType, kind, stack);
     const parentAcc = await tx.account.findFirst({
       where: { organizationId, ledgerType, code: fb.parentCode },
       select: { id: true },

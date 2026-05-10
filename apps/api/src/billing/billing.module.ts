@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { AdminModule } from "../admin/admin.module";
 import { AccessControlModule } from "../access/access-control.module";
 import { AuditModule } from "../audit/audit.module";
@@ -19,6 +19,8 @@ import { OrganizationModuleService } from "./organization-module.service";
 import { PaymentProviderService } from "./payment-provider.service";
 import { PashaBankPaymentProvider } from "./providers/pasha-bank-payment.provider";
 
+import { DrakarisModule } from "../integrations/payment-providers/drakaris/drakaris.module";
+
 @Module({
   imports: [
     PrismaModule,
@@ -26,6 +28,7 @@ import { PashaBankPaymentProvider } from "./providers/pasha-bank-payment.provide
     AccessControlModule,
     AdminModule,
     AuditModule,
+    forwardRef(() => DrakarisModule),
   ],
   controllers: [BillingController, BillingPublicController, BillingWebhooksController],
   providers: [

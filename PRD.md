@@ -127,17 +127,18 @@
 
 - Связь **пользователь — организация** в модели **many-to-many**; переключение активной организации без повторного входа (см. §3.2).
 - Регистрация организации и администратора; при необходимости — запрос доступа к уже существующей организации по VÖEN.
-- На этапе регистрации организации выбор типа шаблона учёта **обязателен**: `templateGroup = COMMERCIAL | GOVERNMENT` (Commercial / Government).
+- На этапе регистрации организации выбор **ОПФ (`legalForm`)** **обязателен**; `kind` больше не вводится вручную и вычисляется сервером: `STATE_AGENCY -> BUDGET`, `NGO -> NGO`, иначе `COMMERCIAL`.
 - RBAC (базовые + операционные роли): **Owner**, **Admin**, **Accountant**, **User**, **PROCUREMENT**, **AUDITOR**, **WAREHOUSE_KEEPER**, **HR_OFFICER**, **HR_MANAGER**, **DEPARTMENT_HEAD**; платформенная роль **SUPER_ADMIN** вынесена отдельно (см. §5.1, §7.6).
 - Auth: Access JWT с контекстом организации (**время жизни по умолчанию 12 часов**, задаётся `JWT_ACCESS_EXPIRES`, см. корневой `.env.example`); Refresh в **HttpOnly Cookie**.
 - [x] **COMPLETED (Invite lifecycle, v95+):** полный цикл приглашений в организацию: `invite` (создание invite + токен + email-ссылка), `accept` (принятие по токену и создание membership с ролью), `revoke` (отзыв pending-invite с блокировкой дальнейшего принятия).
+- [x] **COMPLETED (User self-service profile, v2026.06):** **`/settings/profile`** — отдельная страница «Профиль» (вне настроек организации) для редактирования собственных данных пользователя: **First name / Last name** (PII через cipher-поля), **e-mail** (с проверкой уникальности и `409 Conflict` при конфликте), **телефон** в формате **E.164 +994XXXXXXXXX**, **язык интерфейса** (**`UserLocale`** ∈ `AZ` / `RU`, дефолт `AZ`) и **смена пароля** (раздел запрашивает текущий пароль; ошибка `INVALID_CURRENT_PASSWORD` без подсказок). Локаль пользователя влияет на язык бандла Next.js при следующем входе/`refreshSession`. API-контур — **`GET/PATCH /api/users/me`** (см. [TZ.md](./TZ.md) §2.2).
 
 #### 4.1.1. Регистрация и онбординг (v3.0.1 Update)
 
-- **Функциональное требование:** в форме регистрации организации (**RegisterOrg**) добавлено обязательное поле **`organizationType`** (тип учёта).
-- **Логика выбора:** пользователь выбирает профиль **«Коммерческая»** (значение по умолчанию) или **«Государственная/Бюджетная»**.
-- **UI-реализация:** выбор выполняется через radio/cards с пояснениями профиля (коммерческий: стандартный план для ООО/ИП; государственный: бюджетный план для школ/клиник/госорганов).
-- **Связь с §5.1.3:** выбранный `organizationType` напрямую определяет `templateGroup` для онбординга (`provisionChartOfAccountsFromTemplate`), что предотвращает применение неверного плана счетов для типа организации.
+- **Функциональное требование:** в форме регистрации организации (**RegisterOrg**) добавлен обязательный выбор **`kind`** / **`OrganizationKind`** (тип плана NAS для тенанта).
+- **Логика выбора:** пользователь выбирает **`OrganizationKind`**: **«Коммерческая»** (по умолчанию), **«Бюджетная»** или **«Некоммерческая»**.
+- **UI-реализация:** на форме регистрации выбирается **ОПФ** (enum `CounterpartyLegalForm`), после чего сервер автоматически назначает NAS-план (`COMMERCIAL`/`BUDGET`/`NGO`).
+- **Связь с §5.1.3:** выбранный **`kind`** напрямую задаёт провижн плана счетов (`provisionChartOfAccountsFromTemplate` → `provisionNasAccountsForOrganization`, фильтр **`template_accounts.kind`**), что предотвращает применение неверного плана для типа организации.
 
 #### 4.1.2. Onboarding 2.0 (Migration Mode)
 
@@ -165,8 +166,8 @@
 
 ### 4.2. Модуль 2: Ledger & Finance Core
 
-- План счетов; при создании организации — **копирование из глобальных шаблонов в БД** в локальные `Account` (см. **§5.1**): приоритетный источник — **`TemplateAccount`** (полный NAS + массив профилей `templateGroups`); legacy-каталог **`ChartOfAccountsEntry`** сохраняется для super-admin и ссылок `chartEntryId`.
-- **Онбординг NAS (v2026.04.22+):** параметр **`coaTemplate`**: **`full`** (профиль `COMMERCIAL_FULL`, полный коммерческий план) или **`small`** (`COMMERCIAL_SMALL`, упрощённый подмножество). Поле **`organizations.coaTemplateProfile`** фиксирует выбранный профиль; в **`settings.templateGroup`** дублируется совместимое значение для зарплаты (`COMMERCIAL` / `SMALL_BUSINESS`). Устаревший выбор **`templateGroup`** в API по-прежнему поддерживается, если **`coaTemplate`** не передан. Профиль **GOVERNMENT** остаётся в `TemplateGroup` / настройках зарплаты.
+- План счетов; при создании организации — **копирование из глобальных шаблонов в БД** в локальные `Account` (см. **§5.1**): приоритетный источник — **`TemplateAccount`** с полем **`kind`** (`COMMERCIAL` / `BUDGET` / `NGO`, уникальность **`[kind, code]`**); legacy-каталог **`ChartOfAccountsEntry`** (также с **`kind`**) — для super-admin и ссылок `chartEntryId`.
+- **Онбординг NAS (OrganizationKind):** в API на вход передаётся **`legalForm`**; поле **`organizations.kind`** вычисляется сервером и фиксирует выбранный план. В **`settings.templateGroup`** для зарплаты пишется **`COMMERCIAL`** или **`GOVERNMENT`** (маппинг: **`BUDGET` → GOVERNMENT**, иначе **COMMERCIAL**). Каталожные JSON: **`chart-of-accounts-{commercial|budget|ngo}.json`** в пакете database.
 - Ручные операции (Journal Vouchers); автоматические — от других модулей.
 - Валидация баланса, атомарность, закрытие периодов (детали — TZ).
 - Главная книга; сводные отчёты — модуль 7.
@@ -509,6 +510,19 @@ If `ProjectedBalance` drops below zero on a date, UI marks it as **cash-gap risk
 | **C — Multi-GAAP** | [x] **COMPLETED (v2026.05.01):** IFRS Trial Balance + P&L, глобальный NAS/IFRS toggle в UI |
 | **D — ОС и ТМЦ** | [x] **COMPLETED:** реестр ОС, линейная амортизация, проводки **Дт 713 — Кт 112**, UI `/fixed-assets`; FIFO для ТМЦ — в модуле 9 (§4.10) |
 
+### 5.0.1. Market validation: «painted door» для отраслевых вертикалей (SMB AZ)
+
+**Цель:** до разработки четырёх потенциальных вертикальных модулей измерить спрос через **UI-заглушки** в боковом меню (**Industry Solutions**): клик открывает лендинг-модалку с ценовым ориентиром и **листом ожидания** (одна заявка на пару **организация + модуль**). События воронки и микро-опрос сохраняются в БД; при достижении порогов **50 / 100** заявок по модулю супер-админы получают **email + in-app notification**.
+
+| Модуль (ключ) | Сегмент | Ориентир цены (hook) |
+|---------------|---------|----------------------|
+| **RETAIL_ECOM** | Магазины, Instagram-продажи | +15 AZN/мес. за точку продаж |
+| **LOGISTICS_CUSTOMS** | Экспедиторы, перевозчики | +25 AZN/мес. за автопарк (fleet) |
+| **CONSTRUCTION** | Сметы, объекты, акты | +20 AZN/мес. за активный проект |
+| **CRM_WHATSAPP** | Сервис и продажи | +10 AZN/мес. за агента |
+
+**Не является** отдельным entitlement в подписке: модули **не** входят в `ModuleEntitlement` до отдельного продуктового решения.
+
 ### 5.1. Системные шаблоны плана счетов и онбординг организации (v1.1 / v2.0)
 
 **[x] COMPLETED.** Эталон NAS/IFRS в **`TemplateAccount`** / **`TemplateIFRSMapping`**, атомарный онбординг через **`provisionChartOfAccountsFromTemplate`**, Super-Admin **`/api/admin/chart-template`**, импорт каталога NAS в UI **`/accounting/chart`** (ранее **`/settings/chart`**; постоянный редирект сохранён) — в продукте. Исторические таблицы «проблема as-is» и длинные чек-листы миграций **убраны как устаревшие**; обратная совместимость для старых тенантов — без автоматического массового перезаписывания `Account`.
@@ -520,6 +534,7 @@ If `ProjectedBalance` drops below zero on a date, UI marks it as **cash-gap risk
 3. [x] **COMPLETED —** онбординг организации в одной транзакции с копированием плана по профилю.
 4. [x] **COMPLETED —** откат транзакции при ошибке; нет «пустой» организации без стартового плана.
 5. [x] **COMPLETED —** dev-`seed` и первичное наполнение `Template*` при пустой БД.
+6. [x] **COMPLETED — Smart Seeding (Clean ERP):** layered idempotent seeding engine (`core`, `national`, `hr`, `bank`, `geo`, `trade`) with per-layer CLI, `SEED_REGION` switch, and global catalogs for RBAC, currency/UoM, tax rates, geo, activity/notification/audit types, and system product templates (`__PSA_HOUR__`, `__DELIVERY__`).
 6. [x] **COMPLETED —** UI `/super-admin` для шаблонного NAS.
 
 ### 5.D. Fixed Assets v2: реестр ОС и амортизация
@@ -529,6 +544,7 @@ If `ProjectedBalance` drops below zero on a date, UI marks it as **cash-gap risk
 - [x] **COMPLETED —** автопроводка за месяц **Дт 713 — Кт 112** и строки по объектам.
 - [x] **COMPLETED —** идемпотентность по `fixedAssetId + year + month`.
 - [x] **COMPLETED —** UI `/fixed-assets` (реестр, book value, запуск амортизации).
+- [x] **COMPLETED (Monthly automation, v2026.06):** ежемесячный регламентный запуск амортизации через **BullMQ-очередь `monthly-depreciation`** — cron **`0 1 1 * *`** (1-го числа в 01:00 UTC, через час после биллинга), воркер обходит все активные `Organization` (без soft-delete) под **`runWithTenantContextAsync`** и вызывает существующий `runMonthlyDepreciation` за **прошедший** UTC-месяц. Идемпотентность сохраняется на уровне `FixedAssetDepreciationMonth`. Аварийный выключатель — env-флаг **`FIXED_ASSETS_MONTHLY_DISABLED=1`**. Технические детали — [TZ.md](./TZ.md) §12.5.
 
 ### 5.E. Generic SaaS Strengthening (Waves 1–3)
 
@@ -586,7 +602,7 @@ If `ProjectedBalance` drops below zero on a date, UI marks it as **cash-gap risk
 Прямые интеграции с порталами, банками и идентификацией (детали и API — после due diligence). Кратко по эпикам:
 
 - [x] **COMPLETED (v3.0 B2G):** полная поддержка бюджетного учёта АР (**NAS-Gov**) и отчётности для госсектора, с сохранением коммерческого контура NAS для B2B.
-- [x] **COMPLETED (v3.0 B2G):** обязательный выбор `templateGroup` (Commercial / Government) при регистрации и атомарный онбординг плана счетов по выбранному типу.
+- [x] **COMPLETED (v3.0 B2G):** onboarding NAS через `OrganizationKind` (Commercial / Budget / NGO), при этом на регистрации выбирается `legalForm`, а `kind` вычисляется сервером.
 
 ### 6.1. Государственные сервисы
 
@@ -642,7 +658,7 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 - [x] **COMPLETED (v2026.04.18, SaaS Hardening v1 / Batch 2):** RBAC auto-scanner for mutation endpoints, Public Invoice rate-limiting + strong token validation, and CRM degraded mode with VÖEN fallback + audit event.
 - [x] **COMPLETED (v2026.04.20, SaaS Hardening v1 / Batch 3):** reporting draft leakage prevention (posted-only), strict negative inventory guard with FIFO/COGS regression coverage, and multi-currency VAT rounding handling to FX accounts.
 - [x] **COMPLETED (v2026.04.21, Multi-GAAP Foundation):** parallel NAS/IFRS ledgers, automated IFRS mapping rules for mirror entries, ledger-aware reporting filters, and IFRS mapping management UI.
-- [x] **COMPLETED (v2026.04.22, NAS Chart of Accounts):** i18n (AZ/RU/EN); global **`TemplateAccount`** + **`templateGroups`** (Commercial Full / Small); onboarding **`coaTemplate`** (`full`/`small`) and **`organizations.coaTemplateProfile`**; legacy **`ChartOfAccountsEntry`**; **`POST /api/organizations`** alias; **`GET /api/accounts/templates`** + **`POST /api/accounts/import-from-template`**; UI **`/accounting/chart`**; API `locale` / `Accept-Language` for names.
+- [x] **COMPLETED (v2026.04.22, NAS Chart of Accounts):** i18n (AZ/RU/EN); global **`TemplateAccount`** по **`OrganizationKind`**; онбординг **`organizations.kind`**; legacy **`ChartOfAccountsEntry.kind`**; **`POST /api/organizations`** alias; **`GET /api/accounts/templates`** + **`POST /api/accounts/import-from-template`**; UI **`/accounting/chart`**; API `locale` / `Accept-Language` for names.
 - [x] **COMPLETED (v2026.04.23, SaaS Hardening v1 M8 Audit & Compliance):** рекурсивное маскирование PII и секретов в интеграционных и аудит-пейлоадах (`DataMaskingService`), единая точка редукции в `AuditLog`, маскирование фрагментов ответов банковских API в application logs.
 - [x] **COMPLETED (v2026.04.24, Finance Core Reconciliation Act):** акт сверки взаиморасчётов по контрагенту: API `/api/reports/reconciliation/:id`, журнальные строки, PDF/XLSX и вкладка в карточке контрагента.
 
@@ -794,6 +810,13 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 **Деплой на прод:** после применения миграций Prisma выполнять **`npm run db:deploy`** из корня (или эквивалент: `migrate deploy` + **`npm run db:sync-i18n:prune`**), чтобы таблица **`translation_overrides`** совпадала по множеству ключей и значениям **RU/AZ** с текущим `resources.ts` и обновился кэш i18n. Подробности — [TZ.md](./TZ.md) §17.
 
+#### 7.6.2. Reference data hub (Super-Admin UI)
+
+- **Маршрут:** `/super-admin/data` и подстраницы — единый центр для **`SystemConfig`**, глобальных каталогов (**`Currency`**, **`UnitOfMeasure`**, **`TaxRate`**), **NAS** (`ChartOfAccountsEntry`, `TemplateAccount`), **`TranslationOverride`**, **`CustomsTariffRate`**, а также **read-only** MDM (`GlobalCompanyDirectory`, `GlobalCounterparty`) и статического обзора enum/whitelist.
+- **Таможенные ставки (`CustomsTariffRate`):** справочник платформы для предрасчёта BGD в Trade Pro; первичный источник — **официальные приложения к актам КМ** (AZ), загрузка через Super-admin и/или парсер Markdown акта → JSON → скрипт импорта (см. [TZ.md](./TZ.md) §20.2). Версионирование строк по **`(hs_code, effective_from)`**; поле **`notes`** используется для ссылки на акт и дату редакции.
+- **Политика удаления:** в UI и предписанных admin API для этих сущностей **нет hard-delete**; используются **деактивация**, **`TranslationOverride.is_active`**, **`deletedAt`** у таможенных ставок, **снятие с эксплуатации** (`isDeprecated`) и **сброс к дефолту** для `SystemConfig`, с сохранением историчности и аудита мутаций.
+- **Обратная совместимость:** `/super-admin/translations` и `/super-admin/customs-tariff-rates` перенаправляют на подмаршруты Data hub.
+
 **Чеклист релиза расширения DayDay Assistant (Staging/Prod):** [docs/deploy/EXTENSION_MVP_DEPLOY.md](./docs/deploy/EXTENSION_MVP_DEPLOY.md).
 
 **Центр деплой-документации (сценарии + порядок для on-call):** [docs/deploy/README.md](./docs/deploy/README.md).
@@ -934,6 +957,7 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 |--------|----------|
 | **Единый месячный инвойс** | **Owner** получает **один** счёт платформы за **месячный** период, **суммирующий** все начисления по **всем** организациям, где он владелец (`ownerUserId` = этот пользователь). Внутри счёта — строки по каждой организации (VÖEN) и типу начисления (база, модуль, квота). |
 | **Billing History** | Раздел UI: **детализированная таблица** транзакций/счетов платформы (дата, период, сумма, статус); для каждого счёта — **скачивание PDF** (`pdfLink`). |
+| **Платёжные провайдеры** | Платформа поддерживает **несколько** провайдеров оплаты подписки: **PAŞA Bank** (web-checkout с редиректом на платёжку, HMAC-вебхук) и **Drakaris/yığım** — внешний агрегатор, который сам обращается к публичному API DayDay по **Basic Auth** (см. [TZ.md](./TZ.md) §14.8.14). Идемпотентность результирующего `PaymentOrder` — по `idempotencyKey` (для Drakaris это `transaction-id` агрегатора), повторное уведомление не продлевает подписку дважды. |
 
 Обязательные атрибуты счёта:
 
@@ -989,13 +1013,13 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 | Сущность | Ключевые поля |
 |----------|----------------|
-| **Organization** | `id`, `name`, `taxIdCipher` + `taxIdBlindIndex` (VÖEN в encrypted/blind виде), `currency`, `settings`, **`coaTemplateProfile`** (`COMMERCIAL_FULL` / `COMMERCIAL_SMALL`), **`ownerId`** (FK на пользователя — владелец для биллинга), **`billingStatus`** (`ACTIVE` / `SOFT_BLOCK` / `HARD_BLOCK`), подписка через `OrganizationSubscription` |
+| **Organization** | `id`, `name`, `taxIdCipher` + `taxIdBlindIndex` (VÖEN в encrypted/blind виде), `currency`, `settings`, **`kind`** (`OrganizationKind`: `COMMERCIAL` / `BUDGET` / `NGO`), **`legalForm`** (`CounterpartyLegalForm`), **`ownerId`** (FK на пользователя — владелец для биллинга), **`billingStatus`** (`ACTIVE` / `SOFT_BLOCK` / `HARD_BLOCK`), подписка через `OrganizationSubscription` |
 | **OrgModule** (целевая нормализация) | `(organizationId, moduleKey)`, `priceSnapshot`, `activatedAt` — включённые модули по организации (см. §7.12, TZ §14.8); параллельно может жить `OrganizationSubscription.customConfig` до миграции |
 | **BillingInvoice** (платформа) | Счёт к владельцу за подписку: `ownerUserId`, `totalAmount`, `status`, `periodStart` / `periodEnd`, `pdfLink`; строки — **`BillingInvoiceItem`** (`organizationId`, описание, сумма). Не смешивать с **Sales Invoice** |
 | **User** | `id`, `email`, `passwordHash`; роль и тенант — через **OrganizationMembership**; опционально `isSuperAdmin` (платформа) |
 | **Account** | `id`, `code`, **`name_az` / `name_ru` / `name_en`**, `type`, `parentId`, `organizationId`, опционально **`templateAccountId`**, **`chartEntryId`** |
-| **`TemplateAccount`** (глобальный NAS, §5.1) | `code` (unique), трёхъязычные имена, `accountType`, `parentCode`, **`templateGroups[]`**, `cashProfile`; без `organizationId` |
-| **`ChartOfAccountsEntry`** (legacy каталог NAS) и **`TemplateIFRSMapping`** | Платформенные эталоны **без** `organizationId`; super-admin **`/api/admin/chart-template`**; онбординг использует эту таблицу, если **`template_accounts` пуста** |
+| **`TemplateAccount`** (глобальный NAS, §5.1) | **`kind`**, `code` (**`@@unique([kind, code])`**), трёхъязычные имена, `accountType`, `parentCode`, `cashProfile`; без `organizationId` |
+| **`ChartOfAccountsEntry`** (legacy каталог NAS) и **`TemplateIFRSMapping`** | Платформенные эталоны **без** `organizationId`; поле **`kind`**; super-admin **`/api/admin/chart-template`**; онбординг использует эту таблицу, если **`template_accounts` пуста** для данного **`kind`** |
 | **Transaction** | `id`, `date`, `reference`, `description`, `organizationId` |
 | **JournalEntry** | `id`, `transactionId`, `accountId`, `debit`, `credit`, `organizationId` |
 | **Counterparty** | `id`, `name`, `taxId`, **`kind`** (производный от **`legalForm`** для учёта), `role`, **`legalForm`**, **`isVatPayer`**, `organizationId`, опционально `globalId`, `portalLocale`, … |
@@ -1125,7 +1149,7 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 | **UI и i18n** | **i18next**; в интерфейсе два языка — **RU** и **AZ**; при неопределённом коде языка действует **`az`** (единственный дефолт). Детали merge оверрайдов и хелперы — §7.6.1 и [TZ.md](./TZ.md) §17. |
 | **Время и форматы** | В БД — **UTC**; отображение — локаль Азербайджана, суммы в **AZN**. |
 | **Локальная инфра (Windows)** | Данные контейнеров, файлы, npm-кэш, temp — **D:** (`D:\DockerData\dayday_erp`); образы Docker — хранилище на D в Docker Desktop. |
-| **Тип организации / templateGroup** | `organizationType` и соответствующий `templateGroup` фиксируются при создании организации; после появления первой проводки в Ledger смена типа запрещена для сохранения целостности и исторической сопоставимости отчётов. |
+| **Тип организации / NAS kind** | **`Organization.kind`** фиксируется при создании организации; после появления первой проводки в Ledger смена **`kind`** запрещена для сохранения целостности и исторической сопоставимости отчётов. |
 
 ---
 
@@ -1244,6 +1268,8 @@ DayDay ERP **не навязывает** обязательную синхрон
 | **2026.06.01** | Текущая | **Phase 11:** международные инвойсы (`isInternational`) и Commercial Invoice PDF, AI-OCR импорт foreign supplier invoices, BGD/Customs declarations с проводками себестоимости и входящего НДС; техконтракты и пайплайн — [TZ.md](./TZ.md) §19. |
 | **2026.06.02** | Текущая | **Phase 12:** Customs — premium **DayDay Assistant** capture с `e-customs.gov.az` (модуль **`trade_pro`**, `POST /api/customs/declarations/prefill-capture`, `IntegrationPortal.CUSTOMS`) и бесплатный **Excel** import/export для BGD; техконтракт — [TZ.md](./TZ.md) §20. |
 | **2026.06.03** | Текущая | **Phase 12.1:** Trade Pro Customs upgraded to full BGD capture (line items, sender/receiver VÖEN, HS-based GATT pre-calc, injected portal action button + widget, super-admin tariff rates) with detail review UI; техконтракт — [TZ.md](./TZ.md) §20.1. |
+| **2026.06.04** | Текущая | **Profile / Billing providers / FA monthly:** добавлены (a) self-service **«Профиль»** (`/settings/profile`), поля **`User.phone`** и **`User.locale`** (`UserLocale = AZ \| RU`), API **`GET/PATCH /api/users/me`** со сменой пароля; (b) второй провайдер оплаты подписки **Drakaris/yığım** (Basic Auth, REST `/api/integrations/drakaris/v1/...`, идемпотентность по `transaction-id` → `PaymentOrder.idempotencyKey`, `Organization.drakarisClientId`); (c) ежемесячный BullMQ-воркер начисления амортизации (`monthly-depreciation`, cron `0 1 1 * *`, env-выключатель `FIXED_ASSETS_MONTHLY_DISABLED`). Техконтракты — [TZ.md](./TZ.md) §2.2, §12.5, §14.8.2, §14.8.14. |
+| **2026.06.05** | Текущая | **Таможенные ставки AZ / HS:** курируемый справочник `CustomsTariffRate` (приложения к актам КМ, парсинг MD → JSON, импорт, версии по **`effective_from`**); **§7.6.2**; техконтракт — [TZ.md](./TZ.md) §20.2. |
 
 ### 14.1. Принцип ведения истории (дальше)
 

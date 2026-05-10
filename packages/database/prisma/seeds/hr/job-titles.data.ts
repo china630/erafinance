@@ -1,0 +1,182 @@
+/**
+ * Job title catalog (`code` is stable — existing `job_positions.job_title_code` may reference it).
+ * Expanded for PRD §7.9 role families; legacy rows from the first seed are preserved by code.
+ */
+export const JOB_TITLES = [
+  // Administration
+  {
+    code: "DIRECTOR",
+    departmentTypeCode: "ADMINISTRATION",
+    nameAz: "Direktor",
+    nameRu: "Директор",
+    nameEn: "Director",
+    sortOrder: 0,
+  },
+  {
+    code: "EXECUTIVE_ASSISTANT",
+    departmentTypeCode: "ADMINISTRATION",
+    nameAz: "İcraçı köməkçi",
+    nameRu: "Помощник руководителя",
+    nameEn: "Executive assistant",
+    sortOrder: 1,
+  },
+  {
+    code: "INTERNAL_AUDITOR",
+    departmentTypeCode: "ADMINISTRATION",
+    nameAz: "Daxili auditor",
+    nameRu: "Внутренний аудитор",
+    nameEn: "Internal auditor",
+    sortOrder: 2,
+  },
+  // Finance & accounting
+  {
+    code: "CHIEF_ACCOUNTANT",
+    departmentTypeCode: "FINANCE",
+    nameAz: "Baş mühasib",
+    nameRu: "Главный бухгалтер",
+    nameEn: "Chief accountant",
+    sortOrder: 0,
+  },
+  {
+    code: "ACCOUNTANT",
+    departmentTypeCode: "FINANCE",
+    nameAz: "Mühasib",
+    nameRu: "Бухгалтер",
+    nameEn: "Accountant",
+    sortOrder: 1,
+  },
+  {
+    code: "FINANCIAL_ANALYST",
+    departmentTypeCode: "FINANCE",
+    nameAz: "Maliyyə analitiki",
+    nameRu: "Финансовый аналитик",
+    nameEn: "Financial analyst",
+    sortOrder: 2,
+  },
+  // Sales
+  {
+    code: "MANAGER",
+    departmentTypeCode: "SALES",
+    nameAz: "Menecer",
+    nameRu: "Менеджер",
+    nameEn: "Manager",
+    sortOrder: 0,
+  },
+  {
+    code: "SALES_REPRESENTATIVE",
+    departmentTypeCode: "SALES",
+    nameAz: "Satış təmsilçisi",
+    nameRu: "Торговый представитель",
+    nameEn: "Sales representative",
+    sortOrder: 1,
+  },
+  // Procurement
+  {
+    code: "PROCUREMENT_MANAGER",
+    departmentTypeCode: "PROCUREMENT",
+    nameAz: "Satınalma müdiri",
+    nameRu: "Руководитель отдела закупок",
+    nameEn: "Procurement manager",
+    sortOrder: 0,
+  },
+  {
+    code: "PROCUREMENT_SPECIALIST",
+    departmentTypeCode: "PROCUREMENT",
+    nameAz: "Satınalma mütəxəssisi",
+    nameRu: "Специалист по закупкам",
+    nameEn: "Procurement specialist",
+    sortOrder: 1,
+  },
+  // Warehouse & logistics (PRD: WAREHOUSE_KEEPER)
+  {
+    code: "WAREHOUSE_MANAGER",
+    departmentTypeCode: "WAREHOUSE",
+    nameAz: "Anbar müdiri",
+    nameRu: "Заведующий складом",
+    nameEn: "Warehouse manager",
+    sortOrder: 0,
+  },
+  {
+    code: "STOREKEEPER",
+    departmentTypeCode: "WAREHOUSE",
+    nameAz: "Anbardar",
+    nameRu: "Кладовщик",
+    nameEn: "Storekeeper",
+    sortOrder: 1,
+  },
+  {
+    code: "LOGISTICS_COORDINATOR",
+    departmentTypeCode: "WAREHOUSE",
+    nameAz: "Logistika koordinatoru",
+    nameRu: "Координатор логистики",
+    nameEn: "Logistics coordinator",
+    sortOrder: 2,
+  },
+  // Production
+  {
+    code: "PRODUCTION_MANAGER",
+    departmentTypeCode: "PRODUCTION",
+    nameAz: "İstehsalat müdiri",
+    nameRu: "Начальник производства",
+    nameEn: "Production manager",
+    sortOrder: 0,
+  },
+  {
+    code: "MACHINE_OPERATOR",
+    departmentTypeCode: "PRODUCTION",
+    nameAz: "Operator",
+    nameRu: "Оператор / станочник",
+    nameEn: "Machine operator",
+    sortOrder: 1,
+  },
+  // HR
+  {
+    code: "HR_LEAD",
+    departmentTypeCode: "HR",
+    nameAz: "HR menecer",
+    nameRu: "HR-менеджер",
+    nameEn: "HR manager",
+    sortOrder: 0,
+  },
+  {
+    code: "HR_SPECIALIST",
+    departmentTypeCode: "HR",
+    nameAz: "HR mütəxəssisi",
+    nameRu: "HR-специалист",
+    nameEn: "HR specialist",
+    sortOrder: 1,
+  },
+  {
+    code: "RECRUITER",
+    departmentTypeCode: "HR",
+    nameAz: "Rekruter",
+    nameRu: "Рекрутер",
+    nameEn: "Recruiter",
+    sortOrder: 2,
+  },
+  // IT
+  {
+    code: "IT_MANAGER",
+    departmentTypeCode: "IT",
+    nameAz: "İT müdiri",
+    nameRu: "Руководитель ИТ",
+    nameEn: "IT manager",
+    sortOrder: 0,
+  },
+  {
+    code: "DEVELOPER",
+    departmentTypeCode: "IT",
+    nameAz: "Proqramçı",
+    nameRu: "Программист",
+    nameEn: "Developer",
+    sortOrder: 1,
+  },
+  {
+    code: "SYSTEM_ADMINISTRATOR",
+    departmentTypeCode: "IT",
+    nameAz: "Sistem administratoru",
+    nameRu: "Системный администратор",
+    nameEn: "System administrator",
+    sortOrder: 2,
+  },
+] as const;

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { CounterpartyLegalForm } from "@dayday/database";
 import { PrismaService } from "../prisma/prisma.service";
 
 export type DirectoryUpsertInput = {
@@ -7,6 +8,7 @@ export type DirectoryUpsertInput = {
   legalAddress?: string | null;
   phone?: string | null;
   directorName?: string | null;
+  legalForm?: CounterpartyLegalForm | null;
 };
 
 @Injectable()
@@ -35,6 +37,7 @@ export class GlobalCompanyDirectoryService {
     const legalAddress = input.legalAddress?.trim() || null;
     const phone = input.phone?.trim() || null;
     const directorName = input.directorName?.trim() || null;
+    const legalForm = input.legalForm ?? null;
 
     const prev = await this.prisma.globalCompanyDirectory.findUnique({
       where: { taxId },
@@ -50,6 +53,7 @@ export class GlobalCompanyDirectoryService {
       directorName != null && directorName !== ""
         ? directorName
         : (prev?.directorName ?? null);
+    const mergedLegalForm = legalForm ?? prev?.legalForm ?? null;
 
     await this.prisma.globalCompanyDirectory.upsert({
       where: { taxId },
@@ -59,12 +63,14 @@ export class GlobalCompanyDirectoryService {
         legalAddress: legalAddress ?? null,
         phone: phone ?? null,
         directorName: directorName ?? null,
+        legalForm,
       },
       update: {
         name: mergedName,
         legalAddress: mergedLegal,
         phone: mergedPhone,
         directorName: mergedDirector,
+        legalForm: mergedLegalForm,
       },
     });
   }

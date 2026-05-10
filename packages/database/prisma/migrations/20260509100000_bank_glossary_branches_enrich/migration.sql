@@ -1,4 +1,4 @@
--- Phase: enrich `bank_glossary` and `bank_branches` so the `docs/banks.md`
+-- Phase: enrich `bank_glossary` and `bank_branches` for full bank/branch import
 -- importer can carry correspondent IBAN, SWIFT, head-office contacts and
 -- per-branch phone arrays. Idempotent: every column is added with IF NOT
 -- EXISTS, and indexes are created with IF NOT EXISTS.

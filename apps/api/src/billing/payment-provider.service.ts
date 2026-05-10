@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -19,6 +20,7 @@ import { SubscriptionAccessService } from "../subscription/subscription-access.s
 import type { CheckoutDto } from "./dto/checkout.dto";
 import type { PaymentWebhookDto } from "./dto/payment-webhook.dto";
 import { PashaBankPaymentProvider } from "./providers/pasha-bank-payment.provider";
+import { DrakarisPaymentProvider } from "../integrations/payment-providers/drakaris/drakaris-payment.provider";
 import { BillingPlatformService } from "./billing-platform.service";
 import {
   catalogModuleKeyToPatch,
@@ -29,6 +31,8 @@ import { OrganizationModuleService } from "./organization-module.service";
 
 @Injectable()
 export class PaymentProviderService {
+  private readonly logger = new Logger(PaymentProviderService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly billing: BillingService,
@@ -36,6 +40,7 @@ export class PaymentProviderService {
     private readonly subscriptionAccess: SubscriptionAccessService,
     private readonly orgModules: OrganizationModuleService,
     private readonly pasha: PashaBankPaymentProvider,
+    private readonly drakaris: DrakarisPaymentProvider,
     private readonly config: ConfigService,
     private readonly systemConfig: SystemConfigService,
     private readonly audit: AuditService,
@@ -67,6 +72,8 @@ export class PaymentProviderService {
       .get<string>("API_PUBLIC_URL", "http://127.0.0.1:4000")
       .replace(/\/$/, "");
 
+    const paymentKind = dto.provider ?? "pasha_bank";
+
     const order = await this.prisma.paymentOrder.create({
       data: {
         organizationId,
@@ -75,13 +82,41 @@ export class PaymentProviderService {
         description: `Subscription renewal (${months} mo.)`,
         idempotencyKey: dto.idempotencyKey ?? null,
         status: PaymentOrderStatus.PENDING,
-        provider: "pasha_bank",
+        provider: paymentKind === "drakaris" ? "drakaris" : "pasha_bank",
         metadata: {},
       },
     });
 
     const returnUrl = `${webApp}/billing/success?orderId=${encodeURIComponent(order.id)}`;
     const callbackUrl = `${apiPublic}/api/billing/webhooks/pasha_bank`;
+
+    if (paymentKind === "drakaris") {
+      const session = await this.drakaris.createPaymentSession({
+        internalOrderId: order.id,
+        organizationId,
+        amount: amountAzn,
+        currency: "AZN",
+        description: order.description,
+        returnUrl,
+        callbackUrl,
+      });
+      await this.prisma.paymentOrder.update({
+        where: { id: order.id },
+        data: {
+          provider: "drakaris",
+          providerTxnId: session.externalId ?? null,
+          metadata: {
+            lastPaymentUrl: session.paymentUrl,
+            providerMode: session.providerMode,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return {
+        orderId: order.id,
+        paymentUrl: session.paymentUrl,
+        providerMode: session.providerMode,
+      };
+    }
 
     const session = await this.pasha.createPaymentSession({
       internalOrderId: order.id,
@@ -240,6 +275,52 @@ export class PaymentProviderService {
     }
 
     await this.finalizePaidOrder(dto.orderId);
+    return { ok: true };
+  }
+
+  /** Called by Drakaris/yığım inbound API after creating a pending PaymentOrder. */
+  async finalizePaidOrderPublic(orderId: string): Promise<void> {
+    await this.finalizePaidOrder(orderId);
+  }
+
+  /**
+   * Optional callback from Drakaris (same shape as inbound POST) without PAŞА HMAC.
+   */
+  async handleDrakarisWebhook(
+    body: Record<string, unknown>,
+  ): Promise<{ ok: boolean }> {
+    try {
+      const orderId =
+        typeof body.orderId === "string"
+          ? body.orderId
+          : typeof body.order_id === "string"
+            ? body.order_id
+            : undefined;
+      const txnId =
+        typeof body["transaction-id"] === "string"
+          ? body["transaction-id"]
+          : typeof body.transactionId === "string"
+            ? body.transactionId
+            : undefined;
+
+      if (orderId) {
+        await this.finalizePaidOrder(orderId);
+        return { ok: true };
+      }
+      if (txnId) {
+        const order = await this.prisma.paymentOrder.findFirst({
+          where: {
+            idempotencyKey: txnId,
+            provider: "drakaris",
+            status: PaymentOrderStatus.PENDING,
+          },
+        });
+        if (order) await this.finalizePaidOrder(order.id);
+        return { ok: true };
+      }
+    } catch (e) {
+      this.logger.warn(`Drakaris webhook: ${String(e)}`);
+    }
     return { ok: true };
   }
 

@@ -27,6 +27,24 @@ import { UpdateProductDto } from "./dto/update-product.dto";
 export class ProductsController {
   constructor(private readonly prisma: PrismaService) {}
 
+  @Get("units-of-measure")
+  @ApiOperation({
+    summary: "Системный каталог единиц измерения",
+    description: "Предпочтительно: GET /api/system/units-of-measure",
+  })
+  listUnitsOfMeasure() {
+    return this.prisma.unitOfMeasure.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+      select: {
+        code: true,
+        nameAz: true,
+        nameRu: true,
+        nameEn: true,
+      },
+    });
+  }
+
   @Get()
   @ApiOperation({ summary: "Список товаров (опционально search + limit для автодополнения)" })
   list(
@@ -99,18 +117,26 @@ export class ProductsController {
       }
     }
 
-    const baseName = dto.name.trim();
-    const uom = dto.unitOfMeasure?.trim();
-    const displayName = uom ? `${baseName} (${uom})` : baseName;
+    const unitOfMeasureCode = dto.unitOfMeasureCode?.trim() || null;
+    if (unitOfMeasureCode) {
+      const uom = await this.prisma.unitOfMeasure.findUnique({
+        where: { code: unitOfMeasureCode },
+        select: { code: true },
+      });
+      if (!uom) {
+        throw new BadRequestException("Unknown unitOfMeasureCode");
+      }
+    }
 
     return this.prisma.product.create({
       data: {
         organizationId: orgId,
-        name: displayName,
+        name: dto.name.trim(),
         sku,
         price: dto.price,
         vatRate: dto.vatRate,
         isService,
+        unitOfMeasureCode,
       },
     });
   }
@@ -137,6 +163,9 @@ export class ProductsController {
         ...(dto.price !== undefined && { price: dto.price }),
         ...(dto.vatRate !== undefined && { vatRate: dto.vatRate }),
         ...(dto.isService !== undefined && { isService: dto.isService }),
+        ...(dto.unitOfMeasureCode !== undefined
+          ? { unitOfMeasureCode: dto.unitOfMeasureCode?.trim() || null }
+          : {}),
       },
     });
   }

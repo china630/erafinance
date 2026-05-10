@@ -11,8 +11,8 @@
     "moduleResolution": "node"
   },
   "include": [
-    "prisma/nas-chart-commercial-data.ts",
-    "prisma/chart-seed.ts",
-    "prisma/pricing-module-seed.ts"
+    "prisma/lib/chart/chart-seed.ts",
+    "prisma/lib/core/pricing-module-seed.ts",
+    "prisma/lib/org/legal-form-kind.mapper.ts"
   ]
 }

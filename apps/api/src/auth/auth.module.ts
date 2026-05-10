@@ -8,15 +8,18 @@ import { PrismaModule } from "../prisma/prisma.module";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { TeamController } from "./team.controller";
+import { UsersController } from "./users.controller";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { RolesGuard } from "./guards/roles.guard";
 import { SuperAdminGuard } from "./guards/super-admin.guard";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 import { PiiCryptoService } from "../security/pii-crypto.service";
+import { GlobalCompanyDirectoryModule } from "../global-directory/global-company-directory.module";
 
 @Module({
   imports: [
     PrismaModule,
+    GlobalCompanyDirectoryModule,
     forwardRef(() => OrganizationsModule),
     HrModule,
     PassportModule.register({ defaultStrategy: "jwt" }),
@@ -31,7 +34,7 @@ import { PiiCryptoService } from "../security/pii-crypto.service";
       inject: [ConfigService],
     }),
   ],
-  controllers: [AuthController, TeamController],
+  controllers: [AuthController, TeamController, UsersController],
   providers: [
     AuthService,
     JwtStrategy,

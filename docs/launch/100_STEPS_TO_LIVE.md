@@ -156,7 +156,7 @@
 
 Детали, ключи `SystemConfig`, квоты и бэклог: **[docs/launch/STAGE_D_BILLING.md](STAGE_D_BILLING.md)**.
 
-98. [x] **`PricingModules`** — сид в `packages/database/prisma/seed.ts` + `pricing-module-seed.ts` + скрипты `packages/database/scripts/**`.
+98. [x] **`PricingModules`** — сид слоя `core` через `prisma/seed.ts` → `lib/core/pricing-module-seed.ts` + скрипты `packages/database/scripts/**`.
 99. [x] **`SystemConfig`** — ключи цен/квот/юнит-тарифов: `apps/api/src/system-config/system-config.service.ts`.
 100. [x] **`SubscriptionAccessService`** — `apps/api/src/subscription/subscription-access.service.ts` (модули, ENTERPRISE, customConfig).
 101. [x] **`SubscriptionGuard` + `@RequiresModule`** — `subscription.guard.ts`, декоратор, контроллеры (banking, manufacturing, …).

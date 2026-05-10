@@ -40,7 +40,10 @@ export const CustomsDeclarationItemPrefillSchema = z.object({
   hsCode: z.string().trim().min(2).max(20),
   description: z.string().trim().min(1),
   quantity: z.number().positive(),
+  /** @deprecated Prefer `unitOfMeasureCode` (catalog code: pcs, kg, m, …). */
   unit: z.string().trim().optional().nullable(),
+  /** System catalog code; wins over `unit` when both are set. */
+  unitOfMeasureCode: z.string().trim().optional().nullable(),
   weightNetKg: z.number().nonnegative(),
   weightGrossKg: z.number().nonnegative(),
   invoiceValue: z.number().nonnegative(),

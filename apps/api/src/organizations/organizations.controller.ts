@@ -42,7 +42,7 @@ export class OrganizationsController {
   @ApiBearerAuth()
   @ApiOperation({
     summary:
-      "Создать организацию (эквивалент POST /api/auth/organizations): coaTemplate full|small для NAS",
+      "Создать организацию (эквивалент POST /api/auth/organizations): legalForm on input, NAS kind derived server-side",
   })
   async createOrganization(
     @CurrentUser() user: AuthUser,

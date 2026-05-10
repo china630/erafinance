@@ -12,7 +12,7 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { CoaTemplateProfile, UserRole } from "@dayday/database";
+import { OrganizationKind, UserRole } from "@dayday/database";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { OrganizationId } from "../common/org-id.decorator";
@@ -21,12 +21,11 @@ import { AccountsService } from "./accounts.service";
 import { CreateBankAccountDto } from "./dto/create-bank-account.dto";
 import { ImportFromTemplateDto } from "./dto/import-from-template.dto";
 
-function parseTemplateProfileQuery(
-  raw?: string,
-): CoaTemplateProfile | undefined {
-  const v = raw?.trim().toLowerCase();
-  if (v === "full") return CoaTemplateProfile.COMMERCIAL_FULL;
-  if (v === "small") return CoaTemplateProfile.COMMERCIAL_SMALL;
+function parseOrganizationKindQuery(raw?: string): OrganizationKind | undefined {
+  const v = raw?.trim().toUpperCase();
+  if (v === "COMMERCIAL" || v === "BUDGET" || v === "NGO") {
+    return OrganizationKind[v as keyof typeof OrganizationKind];
+  }
   return undefined;
 }
 
@@ -43,29 +42,31 @@ export class AccountsController {
   })
   cashChartCatalog(
     @Query("locale") locale?: string,
+    @Query("kind") kindRaw?: string,
     @Headers("accept-language") acceptLanguage?: string,
   ) {
     return this.accounts.listCashChartCatalogEntries(
       locale?.trim() || acceptLanguage,
+      parseOrganizationKindQuery(kindRaw) ?? OrganizationKind.COMMERCIAL,
     );
   }
 
   @Get("templates")
   @ApiOperation({
     summary:
-      "Глобальный NAS (`template_accounts`): счета, которых ещё нет в плане организации (поиск, опционально profile=full|small)",
+      "Глобальный NAS (`template_accounts`): счета, которых ещё нет в плане организации (поиск; kind по умолчанию = kind организации)",
   })
   nasTemplates(
     @OrganizationId() organizationId: string,
     @Query("search") search?: string,
-    @Query("profile") profile?: string,
+    @Query("kind") kindRaw?: string,
     @Query("locale") locale?: string,
     @Headers("accept-language") acceptLanguage?: string,
   ) {
     return this.accounts.listNasTemplateCatalogForImport(organizationId, {
       search,
       locale: locale?.trim() || acceptLanguage,
-      templateProfile: parseTemplateProfileQuery(profile),
+      kind: parseOrganizationKindQuery(kindRaw),
     });
   }
 

@@ -9,7 +9,6 @@ import { apiBaseUrl, apiFetch } from "../../lib/api-client";
 import type { AuthUser, OrgSummary } from "../../lib/auth-context";
 import { useAuth } from "../../lib/auth-context";
 import {
-  MODAL_CHECKBOX_CLASS,
   MODAL_CLOSE_BUTTON_CLASS,
   MODAL_DIALOG_CONTENT_CLASS,
   MODAL_FIELD_LABEL_CLASS,
@@ -19,6 +18,11 @@ import {
 } from "../../lib/design-system";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader } from "@dayday/ui";
+import {
+  COUNTERPARTY_LEGAL_FORMS,
+  type CounterpartyLegalForm,
+  counterpartyLegalFormI18nKey,
+} from "../../lib/counterparty-legal-form";
 
 export function CreateCompanyModal({
   open,
@@ -35,14 +39,14 @@ export function CreateCompanyModal({
 
   const [orgName, setOrgName] = useState("");
   const [taxId, setTaxId] = useState("");
-  const [coaTemplate, setCoaTemplate] = useState<"full" | "small">("full");
+  const [legalForm, setLegalForm] = useState<CounterpartyLegalForm>("LLC");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setOrgName("");
     setTaxId("");
-    setCoaTemplate("full");
+    setLegalForm("LLC");
     setBusy(false);
   }, [open]);
 
@@ -67,7 +71,7 @@ export function CreateCompanyModal({
           organizationName: orgName.trim(),
           taxId: digits,
           currency: "AZN",
-          coaTemplate,
+          legalForm,
         }),
       });
       if (!res.ok) {
@@ -133,29 +137,20 @@ export function CreateCompanyModal({
                 autoComplete="off"
               />
             </label>
-            <fieldset className="m-0 border-0 p-0">
-              <legend className={MODAL_FIELD_LABEL_CLASS}>{t("companiesPage.coaTemplateLabel")}</legend>
-              <label className="mt-2 flex cursor-pointer items-center gap-2 text-[13px] text-[#34495E]">
-                <input
-                  type="radio"
-                  name="coaTemplate"
-                  checked={coaTemplate === "full"}
-                  onChange={() => setCoaTemplate("full")}
-                  className={MODAL_CHECKBOX_CLASS}
-                />
-                {t("companiesPage.coaTemplateFull")}
-              </label>
-              <label className="mt-2 flex cursor-pointer items-center gap-2 text-[13px] text-[#34495E]">
-                <input
-                  type="radio"
-                  name="coaTemplate"
-                  checked={coaTemplate === "small"}
-                  onChange={() => setCoaTemplate("small")}
-                  className={MODAL_CHECKBOX_CLASS}
-                />
-                {t("companiesPage.coaTemplateSmall")}
-              </label>
-            </fieldset>
+            <label className={MODAL_FIELD_LABEL_CLASS}>
+              {t("counterparties.legalFormField")}
+              <select
+                value={legalForm}
+                onChange={(e) => setLegalForm(e.target.value as CounterpartyLegalForm)}
+                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
+              >
+                {COUNTERPARTY_LEGAL_FORMS.map((item) => (
+                  <option key={item} value={item}>
+                    {t(counterpartyLegalFormI18nKey(item))}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
           <div className={MODAL_FOOTER_ACTIONS_CLASS}>
             <Button

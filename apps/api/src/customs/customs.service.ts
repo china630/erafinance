@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { CustomsDeclarationStatus, Prisma } from "@dayday/database";
 import type { CustomsDeclarationFullPrefillCapture, CustomsDeclarationPrefillCapture } from "@dayday/api-contracts";
+import { normalizeUnitInputToCatalogCode } from "../common/unit-of-measure-normalize";
 import { AccountingService } from "../accounting/accounting.service";
 import {
   INVENTORY_GOODS_ACCOUNT_CODE,
@@ -136,6 +137,7 @@ export class CustomsService {
           description: "Aggregate capture (no HS line items)",
           quantity: 1,
           unit: null,
+          unitOfMeasureCode: null,
           weightNetKg: 0,
           weightGrossKg: 0,
           invoiceValue: dto.customsValueAzn,
@@ -214,7 +216,9 @@ export class CustomsService {
         })(),
         description: it.description.trim(),
         quantity: new Prisma.Decimal(it.quantity),
-        unit: it.unit?.trim() ?? null,
+        unitOfMeasureCode: normalizeUnitInputToCatalogCode(
+          it.unitOfMeasureCode ?? it.unit,
+        ),
         weightNetKg: new Prisma.Decimal(it.weightNetKg),
         weightGrossKg: new Prisma.Decimal(it.weightGrossKg),
         invoiceValue: new Prisma.Decimal(it.invoiceValue),

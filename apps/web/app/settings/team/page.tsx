@@ -54,7 +54,7 @@ type InviteRow = {
   invitedBy?: { id: string; email: string; fullName: string | null } | null;
 };
 
-const ROLES = ["USER", "ACCOUNTANT", "DIRECTOR", "ADMIN", "OWNER"] as const;
+const DEFAULT_TEAM_INVITE_ROLES = ["USER", "ACCOUNTANT", "DIRECTOR", "ADMIN"] as const;
 
 export default function TeamSettingsPage() {
   const { t } = useTranslation();
@@ -70,6 +70,9 @@ export default function TeamSettingsPage() {
   const [inviteRole, setInviteRole] = useState<string>("USER");
   const [inviteMsg, setInviteMsg] = useState<string | null>(null);
   const [invites, setInvites] = useState<InviteRow[]>([]);
+  const [assignableRoles, setAssignableRoles] = useState<string[]>(() => [
+    ...DEFAULT_TEAM_INVITE_ROLES,
+  ]);
   const [tab, setTab] = useState<"members" | "invites">("members");
 
   const canManage =
@@ -112,6 +115,21 @@ export default function TeamSettingsPage() {
     if (!ready || !token) return;
     void load();
   }, [ready, token, load]);
+
+  useEffect(() => {
+    if (!ready || !token) return;
+    void (async () => {
+      const res = await apiFetch("/api/system/team-assignable-roles");
+      if (!res.ok) return;
+      const body = (await res.json()) as { roles?: unknown };
+      if (!Array.isArray(body.roles)) return;
+      const roles = body.roles.filter((r): r is string => typeof r === "string" && r.length > 0);
+      if (roles.length > 0) {
+        setAssignableRoles(roles);
+        setInviteRole((cur) => (roles.includes(cur) ? cur : roles[0]!));
+      }
+    })();
+  }, [ready, token]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -275,7 +293,7 @@ export default function TeamSettingsPage() {
                 onChange={(e) => setInviteRole(e.target.value)}
                 className={`block mt-1 min-w-[10rem] ${INPUT_BORDERED_CLASS}`}
               >
-                {ROLES.filter((r) => r !== "OWNER").map((r) => (
+                {assignableRoles.map((r) => (
                   <option key={r} value={r}>
                     {r}
                   </option>
@@ -333,6 +351,7 @@ export default function TeamSettingsPage() {
                 </div>
                 <div className="flex flex-wrap gap-2 items-center">
                   <ApproveRoleSelect
+                    roles={assignableRoles}
                     onApprove={(role) => void approveRequest(req.id, role)}
                     disabled={busyId === req.id}
                   />
@@ -446,14 +465,21 @@ export default function TeamSettingsPage() {
 }
 
 function ApproveRoleSelect({
+  roles,
   onApprove,
   disabled,
 }: {
+  roles: string[];
   onApprove: (role: string) => void;
   disabled: boolean;
 }) {
   const { t } = useTranslation();
-  const [role, setRole] = useState("USER");
+  const [role, setRole] = useState(() => roles[0] ?? "USER");
+
+  useEffect(() => {
+    setRole((cur) => (roles.includes(cur) ? cur : roles[0] ?? "USER"));
+  }, [roles]);
+
   return (
     <div className="flex items-center gap-2">
       <select
@@ -462,7 +488,7 @@ function ApproveRoleSelect({
         className={`${INPUT_BORDERED_CLASS} py-1.5 text-[13px]`}
         disabled={disabled}
       >
-        {ROLES.filter((r) => r !== "OWNER").map((r) => (
+        {roles.map((r) => (
           <option key={r} value={r}>
             {r}
           </option>

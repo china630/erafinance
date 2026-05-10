@@ -32,6 +32,9 @@ export class AuditorMutationGuard implements CanActivate {
     if (path.endsWith("/auth/logout")) {
       return true;
     }
+    if (path.includes("/early-access/")) {
+      return true;
+    }
 
     throw new ForbiddenException({
       code: "AUDITOR_READ_ONLY",

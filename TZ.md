@@ -17,11 +17,33 @@
 |-------|------|------------|
 | GET | `/api/admin/chart-template` | Глобальный каталог NAS (`ChartOfAccountsEntry`), чтение (super-admin) |
 | POST | `/api/admin/chart-template` | Upsert строки каталога NAS (super-admin) |
-| GET | `/api/accounts/templates` | Глобальный NAS (`TemplateAccount`): счета, которых ещё нет в плане текущей организации; query `search`, `profile` (`full`\|`small`), `locale` |
+| PATCH | `/api/admin/chart-template/:id` | Частичное обновление строки NAS (поля `kind`/`code` неизменны) |
+| GET | `/api/admin/system-config` | Платформенный whitelist `SystemConfig` (super-admin Data hub) |
+| PUT | `/api/admin/system-config/:key` | Upsert значения ключа из whitelist |
+| POST | `/api/admin/system-config/:key/reset` | Удалить строку из БД → действует встроенный дефолт |
+| GET / POST / PATCH | `/api/admin/currencies` | Мастер валют; мутации без hard-delete (`PATCH isActive`) |
+| GET / POST / PATCH | `/api/admin/units-of-measure` | Каталог UoM |
+| GET / POST / PATCH | `/api/admin/tax-rates` | Ставки налогов |
+| GET / POST / PATCH | `/api/admin/template-accounts` | Глобальные NAS template accounts |
+| GET | `/api/admin/mdm/companies` | `GlobalCompanyDirectory` (read-only, пагинация) |
+| GET | `/api/admin/mdm/counterparties` | `GlobalCounterparty` (read-only, пагинация) |
+| GET | `/api/admin/reference/snapshot` | Снимок enum / контрактных whitelist для прозрачности |
+| PATCH | `/api/admin/translations/:id` | Текст и/или `isActive` у `TranslationOverride` (soft-disable вместо DELETE) |
+| GET | `/api/admin/customs-tariff-rates` | Таможенные ставки; `?includeInactive=1` — вместе с `deletedAt` |
+| POST | `/api/admin/customs-tariff-rates` | Upsert строки тарифа (ключ **`hsCode` + `effectiveFrom`**) — см. §20.2 |
+| POST | `/api/admin/customs-tariff-rates/:id/deactivate` | Soft-delete (`deletedAt`) |
+| POST | `/api/admin/customs-tariff-rates/:id/restore` | Снять soft-delete |
+| GET | `/api/accounts/templates` | Глобальный NAS (`TemplateAccount`): счета, которых ещё нет в плане текущей организации; query `search`, опционально **`kind`** (`COMMERCIAL`\|`BUDGET`\|`NGO`, по умолчанию = **`organizations.kind`** активной org), `locale` |
 | POST | `/api/accounts/import-from-template` | Импорт NAS-счёта из шаблона: body `{ templateAccountId }`; роли OWNER/ADMIN/ACCOUNTANT |
-| POST | `/api/organizations` | Создание организации (JWT), эквивалент `POST /api/auth/organizations`; body: `coaTemplate` `full`\|`small`, опционально `templateGroup` |
+| POST | `/api/organizations` | Создание организации (JWT), эквивалент `POST /api/auth/organizations`; body: **`legalForm`** (`CounterpartyLegalForm`) |
+| GET | `/api/system/currencies` | Активные валюты (`Currency`) для UI |
+| GET | `/api/system/invoice-vat-rates` | Допустимые ставки ƏDV для строк счёта/номенклатуры (`tax_rates`, VAT) |
+| GET | `/api/system/team-assignable-roles` | Роли, доступные для приглашения в организацию |
+| GET | `/api/system/inventory-movement-enums` | Списки `StockMovementType` и `StockMovementReason` (как в Prisma) для складских фильтров и согласованности UI |
 | GET/POST/* | `/api/billing/*` | Контур биллинга организации: доступ **только** для роли `OWNER` (не-owner роли получают `403`) |
 | POST | `/api/billing/webhooks/:provider` | Webhook платёжного провайдера (`mock`, `pasha`, `pasha_bank`), публичный маршрут |
+| GET / POST | `/api/integrations/drakaris/v1/client/:id`, `/payments` | Drakaris/yığım inbound API: Basic Auth, конверт `{status,description,data}`, status-коды 200/401/402/404/405/406/407/408 (см. §14.8.14) |
+| GET / PATCH | `/api/users/me` | Self-service профиль текущего пользователя: PII (cipher), `phone` (E.164 +994), `locale` (`AZ`\|`RU`), смена пароля (см. §2.2) |
 | GET | `/api/reports/cash-flow` | ДДС прямой метод (`CashFlowService.getDirectCashFlow`), query: `dateFrom`, `dateTo`, опц. `cashDeskId`, `bankName` |
 | GET | `/api/hr/payroll/jobs/:jobId` | Статус фоновой задачи расчёта ЗП (BullMQ) |
 | GET | `/api/notifications` | Список in-app уведомлений текущего пользователя: пагинация (`page`, `pageSize`), фильтр `unreadOnly` |
@@ -184,7 +206,7 @@
 
 **Prisma**
 
-- **User:** без `organizationId` на уровне пользователя; профиль: `fullName`, `avatarUrl` (и т.п.).
+- **User:** без `organizationId` на уровне пользователя; профиль: `fullName`, `avatarUrl` (и т.п.). Дополнительные поля self-service профиля (см. **§2.2**): **`phone`** (`String?`, формат **E.164 +994XXXXXXXXX**, валидируется в DTO) и **`locale`** (**enum `UserLocale` ∈ { `AZ`, `RU` }**, default **`AZ`**) — определяют язык бандла Next.js при следующем входе/`refreshSession`. PII имени остаётся в `firstNameCipher` / `lastNameCipher`.
 - **OrganizationMembership:** связь `{ userId, organizationId, role, joinedAt }`, составной PK `(userId, organizationId)`.
 - **AccessRequest:** запрос на вступление в существующую организацию по VÖEN (статусы ожидания / принят / отклонён).
 - **OrganizationInvite:** приглашение по email в организацию (в т.ч. для пользователя, который ещё не зарегистрирован — доставка письмом; если пользователь уже есть — видит приглашение в кабинете).
@@ -212,6 +234,28 @@
 19. **Drop wave 3 (columns):** удалены plaintext-колонки `users.first_name` и `users.last_name`; runtime читает ФИО только из `first_name_cipher` / `last_name_cipher` (с вычислением `fullName` в API-ответах).
 20. **Drop wave 4 (column):** удалена plaintext-колонка `employees.voen`; для CONTRACTOR используется только `voen_cipher` / `voen_blind_index`, экспорт и API-чтение берут значение через дешифрование cipher-поля.
 16. **Invite lifecycle (v95+):** `inviteUser(email, role)` создаёт запись приглашения, генерирует invite token и отправляет email со ссылкой принятия; `accept` создаёт membership по токену/идентификатору инвайта; `revoke` переводит pending-invite в отклонённый статус и блокирует дальнейшее принятие. **Безопасность (M1):** просроченный JWT приглашения отклоняется отдельным сообщением от «невалидного» токена; принятие инвайта **атомарно** резервирует строку (`UPDATE … WHERE status=PENDING`), повторное использование ссылки даёт **`409 Conflict`**; дубликат membership (`P2002`) трактуется как конфликт («уже участник организации»), в т.ч. при гонках между несколькими организациями/сессиями.
+
+### 2.2. Self-service профиль пользователя (`/api/users/me`, v2026.06)
+
+Контур редактирования собственных данных пользователя — отдельный от настроек организации (см. PRD §4.1). Размещается в **`AuthModule`**: контроллер **`apps/api/src/auth/users.controller.ts`**, сервисный метод **`AuthService.updateMe(userId, dto)`**. Все мутации — внутри одной **`prisma.$transaction`**; глобальный **`AuditMutationInterceptor`** покрывает `PATCH` автоматически.
+
+| Метод | Путь | Назначение |
+|-------|------|------------|
+| GET | `/api/users/me` | Возвращает текущий профиль: `id`, `email`, расшифрованные `firstName` / `lastName` / `fullName`, `avatarUrl`, `phone`, `locale`. Используется фронтом в `refreshSession`. |
+| PATCH | `/api/users/me` | Частичное обновление профиля; глобальный `Throttle` (по умолчанию `30 / 60s`). |
+
+**`UpdateMeDto`** (`apps/api/src/auth/dto/update-me.dto.ts`):
+
+- `firstName?: string` (`@IsString @MaxLength(80)`); нормализация и `encryptText` через существующие хелперы из `auth.service.ts` (PII-cipher).
+- `lastName?: string` — аналогично.
+- `email?: string` (`@IsEmail`) — при изменении проверяется уникальность; конфликт → **`409 Conflict`**.
+- `phone?: string | null` (`@IsString @MaxLength(20)`); при `null` / пустой строке поле очищается; формат **E.164 `+994XXXXXXXXX`** (валидация на сервере; `Compliance` AZ).
+- `locale?: UserLocale` (`@IsEnum`); допустимы только `AZ` и `RU`; влияет на бандл Next.js при следующем входе/`refreshSession`.
+- `passwordChange?: { currentPassword, newPassword (MinLength 8) }` (`@ValidateNested`): сервер делает `bcrypt.compare(currentPassword, user.passwordHash)`; на ок — `bcrypt.hash(newPassword, 10)`. Неверный текущий пароль → **`400 Bad Request`** с кодом **`INVALID_CURRENT_PASSWORD`** без подсказок (anti-enumeration).
+
+**Контракт ответа `auth/me`:** функции `toPublicUser` / `toPublicUserNoOrg` в `auth.service.ts` дополнены полями `phone` и `locale`, чтобы **`GET /api/auth/me`** (используется веб-клиентом для `refreshSession`) возвращал актуальный профиль без отдельного раунд-трипа.
+
+**Web (`apps/web/app/settings/profile/page.tsx`):** отдельная страница «Профиль» на боковой навигации; форма с **`PageHeader`**, `CARD_CONTAINER_CLASS`, инпутами по DESIGN.md. На submit — `apiFetch('/api/users/me', PATCH)`; на успех — `useAuth().refreshSession()` + при изменении локали `i18n.changeLanguage(newLocale)`. Тип `AuthUser` в `apps/web/lib/auth-context.tsx` дополнен опциональными `phone?` и `locale?`.
 
 ### Система ролей (RBAC)
 
@@ -273,10 +317,14 @@
 - Иерархическая структура — дерево счетов (self-relation в БД).
 - Типы: Asset, Liability, Equity, Revenue, Expense.
 - **Многоязычные наименования (v2026.04.22):** у **`Account`**, **`ChartOfAccountsEntry`** и **`TemplateAccount`** хранятся **`name_az`**, **`name_ru`**, **`name_en`**; отображаемое имя — по локали (`GET /api/accounts?locale=…`, **`Accept-Language`**).
-- **Архитектура «Global → Local»:** эталонный NAS платформы — таблица **`TemplateAccount`** (уникальный `code`, иерархия `parentCode`, массив **`templateGroups`** со значениями **`COMMERCIAL_FULL`** / **`COMMERCIAL_SMALL`**). В организацию при онбординге копируются только строки, чей **`templateGroups`** содержит выбранный профиль (**`organizations.coaTemplateProfile`**). Локальные счета — **`Account`**; опциональная связь **`templateAccountId`**.
-- **Legacy:** **`ChartOfAccountsEntry`** + super-admin UI остаются; при **пустой** таблице **`template_accounts`** онбординг использует прежний путь **`syncAzChartForOrganization`** по **`templateGroup`**.
-- **Seeding:** `prisma db seed` вызывает **`upsertGlobalNasTemplateAccounts`**; отдельно: **`npm run db:seed:nas-templates --workspace=@dayday/database`** (`seed-nas-accounts.ts`). Канон — **`loadChartJson`** / **`getNasCommercialFullAccounts`**.
-- **Онбординг API:** поле **`coaTemplate`**: **`full`** | **`small`** (приоритет над устаревшим **`templateGroup`**). В **`settings.templateGroup`** пишется **`COMMERCIAL`** или **`SMALL_BUSINESS`** для payroll.
+- **Архитектура «Global → Local»:** эталонный NAS платформы — таблица **`TemplateAccount`** с полем **`kind: OrganizationKind`** и **`@@unique([kind, code])`** (коды могут совпадать между видами плана с разным смыслом). В организацию при онбординге копируются строки с тем же **`kind`**, что у **`organizations.kind`**. Локальные счета — **`Account`**; опциональная связь **`templateAccountId`**.
+- **Legacy:** **`ChartOfAccountsEntry`** + super-admin UI остаются; при **пустом** наборе **`template_accounts`** для данного **`kind`** онбординг использует **`syncChartForOrganization`** (загрузка JSON каталога + сид каталога в БД при необходимости).
+- **Seeding:** `prisma db seed` вызывает **`upsertGlobalNasTemplateAccounts`**; отдельно: **`npm run db:seed:nas-templates --workspace=@dayday/database`** (`prisma/scripts/seed-nas-accounts.ts`). Канон — **`loadChartJson(kind)`** и JSON **`prisma/catalog/national/chart-of-accounts-{commercial|budget|ngo}.json`**.
+- **Smart Seeding (vClean ERP):** `prisma/seed.ts` использует модульный раннер `packages/database/prisma/seeds/_engine/runner.ts` с флагами `--layers`, `--skip`, `--only`, `--dry-run`, `--region` (`SEED_REGION`, default `AZ`).
+- **Layer scripts:** `db:seed:core`, `db:seed:national`, `db:seed:hr`, `db:seed:bank`, `db:seed:trade`, `db:seed:geo`, `db:seed:placeholders`.
+- **Currency/UoM hardening:** currency columns переведены на FK к `currencies(code)`; UoM поля нормализованы в `unit_of_measure_code` (FK к `units_of_measure(code)`), включая `customs_declaration_items`.
+- **PSA placeholders:** `PsaService` провижинит placeholder-продукты из `system_product_templates` в tenant `products` при первом использовании (вместо локально захардкоженного одиночного SKU).
+- **Онбординг API:** публичный ввод — поле **`legalForm`** (`CounterpartyLegalForm`), а **`kind`** вычисляется сервером: `STATE_AGENCY -> BUDGET`, `NGO -> NGO`, иначе `COMMERCIAL`. В **`settings.templateGroup`** для payroll пишется **`COMMERCIAL`** или **`GOVERNMENT`** (маппинг: **`BUDGET` → GOVERNMENT**, иначе **COMMERCIAL**).
 - **Ручное расширение плана:** **`GET /api/accounts/templates`**, **`POST /api/accounts/import-from-template`**; UI **`/accounting/chart`** (редирект с устаревшего **`/settings/chart`**).
 
 ### Транзакции (Transaction) и проводки (Journal Entry)
@@ -825,7 +873,7 @@
   - **Больничный (`SICK_LEAVE_STAJ`)**: к gross месяца добавляется сумма работодателя по правилам ТК AР за **календарные дни больничного в этом месяце**, с учётом **первых 14 календарных дней каждого эпизода** (по записям `Absence` с типом формулы `SICK_LEAVE_STAJ`) и процента от стажа; дни после 14-го оплачиваются DSMF вне ERP.
   - **Без оплаты** (`UNPAID_RECORD` → `OFF` в табеле): отработанные **рабочие** дни (`WORK` + **`BUSINESS_TRIP`** на рабочих днях производственного календаря АР) дают долю оклада \(\text{оклад} \times (\text{дни} / N)\), где \(N\) — число рабочих дней в месяце; дни `OFF` на рабочих днях в эту долю не входят (удержание по табелю).
 - Подрядчики (**`CONTRACTOR`**) и ведомость **без табеля** — по-прежнему gross = поле **`salary`** (старое поведение).
-- **Consolidated tax engine (v2026.04.16):** `PayrollService` использует единый эталонный расчетный контур по `templateGroup` (`COMMERCIAL` / `GOVERNMENT`) с общими правилами округления и edge-case валидацией.
+- **Consolidated tax engine (v2026.04.16):** `PayrollService` использует единый эталонный расчетный контур по **`settings.templateGroup`** (`COMMERCIAL` / `GOVERNMENT`; значение выводится из **`organizations.kind`** при онбординге) с общими правилами округления и edge-case валидацией.
 - **Payroll-to-Bank lifecycle (v2026.04.16):** `SalaryRegistry` фиксирует состояния `DRAFT -> SENT -> PAID`; `SENT` формируется strategy-пайплайном (`ABB_XML` direct / `UNIVERSAL_XLSX` file export), `PAID` подтверждается ручной сверкой.
 
 ### Payroll Processor
@@ -1244,6 +1292,7 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 - Документация: **Swagger (OpenAPI)** — см. PRD.
 - **Secure payroll export storage (v2026.04.16):** универсальные зарплатные реестры сохраняются как файл через `STORAGE_SERVICE` (S3/local), а не inline `data:` payload.
 - **Temporary links (TTL):** скачивание зарплатного файла доступно только по временной подписанной ссылке и только ролям `OWNER`/`ACCOUNTANT` в пределах текущего `organizationId`.
+- **Early access / painted door (market validation):** тенантские эндпоинты **`POST /api/early-access/events`**, **`POST /api/early-access/signup`**, **`GET /api/early-access/me`** — фиксация кликов, времени модалки, конверсии в лист ожидания и снимка тарифа/отрасли (см. PRD §5.0.1). Высокочастотный **`POST …/events`** **исключён** из `AuditMutationInterceptor`. Супер-админ: **`GET /api/admin/early-access/summary`**, **`GET /api/admin/early-access/events`** (кросс-тенант при `skipTenantFilter` на `/api/admin/*`). Пороговые уведомления: env **`EARLY_ACCESS_THRESHOLDS`** (по умолчанию `50,100`).
 
 ### 11.1. Web UI: шапка страницы (`PageHeader`)
 
@@ -1313,6 +1362,7 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
   - пообъектная фиксация в `FixedAssetDepreciationMonth` + инкремент `bookedDepreciation`.
 - **Идемпотентность:** уникальный ключ (`fixedAssetId`, `year`, `month`) + проверка существующих начислений перед вставкой.
 - **API/UI:** endpoint `POST /api/fixed-assets/depreciation/run`; web-страница `/fixed-assets` показывает book value и запускает начисление за месяц.
+- **Monthly automation (v2026.06, BullMQ):** очередь **`monthly-depreciation`** в `apps/api/src/fixed-assets/monthly-depreciation.queue.ts` регистрирует повторяющийся job со схемой **`{ pattern: "0 1 1 * *" }`** (1-го числа в **01:00 UTC**, через час после биллинга, чтобы не конкурировать), `jobId = "fixed-assets-monthly-depreciation"`, `attempts: 3`, экспоненциальный backoff `60_000`. Воркер `apps/api/src/fixed-assets/monthly-depreciation.worker.ts`: вычисляет **предыдущий** UTC-месяц, выбирает все `Organization` без soft-delete (**`deletedAt: null` && `isDeleted: false`**), для каждой org вызывает `runMonthlyDepreciation(orgId, { year, month })` под **`runWithTenantContextAsync({ organizationId, skipTenantFilter: false })`** (Prisma extension). Ошибка одной org логируется + срабатывает `attachWorkerFailureAlert` (общий Slack/Telegram webhook), цикл по остальным организациям продолжается. Существующая идемпотентность по `FixedAssetDepreciationMonth (assetId, year, month)` гарантирует безопасный re-run (повторный запуск cron не дублирует проводки). Аварийный выключатель — env-флаг **`FIXED_ASSETS_MONTHLY_DISABLED=1`** (queue не регистрируется, worker не стартует). Регистрация — в `FixedAssetsModule.providers`.
 
 ### 12.4. Налоговый портал (экспорт)
 
@@ -1653,7 +1703,7 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 
 - **Источник правды (заголовки)** — таблица **`bank_glossary`** (без `organizationId`, общая для платформы): `id`, `nameAz`, `voen` (UNIQUE, 10 цифр), `code` (`CHAR(2)` UNIQUE, `01`–`22`), `correspondentIban` (UNIQUE, IBAN банка в ЦБА), `swift`, `headPhones` (`text[]`), `headAddress`, `isActive`, `createdAt`, `updatedAt`.
 - **Филиалы** — таблица **`bank_branches`**: `id`, `bankId` (FK → `bank_glossary.id`, `ON DELETE CASCADE`), `branchCode` (6-значный МФО), `name`, `swift?`, `address?`, `phones` (`text[]`), `isHeadOffice` (`bool`, head-office флаг), `isActive`. UNIQUE `(bank_id, branch_code)`, индекс `(bank_id, is_head_office)`. Для каждой `OrganizationBankAccount` хранится опциональная `bankBranchId` (FK → `bank_branches.id`).
-- **Авторитетный список 22 банков (TZ §14.0.2)** — фиксируется в `packages/database/prisma/bank-glossary-seed.ts` (тип `BankGlossarySeedRow` несёт `code`, `nameAz`, `voen`, `correspondentIban`, `swift`, `headBranchCode`, `headPhones`, `headAddress`):
+- **Авторитетный список 22 банков (TZ §14.0.2)** — фиксируется в `packages/database/prisma/lib/bank/bank-glossary-seed.ts` (тип `BankGlossarySeedRow` несёт `code`, `nameAz`, `voen`, `correspondentIban`, `swift`, `headBranchCode`, `headPhones`, `headAddress`):
 
   | code | Bank (Az) | VÖEN | SWIFT |
   |---|---|---|---|
@@ -1680,14 +1730,14 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
   | 21 | Ziraat Bank Azərbaycan ASC | 1303953611 | TCZBAZ22 |
   | 22 | Yelo Bank ASC | 9900014901 | NICBAZ22 |
 - **Seed-функция `seedBankGlossary(prisma)`** идемпотентна и устойчива к перетасовке `voen` между `code`: внутри одной транзакции выполняется двухфазный upsert (placeholder VÖEN → реальный VÖEN), благодаря чему UNIQUE на `voen` не нарушается даже при swap'ах. Заодно создаётся head-office запись в `bank_branches` (`isHeadOffice=true`, `branchCode=headBranchCode`, `name="Baş ofis"`).
-- **Импорт филиалов из `docs/banks.md`** — отдельный CLI: `npm run db:import-banks-md` (apply) и `npm run db:import-banks-md:dry` (без подключения к БД, только отчёт). Логика: `parseBanksMd()` (`packages/database/prisma/banks-md-parser.ts`) → `importBanksMd()` (`banks-md-importer.ts`) → upsert в `bank_glossary` + `bank_branches`. Маппинг `head row → BankGlossary.code` идёт **по VÖEN** (а не по позиции в MD-файле). Несовпавшие VÖEN попадают в `unmatchedHeadVoens` и пропускаются. На контрольном прогоне 2026-05-07 матчатся все 22 банка, апсёртятся 22 записи в `bank_glossary` и 647 в `bank_branches` (22 head-office + 625 филиалов из `docs/banks.md`).
+- **Импорт / сид филиалов** — таблица-источник в репозитории: `packages/database/prisma/catalog/bank/banks-table.md` (входит в пакет `@dayday/database`). Снимок для рантайма: `packages/database/prisma/catalog/bank/bank-branches.generated.ts` (регенерация: `npm run db:gen:banks-branches-seed`). Отдельный CLI для ручного прогона markdown: `npm run db:import-banks-md` (apply) и `npm run db:import-banks-md:dry` (только отчёт). Логика: `parseBanksMd()` (`packages/database/prisma/lib/bank/banks-md-parser.ts`) → `importBanksMd()` (`packages/database/prisma/lib/bank/banks-md-importer.ts`) → upsert в `bank_glossary` + `bank_branches`. Маппинг `head row → BankGlossary.code` идёт **по VÖEN** (а не по позиции в файле). Несовпавшие VÖEN попадают в `unmatchedHeadVoens` и пропускаются. На контрольном прогоне 2026-05-07 матчатся все 22 банка, апсёртятся 22 записи в `bank_glossary` и 647 в `bank_branches` (22 head-office + 625 филиалов).
 - **Маска NAS-субсчёта**: `221.<BankCode>.<Sequence>` — `BankCode` берётся из `bank_glossary.code`, `Sequence` — двузначный (`01`–`99`) счётчик внутри **(organizationId × bankCode)** на основе уже существующих записей в `accounts` (NAS).
 - **Хук в модуле бухгалтерии**: **`apps/api/src/accounting/bank-subaccount.service.ts`** → `BankSubaccountService`, методы:
   - `nextSubaccountCode(organizationId, bankCode, db)` — следующий двузначный `Sequence`, валидация маски, защита от переполнения (`> 99` → `BadRequestException`);
   - `ensureSubaccountForBranch(organizationId, bankBranchId, opts, db)` — атомарно создаёт NAS-счёт `221.<bankCode>.<seq>` (тип `ASSET`, родитель — локальный `221`); идемпотентен по `(organizationId, bankBranchId, currency)`. Все операции выполняются внутри `prisma.$transaction` через `BankingService.createOrganizationBankAccount` / `updateOrganizationBankAccount`.
 - **Миграции БД**:
   - `packages/database/prisma/migrations/20260508160000_bank_glossary_branches/migration.sql` — создаёт `bank_glossary`, `bank_branches`, добавляет `organization_bank_accounts.bank_branch_id` + индекс + FK `ON DELETE SET NULL`.
-  - `packages/database/prisma/migrations/20260509100000_bank_glossary_branches_enrich/migration.sql` — расширяет схему под полный импорт из `docs/banks.md`: `bank_glossary.correspondent_iban` (UNIQUE), `swift`, `head_phones text[]`, `head_address`; `bank_branches.phones text[]`, `is_head_office bool`. Идемпотентна (`ADD COLUMN IF NOT EXISTS`).
+  - `packages/database/prisma/migrations/20260509100000_bank_glossary_branches_enrich/migration.sql` — расширяет схему под полный импорт таблицы банков/филиалов: `bank_glossary.correspondent_iban` (UNIQUE), `swift`, `head_phones text[]`, `head_address`; `bank_branches.phones text[]`, `is_head_office bool`. Идемпотентна (`ADD COLUMN IF NOT EXISTS`).
 
 #### Customer Portal Security (гостевая ссылка на счёт)
 
@@ -1853,6 +1903,7 @@ enum SubscriptionTier {
 | `ownerId` | UUID FK → `users.id` | Владелец; при создании org = создатель; смена — только через **Transfer** (14.8.5) |
 | `billingStatus` | Enum | `ACTIVE` \| `SOFT_BLOCK` \| `HARD_BLOCK`; технический статус post-paid жизненного цикла задолженности |
 | `status` | Enum (целевой) | `ACTIVE` \| `TRIAL` \| `SUSPENDED` — жизненный цикл доступа к org (согласовано с `OrganizationSubscription.isTrial` / `isBlocked`) |
+| `drakarisClientId` | `String?` `@unique` | Внешний идентификатор клиента в провайдере **Drakaris/yığım** (см. **§14.8.14**); используется для резолва организации по `GET /v1/client/{id}` без раскрытия внутреннего UUID. Может совпадать с VÖEN или быть назначен при подключении к yığım. Колонка добавлена миграцией `20260510140000_add_user_locale_phone_drakaris_org`. |
 
 **Миграция:** для существующих строк `ownerId` заполняется из первого пользователя с ролью `OWNER` в `OrganizationMembership` (скрипт бэкапа перед миграцией обязателен).
 
@@ -1971,6 +2022,48 @@ enum SubscriptionTier {
 
 - **`npm run platform:dr-validate`** — `COUNT(*)` по таблицам `users`, `organizations`, `accounts`, `journal_entries`, `transactions`, `products`, `stock_items`, `counterparties`; опционально **`--baseline=*.json`** для поэлементного сравнения; несовпадение или нулевые `users`/`organizations` после restore → **exit 1**.
 - **`bash scripts/dr-drill.sh`** — последний архив **`backups/db/*.sql.gz`** → временный контейнер **PostgreSQL 16** → `psql` restore → `platform:dr-validate` → удаление контейнера (см. **`docs/deploy/DR_RUNBOOK.md` §8**).
+
+#### 14.8.14. Drakaris (yığım) — второй платёжный провайдер подписки (v2026.06)
+
+**Семантика:** Drakaris/yığım — внешний агрегатор оплаты, который **сам обращается** к публичному API DayDay (Basic Auth), запрашивает у клиента сумму и инициирует пополнение — в отличие от PAŞA Bank, где DayDay редиректит пользователя на платёжку и принимает HMAC-вебхук. Поэтому status-коды spec (`200 / 401 / 402 / 404 / 405 / 406 / 407 / 408`) реализованы как ответы **нашего REST-эндпоинта**, не как обработка чужих кодов.
+
+**Модуль:** `apps/api/src/integrations/payment-providers/drakaris/`
+
+| Файл | Назначение |
+|------|-----------|
+| `drakaris.controller.ts` | `@Controller('integrations/drakaris/v1')`, **`@Public()`**, **`@Throttle`**; маршруты `GET 'client/:id'` и `POST 'client/:id/payments'`; HTTP всегда **`200`** (признак ошибки — поле `status` в теле). |
+| `drakaris.service.ts` | Доменная логика: `checkClient(id)` и `topUpBalance(id, body)`. |
+| `drakaris-status.ts` | Константа `DrakarisStatus` (`OK=200`, `INVALID_CLIENT_ID=401`, `PAYMENTS_DISABLED=402`, `NOT_AVAILABLE_FOR_CLIENT=404`, `INTERNAL_ERROR=405`, `DUPLICATE_TRANSACTION=406`, `CURRENCY_MISMATCH=407`, `VALIDATION_ERROR=408`) + `DRAKARIS_STATUS_DESCRIPTIONS` и тип `DrakarisEnvelope = { status, description, data }`. |
+| `drakaris-payment.provider.ts` | Совместимость с `PaymentProviderService.createOrder({ provider: "drakaris" })`: возвращает payment session с `paymentUrl: null` и инструкциями для UI «оплатите в yığım по этому ID». |
+| `drakaris.module.ts` | Nest-модуль; импортируется в `app.module.ts`; реэкспорт `DrakarisPaymentProvider` для `BillingModule`. |
+
+**Auth:** контроллер встроенно сравнивает `Authorization: Basic <base64>` через `timingSafeEqual` с `DRAKARIS_BASIC_USER` / `DRAKARIS_BASIC_PASS` из `ConfigService`. На неуспех — конверт **`401`** (`Unauthorized`).
+
+**Резолв клиента:** `Organization` ищется по **`drakarisClientId`** (см. **§14.8.2**); глобальный фиче-флаг `DRAKARIS_ENABLED=1` обязателен (иначе **`402`**); проверяется доступность yığım для конкретной организации — иначе **`404`**.
+
+**`POST /v1/client/:id/payments` (top-up):**
+- валидация валюты (только **AZN**) → иначе **`407`**;
+- валидация полей (`amount`, `transaction-id`, …) → иначе **`408`**;
+- идемпотентность: `PaymentOrder` создаётся **upsert по `idempotencyKey = transaction-id`** (ровно тот же ключ, что прислал yığım); повторный запрос для уже существующего `transaction-id` → **`406`** (без второго проведения и без второго продления подписки);
+- создание заказа: `PaymentOrder { provider: "drakaris", providerTxnId: transactionId, idempotencyKey: transactionId, amountAzn: amountCoins / 100 }`; затем приватный аналог `PaymentProviderService.finalizePaidOrder` обновляет `OrganizationSubscription` и пишет аудит **`platform.billing.payment_applied`**;
+- любая внутренняя ошибка маппится в **`405`**.
+
+**Биллинг-интеграция:**
+- `PaymentOrder.provider` — это **строка** (default `"pasha_bank"`), миграция схемы не нужна; для нового провайдера используется значение `"drakaris"`.
+- `PaymentProviderService.createOrder` поддерживает выбор провайдера через `dto.provider` (`"pasha_bank" | "drakaris"`); для Drakaris — `paymentUrl: null` + инструкции UI.
+- `apps/api/src/billing/billing-webhooks.controller.ts` — список `SUPPORTED_PROVIDERS` дополнен `"drakaris"` на случай если yığım вместо REST вызовет webhook; HMAC-проверка PAŞA не применяется, в `payment-provider.service.ts` ветка `if (provider === 'drakaris')` делегирует обработку в `DrakarisService.topUpBalance`.
+- `apps/api/src/audit/audit-mutation.interceptor.ts` — `pathRaw.includes('/integrations/drakaris/')` добавлен в исключения (yığım не имеет нашего user/org контекста); аудит платежа продолжает идти через `auditService.logPlatformBillingPaymentApplied`.
+
+**Env (корневой `.env.example`):**
+
+| Ключ | Назначение |
+|------|------------|
+| `DRAKARIS_ENABLED` | Глобальный фиче-флаг (`0` / `1`); `0` → endpoint всегда отвечает `402`. |
+| `DRAKARIS_ENV` | `test` \| `live` (для исходящих вызовов и логов). |
+| `DRAKARIS_BASIC_USER` / `DRAKARIS_BASIC_PASS` | Креды Basic Auth, выданные провайдером для `Authorization: Basic …`. |
+| `DRAKARIS_TEST_BASE_URL` / `DRAKARIS_LIVE_BASE_URL` | Базовые URL агрегатора (для будущих outbound-вызовов сверки). |
+
+**Тесты:** `drakaris.service.spec.ts` (jest, без сети) с моками `PrismaService` / `PaymentProviderService` покрывает: `200`, `401` (нет org), `402` (`DRAKARIS_ENABLED!=1`), `404` (модуль yığım не подключён к организации), `406` (duplicate `transaction-id`), `407` (currency mismatch), `408` (валидация amount/transaction-id), `405` (исключение в `finalize`).
 
 ---
 
@@ -2122,6 +2215,7 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 
 - Операции, затрагивающие **более одной записи** или **проводки + доменные сущности**, оформляются как **`this.prisma.$transaction(async (tx) => { ... })`**, с передачей **`tx`** в **`AccountingService.postJournalInTransaction`** при необходимости.
 - **Примеры:** проведение зарплаты (проводки + обновление `PayrollRun`); закупка/списание/корректировка склада; инвойсы (смена статуса с выручкой/COGS/оплатой) — в рамках существующего кода.
+- **Early access:** `EarlyAccessSignup` — идемпотентный upsert по **`(moduleKey, organizationId)`** в одной транзакции с записью события **`SURVEY_SUBMIT`**; таблицы **`early_access_events`**, **`early_access_signups`**, **`early_access_threshold_alerts`** имеют **`organizationId`** (tenant extension на записях из JWT); агрегации для супер-админа — только через **`/api/admin/*`**.
 
 ### UI (web)
 
@@ -2157,16 +2251,16 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 
 ---
 
-## 18. Регламент регистрации (templateGroup) и история версий документа ТЗ
+## 18. Регламент регистрации (`OrganizationKind`) и история версий документа ТЗ
 
-### 18.1. Обязательный выбор `templateGroup` при регистрации организации
+### 18.1. Обязательный выбор `kind` при регистрации организации
 
-- Для регистрации новой организации выбор типа шаблона учёта является **обязательным** шагом: `templateGroup = COMMERCIAL | GOVERNMENT` (Commercial / Government).
-- Выбранный `templateGroup` передаётся в онбординг и используется для фильтрации системного каталога счетов при создании tenant-данных организации в рамках одной транзакции.
+- Для регистрации новой организации обязательным шагом является выбор **ОПФ (`legalForm`)**; `OrganizationKind` определяется на сервере.
+- Выбранный **`kind`** передаётся в онбординг и используется для фильтрации **`template_accounts`** / **`ChartOfAccountsEntry`** при создании tenant-данных организации в рамках одной транзакции.
 
 ### 18.2. Ограничение смены типа организации после начала учёта
 
-- Смена `templateGroup` должна быть **заблокирована** после появления первой финансовой транзакции организации (`transactions` / `journal_entries`), чтобы сохранять целостность Ledger и неизменность исторических проводок.
+- Смена **`organizations.kind`** должна быть **заблокирована** после появления первой финансовой транзакции организации (`transactions` / `journal_entries`), чтобы сохранять целостность Ledger и неизменность исторических проводок.
 - До первой транзакции смена допускается только в рамках административного сценария и с повторной валидацией шаблона счетов.
 
 ### 18.3. История версий документа ТЗ
@@ -2255,12 +2349,16 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 | **2026.05.22** | Текущая | **`v1.0.0-RC1` (Release Candidate 1)** — синхронизация ТЗ с этапом: **UI/UX** — модальные окна на реестрах, **`PageHeader`**, сайдбар-only layout (**§11.1**); **Склад** и **Производство** разведены по разделам/маршрутам; **закупки товаров vs услуг** (поля вида закупки, склад, проводки); **VÖEN** — строгая валидация ответа интеграции (**§13.2**), в CRM — **`legalForm`** (ОПФ) и **`isVatPayer`** (**§4**); перекрёстные ссылки на [PRD.md](./PRD.md) §4.3. |
 | **2026.05.23** | Текущая | **i18n (web):** §17 — политика **RU/AZ** с дефолтом **`az`**, таблица **`ui-lang.ts`**, расширен охват **`i18n:audit`** на **`apps/web/lib`**, описаны merge оверрайдов (**`overwrite: true`**), **`processTranslationOverridesFlat`**, ремап ОПФ, аудит **`audit-translation-overrides.ts`**; строка «Локаль» в §1; синхронизация с PRD §7.6.1 / §12. |
 | **2026.05.24** | Текущая | **i18n:** в §17 зафиксированы **`dropCounterpartyLegalFormPoisonDottedKeys`**, ключ **`counterparties.legalFormField`**; команда **`db:audit-i18n-overrides`** в списке; в [docs/deploy/deploy.ru.md](../docs/deploy/deploy.ru.md) добавлен §**7.4** (локальный **`db:deploy`** + dry-run аудита). |
+| **2026.05.11** | Текущая | **Painted door / early access:** PRD §5.0.1; API и модель в §11 (REST) и §17 (транзакции + `early_access_*`); UI — секция сайдбара Industry Solutions, модалка воронки, вкладка Super-Admin «Отраслевые модули (waitlist)». |
 | **2026.05.25** | Текущая | **Web / маршруты:** модуль **«План счетов» (Hesablar planı)** — **`/accounting/chart`**, **`/accounting/mapping`**, **`/accounting/ifrs-mapping`**; пункты вынесены из сайдбара «Администрирование» в отдельную секцию. Удалены канонические пути **`/settings/chart`**, **`/settings/mapping`**, **`/settings/finance/ifrs-mapping`** (постоянные **301** редиректы в **`next.config.ts`** приложения **`apps/web`**). |
 | **2026.05.26** | Текущая | **§8.0 Integrations (ƏMAS):** отдельный адаптер + **BullMQ** для исходящих запросов и обработки ответов госсерверов; перекрёстная ссылка на [PRD.md](./PRD.md) §13. |
 | **2026.05.27** | Текущая | **§13.2 DVX:** перекрёстная ссылка на гибридную архитектуру ГНС — [PRD.md](./PRD.md) §6.1.1; первый буллет про продуктовый контур vs техдетали реализации. |
 | **2026.05.28** | Текущая | **§8.0 ƏMAS:** зафиксирована поэтапная стратегия (ссылка на [PRD.md](./PRD.md) §13.0); уточнено, что BullMQ/HTTP-адаптер — **фаза 3**; фазы 1–2 — отдельные компоненты до S2S. |
 | **2026.05.29** | Текущая | **§14.5 Квоты:** roadmap-пункт **WhatsApp** — пакеты сообщений, ссылка на [PRD.md](./PRD.md) §6.8 / §7.12.3. |
 | **2026.05.31** | Текущая | Отражена поэтапная стратегия интеграции с DVX (включая Chrome RPA) и зафиксирована архитектура единого браузерного расширения с проверкой подписки на уровне выбранной организации (Multi-tenant RPA Gating). |
+| **2026.05.32** | Текущая | **NAS по виду организации:** единый **`OrganizationKind`** (`COMMERCIAL` / `BUDGET` / `NGO`), колонки **`organizations.kind`**, **`template_accounts.kind`**, **`chart_of_accounts_entries.kind`**; три JSON-каталога; онбординг и super-admin chart-template с **`kind`**; §18 и таблица API §0 обновлены. |
+| **2026.06.04** | Текущая | **Profile / Billing providers / FA monthly:** добавлены §**2.2** (`/api/users/me`, `User.phone`, `User.locale = AZ \| RU`, смена пароля с `INVALID_CURRENT_PASSWORD`), §**14.8.2** (`Organization.drakarisClientId @unique`), §**14.8.14** (Drakaris/yığım — Basic Auth, REST `/api/integrations/drakaris/v1/...`, `DrakarisStatus` 200/401/402/404/405/406/407/408, идемпотентность по `transaction-id` → `PaymentOrder.idempotencyKey`, env `DRAKARIS_*`), §**12.5** (BullMQ-воркер `monthly-depreciation`, cron `0 1 1 * *`, env `FIXED_ASSETS_MONTHLY_DISABLED`); миграция `20260510140000_add_user_locale_phone_drakaris_org`. Ссылка из PRD §4.1 / §5.D / §7.12.4. |
+| **2026.06.05** | Текущая | **§20.2 HS / AZ customs tariff curation:** платформенное версионирование `customs_tariff_rates` по `(hs_code, effective_from)`, dedupe на дату в `loadActiveRates`, парсер акта MD → JSON (`packages/database/scripts/parse-az-customs-act-md.mjs`), импорт JSON (`import-customs-tariff-from-json.ts`), шаблон CSV и маппинг кодов ЕИ закона → продукт (`customs-tariff-import.template.csv`, `customs-law-uom-mapping.json`); см. PRD §7.6.2. |
 
 ### Принцип ведения истории (дальше)
 
@@ -2268,20 +2366,21 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 - Любой новый пакет изменений фиксируется в обоих документах с одинаковым `YYYY.MM` и повышением `patch`.
 - История документа содержит только факт изменения спецификации; продуктовые release-метки (`v3`, `v14.3`, `v25.1`) указываются в тексте соответствующих разделов, а не как версия самого документа.
 
-### 18.4. Интерфейс выбора шаблона плана счетов NAS (Frontend)
+### 18.4. Интерфейс выбора плана NAS (Frontend)
 
 - **Компонент:** `apps/web/app/register-org/page.tsx` (форма регистрации организации).
-- **UI-элемент:** селектор **NAS chart template** с обязательным выбором профиля.
+- **UI-элемент:** radio/cards с обязательным выбором **`kind`**.
 - **Варианты:**
-  - `COMMERCIAL` — полный план NAS / MMÜS для коммерческих организаций (коды DayDay ERP: `101` касса, `221.xx` банк и т.д., плюс расширенные позиции каталога).
-  - `SMALL_BUSINESS` — упрощённый подмножество для малого бизнеса и ИП.
-- **Локализация:** ключи `auth.organizationTypeCommercial`, `auth.organizationTypeSmallBusiness` и описания `auth.organizationTypeCommercialDesc`, `auth.organizationTypeSmallBusinessDesc`. Ключи `auth.organizationTypeGovernment*` зарезервированы для будущего выбора B2G при регистрации.
+  - **`COMMERCIAL`** — коммерческий план (каталог `chart-of-accounts-commercial.json`; DayDay: касса **`101`**, банк **`221.*`** и т.д.).
+  - **`BUDGET`** — бюджетный план (NAS-GOV, `chart-of-accounts-budget.json`).
+  - **`NGO`** — некоммерческие организации (`chart-of-accounts-ngo.json`).
+- **Локализация:** ключи **`auth.organizationTypeCommercial` / `Budget` / `Nco`** и описания **`auth.organizationType*Desc`**; для списка компаний — **`companiesPage.organizationKind*`**; super-admin колонка **`superAdmin.chartColKind`**.
 
 ### 18.5. Атомарность и валидация (Backend)
 
-- **API-контракты:** `POST /api/auth/register`, **`POST /api/auth/organizations`** и **`POST /api/organizations`** принимают **`coaTemplate`** (`full` \| `small`) и опционально **`templateGroup`** (enum). Профиль NAS: **`resolveCoaTemplateProfileFromDto`**; при отсутствии обоих — **`COMMERCIAL_FULL`** / **`COMMERCIAL`** по умолчанию.
-- **Валидация входа:** невалидные **`coaTemplate`** / **`templateGroup`** → **`400 Bad Request`** до транзакции.
-- **Транзакционная гарантия:** в одной **`prisma.$transaction`** создаются **`Organization`** (в т.ч. **`coaTemplateProfile`**, **`settings.templateGroup`**), подписка/членство и **`provisionChartOfAccountsFromTemplate`** (копирование NAS + bootstrap Multi-GAAP).
+- **API-контракты:** `POST /api/auth/register`, **`POST /api/auth/organizations`** и **`POST /api/organizations`** принимают опционально **`kind`** (`OrganizationKind`, по умолчанию **`COMMERCIAL`**).
+- **Валидация входа:** невалидный **`kind`** → **`400 Bad Request`** до транзакции.
+- **Транзакционная гарантия:** в одной **`prisma.$transaction`** создаются **`Organization`** (в т.ч. **`kind`**, **`settings.templateGroup`** для payroll), подписка/членство и **`provisionChartOfAccountsFromTemplate`** (копирование NAS + bootstrap Multi-GAAP).
 
 Актуальная спецификация — **этот `TZ.md`**; при изменениях править только его.
 
@@ -2304,11 +2403,49 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 - `POST /api/customs/declarations/prefill-capture` now supports both legacy flat capture and full capture (`CustomsDeclarationFullPrefillCaptureSchema`) with sender/receiver, currency rate and line items.
 - Extension customs flow keeps floating widget and additionally injects **"DayDay Capture"** button into portal action bars (`apps/extension/src/connectors/customs/injection.ts`) via MutationObserver.
 - `CustomsDeclaration` upgraded with `status` (`DRAFT|CAPTURED|ATTACHED|ARCHIVED`), sender/receiver fields and calc totals; line positions stored in new `customs_declaration_items`.
-- New tariff table `customs_tariff_rates` + seed script `npm run db:seed-customs-tariffs` + super-admin CRUD API `/api/admin/customs-tariff-rates`.
+- New tariff table `customs_tariff_rates` + seed script `npm run db:seed-customs-tariffs` + super-admin API `/api/admin/customs-tariff-rates` (upsert + list + `POST …/deactivate` / `POST …/restore`, без hard DELETE).
 - GATT pre-calc implemented server-side: longest-prefix HS match; duty/excise on statistical value; VAT on (value + duty + excise). Calculated values are persisted for portal-vs-ERP reconciliation.
 - Draft engine auto-links/creates counterparties by VÖEN where provided and always stores new captures as `DRAFT`.
 - Added `GET /api/customs/declarations/:id` to return declaration with items and mismatch percentages for web detail view `/customs/[id]`.
 - Existing customs Excel import/export remains backward-compatible and imports new rows as `DRAFT`.
+
+### 20.2 HS codes & AZ customs tariff reference data (platform)
+
+**Scope:** глобальная таблица **`customs_tariff_rates`** (не tenant-scoped). Ставки подставляются в предрасчёт строк BGD на дату декларации (`CustomsTaxCalculatorService`), см. §20.1.
+
+**Legal source & audit trail**
+
+- Юридический первоисточник — приложения к актам КМ / таможенной политики AZ (публикация на **e-qanun.az** и др.). Конкретная редакция фиксируется в поле **`notes`** произвольным текстом (рекомендуемый шаблон: `act=<id или короткое имя>; effective=<YYYY-MM-DD>; url=<опционально>`). Поля **`effective_from`** / **`effective_to`** задают окно действия строки импорта.
+- **`effective_from`** обязателен для каждой строки; идемпотентный upsert по **`(hs_code, effective_from)`** — см. миграцию **`20260510190000_customs_tariff_rates_versioning`**.
+
+**Annex coverage**
+
+- Национальная номенклатура HS для AZ содержит **97 групп (глав)** (не путать с устаревшей оговоркой «95» в обсуждениях). Конверт приложения в Markdown (`docs/tmp/az-customs-act.md` после нормализации таблиц) содержит **полную подпозиционную сетку** в четырёхколоночных таблицах + отдельный блок кодов ЕИ в начале файла.
+
+**Нормализация `hs_code`**
+
+- В БД хранится **только строка цифр** без пробелов и знаков препинания: из текста позиции берутся все цифры подряд (`0101 21 000 0` → `0101210000`). Допустимы префиксы переменной длины (глава `01` … полная позиция); алгоритм матчинга — **longest-prefix** по множеству префиксов.
+
+**Выбор строки тарифа на дату**
+
+1. `CustomsTariffRatesService.loadActiveRates(asOf)` выбирает строки с `effective_from <= asOf` и попадающие в окно `effective_to`, затем **`pickLatestTariffRatePerHsCode`** оставляет одну строку на каждый **`hs_code`** — с максимальной **`effective_from`** среди отфильтрованных.
+2. `findBestMatchFromRows` выполняет longest-prefix по нормализованным цифрам HS товара; строка с кодом **`00`** — fallback по умолчанию; если её нет — дефолтные проценты из кода сервиса.
+
+**Super-admin API**
+
+- **`POST /api/admin/customs-tariff-rates`** — upsert по паре **`hsCode` + `effectiveFrom`** (тело: см. `UpsertCustomsTariffRateDto`). Новая дата для того же префикса создаёт **новую** версию строки, а не перезапись чужой редакции.
+
+**Конвейер данных (репозиторий)**
+
+| Артефакт | Назначение |
+|----------|------------|
+| `packages/database/data/customs-tariff-import.template.csv` | Шаблон ручного / полуавтоматического CSV для импорта |
+| `packages/database/data/customs-law-uom-mapping.json` | Соответствие кодов ЕИ из приложения закона (`796`, `166`, …) кодам **`units_of_measure.code`** (`pcs`, `kg`, …) |
+| `packages/database/scripts/parse-az-customs-act-md.mjs` | Парсинг нормализованного MD акта → JSON строк тарифа |
+| `packages/database/scripts/import-customs-tariff-from-json.ts` | Батч-upsert JSON → `customs_tariff_rates` с валидацией |
+| `docs/tmp/` (вывод парсера) | Промежуточный JSON (`parsed-az-customs-tariff.json`) — не коммитить большие дампы без необходимости |
+
+**Парсер MD:** пропускает строки с ~~зачёркиванием~~, строки заголовков таблиц (`XİF MN`), строки без числового HS в первой колонке (иерархические заголовки). Колонка тарифа: для адвалорной ставки извлекается первое число процента; смешанные форматы («USD / ед.») получают **`dutyRatePercent: 0`** при сохранении сырого текста в **`notes`**.
 
 ## 21. Dispute & Recovery (платформа)
 

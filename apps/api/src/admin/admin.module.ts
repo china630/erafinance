@@ -6,6 +6,7 @@ import { SystemConfigModule } from "../system-config/system-config.module";
 import { AdminCustomsTariffRatesController } from "./admin-customs-tariff-rates.controller";
 import { AdminAuditLogsController } from "./admin-audit-logs.controller";
 import { AdminController } from "./admin.controller";
+import { AdminCatalogService } from "./admin-catalog.service";
 import { AdminService } from "./admin.service";
 import { AdminAuditLogsService } from "./audit.service";
 import { PricingService } from "./pricing.service";
@@ -19,7 +20,7 @@ import { PublicTranslationsController } from "./public-translations.controller";
     AdminCustomsTariffRatesController,
     PublicTranslationsController,
   ],
-  providers: [AdminService, AdminAuditLogsService, PricingService],
+  providers: [AdminService, AdminCatalogService, AdminAuditLogsService, PricingService],
   exports: [AdminService, PricingService],
 })
 export class AdminModule {}

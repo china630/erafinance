@@ -44,6 +44,7 @@ describe("CustomsTaxCalculatorService", () => {
           description: "Test",
           quantity: 1,
           unit: null,
+          unitOfMeasureCode: null,
           weightNetKg: 0,
           weightGrossKg: 0,
           invoiceValue: 1000,

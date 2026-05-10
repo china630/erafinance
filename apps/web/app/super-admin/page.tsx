@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Building2, Check, LogIn, Pencil, Trash2, X } from "lucide-react";
 import { EmptyState } from "../../components/empty-state";
@@ -44,7 +45,7 @@ type Tab =
   | "subs"
   | "i18n"
   | "logs"
-  | "chartTemplate";
+  | "earlyAccess";
 
 type SubsSubTab = "pricing" | "quotas" | "bundles";
 
@@ -120,6 +121,21 @@ function roleLabel(role: string, t: TFunction): string {
     return t(`superAdmin.role${role}`);
   }
   return role;
+}
+
+function earlyAccessModuleLabel(moduleKey: string, t: TFunction): string {
+  switch (moduleKey) {
+    case "RETAIL_ECOM":
+      return t("nav.industryRetailEcom");
+    case "LOGISTICS_CUSTOMS":
+      return t("nav.industryLogisticsCustoms");
+    case "CONSTRUCTION":
+      return t("nav.industryConstruction");
+    case "CRM_WHATSAPP":
+      return t("nav.industryCrmWhatsapp");
+    default:
+      return moduleKey;
+  }
 }
 
 function BundleSwitch({
@@ -287,31 +303,34 @@ export default function SuperAdminPage() {
   } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const [chartTpl, setChartTpl] = useState<
+  const [eaSummary, setEaSummary] = useState<
     Array<{
-      id: string;
-      code: string;
-      nameAz: string;
-      nameRu: string;
-      nameEn: string;
-      accountType: string;
-      parentCode: string | null;
-      cashProfile: string | null;
-      sortOrder: number;
-      isDeprecated: boolean;
+      moduleKey: string;
+      signupsCount: number;
+      viewersCount: number;
+      conversionRate: number;
+      medianModalCloseMs: number | null;
+      firstSignupAt: string | null;
+      signupsPerHour: number;
+      thresholdsHit: number[];
+      speedRank: number;
     }>
   | null>(null);
-  const [chartTplBusy, setChartTplBusy] = useState(false);
-  const [newTpl, setNewTpl] = useState({
-    code: "",
-    nameAz: "",
-    nameRu: "",
-    nameEn: "",
-    accountType: "EXPENSE",
-    parentCode: "",
-    sortOrder: 0,
-  });
-
+  const [eaEvents, setEaEvents] = useState<{
+    total: number;
+    page: number;
+    pageSize: number;
+    items: Array<{
+      id: string;
+      moduleKey: string;
+      eventType: string;
+      userEmail: string | null;
+      organizationName: string | null;
+      durationMs: number | null;
+      createdAt: string;
+    }>;
+  } | null>(null);
+  const [eaLoading, setEaLoading] = useState(false);
   const [subModalOrg, setSubModalOrg] = useState<OrgRow | null>(null);
   const [subTier, setSubTier] = useState<"STARTER" | "BUSINESS" | "ENTERPRISE">(
     "STARTER",
@@ -484,68 +503,58 @@ export default function SuperAdminPage() {
     setLogs(await res.json());
   }, [token, logOrg]);
 
-  const loadChartTemplate = useCallback(async () => {
+  const loadEarlyAccess = useCallback(async () => {
     if (!token) return;
     setErr(null);
-    setChartTplBusy(true);
-    const res = await apiFetch("/api/admin/chart-template");
-    setChartTplBusy(false);
-    if (!res.ok) {
-      setErr(`${res.status}`);
-      return;
-    }
-    setChartTpl(
-      (await res.json()) as Array<{
-        id: string;
-        code: string;
-        nameAz: string;
-        nameRu: string;
-        nameEn: string;
-        accountType: string;
-        parentCode: string | null;
-        cashProfile: string | null;
-        sortOrder: number;
-        isDeprecated: boolean;
-      }>,
-    );
-  }, [token]);
-
-  const saveChartTemplateRow = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!token) return;
-      setErr(null);
-      const res = await apiFetch("/api/admin/chart-template", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: newTpl.code.trim(),
-          nameAz: newTpl.nameAz.trim(),
-          nameRu: newTpl.nameRu.trim(),
-          nameEn: newTpl.nameEn.trim(),
-          accountType: newTpl.accountType,
-          parentCode: newTpl.parentCode.trim() || null,
-          sortOrder: Number(newTpl.sortOrder) || 0,
-          isDeprecated: false,
-        }),
-      });
-      if (!res.ok) {
-        setErr(`${res.status}: ${await res.text()}`);
+    setEaLoading(true);
+    try {
+      const [sRes, eRes] = await Promise.all([
+        apiFetch("/api/admin/early-access/summary"),
+        apiFetch("/api/admin/early-access/events?page=1&pageSize=50"),
+      ]);
+      if (!sRes.ok) {
+        setErr(`${sRes.status}`);
+        setEaSummary(null);
+        setEaEvents(null);
         return;
       }
-      setNewTpl({
-        code: "",
-        nameAz: "",
-        nameRu: "",
-        nameEn: "",
-        accountType: "EXPENSE",
-        parentCode: "",
-        sortOrder: 0,
-      });
-      void loadChartTemplate();
-    },
-    [token, newTpl, loadChartTemplate],
-  );
+      setEaSummary(
+        (await sRes.json()) as Array<{
+          moduleKey: string;
+          signupsCount: number;
+          viewersCount: number;
+          conversionRate: number;
+          medianModalCloseMs: number | null;
+          firstSignupAt: string | null;
+          signupsPerHour: number;
+          thresholdsHit: number[];
+          speedRank: number;
+        }>,
+      );
+      if (eRes.ok) {
+        setEaEvents(
+          (await eRes.json()) as {
+            total: number;
+            page: number;
+            pageSize: number;
+            items: Array<{
+              id: string;
+              moduleKey: string;
+              eventType: string;
+              userEmail: string | null;
+              organizationName: string | null;
+              durationMs: number | null;
+              createdAt: string;
+            }>;
+          },
+        );
+      } else {
+        setEaEvents(null);
+      }
+    } finally {
+      setEaLoading(false);
+    }
+  }, [token]);
 
   const openSubModal = useCallback((o: OrgRow) => {
     setSubModalOrg(o);
@@ -669,8 +678,8 @@ export default function SuperAdminPage() {
 
   useEffect(() => {
     if (!ready || !token || !user?.isSuperAdmin) return;
-    if (tab === "chartTemplate") void loadChartTemplate();
-  }, [ready, token, user?.isSuperAdmin, tab, loadChartTemplate]);
+    if (tab === "earlyAccess") void loadEarlyAccess();
+  }, [ready, token, user?.isSuperAdmin, tab, loadEarlyAccess]);
 
   if (!ready) {
     return (
@@ -733,12 +742,15 @@ export default function SuperAdminPage() {
         {tabBtn("subs", t("superAdmin.tabSubscriptions"))}
         {tabBtn("i18n", t("superAdmin.tabLocalization"))}
         {tabBtn("logs", t("superAdmin.tabLogs"))}
-        {tabBtn("chartTemplate", t("superAdmin.tabChartTemplate"))}
+        {tabBtn("earlyAccess", t("superAdmin.tabEarlyAccess"))}
       </div>
-      <p className="text-[13px] text-[#2980B9]">
-        <a className="underline font-medium" href="/super-admin/customs-tariff-rates">
+      <p className="text-[13px] text-[#2980B9] flex flex-wrap gap-x-4 gap-y-1">
+        <Link href="/super-admin/data" className="underline font-medium">
+          {t("superAdmin.dataHubLink")}
+        </Link>
+        <Link href="/super-admin/data/customs-tariffs" className="underline font-medium">
           {t("trade.customs.tariffRatesTitle")}
-        </a>
+        </Link>
       </p>
 
       {err ? (
@@ -1730,165 +1742,144 @@ export default function SuperAdminPage() {
         </div>
       )}
 
-      {tab === "chartTemplate" && (
-        <div className="space-y-4">
-          <p className="text-[13px] text-[#7F8C8D] max-w-3xl">
-            {t("superAdmin.chartTemplateIntro")}
-          </p>
+      {tab === "earlyAccess" && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-[#34495E]">
+              {t("superAdmin.earlyAccessTitle")}
+            </h2>
+            <p className="text-[13px] text-[#7F8C8D] mt-1 max-w-3xl">
+              {t("superAdmin.earlyAccessSubtitle")}
+            </p>
+          </div>
           <div className="flex gap-2">
             <button
               type="button"
               className={SECONDARY_BUTTON_CLASS}
-              onClick={() => void loadChartTemplate()}
-              disabled={chartTplBusy}
+              onClick={() => void loadEarlyAccess()}
+              disabled={eaLoading}
             >
-              {t("superAdmin.chartTemplateRefresh")}
+              {t("common.refresh")}
             </button>
           </div>
-          <form
-            onSubmit={(e) => void saveChartTemplateRow(e)}
-            className={`${CARD_CONTAINER_CLASS} p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-8`}
-          >
-            <label className="text-xs font-medium text-[#34495E]">
-              {t("superAdmin.chartColCode")}
-              <input
-                required
-                value={newTpl.code}
-                onChange={(e) => setNewTpl((s) => ({ ...s, code: e.target.value }))}
-                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
-              />
-            </label>
-            <label className="text-xs font-medium text-[#34495E]">
-              {t("superAdmin.chartColNameAz")}
-              <input
-                required
-                value={newTpl.nameAz}
-                onChange={(e) => setNewTpl((s) => ({ ...s, nameAz: e.target.value }))}
-                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
-              />
-            </label>
-            <label className="text-xs font-medium text-[#34495E]">
-              {t("superAdmin.chartColNameRu")}
-              <input
-                required
-                value={newTpl.nameRu}
-                onChange={(e) => setNewTpl((s) => ({ ...s, nameRu: e.target.value }))}
-                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
-              />
-            </label>
-            <label className="text-xs font-medium text-[#34495E]">
-              {t("superAdmin.chartColNameEn")}
-              <input
-                required
-                value={newTpl.nameEn}
-                onChange={(e) => setNewTpl((s) => ({ ...s, nameEn: e.target.value }))}
-                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
-              />
-            </label>
-            <label className="text-xs font-medium text-[#34495E]">
-              {t("superAdmin.chartColType")}
-              <select
-                value={newTpl.accountType}
-                onChange={(e) =>
-                  setNewTpl((s) => ({ ...s, accountType: e.target.value }))
-                }
-                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
-              >
-                {(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"] as const).map(
-                  (k) => (
-                    <option key={k} value={k}>
-                      {k}
-                    </option>
-                  ),
-                )}
-              </select>
-            </label>
-            <label className="text-xs font-medium text-[#34495E]">
-              {t("superAdmin.chartColParent")}
-              <input
-                value={newTpl.parentCode}
-                onChange={(e) =>
-                  setNewTpl((s) => ({ ...s, parentCode: e.target.value }))
-                }
-                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
-                placeholder="101"
-              />
-            </label>
-            <label className="text-xs font-medium text-[#34495E]">
-              {t("superAdmin.chartColSort")}
-              <input
-                type="number"
-                value={newTpl.sortOrder}
-                onChange={(e) =>
-                  setNewTpl((s) => ({
-                    ...s,
-                    sortOrder: Number.parseInt(e.target.value, 10) || 0,
-                  }))
-                }
-                className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
-              />
-            </label>
-            <div className="flex items-end">
-              <button type="submit" className={PRIMARY_BUTTON_CLASS} disabled={chartTplBusy}>
-                {t("superAdmin.chartSaveRow")}
-              </button>
-            </div>
-          </form>
-          {chartTplBusy && !chartTpl ? (
-            <p className="text-sm text-[#7F8C8D]">{t("common.loading")}</p>
+          {eaLoading && !eaSummary ? (
+            <p className="text-sm text-[#7F8C8D]">{t("superAdmin.earlyAccessLoad")}</p>
           ) : null}
-          {chartTpl && (
-            <div className={`${DATA_TABLE_VIEWPORT_CLASS} max-h-[60vh]`}>
+          {eaSummary && eaSummary.length > 0 ? (
+            <div className={DATA_TABLE_VIEWPORT_CLASS}>
               <table className={`${DATA_TABLE_CLASS} text-xs`}>
                 <thead>
                   <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
-                    <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("superAdmin.chartColCode")}</th>
-                    <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("superAdmin.chartColNameAz")}</th>
-                    <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("superAdmin.chartColNameRu")}</th>
-                    <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("superAdmin.chartColNameEn")}</th>
-                    <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("superAdmin.chartColType")}</th>
-                    <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("superAdmin.chartColParent")}</th>
-                    <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("superAdmin.chartColSort")}</th>
-                    <th className={DATA_TABLE_TH_CENTER_CLASS}>{t("superAdmin.chartColDepr")}</th>
+                    <th className={DATA_TABLE_TH_LEFT_CLASS}>
+                      {t("superAdmin.earlyAccessColModule")}
+                    </th>
+                    <th className={DATA_TABLE_TH_RIGHT_CLASS}>
+                      {t("superAdmin.earlyAccessColSignups")}
+                    </th>
+                    <th className={DATA_TABLE_TH_RIGHT_CLASS}>
+                      {t("superAdmin.earlyAccessColViewers")}
+                    </th>
+                    <th className={DATA_TABLE_TH_RIGHT_CLASS}>
+                      {t("superAdmin.earlyAccessColConversion")}
+                    </th>
+                    <th className={DATA_TABLE_TH_RIGHT_CLASS}>
+                      {t("superAdmin.earlyAccessColMedianMs")}
+                    </th>
+                    <th className={DATA_TABLE_TH_RIGHT_CLASS}>
+                      {t("superAdmin.earlyAccessColSpeed")}
+                    </th>
+                    <th className={DATA_TABLE_TH_RIGHT_CLASS}>
+                      {t("superAdmin.earlyAccessColRank")}
+                    </th>
+                    <th className={DATA_TABLE_TH_LEFT_CLASS}>
+                      {t("superAdmin.earlyAccessColThresholds")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {chartTpl.map((r) => (
-                    <tr key={r.id} className={DATA_TABLE_TR_CLASS}>
-                      <td className={`${DATA_TABLE_TD_CLASS} font-mono text-xs whitespace-nowrap`}>
-                        {r.code}
+                  {eaSummary.map((row) => (
+                    <tr key={row.moduleKey} className={DATA_TABLE_TR_CLASS}>
+                      <td className={`${DATA_TABLE_TD_CLASS} font-medium`}>
+                        {earlyAccessModuleLabel(row.moduleKey, t)}
                       </td>
-                      <td
-                        className={`${DATA_TABLE_TD_CLASS} max-w-[14rem] truncate text-xs`}
-                        title={r.nameAz}
-                      >
-                        {r.nameAz}
+                      <td className={DATA_TABLE_TD_RIGHT_CLASS}>{row.signupsCount}</td>
+                      <td className={DATA_TABLE_TD_RIGHT_CLASS}>{row.viewersCount}</td>
+                      <td className={DATA_TABLE_TD_RIGHT_CLASS}>
+                        {(row.conversionRate * 100).toFixed(1)}%
                       </td>
-                      <td
-                        className={`${DATA_TABLE_TD_CLASS} max-w-[14rem] truncate text-xs`}
-                        title={r.nameRu}
-                      >
-                        {r.nameRu}
+                      <td className={DATA_TABLE_TD_RIGHT_CLASS}>
+                        {row.medianModalCloseMs != null
+                          ? Math.round(row.medianModalCloseMs)
+                          : "—"}
                       </td>
-                      <td
-                        className={`${DATA_TABLE_TD_CLASS} max-w-[14rem] truncate text-xs`}
-                        title={r.nameEn}
-                      >
-                        {r.nameEn}
+                      <td className={DATA_TABLE_TD_RIGHT_CLASS}>
+                        {row.signupsPerHour.toFixed(2)}
                       </td>
-                      <td className={`${DATA_TABLE_TD_CLASS} text-xs`}>{r.accountType}</td>
-                      <td className={`${DATA_TABLE_TD_CLASS} font-mono text-xs`}>
-                        {r.parentCode ?? "—"}
-                      </td>
-                      <td className={`${DATA_TABLE_TD_RIGHT_CLASS} text-xs`}>{r.sortOrder}</td>
-                      <td className={`${DATA_TABLE_TD_CENTER_CLASS} text-xs`}>
-                        {r.isDeprecated ? "✓" : "—"}
+                      <td className={DATA_TABLE_TD_RIGHT_CLASS}>{row.speedRank}</td>
+                      <td className={DATA_TABLE_TD_CLASS}>
+                        {row.thresholdsHit.length
+                          ? row.thresholdsHit.join(", ")
+                          : "—"}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          ) : !eaLoading ? (
+            <p className="text-sm text-[#7F8C8D]">{t("superAdmin.earlyAccessEmpty")}</p>
+          ) : null}
+
+          <h3 className="text-sm font-semibold text-[#34495E]">
+            {t("superAdmin.earlyAccessEventsTitle")}
+          </h3>
+          {eaEvents && eaEvents.items.length > 0 ? (
+            <div className={DATA_TABLE_VIEWPORT_CLASS}>
+              <table className={`${DATA_TABLE_CLASS} text-xs`}>
+                <thead>
+                  <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
+                    <th className={DATA_TABLE_TH_LEFT_CLASS}>
+                      {t("superAdmin.earlyAccessColTime")}
+                    </th>
+                    <th className={DATA_TABLE_TH_LEFT_CLASS}>
+                      {t("superAdmin.earlyAccessColModule")}
+                    </th>
+                    <th className={DATA_TABLE_TH_LEFT_CLASS}>
+                      {t("superAdmin.earlyAccessColEvent")}
+                    </th>
+                    <th className={DATA_TABLE_TH_LEFT_CLASS}>
+                      {t("superAdmin.earlyAccessColUser")}
+                    </th>
+                    <th className={DATA_TABLE_TH_LEFT_CLASS}>
+                      {t("superAdmin.earlyAccessColOrg")}
+                    </th>
+                    <th className={DATA_TABLE_TH_RIGHT_CLASS}>
+                      {t("superAdmin.earlyAccessColDuration")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {eaEvents.items.map((r) => (
+                    <tr key={r.id} className={DATA_TABLE_TR_CLASS}>
+                      <td className={`${DATA_TABLE_TD_CLASS} whitespace-nowrap`}>
+                        {r.createdAt}
+                      </td>
+                      <td className={DATA_TABLE_TD_CLASS}>
+                        {earlyAccessModuleLabel(r.moduleKey, t)}
+                      </td>
+                      <td className={DATA_TABLE_TD_CLASS}>{r.eventType}</td>
+                      <td className={DATA_TABLE_TD_CLASS}>{r.userEmail ?? "—"}</td>
+                      <td className={DATA_TABLE_TD_CLASS}>{r.organizationName ?? "—"}</td>
+                      <td className={DATA_TABLE_TD_RIGHT_CLASS}>
+                        {r.durationMs ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-[#7F8C8D]">{t("superAdmin.earlyAccessEmpty")}</p>
           )}
         </div>
       )}

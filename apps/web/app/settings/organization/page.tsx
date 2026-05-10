@@ -63,7 +63,7 @@ const emptyBank = (): BankRow => ({
 export default function OrganizationSettingsPage() {
   const { t } = useTranslation();
   const { ready, token } = useRequireAuth();
-  const { user } = useAuth();
+  const { user, currencyCodes } = useAuth();
   const canEditGeneral = user?.role === "OWNER" || user?.role === "ADMIN";
   const canEditPeriodLock = user?.role === "OWNER" || user?.role === "ACCOUNTANT";
   const canOpenPage = canEditGeneral || canEditPeriodLock;
@@ -109,14 +109,14 @@ export default function OrganizationSettingsPage() {
             id: b.id,
             bankName: b.bankName,
             accountNumber: b.accountNumber,
-            currency: coerceSupportedCurrency(b.currency),
+            currency: coerceSupportedCurrency(b.currency, currencyCodes),
             iban: b.iban ?? "",
             swift: b.swift ?? "",
           }))
         : [emptyBank()],
     );
     setLoading(false);
-  }, [token]);
+  }, [token, currencyCodes]);
 
   useEffect(() => {
     if (!ready || !token) return;

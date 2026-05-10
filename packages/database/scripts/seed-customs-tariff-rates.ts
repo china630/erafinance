@@ -23,7 +23,9 @@ async function main() {
       const hs = r.hsCode.replace(/\D/g, "").trim();
       if (!hs) continue;
       await prisma.customsTariffRate.upsert({
-        where: { hsCode: hs },
+        where: {
+          hsCode_effectiveFrom: { hsCode: hs, effectiveFrom },
+        },
         create: {
           hsCode: hs,
           description: r.description,

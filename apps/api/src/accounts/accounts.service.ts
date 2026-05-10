@@ -7,11 +7,10 @@ import {
 import type { TemplateAccount } from "@prisma/client";
 import {
   AccountType,
-  CoaTemplateProfile,
   LedgerType,
+  OrganizationKind,
   pickAccountDisplayName,
   Prisma,
-  TemplateGroup,
 } from "@dayday/database";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateAccountMappingDto } from "./dto/create-account-mapping.dto";
@@ -56,13 +55,16 @@ export class AccountsService {
    * Глобальный справочник кассы: приоритет `template_accounts`, иначе legacy
    * `chart_of_accounts_entries`.
    */
-  async listCashChartCatalogEntries(locale?: string | null) {
+  async listCashChartCatalogEntries(
+    locale?: string | null,
+    kind: OrganizationKind = OrganizationKind.COMMERCIAL,
+  ) {
     const tplCount = await this.prisma.templateAccount.count({
-      where: { isDeprecated: false, cashProfile: { not: null } },
+      where: { isDeprecated: false, kind, cashProfile: { not: null } },
     });
     if (tplCount > 0) {
       const rows = await this.prisma.templateAccount.findMany({
-        where: { isDeprecated: false, cashProfile: { not: null } },
+        where: { isDeprecated: false, kind, cashProfile: { not: null } },
         orderBy: [{ cashProfile: "asc" }, { code: "asc" }],
         select: {
           code: true,
@@ -80,7 +82,7 @@ export class AccountsService {
 
     return this.prisma.chartOfAccountsEntry
       .findMany({
-        where: { isDeprecated: false, cashProfile: { not: null } },
+        where: { isDeprecated: false, kind, cashProfile: { not: null } },
         orderBy: [{ cashProfile: "asc" }, { code: "asc" }],
         select: {
           code: true,
@@ -106,9 +108,14 @@ export class AccountsService {
     opts: {
       search?: string;
       locale?: string | null;
-      templateProfile?: CoaTemplateProfile;
+      kind?: OrganizationKind;
     },
   ) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { kind: true },
+    });
+    const kind = opts.kind ?? org?.kind ?? OrganizationKind.COMMERCIAL;
     const existingCodes = (
       await this.prisma.account.findMany({
         where: { organizationId, ledgerType: LedgerType.NAS },
@@ -121,9 +128,7 @@ export class AccountsService {
       ...(existingCodes.length > 0 ? { code: { notIn: existingCodes } } : {}),
     };
 
-    if (opts.templateProfile) {
-      where.templateGroups = { has: opts.templateProfile };
-    }
+    where.kind = kind;
 
     const s = opts.search?.trim();
     if (s) {
@@ -151,7 +156,7 @@ export class AccountsService {
         nameEn: true,
         accountType: true,
         parentCode: true,
-        templateGroups: true,
+        kind: true,
       },
     });
     return rows.map((r) => ({
@@ -168,6 +173,12 @@ export class AccountsService {
     templateAccountId: string,
   ) {
     return this.prisma.$transaction(async (tx) => {
+      const org = await tx.organization.findUnique({
+        where: { id: organizationId },
+        select: { kind: true },
+      });
+      const kind = org?.kind ?? OrganizationKind.COMMERCIAL;
+
       const leaf = await tx.templateAccount.findUnique({
         where: { id: templateAccountId },
       });
@@ -193,7 +204,12 @@ export class AccountsService {
         const pc = (cur.parentCode ?? "").trim();
         if (!pc) break;
         const parentTpl: TemplateAccount | null = await tx.templateAccount.findUnique({
-          where: { code: pc },
+          where: {
+            kind_code: {
+              kind,
+              code: pc,
+            },
+          },
         });
         if (!parentTpl) {
           throw new BadRequestException(
@@ -223,7 +239,7 @@ export class AccountsService {
           : null;
 
         const catalogRow = await tx.chartOfAccountsEntry.findFirst({
-          where: { templateGroup: TemplateGroup.COMMERCIAL, code: row.code },
+          where: { kind, code: row.code },
         });
 
         const created = await tx.account.create({

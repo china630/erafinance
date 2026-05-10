@@ -1,15 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsEnum,
-  IsIn,
   IsOptional,
   IsString,
   IsUUID,
   Length,
   Matches,
   MaxLength,
+  MinLength,
 } from "class-validator";
-import { TemplateGroup } from "@dayday/database";
+import { CounterpartyLegalForm } from "@dayday/database";
 
 export class CreateOrgDto {
   @ApiProperty({ example: "ООО Пример" })
@@ -28,29 +28,15 @@ export class CreateOrgDto {
   @Length(3, 3)
   currency?: string;
 
-  @ApiPropertyOptional({
-    enum: TemplateGroup,
-    default: TemplateGroup.COMMERCIAL,
+  @ApiProperty({
+    enum: CounterpartyLegalForm,
     description:
-      "NAS chart template: COMMERCIAL (full), SMALL_BUSINESS (simplified), or GOVERNMENT (reserved / payroll profile)",
+      "Legal form of the organization; NAS kind is derived on server (STATE_AGENCY->BUDGET, NGO->NGO, else COMMERCIAL).",
   })
-  @IsOptional()
-  @IsEnum(TemplateGroup)
-  templateGroup?: TemplateGroup;
+  @IsEnum(CounterpartyLegalForm)
+  legalForm!: CounterpartyLegalForm;
 
-  @ApiPropertyOptional({
-    enum: ["full", "small"],
-    default: "full",
-    description:
-      "NAS chart onboarding profile: `full` (commercial full) or `small` (simplified). Takes precedence over `templateGroup` when set.",
-  })
-  @IsOptional()
-  @IsIn(["full", "small"])
-  coaTemplate?: "full" | "small";
-
-  @ApiPropertyOptional({
-    description: "Опционально: привязать организацию к холдингу (владелец холдинга = текущий пользователь)",
-  })
+  @ApiPropertyOptional({ description: "Optional holding to attach the org to" })
   @IsOptional()
   @IsUUID()
   holdingId?: string;

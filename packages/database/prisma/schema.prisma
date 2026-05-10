@@ -6,6 +6,12 @@ datasource db {
   provider = "postgresql"
 }
 
+/// UI locale preference for user profile (RU/AZ per TZ).
+enum UserLocale {
+  AZ
+  RU
+}
+
 model Organization {
   id                           String                        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   name                         String
@@ -49,9 +55,13 @@ model Organization {
   storageUsedBytes             BigInt                        @default(0) @map("storage_used_bytes")
   deletedAt                    DateTime?                     @map("deleted_at") @db.Timestamptz(6)
   holdingId                    String?                       @map("holding_id") @db.Uuid
-  /// Профиль онбординга NAS: полный коммерческий план или упрощённый (малый бизнес).
-  coaTemplateProfile           CoaTemplateProfile            @default(COMMERCIAL_FULL) @map("coa_template_profile")
+  /// NAS plan / organization type: commercial, budget (government), or non-commercial (NGO).
+  kind                         OrganizationKind              @default(COMMERCIAL) @map("kind")
+  /// Legal form selected at onboarding (shared with Counterparty legal forms).
+  legalForm                    CounterpartyLegalForm         @default(LLC) @map("legal_form")
   isDeleted                    Boolean                       @default(false) @map("is_deleted")
+  /// External client id for Drakaris/yığım aggregator (uppercase alphanumeric).
+  drakarisClientId             String?                       @unique @map("drakaris_client_id")
   absenceTypes                 AbsenceType[]
   absences                     Absence[]
   accessRequests               AccessRequest[]
@@ -87,6 +97,7 @@ model Organization {
   subscription                 OrganizationSubscription?
   holding                      Holding?                      @relation(fields: [holdingId], references: [id])
   owner                        User?                         @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  currencyRef                  Currency                      @relation("OrganizationCurrency", fields: [currency], references: [code], onUpdate: Cascade)
   paymentOrders                PaymentOrder[]
   taxDeclarationExports        TaxDeclarationExport[]
   payrollRuns                  PayrollRun[]
@@ -120,38 +131,42 @@ model Organization {
   overheadDrivers              OverheadDriver[]
   overheadPools                OverheadPool[]
   manufacturingReleases        ManufacturingRelease[]
+  earlyAccessEvents            EarlyAccessEvent[]
+  earlyAccessSignups           EarlyAccessSignup[]
 
   @@index([ownerId])
   @@index([holdingId, id])
   @@index([holdingId])
-  @@index([coaTemplateProfile])
+  @@index([kind])
   @@map("organizations")
 }
 
-/// Профиль копирования глобального NAS в локальный план организации.
-enum CoaTemplateProfile {
-  COMMERCIAL_FULL
-  COMMERCIAL_SMALL
+/// Organization type / NAS chart variant (commercial vs budget vs NGO).
+enum OrganizationKind {
+  COMMERCIAL
+  BUDGET
+  NGO
 }
 
-/// Глобальный справочник NAS (платформа): один код — одна строка; профили Small/Full через массив.
+/// Global NAS template row: `code` is unique per `kind` (same numeric code may differ by kind).
 model TemplateAccount {
-  id             String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  code           String               @unique
-  nameAz         String               @map("name_az")
-  nameRu         String               @map("name_ru")
-  nameEn         String               @map("name_en")
-  accountType    AccountType          @map("account_type")
-  parentCode     String?              @map("parent_code")
-  cashProfile    String?              @map("cash_profile")
-  sortOrder      Int                  @default(0) @map("sort_order")
-  isDeprecated   Boolean              @default(false) @map("is_deprecated")
-  /// В каких профилях онбординга счёт входит (полный коммерческий и/или малый бизнес).
-  templateGroups CoaTemplateProfile[] @default([]) @map("template_groups")
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
+  id             String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  kind           OrganizationKind   @default(COMMERCIAL) @map("kind")
+  code           String             @map("code")
+  nameAz         String             @map("name_az")
+  nameRu         String             @map("name_ru")
+  nameEn         String             @map("name_en")
+  accountType    AccountType        @map("account_type")
+  parentCode     String?            @map("parent_code")
+  cashProfile    String?            @map("cash_profile")
+  sortOrder      Int                @default(0) @map("sort_order")
+  isDeprecated   Boolean            @default(false) @map("is_deprecated")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
   accounts       Account[]
 
+  @@unique([kind, code])
+  @@index([kind])
   @@index([code])
   @@map("template_accounts")
 }
@@ -196,6 +211,7 @@ model OrganizationBankAccount {
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
   organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  currencyRef       Currency         @relation("OrganizationBankAccountCurrency", fields: [currency], references: [code], onUpdate: Cascade)
   bankBranch        BankBranch?      @relation(fields: [bankBranchId], references: [id], onDelete: SetNull)
   salaryRegistries  SalaryRegistry[]
   deletedAt         DateTime?        @map("deleted_at") @db.Timestamptz(6)
@@ -222,7 +238,7 @@ model BankGlossary {
   voen              String       @unique
   /// Двузначный код банка в маске субсчёта `221.<code>.<seq>` (фиксирован для платформы).
   code              String       @unique @db.Char(2)
-  /// Корреспондентский IBAN банка в ЦБА (одинаков для всех филиалов; см. docs/banks.md).
+  /// Корреспондентский IBAN банка в ЦБА (одинаков для всех филиалов; см. `prisma/catalog/bank/banks-table.md`).
   correspondentIban String?      @unique @map("correspondent_iban")
   /// SWIFT-код банка (общий для всех филиалов, дублируется в `BankBranch.swift` для UI).
   swift             String?
@@ -249,7 +265,7 @@ model BankBranch {
   name                     String
   swift                    String?
   address                  String?
-  /// Контактные телефоны филиала; в `docs/banks.md` приходят через `;`.
+  /// Контактные телефоны филиала; в исходной таблице импорта поля разделяются через `;`.
   phones                   String[]                  @default([]) @map("phones")
   /// True для записи головного офиса банка (отображение «Baş ofis»).
   isHeadOffice             Boolean                   @default(false) @map("is_head_office")
@@ -271,6 +287,7 @@ model GlobalCompanyDirectory {
   id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   taxId        String   @unique @map("tax_id")
   name         String
+  legalForm    CounterpartyLegalForm? @map("legal_form")
   legalAddress String?  @map("legal_address")
   phone        String?  @map("phone")
   directorName String?  @map("director_name")
@@ -469,6 +486,7 @@ model JobPosition {
   id              String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   departmentId    String     @map("department_id") @db.Uuid
   name            String
+  jobTitleCode    String?    @map("job_title_code")
   totalSlots      Int        @map("total_slots")
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
@@ -480,6 +498,7 @@ model JobPosition {
   maxSalary       Decimal    @map("max_salary") @db.Decimal(19, 4)
   employees       Employee[]
   department      Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  jobTitle        JobTitleCatalog? @relation(fields: [jobTitleCode], references: [code], onDelete: SetNull)
   deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(6)
   deletedByUserId String?    @map("deleted_by_user_id") @db.Uuid
   deletedReason   String?    @map("deleted_reason")
@@ -508,6 +527,7 @@ model PaymentOrder {
   createdAt           DateTime             @default(now()) @map("created_at")
   paidAt              DateTime?            @map("paid_at")
   organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  currencyRef         Currency             @relation("PaymentOrderCurrency", fields: [currency], references: [code], onUpdate: Cascade)
   subscriptionInvoice SubscriptionInvoice?
 
   @@index([organizationId])
@@ -549,6 +569,247 @@ model SystemConfig {
   @@map("system_config")
 }
 
+model Currency {
+  id                       String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code                     String                    @unique @db.VarChar(3)
+  symbol                   String
+  decimals                 Int                       @default(2)
+  nameAz                   String                    @map("name_az")
+  nameRu                   String                    @map("name_ru")
+  nameEn                   String                    @map("name_en")
+  isActive                 Boolean                   @default(true) @map("is_active")
+  sortOrder                Int                       @default(0) @map("sort_order")
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @map("updated_at")
+  organizations            Organization[]            @relation("OrganizationCurrency")
+  organizationBankAccounts OrganizationBankAccount[] @relation("OrganizationBankAccountCurrency")
+  paymentOrders            PaymentOrder[]            @relation("PaymentOrderCurrency")
+  bankPaymentDrafts        BankPaymentDraft[]        @relation("BankPaymentDraftCurrency")
+  approvalPolicies         ApprovalPolicy[]          @relation("ApprovalPolicyCurrency")
+  prepaidExpenses          PrepaidExpense[]          @relation("PrepaidExpenseCurrency")
+  psaProjects              PsaProject[]              @relation("PsaProjectCurrency")
+  accounts                 Account[]                 @relation("AccountCurrency")
+  counterpartyBankAccounts CounterpartyBankAccount[] @relation("CounterpartyBankAccountCurrency")
+  invoices                 Invoice[]                 @relation("InvoiceCurrency")
+  customsDeclarations      CustomsDeclaration[]      @relation("CustomsDeclarationCurrency")
+  cashOrders               CashOrder[]               @relation("CashOrderCurrency")
+  holdings                 Holding[]                 @relation("HoldingBaseCurrency")
+
+  @@map("currencies")
+}
+
+model Role {
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code           String           @unique
+  legacyEnumRole UserRole?        @map("legacy_enum_role")
+  isSystem       Boolean          @default(true) @map("is_system")
+  nameAz         String           @map("name_az")
+  nameRu         String           @map("name_ru")
+  nameEn         String           @map("name_en")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  permissions    RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code        String              @unique
+  category    PermissionCategory
+  description String?
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  createdAt    DateTime   @default(now()) @map("created_at")
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model UnitOfMeasure {
+  id                      String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code                    String                  @unique
+  kind                    UnitOfMeasureKind
+  baseCode                String?                 @map("base_code")
+  factor                  Decimal                 @default(1) @db.Decimal(19, 6)
+  nameAz                  String                  @map("name_az")
+  nameRu                  String                  @map("name_ru")
+  nameEn                  String                  @map("name_en")
+  isActive                Boolean                 @default(true) @map("is_active")
+  sortOrder               Int                     @default(0) @map("sort_order")
+  createdAt               DateTime                @default(now()) @map("created_at")
+  updatedAt               DateTime                @updatedAt @map("updated_at")
+  systemProductTemplates  SystemProductTemplate[]
+  products                Product[]
+  invoiceItems            InvoiceItem[]
+  inventoryAuditLines     InventoryAuditLine[]
+  customsDeclarationItems CustomsDeclarationItem[]
+
+  @@map("units_of_measure")
+}
+
+model Country {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  iso2         String   @unique @db.Char(2)
+  iso3         String?  @db.Char(3)
+  dialingCode  String?  @map("dialing_code")
+  currencyCode String?  @map("currency_code")
+  nameAz       String   @map("name_az")
+  nameRu       String   @map("name_ru")
+  nameEn       String   @map("name_en")
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  cities       City[]
+
+  @@map("countries")
+}
+
+model City {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code        String   @unique
+  countryIso2 String   @map("country_iso2") @db.Char(2)
+  region      String?
+  isCapital   Boolean  @default(false) @map("is_capital")
+  nameAz      String   @map("name_az")
+  nameRu      String   @map("name_ru")
+  nameEn      String   @map("name_en")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  country     Country  @relation(fields: [countryIso2], references: [iso2], onDelete: Cascade)
+
+  @@index([countryIso2, sortOrder])
+  @@map("cities")
+}
+
+model DepartmentTypeCatalog {
+  id        String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code      String            @unique
+  nameAz    String            @map("name_az")
+  nameRu    String            @map("name_ru")
+  nameEn    String            @map("name_en")
+  sortOrder Int               @default(0) @map("sort_order")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  jobTitles JobTitleCatalog[]
+
+  @@map("department_type_catalog")
+}
+
+model JobTitleCatalog {
+  id                 String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code               String                @unique
+  departmentTypeCode String                @map("department_type_code")
+  nameAz             String                @map("name_az")
+  nameRu             String                @map("name_ru")
+  nameEn             String                @map("name_en")
+  sortOrder          Int                   @default(0) @map("sort_order")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+  departmentType     DepartmentTypeCatalog @relation(fields: [departmentTypeCode], references: [code], onDelete: Cascade)
+  jobPositions       JobPosition[]
+
+  @@index([departmentTypeCode, sortOrder])
+  @@map("job_title_catalog")
+}
+
+model ActivityType {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code      String   @unique
+  nameAz    String   @map("name_az")
+  nameRu    String   @map("name_ru")
+  nameEn    String   @map("name_en")
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("activity_types")
+}
+
+model NotificationType {
+  id              String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code            String               @unique
+  defaultSeverity NotificationSeverity @default(INFO) @map("default_severity")
+  nameAz          String               @map("name_az")
+  nameRu          String               @map("name_ru")
+  nameEn          String               @map("name_en")
+  sortOrder       Int                  @default(0) @map("sort_order")
+  isActive        Boolean              @default(true) @map("is_active")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  @@map("notification_types")
+}
+
+model AuditCategory {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code      String   @unique
+  nameAz    String   @map("name_az")
+  nameRu    String   @map("name_ru")
+  nameEn    String   @map("name_en")
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("audit_categories")
+}
+
+model TaxRate {
+  id             String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code           String            @unique
+  kind           TaxRateKind
+  region         String            @default("AZ")
+  percent        Decimal           @db.Decimal(7, 4)
+  effectiveFrom  DateTime          @map("effective_from") @db.Date
+  effectiveTo    DateTime?         @map("effective_to") @db.Date
+  nameAz         String            @map("name_az")
+  nameRu         String            @map("name_ru")
+  nameEn         String            @map("name_en")
+  sortOrder      Int               @default(0) @map("sort_order")
+  isActive       Boolean           @default(true) @map("is_active")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  systemProducts SystemProductTemplate[]
+
+  @@index([kind, region, effectiveFrom])
+  @@map("tax_rates")
+}
+
+model SystemProductTemplate {
+  id                 String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code               String            @unique
+  kind               SystemProductKind @default(SERVICE)
+  defaultUomCode     String?           @map("default_uom_code")
+  defaultVatRateCode String?           @map("default_vat_rate_code")
+  defaultPrice       Decimal           @default(0) @map("default_price") @db.Decimal(19, 4)
+  isActive           Boolean           @default(true) @map("is_active")
+  nameAz             String            @map("name_az")
+  nameRu             String            @map("name_ru")
+  nameEn             String            @map("name_en")
+  sortOrder          Int               @default(0) @map("sort_order")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+  defaultUom         UnitOfMeasure?    @relation(fields: [defaultUomCode], references: [code], onDelete: SetNull)
+  defaultVatRate     TaxRate?          @relation(fields: [defaultVatRateCode], references: [code], onDelete: SetNull)
+
+  @@index([kind, isActive, sortOrder])
+  @@map("system_product_templates")
+}
+
 /// *
 ///  * Каталог платных модулей: месячная цена (поле pricePerMonth = «priceMonthly» в API-описаниях).
 model PricingModule {
@@ -583,6 +844,8 @@ model TranslationOverride {
   locale    String
   key       String
   value     String
+  /// When false, clients ignore this row (falls back to bundled defaults).
+  isActive  Boolean  @default(true) @map("is_active")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([locale, key])
@@ -904,6 +1167,7 @@ model BankPaymentDraft {
   sentAt          DateTime?              @map("sent_at")
   completedAt     DateTime?              @map("completed_at")
   organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  currencyRef     Currency               @relation("BankPaymentDraftCurrency", fields: [currency], references: [code], onUpdate: Cascade)
   deletedAt       DateTime?              @map("deleted_at") @db.Timestamptz(6)
   deletedByUserId String?                @map("deleted_by_user_id") @db.Uuid
   deletedReason   String?                @map("deleted_reason")
@@ -1034,6 +1298,9 @@ model User {
   id                            String                     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   email                         String                     @unique
   passwordHash                  String                     @map("password_hash")
+  /// E.164, e.g. +994XXXXXXXXX
+  phone                         String?                    @map("phone")
+  locale                        UserLocale                 @default(AZ) @map("locale")
   createdAt                     DateTime                   @default(now()) @map("created_at")
   updatedAt                     DateTime                   @updatedAt @map("updated_at")
   /// *
@@ -1065,6 +1332,8 @@ model User {
   linkedEmployees               Employee[]                 @relation("EmployeeLinkedUser")
   approvalRequestsRequested     ApprovalRequest[]        @relation("ApprovalRequestRequester")
   approvalStepsDecided            ApprovalStep[]           @relation("ApprovalStepApprover")
+  earlyAccessEvents               EarlyAccessEvent[]
+  earlyAccessSignups              EarlyAccessSignup[]
 
   @@index([defaultWarehouseId])
   @@map("users")
@@ -1098,6 +1367,75 @@ model Notification {
   @@index([organizationId, createdAt])
   @@index([userId, deletedAt], map: "notifications_user_deleted_at_idx")
   @@map("notifications")
+}
+
+/// Painted-door / early-access funnel (industry verticals validation).
+enum EarlyAccessModuleKey {
+  RETAIL_ECOM
+  LOGISTICS_CUSTOMS
+  CONSTRUCTION
+  CRM_WHATSAPP
+}
+
+enum EarlyAccessEventType {
+  VIEW_CLICK
+  MODAL_OPEN
+  MODAL_CLOSE
+  CTA_CLICK
+  SURVEY_SUBMIT
+}
+
+model EarlyAccessEvent {
+  id               String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  moduleKey        EarlyAccessModuleKey @map("module_key")
+  eventType        EarlyAccessEventType @map("event_type")
+  userId           String?              @map("user_id") @db.Uuid
+  organizationId   String?              @map("organization_id") @db.Uuid
+  subscriptionTier String?              @map("subscription_tier") @db.VarChar(32)
+  industrySnapshot String?              @map("industry_snapshot") @db.VarChar(64)
+  sessionId        String               @map("session_id") @db.Uuid
+  durationMs       Int?                 @map("duration_ms")
+  metadata         Json?
+  createdAt        DateTime             @default(now()) @map("created_at")
+  clientIp         String?              @map("client_ip") @db.VarChar(64)
+  userAgent        String?              @map("user_agent") @db.VarChar(512)
+  organization     Organization?        @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user             User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([moduleKey, createdAt])
+  @@index([organizationId, moduleKey])
+  @@index([sessionId])
+  @@map("early_access_events")
+}
+
+model EarlyAccessSignup {
+  id               String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  moduleKey        EarlyAccessModuleKey @map("module_key")
+  userId           String               @map("user_id") @db.Uuid
+  organizationId   String               @map("organization_id") @db.Uuid
+  subscriptionTier String?              @map("subscription_tier") @db.VarChar(32)
+  industry         String?              @db.VarChar(64)
+  surveyAnswer     String?              @map("survey_answer") @db.VarChar(2000)
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([moduleKey, organizationId])
+  @@index([organizationId])
+  @@index([moduleKey, createdAt])
+  @@map("early_access_signups")
+}
+
+/// Ledger: threshold alerts already sent (avoid duplicate emails).
+model EarlyAccessThresholdAlert {
+  moduleKey    EarlyAccessModuleKey @map("module_key")
+  threshold    Int
+  firedAt      DateTime             @default(now()) @map("fired_at")
+  firedToCount Int                  @map("fired_to_count")
+
+  @@id([moduleKey, threshold])
+  @@map("early_access_threshold_alerts")
 }
 
 /// System timeline row (mutation-derived or domain events); not a substitute for `AuditLog`.
@@ -1182,6 +1520,7 @@ model ApprovalPolicy {
   createdAt        DateTime               @default(now()) @map("created_at")
   updatedAt        DateTime               @updatedAt @map("updated_at")
   organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  currencyRef      Currency               @relation("ApprovalPolicyCurrency", fields: [currency], references: [code], onUpdate: Cascade)
 
   @@index([organizationId, documentType, isActive])
   @@map("approval_policies")
@@ -1252,6 +1591,7 @@ model PrepaidExpense {
   createdAt            DateTime                 @default(now()) @map("created_at")
   updatedAt            DateTime                 @updatedAt @map("updated_at")
   organization         Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  currencyRef          Currency                 @relation("PrepaidExpenseCurrency", fields: [currency], references: [code], onUpdate: Cascade)
   counterparty         Counterparty?            @relation(fields: [counterpartyId], references: [id], onDelete: SetNull)
   schedules            PrepaidExpenseSchedule[]
 
@@ -1318,6 +1658,7 @@ model PsaProject {
   createdAt      DateTime            @default(now()) @map("created_at")
   updatedAt      DateTime            @updatedAt @map("updated_at")
   organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  currencyRef    Currency            @relation("PsaProjectCurrency", fields: [currency], references: [code], onUpdate: Cascade)
   counterparty   Counterparty        @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
   department     Department?         @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   tasks          PsaProjectTask[]
@@ -1466,6 +1807,7 @@ model Account {
   chartEntry        ChartOfAccountsEntry? @relation(fields: [chartEntryId], references: [id])
   templateAccount   TemplateAccount?      @relation(fields: [templateAccountId], references: [id], onDelete: SetNull)
   organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  currencyRef       Currency              @relation("AccountCurrency", fields: [currency], references: [code], onUpdate: Cascade)
   parent            Account?              @relation("AccountHierarchy", fields: [parentId], references: [id])
   children          Account[]             @relation("AccountHierarchy")
   balances          AccountBalance[]
@@ -1670,6 +2012,7 @@ model CounterpartyBankAccount {
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")
   counterparty    Counterparty @relation(fields: [counterpartyId], references: [id], onDelete: Cascade)
+  currencyRef     Currency     @relation("CounterpartyBankAccountCurrency", fields: [currency], references: [code], onUpdate: Cascade)
   deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(6)
   deletedByUserId String?      @map("deleted_by_user_id") @db.Uuid
   deletedReason   String?      @map("deleted_reason")
@@ -1716,6 +2059,7 @@ model Product {
   sku                      String
   price                    Decimal                   @db.Decimal(19, 4)
   vatRate                  Decimal                   @map("vat_rate") @db.Decimal(5, 2)
+  unitOfMeasureCode        String?                   @map("unit_of_measure_code")
   createdAt                DateTime                  @default(now()) @map("created_at")
   updatedAt                DateTime                  @updatedAt @map("updated_at")
   isService                Boolean                   @default(false) @map("is_service")
@@ -1727,6 +2071,7 @@ model Product {
   recipeFinished           ProductRecipe?            @relation("RecipeFinishedProduct")
   manufacturingReleases    ManufacturingRelease[]
   organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  unitOfMeasure            UnitOfMeasure?            @relation(fields: [unitOfMeasureCode], references: [code], onDelete: SetNull)
   stockItems               StockItem[]
   stockMovements           StockMovement[]
   deletedAt                DateTime?                 @map("deleted_at") @db.Timestamptz(6)
@@ -1905,6 +2250,7 @@ model Invoice {
   payments                   InvoicePayment[]
   counterparty               Counterparty          @relation(fields: [counterpartyId], references: [id])
   organization               Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  currencyRef                Currency              @relation("InvoiceCurrency", fields: [currency], references: [code], onUpdate: Cascade)
   warehouse                  Warehouse?            @relation(fields: [warehouseId], references: [id])
   psaProject                 PsaProject?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
   stockMovements             StockMovement[]
@@ -1982,6 +2328,7 @@ model CustomsDeclaration {
   createdAt                   DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                   DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
   organization                Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  currencyRef                 Currency                   @relation("CustomsDeclarationCurrency", fields: [currency], references: [code], onUpdate: Cascade)
   linkedPurchaseTransaction   Transaction?               @relation(fields: [linkedPurchaseTransactionId], references: [id], onDelete: SetNull)
   deletedAt                   DateTime?                  @map("deleted_at") @db.Timestamptz(6)
   deletedByUserId             String?                    @map("deleted_by_user_id") @db.Uuid
@@ -2018,7 +2365,7 @@ model CustomsDeclarationItem {
   hsCode               String             @map("hs_code")
   description          String
   quantity             Decimal            @db.Decimal(19, 4)
-  unit                 String?
+  unitOfMeasureCode    String?            @map("unit_of_measure_code")
   weightNetKg          Decimal            @map("weight_net_kg") @db.Decimal(19, 4)
   weightGrossKg        Decimal            @map("weight_gross_kg") @db.Decimal(19, 4)
   invoiceValue         Decimal            @map("invoice_value") @db.Decimal(19, 4)
@@ -2034,6 +2381,7 @@ model CustomsDeclarationItem {
   notes                String?
   declaration          CustomsDeclaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
   organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  unitOfMeasure        UnitOfMeasure?     @relation(fields: [unitOfMeasureCode], references: [code], onDelete: SetNull)
 
   @@unique([declarationId, sequenceNumber])
   @@index([organizationId, hsCode])
@@ -2042,7 +2390,7 @@ model CustomsDeclarationItem {
 
 model CustomsTariffRate {
   id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  hsCode          String    @unique @map("hs_code")
+  hsCode          String    @map("hs_code")
   description     String?
   dutyRatePercent Decimal   @map("duty_rate_percent") @db.Decimal(7, 4)
   vatRatePercent  Decimal   @map("vat_rate_percent") @db.Decimal(7, 4)
@@ -2054,7 +2402,7 @@ model CustomsTariffRate {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@index([hsCode, effectiveFrom])
+  @@unique([hsCode, effectiveFrom], map: "customs_tariff_rates_hs_code_effective_from_key")
   @@map("customs_tariff_rates")
 }
 
@@ -2211,6 +2559,7 @@ model CashOrder {
   employee               Employee?            @relation("CashOrderEmployee", fields: [employeeId], references: [id])
   linkedTransaction      Transaction?         @relation("CashOrderLinkedTx", fields: [linkedTransactionId], references: [id])
   organization           Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  currencyRef            Currency             @relation("CashOrderCurrency", fields: [currency], references: [code], onUpdate: Cascade)
   postedTransaction      Transaction?         @relation("CashOrderPostedTx", fields: [postedTransactionId], references: [id])
   sourceInvoice          Invoice?             @relation(fields: [sourceInvoiceId], references: [id])
 
@@ -2257,6 +2606,7 @@ model InvoiceItem {
   productId       String?      @map("product_id") @db.Uuid
   description     String?
   quantity        Decimal      @db.Decimal(19, 4)
+  unitOfMeasureCode String?    @map("unit_of_measure_code")
   unitPrice       Decimal      @map("unit_price") @db.Decimal(19, 4)
   vatRate         Decimal      @map("vat_rate") @db.Decimal(5, 2)
   lineTotal       Decimal      @map("line_total") @db.Decimal(19, 4)
@@ -2265,6 +2615,7 @@ model InvoiceItem {
   invoice         Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   product         Product?     @relation(fields: [productId], references: [id])
+  unitOfMeasure   UnitOfMeasure? @relation(fields: [unitOfMeasureCode], references: [code], onDelete: SetNull)
   deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(6)
   deletedByUserId String?      @map("deleted_by_user_id") @db.Uuid
   deletedReason   String?      @map("deleted_reason")
@@ -2392,22 +2743,22 @@ model CashFlowItem {
 }
 
 model ChartOfAccountsEntry {
-  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  templateGroup TemplateGroup @default(COMMERCIAL) @map("template_group")
-  code          String
-  nameAz        String        @map("name_az")
-  nameRu        String        @map("name_ru")
-  nameEn        String        @map("name_en")
-  accountType   AccountType   @map("account_type")
-  /// Код родителя в том же справочнике (иерархия NAS); null — корень.
-  parentCode    String?       @map("parent_code")
-  cashProfile   String?       @map("cash_profile")
-  sortOrder     Int           @default(0) @map("sort_order")
-  isDeprecated  Boolean       @default(false) @map("is_deprecated")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  accounts      Account[]
+  id          String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  kind        OrganizationKind @default(COMMERCIAL) @map("kind")
+  code        String           @map("code")
+  nameAz      String           @map("name_az")
+  nameRu      String           @map("name_ru")
+  nameEn      String           @map("name_en")
+  accountType AccountType      @map("account_type")
+  /// Parent code in the same catalog (NAS hierarchy); null = root.
+  parentCode  String?          @map("parent_code")
+  cashProfile String?          @map("cash_profile")
+  sortOrder   Int              @default(0) @map("sort_order")
+  isDeprecated Boolean         @default(false) @map("is_deprecated")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  accounts    Account[]
 
-  @@unique([templateGroup, code])
+  @@unique([kind, code])
   @@map("chart_of_accounts_entries")
 }
 
@@ -2416,6 +2767,7 @@ model GlobalCounterparty {
   taxId          String         @unique @map("tax_id")
   name           String
   legalAddress   String?        @map("legal_address")
+  legalForm      CounterpartyLegalForm? @map("legal_form")
   vatStatus      Boolean?       @map("vat_status")
   updatedAt      DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
   counterparties Counterparty[]
@@ -2449,6 +2801,7 @@ model Holding {
 
   memberships   HoldingMembership[]
   owner         User                @relation(fields: [ownerId], references: [id])
+  baseCurrencyRef Currency          @relation("HoldingBaseCurrency", fields: [baseCurrency], references: [code], onUpdate: Cascade)
   organizations Organization[]
 
   @@index([ownerId])
@@ -2463,6 +2816,7 @@ model InventoryAuditLine {
   systemQty             Decimal                  @map("system_qty") @db.Decimal(19, 4)
   factQty               Decimal                  @map("fact_qty") @db.Decimal(19, 4)
   costPrice             Decimal                  @map("cost_price") @db.Decimal(19, 4)
+  unitOfMeasureCode     String?                  @map("unit_of_measure_code")
   discrepancyKind       InventoryDiscrepancyKind @default(NONE) @map("discrepancy_kind")
   accountableEmployeeId String?                  @map("accountable_employee_id") @db.Uuid
   accountableEmployee   Employee?                @relation("InventoryAuditLineAccountable", fields: [accountableEmployeeId], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -2474,6 +2828,7 @@ model InventoryAuditLine {
   inventoryAudit  InventoryAudit @relation(fields: [inventoryAuditId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "inventory_audit_lines_audit_fkey")
   organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "inventory_audit_lines_org_fkey")
   product         Product        @relation(fields: [productId], references: [id], onUpdate: NoAction, map: "inventory_audit_lines_product_fkey")
+  unitOfMeasure   UnitOfMeasure? @relation(fields: [unitOfMeasureCode], references: [code], onDelete: SetNull)
   deletedAt       DateTime?      @map("deleted_at") @db.Timestamptz(6)
   deletedByUserId String?        @map("deleted_by_user_id") @db.Uuid
   deletedReason   String?        @map("deleted_reason")
@@ -2691,6 +3046,43 @@ enum UserRole {
   HR_MANAGER
   DEPARTMENT_HEAD
   DIRECTOR
+}
+
+enum PermissionCategory {
+  CORE
+  BILLING
+  ACCOUNTING
+  SALES
+  PURCHASES
+  INVENTORY
+  HR
+  PSA
+  CUSTOMS
+  ADMIN
+  REPORTING
+  INTEGRATIONS
+}
+
+enum UnitOfMeasureKind {
+  COUNT
+  WEIGHT
+  LENGTH
+  AREA
+  VOLUME
+  PACK
+  TIME
+}
+
+enum TaxRateKind {
+  VAT
+  EXCISE
+  INCOME
+  SOCIAL
+}
+
+enum SystemProductKind {
+  SERVICE
+  GOODS
 }
 
 enum AccountType {
@@ -3007,13 +3399,6 @@ enum HoldingAccessRole {
   ADMIN
   ACCOUNTANT
   VIEWER
-}
-
-enum TemplateGroup {
-  COMMERCIAL
-  GOVERNMENT
-  /// Упрощённый план для малого бизнеса (подмножество NAS / MMÜS).
-  SMALL_BUSINESS
 }
 
 enum IntegrationSyncStatus {

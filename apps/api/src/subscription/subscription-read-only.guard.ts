@@ -68,7 +68,8 @@ export class SubscriptionReadOnlyGuard implements CanActivate {
       path.startsWith("/api/auth") ||
       path.startsWith("/api/public") ||
       path === "/api/billing/checkout" ||
-      path.startsWith("/api/billing/webhooks/")
+      path.startsWith("/api/billing/webhooks/") ||
+      path.startsWith("/api/early-access/")
     );
   }
 }

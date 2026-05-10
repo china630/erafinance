@@ -1,6 +1,6 @@
 /**
  * Azərbaycan dilində hesab adları (ОСВ / cədvəllər üçün).
- * Mənbə: packages/database/seeds/chart-of-accounts-az.json — kodlar eyni, adlar AZ.
+ * Mənbə: packages/database/prisma/catalog/national/chart-of-accounts-commercial.json (COMMERCIAL) — kodlar eyni, adlar AZ.
  */
 export const CHART_ACCOUNT_NAMES_AZ: Record<string, string> = {
   "100": "Nağd vəsaitlər və pul sənədləri",

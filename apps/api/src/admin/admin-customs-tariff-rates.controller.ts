@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { SuperAdminGuard } from "../auth/guards/super-admin.guard";
@@ -14,8 +14,21 @@ export class AdminCustomsTariffRatesController {
 
   @Get()
   @ApiOperation({ summary: "List customs tariff rate rows (super-admin)" })
-  list() {
-    return this.tariffs.listActiveForAdmin();
+  list(@Query("includeInactive") includeInactive?: string) {
+    const inc = includeInactive === "1" || includeInactive === "true";
+    return this.tariffs.listForAdmin(inc);
+  }
+
+  @Post(":id/deactivate")
+  @ApiOperation({ summary: "Deactivate tariff row (soft-delete via deletedAt)" })
+  deactivate(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tariffs.softDelete(id);
+  }
+
+  @Post(":id/restore")
+  @ApiOperation({ summary: "Restore a deactivated tariff row" })
+  restore(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tariffs.restore(id);
   }
 
   @Post()
@@ -30,11 +43,5 @@ export class AdminCustomsTariffRatesController {
       effectiveFrom: dto.effectiveFrom ? new Date(`${dto.effectiveFrom.slice(0, 10)}T00:00:00.000Z`) : undefined,
       notes: dto.notes,
     });
-  }
-
-  @Delete(":id")
-  @ApiOperation({ summary: "Soft-delete a tariff rate row" })
-  softDelete(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tariffs.softDelete(id);
   }
 }

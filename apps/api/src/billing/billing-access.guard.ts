@@ -65,6 +65,7 @@ export class BillingAccessGuard implements CanActivate {
 
     if (status === BillingStatus.HARD_BLOCK) {
       if (["GET", "HEAD", "OPTIONS"].includes(method)) return true;
+      if (this.isEarlyAccessPath(path)) return true;
       if (this.isBillingPaymentPath(path, method)) return true;
       throw new HttpException(
         {
@@ -86,11 +87,16 @@ export class BillingAccessGuard implements CanActivate {
     return path.startsWith("/") ? `/api${path}` : `/api/${path}`;
   }
 
+  private isEarlyAccessPath(path: string): boolean {
+    return path.startsWith("/api/early-access/");
+  }
+
   private isBillingPaymentPath(path: string, method: string): boolean {
     if (method !== "POST") return false;
     if (path === "/api/billing/checkout") return true;
     if (path.startsWith("/api/billing/webhooks/")) return true;
     if (path === "/api/public/billing/webhook") return true;
+    if (path.startsWith("/api/integrations/drakaris/")) return true;
     return false;
   }
 

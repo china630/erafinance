@@ -30,6 +30,13 @@ export class CreateInvoiceItemDto {
   @IsNumber()
   quantity!: number;
 
+  @ApiPropertyOptional({
+    description: "Код единицы измерения из каталога (pcs, kg, m, …); иначе берётся с товара при productId",
+  })
+  @IsOptional()
+  @IsString()
+  unitOfMeasureCode?: string;
+
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
@@ -70,11 +77,11 @@ export class CreateInvoiceDto {
   items!: CreateInvoiceItemDto[];
 
   @ApiPropertyOptional({
-    enum: ["AZN", "USD", "EUR", "RUB", "TRY"],
+    enum: ["AZN", "USD", "EUR", "RUB", "TRY", "GBP", "KZT", "UAH", "GEL"],
     default: "AZN",
   })
   @IsOptional()
-  @IsIn(["AZN", "USD", "EUR", "RUB", "TRY"])
+  @IsIn(["AZN", "USD", "EUR", "RUB", "TRY", "GBP", "KZT", "UAH", "GEL"])
   currency?: string;
 
   @ApiPropertyOptional({

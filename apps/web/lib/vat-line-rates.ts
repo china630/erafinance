@@ -1,10 +1,14 @@
-/**
- * Допустимые ставки ƏDV/НДС для строк документов и номенклатуры (синхрон с API `CreateInvoiceItemDto` / продукт).
- * -1 — освобождение (в расчётах как 0%).
- */
-export const INVOICE_VAT_RATE_VALUES = [-1, 0, 2, 8, 18] as const;
+import { apiFetch } from "./api-client";
 
-export type InvoiceVatRateValue = (typeof INVOICE_VAT_RATE_VALUES)[number];
+/**
+ * Default ƏDV line options when `GET /api/system/invoice-vat-rates` is unavailable.
+ */
+export const DEFAULT_INVOICE_VAT_RATES = [-1, 0, 2, 8, 18] as const;
+
+/** @deprecated Use `DEFAULT_INVOICE_VAT_RATES` or server-driven list in UI. */
+export const INVOICE_VAT_RATE_VALUES = DEFAULT_INVOICE_VAT_RATES;
+
+export type InvoiceVatRateValue = number;
 
 export type VatRateFormString = "-1" | "0" | "2" | "8" | "18";
 
@@ -12,9 +16,12 @@ export function vatRateToFormString(v: InvoiceVatRateValue): VatRateFormString {
   return String(v) as VatRateFormString;
 }
 
-export function formStringToVatRate(s: string): InvoiceVatRateValue | null {
+export function formStringToVatRate(
+  s: string,
+  allowed: readonly number[] = [...DEFAULT_INVOICE_VAT_RATES],
+): InvoiceVatRateValue | null {
   const n = Number(s);
-  for (const x of INVOICE_VAT_RATE_VALUES) {
+  for (const x of allowed) {
     if (x === n) return x;
   }
   return null;
@@ -28,8 +35,27 @@ export function normalizeProductVatRate(raw: number): InvoiceVatRateValue {
   return 18;
 }
 
-/** Процент для расчёта сумм (освобождение → 0%). */
+/** Percent for math (exemption → 0%). */
 export function vatPercentForMath(rate: InvoiceVatRateValue): number {
   if (rate === -1) return 0;
   return rate;
+}
+
+export async function fetchInvoiceVatRatesFromApi(): Promise<number[]> {
+  try {
+    const res = await apiFetch("/api/system/invoice-vat-rates");
+    if (!res.ok) {
+      return [...DEFAULT_INVOICE_VAT_RATES];
+    }
+    const body = (await res.json()) as { rates?: unknown };
+    if (!Array.isArray(body.rates)) {
+      return [...DEFAULT_INVOICE_VAT_RATES];
+    }
+    const out = body.rates
+      .map((x) => Number(x))
+      .filter((n) => Number.isFinite(n));
+    return out.length > 0 ? out : [...DEFAULT_INVOICE_VAT_RATES];
+  } catch {
+    return [...DEFAULT_INVOICE_VAT_RATES];
+  }
 }

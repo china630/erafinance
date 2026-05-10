@@ -15,3 +15,6 @@ bats
 # Локальные черновики каталога i18n (не участвуют в сборке; канон — npm run i18n:catalog → apps/api/src/admin/i18n-default-catalog-data.json)
 _i18n-default-catalog-data.new.json
 *_i18n-default-catalog*.new.json
+
+# Generated large AZ customs parse output (regenerate with npm run db:parse-az-customs-md)
+docs/tmp/parsed-az-customs-tariff.json

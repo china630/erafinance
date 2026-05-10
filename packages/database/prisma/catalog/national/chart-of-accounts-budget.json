@@ -1,0 +1,2265 @@
+{
+  "meta": {
+    "kind": "BUDGET",
+    "source": "docs",
+    "locale": "az+ru"
+  },
+  "accounts": [
+    {
+      "code": "90",
+      "nameAz": "[NAS-GOV group 90]",
+      "nameRu": "[NAS-GOV group 90]",
+      "nameEn": "[NAS-GOV group 90]",
+      "type": "EXPENSE",
+      "parentCode": "9"
+    },
+    {
+      "code": "10",
+      "nameAz": "Pul vəsaitləri və onların ekvivalentləri",
+      "nameRu": "Pul vəsaitləri və onların ekvivalentləri",
+      "nameEn": "Pul vəsaitləri və onların ekvivalentləri",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "101",
+      "nameAz": "Kassa",
+      "nameRu": "Kassa",
+      "nameEn": "Kassa",
+      "type": "ASSET",
+      "parentCode": "10"
+    },
+    {
+      "code": "102",
+      "nameAz": "Yolda olan pul köçürmələri",
+      "nameRu": "Yolda olan pul köçürmələri",
+      "nameEn": "Yolda olan pul köçürmələri",
+      "type": "ASSET",
+      "parentCode": "10"
+    },
+    {
+      "code": "103",
+      "nameAz": "Bankda olan hesablaşma hesabları",
+      "nameRu": "Bankda olan hesablaşma hesabları",
+      "nameEn": "Bankda olan hesablaşma hesabları",
+      "type": "ASSET",
+      "parentCode": "10"
+    },
+    {
+      "code": "104",
+      "nameAz": "Tələblərə əsasən verilən digər bank hesabları",
+      "nameRu": "Tələblərə əsasən verilən digər bank hesabları",
+      "nameEn": "Tələblərə əsasən verilən digər bank hesabları",
+      "type": "ASSET",
+      "parentCode": "10"
+    },
+    {
+      "code": "105",
+      "nameAz": "Pul vəsaitlərinin ekvivalentləri",
+      "nameRu": "Pul vəsaitlərinin ekvivalentləri",
+      "nameEn": "Pul vəsaitlərinin ekvivalentləri",
+      "type": "ASSET",
+      "parentCode": "10"
+    },
+    {
+      "code": "11",
+      "nameAz": "Qısamüddətli debitor borcları",
+      "nameRu": "Qısamüddətli debitor borcları",
+      "nameEn": "Qısamüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "111",
+      "nameAz": "Qısamüddətli debitor borcları",
+      "nameRu": "Qısamüddətli debitor borcları",
+      "nameEn": "Qısamüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "11"
+    },
+    {
+      "code": "111-1",
+      "nameAz": "Malların satışı üzrə qısamüddətli debitor borcları",
+      "nameRu": "Malların satışı üzrə qısamüddətli debitor borcları",
+      "nameEn": "Malların satışı üzrə qısamüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "111-2",
+      "nameAz": "Xidmətlərin göstərilməsi üzrə qısamüddətli debitor borcları",
+      "nameRu": "Xidmətlərin göstərilməsi üzrə qısamüddətli debitor borcları",
+      "nameEn": "Xidmətlərin göstərilməsi üzrə qısamüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "111-3",
+      "nameAz": "Tikinti müqaviləsi üzrə qısamüddətli debitor borcları",
+      "nameRu": "Tikinti müqaviləsi üzrə qısamüddətli debitor borcları",
+      "nameEn": "Tikinti müqaviləsi üzrə qısamüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "111-5",
+      "nameAz": "Maliyyə icarəsi üzrə qısamüddətli debitor borcları",
+      "nameRu": "Maliyyə icarəsi üzrə qısamüddətli debitor borcları",
+      "nameEn": "Maliyyə icarəsi üzrə qısamüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "111-6",
+      "nameAz": "Əməliyyat icarəsi üzrə qısamüddətli debitor borcları",
+      "nameRu": "Əməliyyat icarəsi üzrə qısamüddətli debitor borcları",
+      "nameEn": "Əməliyyat icarəsi üzrə qısamüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "111-7",
+      "nameAz": "Sair gəlirlər üzrə qısamüddətli debitor borcları",
+      "nameRu": "Sair gəlirlər üzrə qısamüddətli debitor borcları",
+      "nameEn": "Sair gəlirlər üzrə qısamüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "111-8",
+      "nameAz": "İşçi heyəti üzrə qısamüddətli debitor borcları",
+      "nameRu": "İşçi heyəti üzrə qısamüddətli debitor borcları",
+      "nameEn": "İşçi heyəti üzrə qısamüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "111-9",
+      "nameAz": "Faizlər üzrə qısamüddətli debitor borcları",
+      "nameRu": "Faizlər üzrə qısamüddətli debitor borcları",
+      "nameEn": "Faizlər üzrə qısamüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "111-10",
+      "nameAz": "Digər qısamüddətli debitor borcları",
+      "nameRu": "Digər qısamüddətli debitor borcları",
+      "nameEn": "Digər qısamüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "111-11",
+      "nameAz": "Şübhəli borclar üzrə ehtiyat",
+      "nameRu": "Şübhəli borclar üzrə ehtiyat",
+      "nameEn": "Şübhəli borclar üzrə ehtiyat",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "12",
+      "nameAz": "Ehtiyatlar",
+      "nameRu": "Ehtiyatlar",
+      "nameEn": "Ehtiyatlar",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "121",
+      "nameAz": "Material ehtiyatları",
+      "nameRu": "Material ehtiyatları",
+      "nameEn": "Material ehtiyatları",
+      "type": "ASSET",
+      "parentCode": "12"
+    },
+    {
+      "code": "121-1",
+      "nameAz": "Material",
+      "nameRu": "Material",
+      "nameEn": "Material",
+      "type": "ASSET",
+      "parentCode": "121"
+    },
+    {
+      "code": "121-2",
+      "nameAz": "Xammal",
+      "nameRu": "Xammal",
+      "nameEn": "Xammal",
+      "type": "ASSET",
+      "parentCode": "121"
+    },
+    {
+      "code": "121-3",
+      "nameAz": "İstehsalat materialları",
+      "nameRu": "İstehsalat materialları",
+      "nameEn": "İstehsalat materialları",
+      "type": "ASSET",
+      "parentCode": "121"
+    },
+    {
+      "code": "122",
+      "nameAz": "İstehsalat",
+      "nameRu": "İstehsalat",
+      "nameEn": "İstehsalat",
+      "type": "ASSET",
+      "parentCode": "12"
+    },
+    {
+      "code": "122-1",
+      "nameAz": "İstifadə olunmuş məsrəflər",
+      "nameRu": "İstifadə olunmuş məsrəflər",
+      "nameEn": "İstifadə olunmuş məsrəflər",
+      "type": "ASSET",
+      "parentCode": "122"
+    },
+    {
+      "code": "122-2",
+      "nameAz": "Qablaşdırma materialları",
+      "nameRu": "Qablaşdırma materialları",
+      "nameEn": "Qablaşdırma materialları",
+      "type": "ASSET",
+      "parentCode": "122"
+    },
+    {
+      "code": "122-3",
+      "nameAz": "İstifadə olunmuş əsas xammal",
+      "nameRu": "İstifadə olunmuş əsas xammal",
+      "nameEn": "İstifadə olunmuş əsas xammal",
+      "type": "ASSET",
+      "parentCode": "122"
+    },
+    {
+      "code": "122-4",
+      "nameAz": "İstifadə olunmuş əsas materiallar",
+      "nameRu": "İstifadə olunmuş əsas materiallar",
+      "nameEn": "İstifadə olunmuş əsas materiallar",
+      "type": "ASSET",
+      "parentCode": "122"
+    },
+    {
+      "code": "122-5",
+      "nameAz": "İstifadə olunmuş işçi heyətinə məsrəflər",
+      "nameRu": "İstifadə olunmuş işçi heyətinə məsrəflər",
+      "nameEn": "İstifadə olunmuş işçi heyətinə məsrəflər",
+      "type": "ASSET",
+      "parentCode": "122"
+    },
+    {
+      "code": "122-6",
+      "nameAz": "Aktivlərin amortizasiyası",
+      "nameRu": "Aktivlərin amortizasiyası",
+      "nameEn": "Aktivlərin amortizasiyası",
+      "type": "ASSET",
+      "parentCode": "122"
+    },
+    {
+      "code": "122-7",
+      "nameAz": "İstifadə olunmuş köməkçi xammal",
+      "nameRu": "İstifadə olunmuş köməkçi xammal",
+      "nameEn": "İstifadə olunmuş köməkçi xammal",
+      "type": "ASSET",
+      "parentCode": "122"
+    },
+    {
+      "code": "122-8",
+      "nameAz": "İstifadə olunmuş köməkçi materiallar",
+      "nameRu": "İstifadə olunmuş köməkçi materiallar",
+      "nameEn": "İstifadə olunmuş köməkçi materiallar",
+      "type": "ASSET",
+      "parentCode": "122"
+    },
+    {
+      "code": "122-9",
+      "nameAz": "Sair işçi heyətinə məsrəflər",
+      "nameRu": "Sair işçi heyətinə məsrəflər",
+      "nameEn": "Sair işçi heyətinə məsrəflər",
+      "type": "ASSET",
+      "parentCode": "122"
+    },
+    {
+      "code": "123",
+      "nameAz": "Tikinti müqavilələri üzrə bitməmiş tikinti işləri",
+      "nameRu": "Tikinti müqavilələri üzrə bitməmiş tikinti işləri",
+      "nameEn": "Tikinti müqavilələri üzrə bitməmiş tikinti işləri",
+      "type": "ASSET",
+      "parentCode": "12"
+    },
+    {
+      "code": "124",
+      "nameAz": "Hazır məhsul",
+      "nameRu": "Hazır məhsul",
+      "nameEn": "Hazır məhsul",
+      "type": "ASSET",
+      "parentCode": "12"
+    },
+    {
+      "code": "125",
+      "nameAz": "Satış məqsədilə saxlanılan digər aktivlər",
+      "nameRu": "Satış məqsədilə saxlanılan digər aktivlər",
+      "nameEn": "Satış məqsədilə saxlanılan digər aktivlər",
+      "type": "ASSET",
+      "parentCode": "12"
+    },
+    {
+      "code": "126",
+      "nameAz": "Digər ehtiyatlar",
+      "nameRu": "Digər ehtiyatlar",
+      "nameEn": "Digər ehtiyatlar",
+      "type": "ASSET",
+      "parentCode": "12"
+    },
+    {
+      "code": "127",
+      "nameAz": "Ehtiyatların dəyərinin azalmasına görə düzəlişlər",
+      "nameRu": "Ehtiyatların dəyərinin azalmasına görə düzəlişlər",
+      "nameEn": "Ehtiyatların dəyərinin azalmasına görə düzəlişlər",
+      "type": "ASSET",
+      "parentCode": "12"
+    },
+    {
+      "code": "13",
+      "nameAz": "Sair qısamüddətli maliyyə aktivləri",
+      "nameRu": "Sair qısamüddətli maliyyə aktivləri",
+      "nameEn": "Sair qısamüddətli maliyyə aktivləri",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "131",
+      "nameAz": "Satış məqsədilə saxlanılan qısamüddətli investisiyalar",
+      "nameRu": "Satış məqsədilə saxlanılan qısamüddətli investisiyalar",
+      "nameEn": "Satış məqsədilə saxlanılan qısamüddətli investisiyalar",
+      "type": "ASSET",
+      "parentCode": "13"
+    },
+    {
+      "code": "132",
+      "nameAz": "Ödənişə qədər saxlanılan qısamüddətli investisiyalar",
+      "nameRu": "Ödənişə qədər saxlanılan qısamüddətli investisiyalar",
+      "nameEn": "Ödənişə qədər saxlanılan qısamüddətli investisiyalar",
+      "type": "ASSET",
+      "parentCode": "13"
+    },
+    {
+      "code": "133",
+      "nameAz": "Verilmiş qısamüddətli borclar",
+      "nameRu": "Verilmiş qısamüddətli borclar",
+      "nameEn": "Verilmiş qısamüddətli borclar",
+      "type": "ASSET",
+      "parentCode": "13"
+    },
+    {
+      "code": "134",
+      "nameAz": "Digər qısamüddətli investisiyalar",
+      "nameRu": "Digər qısamüddətli investisiyalar",
+      "nameEn": "Digər qısamüddətli investisiyalar",
+      "type": "ASSET",
+      "parentCode": "13"
+    },
+    {
+      "code": "135",
+      "nameAz": "Sair qısamüddətli maliyyə aktivlərinin dəyərinin azalmasına görə düzəlişlər",
+      "nameRu": "Sair qısamüddətli maliyyə aktivlərinin dəyərinin azalmasına görə düzəlişlər",
+      "nameEn": "Sair qısamüddətli maliyyə aktivlərinin dəyərinin azalmasına görə düzəlişlər",
+      "type": "ASSET",
+      "parentCode": "13"
+    },
+    {
+      "code": "14",
+      "nameAz": "Sair qısamüddətli aktivlər",
+      "nameRu": "Sair qısamüddətli aktivlər",
+      "nameEn": "Sair qısamüddətli aktivlər",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "142",
+      "nameAz": "Gələcək hesabat dövrlərinin xərcləri",
+      "nameRu": "Gələcək hesabat dövrlərinin xərcləri",
+      "nameEn": "Gələcək hesabat dövrlərinin xərcləri",
+      "type": "ASSET",
+      "parentCode": "14"
+    },
+    {
+      "code": "143",
+      "nameAz": "Verilmiş qısamüddətli avanslar",
+      "nameRu": "Verilmiş qısamüddətli avanslar",
+      "nameEn": "Verilmiş qısamüddətli avanslar",
+      "type": "ASSET",
+      "parentCode": "14"
+    },
+    {
+      "code": "144",
+      "nameAz": "Təhtəlhesab məbləğlər",
+      "nameRu": "Təhtəlhesab məbləğlər",
+      "nameEn": "Təhtəlhesab məbləğlər",
+      "type": "ASSET",
+      "parentCode": "14"
+    },
+    {
+      "code": "145",
+      "nameAz": "Digər qısamüddətli aktivlər",
+      "nameRu": "Digər qısamüddətli aktivlər",
+      "nameEn": "Digər qısamüddətli aktivlər",
+      "type": "ASSET",
+      "parentCode": "14"
+    },
+    {
+      "code": "2",
+      "nameAz": "Uzunmüddətli aktivlər",
+      "nameRu": "Uzunmüddətli aktivlər",
+      "nameEn": "Uzunmüddətli aktivlər",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "20",
+      "nameAz": "Uzunmüddətli debitor borcları",
+      "nameRu": "Uzunmüddətli debitor borcları",
+      "nameEn": "Uzunmüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "2"
+    },
+    {
+      "code": "201",
+      "nameAz": "Uzunmüddətli debitor borcları",
+      "nameRu": "Uzunmüddətli debitor borcları",
+      "nameEn": "Uzunmüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "20"
+    },
+    {
+      "code": "201-1",
+      "nameAz": "Malların satışı üzrə uzunmüddətli debitor borcları",
+      "nameRu": "Malların satışı üzrə uzunmüddətli debitor borcları",
+      "nameEn": "Malların satışı üzrə uzunmüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "201"
+    },
+    {
+      "code": "201-2",
+      "nameAz": "Xidmətlərin göstərilməsi üzrə uzunmüddətli debitor borcları",
+      "nameRu": "Xidmətlərin göstərilməsi üzrə uzunmüddətli debitor borcları",
+      "nameEn": "Xidmətlərin göstərilməsi üzrə uzunmüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "201"
+    },
+    {
+      "code": "201-3",
+      "nameAz": "Tikinti müqaviləsi üzrə uzunmüddətli debitor borcları",
+      "nameRu": "Tikinti müqaviləsi üzrə uzunmüddətli debitor borcları",
+      "nameEn": "Tikinti müqaviləsi üzrə uzunmüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "201"
+    },
+    {
+      "code": "201-5",
+      "nameAz": "Maliyyə icarəsi üzrə uzunmüddətli debitor borcları",
+      "nameRu": "Maliyyə icarəsi üzrə uzunmüddətli debitor borcları",
+      "nameEn": "Maliyyə icarəsi üzrə uzunmüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "201"
+    },
+    {
+      "code": "201-7",
+      "nameAz": "Sair gəlirlər üzrə uzunmüddətli debitor borcları",
+      "nameRu": "Sair gəlirlər üzrə uzunmüddətli debitor borcları",
+      "nameEn": "Sair gəlirlər üzrə uzunmüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "201"
+    },
+    {
+      "code": "201-8",
+      "nameAz": "İşçi heyəti üzrə uzunmüddətli debitor borcları",
+      "nameRu": "İşçi heyəti üzrə uzunmüddətli debitor borcları",
+      "nameEn": "İşçi heyəti üzrə uzunmüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "201"
+    },
+    {
+      "code": "201-9",
+      "nameAz": "Faizlər üzrə uzunmüddətli debitor borcları",
+      "nameRu": "Faizlər üzrə uzunmüddətli debitor borcları",
+      "nameEn": "Faizlər üzrə uzunmüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "201"
+    },
+    {
+      "code": "201-10",
+      "nameAz": "Digər uzunmüddətli debitor borcları",
+      "nameRu": "Digər uzunmüddətli debitor borcları",
+      "nameEn": "Digər uzunmüddətli debitor borcları",
+      "type": "ASSET",
+      "parentCode": "201"
+    },
+    {
+      "code": "21",
+      "nameAz": "İştirak payı metodu ilə uçota alınmış investisiyalar",
+      "nameRu": "İştirak payı metodu ilə uçota alınmış investisiyalar",
+      "nameEn": "İştirak payı metodu ilə uçota alınmış investisiyalar",
+      "type": "ASSET",
+      "parentCode": "2"
+    },
+    {
+      "code": "211",
+      "nameAz": "Asılı müəssisələrə investisiyalar",
+      "nameRu": "Asılı müəssisələrə investisiyalar",
+      "nameEn": "Asılı müəssisələrə investisiyalar",
+      "type": "ASSET",
+      "parentCode": "21"
+    },
+    {
+      "code": "212",
+      "nameAz": "Birgə müəssisələrə investisiyalar",
+      "nameRu": "Birgə müəssisələrə investisiyalar",
+      "nameEn": "Birgə müəssisələrə investisiyalar",
+      "type": "ASSET",
+      "parentCode": "21"
+    },
+    {
+      "code": "22",
+      "nameAz": "Sair uzunmüddətli maliyyə aktivləri",
+      "nameRu": "Sair uzunmüddətli maliyyə aktivləri",
+      "nameEn": "Sair uzunmüddətli maliyyə aktivləri",
+      "type": "ASSET",
+      "parentCode": "2"
+    },
+    {
+      "code": "221",
+      "nameAz": "Ödənişə qədər saxlanılan uzunmüddətli investisiyalar",
+      "nameRu": "Ödənişə qədər saxlanılan uzunmüddətli investisiyalar",
+      "nameEn": "Ödənişə qədər saxlanılan uzunmüddətli investisiyalar",
+      "type": "ASSET",
+      "parentCode": "22"
+    },
+    {
+      "code": "222",
+      "nameAz": "Verilmiş uzunmüddətli borclar",
+      "nameRu": "Verilmiş uzunmüddətli borclar",
+      "nameEn": "Verilmiş uzunmüddətli borclar",
+      "type": "ASSET",
+      "parentCode": "22"
+    },
+    {
+      "code": "223",
+      "nameAz": "Digər uzunmüddətli investisiyalar",
+      "nameRu": "Digər uzunmüddətli investisiyalar",
+      "nameEn": "Digər uzunmüddətli investisiyalar",
+      "type": "ASSET",
+      "parentCode": "22"
+    },
+    {
+      "code": "224",
+      "nameAz": "Sair uzunmüddətli maliyyə aktivlərinin dəyərinin azalmasına görə düzəlişlər",
+      "nameRu": "Sair uzunmüddətli maliyyə aktivlərinin dəyərinin azalmasına görə düzəlişlər",
+      "nameEn": "Sair uzunmüddətli maliyyə aktivlərinin dəyərinin azalmasına görə düzəlişlər",
+      "type": "ASSET",
+      "parentCode": "22"
+    },
+    {
+      "code": "23",
+      "nameAz": "Torpaq, tikili və avadanlıq və digər uzunmüddətli aktivlər",
+      "nameRu": "Torpaq, tikili və avadanlıq və digər uzunmüddətli aktivlər",
+      "nameEn": "Torpaq, tikili və avadanlıq və digər uzunmüddətli aktivlər",
+      "type": "ASSET",
+      "parentCode": "2"
+    },
+    {
+      "code": "231",
+      "nameAz": "Torpaq, tikili və avadanlıq - dəyər",
+      "nameRu": "Torpaq, tikili və avadanlıq - dəyər",
+      "nameEn": "Torpaq, tikili və avadanlıq - dəyər",
+      "type": "ASSET",
+      "parentCode": "23"
+    },
+    {
+      "code": "231-1",
+      "nameAz": "Torpaq - dəyər",
+      "nameRu": "Torpaq - dəyər",
+      "nameEn": "Torpaq - dəyər",
+      "type": "ASSET",
+      "parentCode": "231"
+    },
+    {
+      "code": "231-2",
+      "nameAz": "Tikili və avadanlıq - dəyər",
+      "nameRu": "Tikili və avadanlıq - dəyər",
+      "nameEn": "Tikili və avadanlıq - dəyər",
+      "type": "ASSET",
+      "parentCode": "231"
+    },
+    {
+      "code": "231-3",
+      "nameAz": "Nəqliyyat vasitəsi - dəyər",
+      "nameRu": "Nəqliyyat vasitəsi - dəyər",
+      "nameEn": "Nəqliyyat vasitəsi - dəyər",
+      "type": "ASSET",
+      "parentCode": "231"
+    },
+    {
+      "code": "231-4",
+      "nameAz": "Sair torpaq, tikili və avadanlıq - dəyər",
+      "nameRu": "Sair torpaq, tikili və avadanlıq - dəyər",
+      "nameEn": "Sair torpaq, tikili və avadanlıq - dəyər",
+      "type": "ASSET",
+      "parentCode": "231"
+    },
+    {
+      "code": "232",
+      "nameAz": "Torpaq, tikili və avadanlıq - amortizasiya",
+      "nameRu": "Torpaq, tikili və avadanlıq - amortizasiya",
+      "nameEn": "Torpaq, tikili və avadanlıq - amortizasiya",
+      "type": "ASSET",
+      "parentCode": "23"
+    },
+    {
+      "code": "232-2",
+      "nameAz": "Tikili və avadanlıq - amortizasiya",
+      "nameRu": "Tikili və avadanlıq - amortizasiya",
+      "nameEn": "Tikili və avadanlıq - amortizasiya",
+      "type": "ASSET",
+      "parentCode": "232"
+    },
+    {
+      "code": "232-3",
+      "nameAz": "Nəqliyyat Vasitəsi - amortizasiya",
+      "nameRu": "Nəqliyyat Vasitəsi - amortizasiya",
+      "nameEn": "Nəqliyyat Vasitəsi - amortizasiya",
+      "type": "ASSET",
+      "parentCode": "232"
+    },
+    {
+      "code": "232-4",
+      "nameAz": "Sair torpaq, tikili və avadanlıq - amortizasiya",
+      "nameRu": "Sair torpaq, tikili və avadanlıq - amortizasiya",
+      "nameEn": "Sair torpaq, tikili və avadanlıq - amortizasiya",
+      "type": "ASSET",
+      "parentCode": "232"
+    },
+    {
+      "code": "233",
+      "nameAz": "Torpaq, tikili və avadanlıq üzrə xərclərin kapitallaşdırılması",
+      "nameRu": "Torpaq, tikili və avadanlıq üzrə xərclərin kapitallaşdırılması",
+      "nameEn": "Torpaq, tikili və avadanlıq üzrə xərclərin kapitallaşdırılması",
+      "type": "ASSET",
+      "parentCode": "23"
+    },
+    {
+      "code": "234",
+      "nameAz": "Bioloji aktivlər - Dəyər",
+      "nameRu": "Bioloji aktivlər - Dəyər",
+      "nameEn": "Bioloji aktivlər - Dəyər",
+      "type": "ASSET",
+      "parentCode": "23"
+    },
+    {
+      "code": "234-1",
+      "nameAz": "Bitkilər - Dəyər",
+      "nameRu": "Bitkilər - Dəyər",
+      "nameEn": "Bitkilər - Dəyər",
+      "type": "ASSET",
+      "parentCode": "234"
+    },
+    {
+      "code": "234-2",
+      "nameAz": "Heyvanlar - Dəyər",
+      "nameRu": "Heyvanlar - Dəyər",
+      "nameEn": "Heyvanlar - Dəyər",
+      "type": "ASSET",
+      "parentCode": "234"
+    },
+    {
+      "code": "234-3",
+      "nameAz": "Bioloji aktivlər - kapitallaşdırma",
+      "nameRu": "Bioloji aktivlər - kapitallaşdırma",
+      "nameEn": "Bioloji aktivlər - kapitallaşdırma",
+      "type": "ASSET",
+      "parentCode": "234"
+    },
+    {
+      "code": "235",
+      "nameAz": "Bioloji aktivlər - Amortizasiya",
+      "nameRu": "Bioloji aktivlər - Amortizasiya",
+      "nameEn": "Bioloji aktivlər - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "23"
+    },
+    {
+      "code": "235-1",
+      "nameAz": "Bitkilər - Amortizasiya",
+      "nameRu": "Bitkilər - Amortizasiya",
+      "nameEn": "Bitkilər - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "235"
+    },
+    {
+      "code": "235-2",
+      "nameAz": "Heyvanlar - Amortizasiya",
+      "nameRu": "Heyvanlar - Amortizasiya",
+      "nameEn": "Heyvanlar - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "235"
+    },
+    {
+      "code": "236",
+      "nameAz": "Daşınmaz əmlaka investisiyalar - Dəyər",
+      "nameRu": "Daşınmaz əmlaka investisiyalar - Dəyər",
+      "nameEn": "Daşınmaz əmlaka investisiyalar - Dəyər",
+      "type": "ASSET",
+      "parentCode": "23"
+    },
+    {
+      "code": "237",
+      "nameAz": "Daşınmaz əmlaka investisiyalar - Amortizasiya",
+      "nameRu": "Daşınmaz əmlaka investisiyalar - Amortizasiya",
+      "nameEn": "Daşınmaz əmlaka investisiyalar - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "23"
+    },
+    {
+      "code": "238",
+      "nameAz": "Daşınmaz əmlaka investisiyalar - Kapitallaşdırma",
+      "nameRu": "Daşınmaz əmlaka investisiyalar - Kapitallaşdırma",
+      "nameEn": "Daşınmaz əmlaka investisiyalar - Kapitallaşdırma",
+      "type": "ASSET",
+      "parentCode": "23"
+    },
+    {
+      "code": "24",
+      "nameAz": "Qeyri-maddi aktivlər",
+      "nameRu": "Qeyri-maddi aktivlər",
+      "nameEn": "Qeyri-maddi aktivlər",
+      "type": "ASSET",
+      "parentCode": "2"
+    },
+    {
+      "code": "241",
+      "nameAz": "Qeyri-maddi aktivlər - Dəyər",
+      "nameRu": "Qeyri-maddi aktivlər - Dəyər",
+      "nameEn": "Qeyri-maddi aktivlər - Dəyər",
+      "type": "ASSET",
+      "parentCode": "24"
+    },
+    {
+      "code": "241-1",
+      "nameAz": "Elmi-tədqiqat və təcrübə-konstruktor işləri - Dəyər",
+      "nameRu": "Elmi-tədqiqat və təcrübə-konstruktor işləri - Dəyər",
+      "nameEn": "Elmi-tədqiqat və təcrübə-konstruktor işləri - Dəyər",
+      "type": "ASSET",
+      "parentCode": "241"
+    },
+    {
+      "code": "241-2",
+      "nameAz": "Qudvil - Dəyər",
+      "nameRu": "Qudvil - Dəyər",
+      "nameEn": "Qudvil - Dəyər",
+      "type": "ASSET",
+      "parentCode": "241"
+    },
+    {
+      "code": "241-3",
+      "nameAz": "Proqram təminatı - Dəyər",
+      "nameRu": "Proqram təminatı - Dəyər",
+      "nameEn": "Proqram təminatı - Dəyər",
+      "type": "ASSET",
+      "parentCode": "241"
+    },
+    {
+      "code": "241-4",
+      "nameAz": "Patentlər - Dəyər",
+      "nameRu": "Patentlər - Dəyər",
+      "nameEn": "Patentlər - Dəyər",
+      "type": "ASSET",
+      "parentCode": "241"
+    },
+    {
+      "code": "241-5",
+      "nameAz": "Müəllif hüquqları - Dəyər",
+      "nameRu": "Müəllif hüquqları - Dəyər",
+      "nameEn": "Müəllif hüquqları - Dəyər",
+      "type": "ASSET",
+      "parentCode": "241"
+    },
+    {
+      "code": "241-6",
+      "nameAz": "Lisenziyalar - Dəyər",
+      "nameRu": "Lisenziyalar - Dəyər",
+      "nameEn": "Lisenziyalar - Dəyər",
+      "type": "ASSET",
+      "parentCode": "241"
+    },
+    {
+      "code": "241-7",
+      "nameAz": "Ticarət markaları - Dəyər",
+      "nameRu": "Ticarət markaları - Dəyər",
+      "nameEn": "Ticarət markaları - Dəyər",
+      "type": "ASSET",
+      "parentCode": "241"
+    },
+    {
+      "code": "241-8",
+      "nameAz": "Digər qeyri-maddi aktivlər - Dəyər",
+      "nameRu": "Digər qeyri-maddi aktivlər - Dəyər",
+      "nameEn": "Digər qeyri-maddi aktivlər - Dəyər",
+      "type": "ASSET",
+      "parentCode": "241"
+    },
+    {
+      "code": "242",
+      "nameAz": "Qeyri-maddi aktivlər - Amortizasiya",
+      "nameRu": "Qeyri-maddi aktivlər - Amortizasiya",
+      "nameEn": "Qeyri-maddi aktivlər - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "24"
+    },
+    {
+      "code": "242-1",
+      "nameAz": "Elmi-tədqiqat və təcrübə-konstruktor işləri - Amortizasiya",
+      "nameRu": "Elmi-tədqiqat və təcrübə-konstruktor işləri - Amortizasiya",
+      "nameEn": "Elmi-tədqiqat və təcrübə-konstruktor işləri - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "242"
+    },
+    {
+      "code": "242-2",
+      "nameAz": "Qudvil - Amortizasiya",
+      "nameRu": "Qudvil - Amortizasiya",
+      "nameEn": "Qudvil - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "242"
+    },
+    {
+      "code": "242-3",
+      "nameAz": "Proqram təminatı - Amortizasiya",
+      "nameRu": "Proqram təminatı - Amortizasiya",
+      "nameEn": "Proqram təminatı - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "242"
+    },
+    {
+      "code": "242-4",
+      "nameAz": "Patentlər - Amortizasiya",
+      "nameRu": "Patentlər - Amortizasiya",
+      "nameEn": "Patentlər - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "242"
+    },
+    {
+      "code": "242-5",
+      "nameAz": "Müəllif hüquqları - Amortizasiya",
+      "nameRu": "Müəllif hüquqları - Amortizasiya",
+      "nameEn": "Müəllif hüquqları - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "242"
+    },
+    {
+      "code": "242-6",
+      "nameAz": "Lisenziyalar - Amortizasiya",
+      "nameRu": "Lisenziyalar - Amortizasiya",
+      "nameEn": "Lisenziyalar - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "242"
+    },
+    {
+      "code": "242-7",
+      "nameAz": "Ticarət markaları - Amortizasiya",
+      "nameRu": "Ticarət markaları - Amortizasiya",
+      "nameEn": "Ticarət markaları - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "242"
+    },
+    {
+      "code": "242-8",
+      "nameAz": "Digər qeyri-maddi aktivlər - Amortizasiya",
+      "nameRu": "Digər qeyri-maddi aktivlər - Amortizasiya",
+      "nameEn": "Digər qeyri-maddi aktivlər - Amortizasiya",
+      "type": "ASSET",
+      "parentCode": "242"
+    },
+    {
+      "code": "243",
+      "nameAz": "Qeyri-maddi aktivlərlə bağlı məsrəflərin kapitallaşdırılması",
+      "nameRu": "Qeyri-maddi aktivlərlə bağlı məsrəflərin kapitallaşdırılması",
+      "nameEn": "Qeyri-maddi aktivlərlə bağlı məsrəflərin kapitallaşdırılması",
+      "type": "ASSET",
+      "parentCode": "24"
+    },
+    {
+      "code": "25",
+      "nameAz": "Sair uzunmüddətli qeyri-maliyyə aktivləri",
+      "nameRu": "Sair uzunmüddətli qeyri-maliyyə aktivləri",
+      "nameEn": "Sair uzunmüddətli qeyri-maliyyə aktivləri",
+      "type": "ASSET",
+      "parentCode": "2"
+    },
+    {
+      "code": "251",
+      "nameAz": "Sair uzunmüddətli qeyri-maliyyə aktivləri",
+      "nameRu": "Sair uzunmüddətli qeyri-maliyyə aktivləri",
+      "nameEn": "Sair uzunmüddətli qeyri-maliyyə aktivləri",
+      "type": "ASSET",
+      "parentCode": "25"
+    },
+    {
+      "code": "26",
+      "nameAz": "Təxirə salınmış vergi aktivləri",
+      "nameRu": "Təxirə salınmış vergi aktivləri",
+      "nameEn": "Təxirə salınmış vergi aktivləri",
+      "type": "ASSET",
+      "parentCode": "2"
+    },
+    {
+      "code": "261",
+      "nameAz": "Mənfəət vergisi üzrə təxirə salınmış vergi aktivləri",
+      "nameRu": "Mənfəət vergisi üzrə təxirə salınmış vergi aktivləri",
+      "nameEn": "Mənfəət vergisi üzrə təxirə salınmış vergi aktivləri",
+      "type": "ASSET",
+      "parentCode": "26"
+    },
+    {
+      "code": "262",
+      "nameAz": "Digər təxirə salınmış vergi aktivləri",
+      "nameRu": "Digər təxirə salınmış vergi aktivləri",
+      "nameEn": "Digər təxirə salınmış vergi aktivləri",
+      "type": "ASSET",
+      "parentCode": "26"
+    },
+    {
+      "code": "27",
+      "nameAz": "Sair uzunmüddətli aktivlər",
+      "nameRu": "Sair uzunmüddətli aktivlər",
+      "nameEn": "Sair uzunmüddətli aktivlər",
+      "type": "ASSET",
+      "parentCode": "2"
+    },
+    {
+      "code": "271",
+      "nameAz": "Gələcək hesabat dövrlərinin xərcləri",
+      "nameRu": "Gələcək hesabat dövrlərinin xərcləri",
+      "nameEn": "Gələcək hesabat dövrlərinin xərcləri",
+      "type": "ASSET",
+      "parentCode": "27"
+    },
+    {
+      "code": "272",
+      "nameAz": "Verilmiş uzunmüddətli avanslar",
+      "nameRu": "Verilmiş uzunmüddətli avanslar",
+      "nameEn": "Verilmiş uzunmüddətli avanslar",
+      "type": "ASSET",
+      "parentCode": "27"
+    },
+    {
+      "code": "273",
+      "nameAz": "Digər uzunmüddətli aktivlər",
+      "nameRu": "Digər uzunmüddətli aktivlər",
+      "nameEn": "Digər uzunmüddətli aktivlər",
+      "type": "ASSET",
+      "parentCode": "27"
+    },
+    {
+      "code": "3",
+      "nameAz": "Qısamüddətli öhdəliklər",
+      "nameRu": "Qısamüddətli öhdəliklər",
+      "nameEn": "Qısamüddətli öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": null
+    },
+    {
+      "code": "30",
+      "nameAz": "Qısamüddətli kreditor borcları",
+      "nameRu": "Qısamüddətli kreditor borcları",
+      "nameEn": "Qısamüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "3"
+    },
+    {
+      "code": "301",
+      "nameAz": "Malsatan və podratçılara qısamüddətli kreditor borcları",
+      "nameRu": "Malsatan və podratçılara qısamüddətli kreditor borcları",
+      "nameEn": "Malsatan və podratçılara qısamüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "30"
+    },
+    {
+      "code": "302",
+      "nameAz": "Törəmə (asılı) müəssisələrə qısamüddətli kreditor borcları",
+      "nameRu": "Törəmə (asılı) müəssisələrə qısamüddətli kreditor borcları",
+      "nameEn": "Törəmə (asılı) müəssisələrə qısamüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "30"
+    },
+    {
+      "code": "303",
+      "nameAz": "Dividendlərin ödənilməsi ilə bağlı təsisçilərə kreditor borcları",
+      "nameRu": "Dividendlərin ödənilməsi ilə bağlı təsisçilərə kreditor borcları",
+      "nameEn": "Dividendlərin ödənilməsi ilə bağlı təsisçilərə kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "30"
+    },
+    {
+      "code": "304",
+      "nameAz": "İcarə ilə bağlı qısamüddətli kreditor borcları",
+      "nameRu": "İcarə ilə bağlı qısamüddətli kreditor borcları",
+      "nameEn": "İcarə ilə bağlı qısamüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "30"
+    },
+    {
+      "code": "304-1",
+      "nameAz": "Maliyyə icarəsi ilə bağlı qısamüddətli kreditor borcları",
+      "nameRu": "Maliyyə icarəsi ilə bağlı qısamüddətli kreditor borcları",
+      "nameEn": "Maliyyə icarəsi ilə bağlı qısamüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "304"
+    },
+    {
+      "code": "304-2",
+      "nameAz": "Əməliyyat icarəsi ilə bağlı qısamüddətli kreditor borcları",
+      "nameRu": "Əməliyyat icarəsi ilə bağlı qısamüddətli kreditor borcları",
+      "nameEn": "Əməliyyat icarəsi ilə bağlı qısamüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "304"
+    },
+    {
+      "code": "305",
+      "nameAz": "Tikinti müqavilələri ilə bağlı qısamüddətli kreditor borcları",
+      "nameRu": "Tikinti müqavilələri ilə bağlı qısamüddətli kreditor borcları",
+      "nameEn": "Tikinti müqavilələri ilə bağlı qısamüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "30"
+    },
+    {
+      "code": "306",
+      "nameAz": "Faizlər ilə bağlı qısamüddətli kreditor borcları",
+      "nameRu": "Faizlər ilə bağlı qısamüddətli kreditor borcları",
+      "nameEn": "Faizlər ilə bağlı qısamüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "30"
+    },
+    {
+      "code": "307",
+      "nameAz": "Əməyin ödənişi üzrə işçi heyətinə olan borclar",
+      "nameRu": "Əməyin ödənişi üzrə işçi heyətinə olan borclar",
+      "nameEn": "Əməyin ödənişi üzrə işçi heyətinə olan borclar",
+      "type": "LIABILITY",
+      "parentCode": "30"
+    },
+    {
+      "code": "308",
+      "nameAz": "Vergi və sair məcburi ödənişlər üzrə öhdəliklər",
+      "nameRu": "Vergi və sair məcburi ödənişlər üzrə öhdəliklər",
+      "nameEn": "Vergi və sair məcburi ödənişlər üzrə öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "30"
+    },
+    {
+      "code": "308-1",
+      "nameAz": "Vergi öhdəlikləri",
+      "nameRu": "Vergi öhdəlikləri",
+      "nameEn": "Vergi öhdəlikləri",
+      "type": "LIABILITY",
+      "parentCode": "308"
+    },
+    {
+      "code": "308-2",
+      "nameAz": "Sosial sığorta və təminat üzrə öhdəliklər",
+      "nameRu": "Sosial sığorta və təminat üzrə öhdəliklər",
+      "nameEn": "Sosial sığorta və təminat üzrə öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "308"
+    },
+    {
+      "code": "308-3",
+      "nameAz": "Digər məcburi ödənişlər üzrə öhdəliklər",
+      "nameRu": "Digər məcburi ödənişlər üzrə öhdəliklər",
+      "nameEn": "Digər məcburi ödənişlər üzrə öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "308"
+    },
+    {
+      "code": "309",
+      "nameAz": "Digər qısamüddətli kreditor borcları",
+      "nameRu": "Digər qısamüddətli kreditor borcları",
+      "nameEn": "Digər qısamüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "30"
+    },
+    {
+      "code": "31",
+      "nameAz": "Qısamüddətli faiz xərcləri yaradan öhdəliklər",
+      "nameRu": "Qısamüddətli faiz xərcləri yaradan öhdəliklər",
+      "nameEn": "Qısamüddətli faiz xərcləri yaradan öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "3"
+    },
+    {
+      "code": "311",
+      "nameAz": "Qısamüddətli bank kreditləri",
+      "nameRu": "Qısamüddətli bank kreditləri",
+      "nameEn": "Qısamüddətli bank kreditləri",
+      "type": "LIABILITY",
+      "parentCode": "31"
+    },
+    {
+      "code": "311-1",
+      "nameAz": "Bank overdraft",
+      "nameRu": "Bank overdraft",
+      "nameEn": "Bank overdraft",
+      "type": "LIABILITY",
+      "parentCode": "311"
+    },
+    {
+      "code": "312",
+      "nameAz": "İşçilər üçün qısamüddətli bank kreditləri",
+      "nameRu": "İşçilər üçün qısamüddətli bank kreditləri",
+      "nameEn": "İşçilər üçün qısamüddətli bank kreditləri",
+      "type": "LIABILITY",
+      "parentCode": "31"
+    },
+    {
+      "code": "313",
+      "nameAz": "Qısamüddətli konvertasiya olunan istiqrazlar",
+      "nameRu": "Qısamüddətli konvertasiya olunan istiqrazlar",
+      "nameEn": "Qısamüddətli konvertasiya olunan istiqrazlar",
+      "type": "LIABILITY",
+      "parentCode": "31"
+    },
+    {
+      "code": "314",
+      "nameAz": "Qısamüddətli borclar",
+      "nameRu": "Qısamüddətli borclar",
+      "nameEn": "Qısamüddətli borclar",
+      "type": "LIABILITY",
+      "parentCode": "31"
+    },
+    {
+      "code": "315",
+      "nameAz": "Geri alınan məhdud tədavül müddətli imtiyazlı səhmlər (qısamüddətli)",
+      "nameRu": "Geri alınan məhdud tədavül müddətli imtiyazlı səhmlər (qısamüddətli)",
+      "nameEn": "Geri alınan məhdud tədavül müddətli imtiyazlı səhmlər (qısamüddətli)",
+      "type": "LIABILITY",
+      "parentCode": "31"
+    },
+    {
+      "code": "316",
+      "nameAz": "Törəmə (asılı) müəssisələr üzrə qısamüddətli faiz xərcləri yaradan öhdəliklər",
+      "nameRu": "Törəmə (asılı) müəssisələr üzrə qısamüddətli faiz xərcləri yaradan öhdəliklər",
+      "nameEn": "Törəmə (asılı) müəssisələr üzrə qısamüddətli faiz xərcləri yaradan öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "31"
+    },
+    {
+      "code": "317",
+      "nameAz": "Digər qısamüddətli faiz xərcləri yaradan öhdəliklər",
+      "nameRu": "Digər qısamüddətli faiz xərcləri yaradan öhdəliklər",
+      "nameEn": "Digər qısamüddətli faiz xərcləri yaradan öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "31"
+    },
+    {
+      "code": "32",
+      "nameAz": "Qısamüddətli qiymətləndirilmiş öhdəliklər",
+      "nameRu": "Qısamüddətli qiymətləndirilmiş öhdəliklər",
+      "nameEn": "Qısamüddətli qiymətləndirilmiş öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "3"
+    },
+    {
+      "code": "321",
+      "nameAz": "İşdən azadolma ilə bağlı qısamüddətli müavinətlər və öhdəliklər",
+      "nameRu": "İşdən azadolma ilə bağlı qısamüddətli müavinətlər və öhdəliklər",
+      "nameEn": "İşdən azadolma ilə bağlı qısamüddətli müavinətlər və öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "32"
+    },
+    {
+      "code": "322",
+      "nameAz": "Qısamüddətli hüquqi öhdəliklər",
+      "nameRu": "Qısamüddətli hüquqi öhdəliklər",
+      "nameEn": "Qısamüddətli hüquqi öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "32"
+    },
+    {
+      "code": "323",
+      "nameAz": "Qısamüddətli zəmanət öhdəlikləri",
+      "nameRu": "Qısamüddətli zəmanət öhdəlikləri",
+      "nameEn": "Qısamüddətli zəmanət öhdəlikləri",
+      "type": "LIABILITY",
+      "parentCode": "32"
+    },
+    {
+      "code": "324",
+      "nameAz": "Digər qısamüddətli qiymətləndirilmiş öhdəliklər",
+      "nameRu": "Digər qısamüddətli qiymətləndirilmiş öhdəliklər",
+      "nameEn": "Digər qısamüddətli qiymətləndirilmiş öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "32"
+    },
+    {
+      "code": "33",
+      "nameAz": "Sair qısamüddətli öhdəliklər",
+      "nameRu": "Sair qısamüddətli öhdəliklər",
+      "nameEn": "Sair qısamüddətli öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "3"
+    },
+    {
+      "code": "331",
+      "nameAz": "Qısamüddətli pensiya öhdəlikləri",
+      "nameRu": "Qısamüddətli pensiya öhdəlikləri",
+      "nameEn": "Qısamüddətli pensiya öhdəlikləri",
+      "type": "LIABILITY",
+      "parentCode": "33"
+    },
+    {
+      "code": "332",
+      "nameAz": "Gələcək hesabat dövrlərinin gəlirləri",
+      "nameRu": "Gələcək hesabat dövrlərinin gəlirləri",
+      "nameEn": "Gələcək hesabat dövrlərinin gəlirləri",
+      "type": "LIABILITY",
+      "parentCode": "33"
+    },
+    {
+      "code": "333",
+      "nameAz": "Alınmış qısamüddətli avanslar",
+      "nameRu": "Alınmış qısamüddətli avanslar",
+      "nameEn": "Alınmış qısamüddətli avanslar",
+      "type": "LIABILITY",
+      "parentCode": "33"
+    },
+    {
+      "code": "334",
+      "nameAz": "Qısamüddətli məqsədli maliyyələşmələr və daxilolmalar",
+      "nameRu": "Qısamüddətli məqsədli maliyyələşmələr və daxilolmalar",
+      "nameEn": "Qısamüddətli məqsədli maliyyələşmələr və daxilolmalar",
+      "type": "LIABILITY",
+      "parentCode": "33"
+    },
+    {
+      "code": "335",
+      "nameAz": "Digər qısamüddətli öhdəliklər",
+      "nameRu": "Digər qısamüddətli öhdəliklər",
+      "nameEn": "Digər qısamüddətli öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "33"
+    },
+    {
+      "code": "4",
+      "nameAz": "Uzunmüddətli öhdəliklər",
+      "nameRu": "Uzunmüddətli öhdəliklər",
+      "nameEn": "Uzunmüddətli öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": null
+    },
+    {
+      "code": "40",
+      "nameAz": "Uzunmüddətli kreditor borclar",
+      "nameRu": "Uzunmüddətli kreditor borclar",
+      "nameEn": "Uzunmüddətli kreditor borclar",
+      "type": "LIABILITY",
+      "parentCode": "4"
+    },
+    {
+      "code": "401",
+      "nameAz": "Malsatan və podratçılara uzunmüddətli kreditor borcları",
+      "nameRu": "Malsatan və podratçılara uzunmüddətli kreditor borcları",
+      "nameEn": "Malsatan və podratçılara uzunmüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "40"
+    },
+    {
+      "code": "402",
+      "nameAz": "Törəmə (asılı) müəssisələrə uzunmüddətli kreditor borcları",
+      "nameRu": "Törəmə (asılı) müəssisələrə uzunmüddətli kreditor borcları",
+      "nameEn": "Törəmə (asılı) müəssisələrə uzunmüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "40"
+    },
+    {
+      "code": "403",
+      "nameAz": "Tikinti müqavilələri üzrə uzunmüddətli kreditor borcları",
+      "nameRu": "Tikinti müqavilələri üzrə uzunmüddətli kreditor borcları",
+      "nameEn": "Tikinti müqavilələri üzrə uzunmüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "40"
+    },
+    {
+      "code": "404",
+      "nameAz": "Faizlər üzrə uzunmüddətli kreditor borcları",
+      "nameRu": "Faizlər üzrə uzunmüddətli kreditor borcları",
+      "nameEn": "Faizlər üzrə uzunmüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "40"
+    },
+    {
+      "code": "405",
+      "nameAz": "Digər uzunmüddətli kreditor borcları",
+      "nameRu": "Digər uzunmüddətli kreditor borcları",
+      "nameEn": "Digər uzunmüddətli kreditor borcları",
+      "type": "LIABILITY",
+      "parentCode": "40"
+    },
+    {
+      "code": "41",
+      "nameAz": "Uzunmüddətli faiz xərcləri yaradan öhdəliklər",
+      "nameRu": "Uzunmüddətli faiz xərcləri yaradan öhdəliklər",
+      "nameEn": "Uzunmüddətli faiz xərcləri yaradan öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "4"
+    },
+    {
+      "code": "411",
+      "nameAz": "Uzunmüddətli bank kreditləri",
+      "nameRu": "Uzunmüddətli bank kreditləri",
+      "nameEn": "Uzunmüddətli bank kreditləri",
+      "type": "LIABILITY",
+      "parentCode": "41"
+    },
+    {
+      "code": "412",
+      "nameAz": "İşçilər üçün uzunmüddətli bank kreditləri",
+      "nameRu": "İşçilər üçün uzunmüddətli bank kreditləri",
+      "nameEn": "İşçilər üçün uzunmüddətli bank kreditləri",
+      "type": "LIABILITY",
+      "parentCode": "41"
+    },
+    {
+      "code": "413",
+      "nameAz": "Uzunmüddətli konvertasiya olunan istiqrazlar",
+      "nameRu": "Uzunmüddətli konvertasiya olunan istiqrazlar",
+      "nameEn": "Uzunmüddətli konvertasiya olunan istiqrazlar",
+      "type": "LIABILITY",
+      "parentCode": "41"
+    },
+    {
+      "code": "414",
+      "nameAz": "Uzunmüddətli borclar",
+      "nameRu": "Uzunmüddətli borclar",
+      "nameEn": "Uzunmüddətli borclar",
+      "type": "LIABILITY",
+      "parentCode": "41"
+    },
+    {
+      "code": "415",
+      "nameAz": "Geri alınan məhdud tədavül müddətli imtiyazlı səhmlər (uzunmüddətli)",
+      "nameRu": "Geri alınan məhdud tədavül müddətli imtiyazlı səhmlər (uzunmüddətli)",
+      "nameEn": "Geri alınan məhdud tədavül müddətli imtiyazlı səhmlər (uzunmüddətli)",
+      "type": "LIABILITY",
+      "parentCode": "41"
+    },
+    {
+      "code": "416",
+      "nameAz": "Maliyyə icarəsi üzrə uzunmüddətli öhdəliklər",
+      "nameRu": "Maliyyə icarəsi üzrə uzunmüddətli öhdəliklər",
+      "nameEn": "Maliyyə icarəsi üzrə uzunmüddətli öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "41"
+    },
+    {
+      "code": "417",
+      "nameAz": "Törəmə (asılı) müəssisələrə uzunmüddətli faiz xərcləri yaradan öhdəliklər",
+      "nameRu": "Törəmə (asılı) müəssisələrə uzunmüddətli faiz xərcləri yaradan öhdəliklər",
+      "nameEn": "Törəmə (asılı) müəssisələrə uzunmüddətli faiz xərcləri yaradan öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "41"
+    },
+    {
+      "code": "418",
+      "nameAz": "Digər uzunmüddətli faiz xərcləri yaradan öhdəliklər",
+      "nameRu": "Digər uzunmüddətli faiz xərcləri yaradan öhdəliklər",
+      "nameEn": "Digər uzunmüddətli faiz xərcləri yaradan öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "41"
+    },
+    {
+      "code": "42",
+      "nameAz": "Uzunmüddətli (Qiymətləndirilmiş) öhdəliklər",
+      "nameRu": "Uzunmüddətli (Qiymətləndirilmiş) öhdəliklər",
+      "nameEn": "Uzunmüddətli (Qiymətləndirilmiş) öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "4"
+    },
+    {
+      "code": "421",
+      "nameAz": "İşdən azad olma ilə bağlı uzunmüddətli müavinətlər və öhdəliklər",
+      "nameRu": "İşdən azad olma ilə bağlı uzunmüddətli müavinətlər və öhdəliklər",
+      "nameEn": "İşdən azad olma ilə bağlı uzunmüddətli müavinətlər və öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "42"
+    },
+    {
+      "code": "422",
+      "nameAz": "Uzunmüddətli zəmanət öhdəlikləri",
+      "nameRu": "Uzunmüddətli zəmanət öhdəlikləri",
+      "nameEn": "Uzunmüddətli zəmanət öhdəlikləri",
+      "type": "LIABILITY",
+      "parentCode": "42"
+    },
+    {
+      "code": "423",
+      "nameAz": "Uzunmüddətli hüquqi öhdəliklər",
+      "nameRu": "Uzunmüddətli hüquqi öhdəliklər",
+      "nameEn": "Uzunmüddətli hüquqi öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "42"
+    },
+    {
+      "code": "424",
+      "nameAz": "Digər uzunmüddətli (qiymətləndirilmiş) öhdəliklər",
+      "nameRu": "Digər uzunmüddətli (qiymətləndirilmiş) öhdəliklər",
+      "nameEn": "Digər uzunmüddətli (qiymətləndirilmiş) öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "42"
+    },
+    {
+      "code": "425",
+      "nameAz": "Təxirə salınmış vergi öhdəlikləri",
+      "nameRu": "Təxirə salınmış vergi öhdəlikləri",
+      "nameEn": "Təxirə salınmış vergi öhdəlikləri",
+      "type": "LIABILITY",
+      "parentCode": "42"
+    },
+    {
+      "code": "425-1",
+      "nameAz": "Mənfəət vergisi üzrə təxirə salınmış vergi öhdəlikləri",
+      "nameRu": "Mənfəət vergisi üzrə təxirə salınmış vergi öhdəlikləri",
+      "nameEn": "Mənfəət vergisi üzrə təxirə salınmış vergi öhdəlikləri",
+      "type": "LIABILITY",
+      "parentCode": "425"
+    },
+    {
+      "code": "425-2",
+      "nameAz": "Digər təxirə salınmış vergi öhdəlikləri",
+      "nameRu": "Digər təxirə salınmış vergi öhdəlikləri",
+      "nameEn": "Digər təxirə salınmış vergi öhdəlikləri",
+      "type": "LIABILITY",
+      "parentCode": "425"
+    },
+    {
+      "code": "426",
+      "nameAz": "Digər qiymətləndirilmiş öhdəliklər",
+      "nameRu": "Digər qiymətləndirilmiş öhdəliklər",
+      "nameEn": "Digər qiymətləndirilmiş öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "42"
+    },
+    {
+      "code": "43",
+      "nameAz": "Sair uzunmüddətli öhdəliklər",
+      "nameRu": "Sair uzunmüddətli öhdəliklər",
+      "nameEn": "Sair uzunmüddətli öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "4"
+    },
+    {
+      "code": "432",
+      "nameAz": "Gələcək hesabat dövrlərinin gəlirləri",
+      "nameRu": "Gələcək hesabat dövrlərinin gəlirləri",
+      "nameEn": "Gələcək hesabat dövrlərinin gəlirləri",
+      "type": "LIABILITY",
+      "parentCode": "43"
+    },
+    {
+      "code": "433",
+      "nameAz": "Alınmış uzunmüddətli avanslar",
+      "nameRu": "Alınmış uzunmüddətli avanslar",
+      "nameEn": "Alınmış uzunmüddətli avanslar",
+      "type": "LIABILITY",
+      "parentCode": "43"
+    },
+    {
+      "code": "434",
+      "nameAz": "Uzunmüddətli məqsədli maliyyələşmələr və daxilolmalar",
+      "nameRu": "Uzunmüddətli məqsədli maliyyələşmələr və daxilolmalar",
+      "nameEn": "Uzunmüddətli məqsədli maliyyələşmələr və daxilolmalar",
+      "type": "LIABILITY",
+      "parentCode": "43"
+    },
+    {
+      "code": "435",
+      "nameAz": "Digər uzunmüddətli öhdəliklər",
+      "nameRu": "Digər uzunmüddətli öhdəliklər",
+      "nameEn": "Digər uzunmüddətli öhdəliklər",
+      "type": "LIABILITY",
+      "parentCode": "43"
+    },
+    {
+      "code": "5",
+      "nameAz": "Xalis Aktivlər/Kapital",
+      "nameRu": "Xalis Aktivlər/Kapital",
+      "nameEn": "Xalis Aktivlər/Kapital",
+      "type": "EQUITY",
+      "parentCode": null
+    },
+    {
+      "code": "50",
+      "nameAz": "Ödənilmiş nominal (nizamnamə) kapital",
+      "nameRu": "Ödənilmiş nominal (nizamnamə) kapital",
+      "nameEn": "Ödənilmiş nominal (nizamnamə) kapital",
+      "type": "EQUITY",
+      "parentCode": "5"
+    },
+    {
+      "code": "501",
+      "nameAz": "Nominal (nizamnamə) kapital",
+      "nameRu": "Nominal (nizamnamə) kapital",
+      "nameEn": "Nominal (nizamnamə) kapital",
+      "type": "EQUITY",
+      "parentCode": "50"
+    },
+    {
+      "code": "502",
+      "nameAz": "Nominal (nizamnamə) kapitalın ödənilməmiş hissəsi",
+      "nameRu": "Nominal (nizamnamə) kapitalın ödənilməmiş hissəsi",
+      "nameEn": "Nominal (nizamnamə) kapitalın ödənilməmiş hissəsi",
+      "type": "EQUITY",
+      "parentCode": "50"
+    },
+    {
+      "code": "51",
+      "nameAz": "Emissiya gəliri",
+      "nameRu": "Emissiya gəliri",
+      "nameEn": "Emissiya gəliri",
+      "type": "EQUITY",
+      "parentCode": "5"
+    },
+    {
+      "code": "511",
+      "nameAz": "Emissiya gəliri",
+      "nameRu": "Emissiya gəliri",
+      "nameEn": "Emissiya gəliri",
+      "type": "EQUITY",
+      "parentCode": "51"
+    },
+    {
+      "code": "52",
+      "nameAz": "Geri alınmış kapital (səhmlər)",
+      "nameRu": "Geri alınmış kapital (səhmlər)",
+      "nameEn": "Geri alınmış kapital (səhmlər)",
+      "type": "EQUITY",
+      "parentCode": "5"
+    },
+    {
+      "code": "521",
+      "nameAz": "Geri alınmış kapital (səhmlər)",
+      "nameRu": "Geri alınmış kapital (səhmlər)",
+      "nameEn": "Geri alınmış kapital (səhmlər)",
+      "type": "EQUITY",
+      "parentCode": "52"
+    },
+    {
+      "code": "53",
+      "nameAz": "Kapital Ehtiyatları",
+      "nameRu": "Kapital Ehtiyatları",
+      "nameEn": "Kapital Ehtiyatları",
+      "type": "EQUITY",
+      "parentCode": "5"
+    },
+    {
+      "code": "531",
+      "nameAz": "Yenidən qiymətləndirilmə üzrə ehtiyat",
+      "nameRu": "Yenidən qiymətləndirilmə üzrə ehtiyat",
+      "nameEn": "Yenidən qiymətləndirilmə üzrə ehtiyat",
+      "type": "EQUITY",
+      "parentCode": "53"
+    },
+    {
+      "code": "532",
+      "nameAz": "Məzənnə fərqləri üzrə ehtiyat fondları",
+      "nameRu": "Məzənnə fərqləri üzrə ehtiyat fondları",
+      "nameEn": "Məzənnə fərqləri üzrə ehtiyat fondları",
+      "type": "EQUITY",
+      "parentCode": "53"
+    },
+    {
+      "code": "533",
+      "nameAz": "Qanunvericiliyə əsasən yaradılan ehtiyat fondları",
+      "nameRu": "Qanunvericiliyə əsasən yaradılan ehtiyat fondları",
+      "nameEn": "Qanunvericiliyə əsasən yaradılan ehtiyat fondları",
+      "type": "EQUITY",
+      "parentCode": "53"
+    },
+    {
+      "code": "534",
+      "nameAz": "Nizamnaməyə əsasən yaradılan ehtiyat fondları",
+      "nameRu": "Nizamnaməyə əsasən yaradılan ehtiyat fondları",
+      "nameEn": "Nizamnaməyə əsasən yaradılan ehtiyat fondları",
+      "type": "EQUITY",
+      "parentCode": "53"
+    },
+    {
+      "code": "535",
+      "nameAz": "Digər ehtiyat fondları",
+      "nameRu": "Digər ehtiyat fondları",
+      "nameEn": "Digər ehtiyat fondları",
+      "type": "EQUITY",
+      "parentCode": "53"
+    },
+    {
+      "code": "54",
+      "nameAz": "Bölüşdürülməmiş mənfəət (ödənilməmiş zərər)",
+      "nameRu": "Bölüşdürülməmiş mənfəət (ödənilməmiş zərər)",
+      "nameEn": "Bölüşdürülməmiş mənfəət (ödənilməmiş zərər)",
+      "type": "EQUITY",
+      "parentCode": "5"
+    },
+    {
+      "code": "541",
+      "nameAz": "Hesabat dövrü üzrə xalis mənfəət zərər",
+      "nameRu": "Hesabat dövrü üzrə xalis mənfəət zərər",
+      "nameEn": "Hesabat dövrü üzrə xalis mənfəət zərər",
+      "type": "EQUITY",
+      "parentCode": "54"
+    },
+    {
+      "code": "542",
+      "nameAz": "Uçot siyasətində dəyişikliklər və əhəmiyyətli səhvlər ilə bağlı mənfəət zərər üzrə düzəlişlər",
+      "nameRu": "Uçot siyasətində dəyişikliklər və əhəmiyyətli səhvlər ilə bağlı mənfəət zərər üzrə düzəlişlər",
+      "nameEn": "Uçot siyasətində dəyişikliklər və əhəmiyyətli səhvlər ilə bağlı mənfəət zərər üzrə düzəlişlər",
+      "type": "EQUITY",
+      "parentCode": "54"
+    },
+    {
+      "code": "543",
+      "nameAz": "Keçmiş illər üzrə bölüşdürülməmiş mənfəət (ödənilməmiş zərər)",
+      "nameRu": "Keçmiş illər üzrə bölüşdürülməmiş mənfəət (ödənilməmiş zərər)",
+      "nameEn": "Keçmiş illər üzrə bölüşdürülməmiş mənfəət (ödənilməmiş zərər)",
+      "type": "EQUITY",
+      "parentCode": "54"
+    },
+    {
+      "code": "544",
+      "nameAz": "Elan edilmiş dividendlər",
+      "nameRu": "Elan edilmiş dividendlər",
+      "nameEn": "Elan edilmiş dividendlər",
+      "type": "EQUITY",
+      "parentCode": "54"
+    },
+    {
+      "code": "6",
+      "nameAz": "Gəlirlər",
+      "nameRu": "Gəlirlər",
+      "nameEn": "Gəlirlər",
+      "type": "REVENUE",
+      "parentCode": null
+    },
+    {
+      "code": "60",
+      "nameAz": "Vergi və məcburi ödənişlər üzrə daxilolmalardan gəlir",
+      "nameRu": "Vergi və məcburi ödənişlər üzrə daxilolmalardan gəlir",
+      "nameEn": "Vergi və məcburi ödənişlər üzrə daxilolmalardan gəlir",
+      "type": "REVENUE",
+      "parentCode": "6"
+    },
+    {
+      "code": "601",
+      "nameAz": "Vergi daxilolmalarından gəlir",
+      "nameRu": "Vergi daxilolmalarından gəlir",
+      "nameEn": "Vergi daxilolmalarından gəlir",
+      "type": "REVENUE",
+      "parentCode": "60"
+    },
+    {
+      "code": "602",
+      "nameAz": "Məcburi ödənişlər üzrə daxilolmalardan gəlir",
+      "nameRu": "Məcburi ödənişlər üzrə daxilolmalardan gəlir",
+      "nameEn": "Məcburi ödənişlər üzrə daxilolmalardan gəlir",
+      "type": "REVENUE",
+      "parentCode": "60"
+    },
+    {
+      "code": "61",
+      "nameAz": "Birja əməliyyatlarından gəlir",
+      "nameRu": "Birja əməliyyatlarından gəlir",
+      "nameEn": "Birja əməliyyatlarından gəlir",
+      "type": "REVENUE",
+      "parentCode": "6"
+    },
+    {
+      "code": "611",
+      "nameAz": "Satış",
+      "nameRu": "Satış",
+      "nameEn": "Satış",
+      "type": "REVENUE",
+      "parentCode": "61"
+    },
+    {
+      "code": "611-1",
+      "nameAz": "Malların satışı",
+      "nameRu": "Malların satışı",
+      "nameEn": "Malların satışı",
+      "type": "REVENUE",
+      "parentCode": "611"
+    },
+    {
+      "code": "611-2",
+      "nameAz": "Xidmətlərin göstərilməsi üzrə gəlir",
+      "nameRu": "Xidmətlərin göstərilməsi üzrə gəlir",
+      "nameEn": "Xidmətlərin göstərilməsi üzrə gəlir",
+      "type": "REVENUE",
+      "parentCode": "611"
+    },
+    {
+      "code": "611-3",
+      "nameAz": "Tikinti müqavilələri üzrə gəlir",
+      "nameRu": "Tikinti müqavilələri üzrə gəlir",
+      "nameEn": "Tikinti müqavilələri üzrə gəlir",
+      "type": "REVENUE",
+      "parentCode": "611"
+    },
+    {
+      "code": "611-5",
+      "nameAz": "İcarə üzrə gəlir",
+      "nameRu": "İcarə üzrə gəlir",
+      "nameEn": "İcarə üzrə gəlir",
+      "type": "REVENUE",
+      "parentCode": "611"
+    },
+    {
+      "code": "611-6",
+      "nameAz": "Sair satış",
+      "nameRu": "Sair satış",
+      "nameEn": "Sair satış",
+      "type": "REVENUE",
+      "parentCode": "611"
+    },
+    {
+      "code": "612",
+      "nameAz": "Satılmış malların qaytarılması və ucuzlaşdırılması",
+      "nameRu": "Satılmış malların qaytarılması və ucuzlaşdırılması",
+      "nameEn": "Satılmış malların qaytarılması və ucuzlaşdırılması",
+      "type": "REVENUE",
+      "parentCode": "61"
+    },
+    {
+      "code": "613",
+      "nameAz": "Verilmiş güzəştlər",
+      "nameRu": "Verilmiş güzəştlər",
+      "nameEn": "Verilmiş güzəştlər",
+      "type": "REVENUE",
+      "parentCode": "61"
+    },
+    {
+      "code": "62",
+      "nameAz": "Qeyri-birja əməliyyatlarından gəlirlər",
+      "nameRu": "Qeyri-birja əməliyyatlarından gəlirlər",
+      "nameEn": "Qeyri-birja əməliyyatlarından gəlirlər",
+      "type": "REVENUE",
+      "parentCode": "6"
+    },
+    {
+      "code": "621",
+      "nameAz": "Dövlət büdcəsindən alınmış vəsaitlər",
+      "nameRu": "Dövlət büdcəsindən alınmış vəsaitlər",
+      "nameEn": "Dövlət büdcəsindən alınmış vəsaitlər",
+      "type": "REVENUE",
+      "parentCode": "62"
+    },
+    {
+      "code": "622",
+      "nameAz": "Digər büdcələrdən alınmış vəsaitlər",
+      "nameRu": "Digər büdcələrdən alınmış vəsaitlər",
+      "nameEn": "Digər büdcələrdən alınmış vəsaitlər",
+      "type": "REVENUE",
+      "parentCode": "62"
+    },
+    {
+      "code": "623",
+      "nameAz": "Kapital Ayırmaları kimi qeyd olunmamış köçürmələr",
+      "nameRu": "Kapital Ayırmaları kimi qeyd olunmamış köçürmələr",
+      "nameEn": "Kapital Ayırmaları kimi qeyd olunmamış köçürmələr",
+      "type": "REVENUE",
+      "parentCode": "62"
+    },
+    {
+      "code": "624",
+      "nameAz": "Digər Hökumət təşkilatlarından köçürmələr",
+      "nameRu": "Digər Hökumət təşkilatlarından köçürmələr",
+      "nameEn": "Digər Hökumət təşkilatlarından köçürmələr",
+      "type": "REVENUE",
+      "parentCode": "62"
+    },
+    {
+      "code": "625",
+      "nameAz": "Sair Gəlirlər",
+      "nameRu": "Sair Gəlirlər",
+      "nameEn": "Sair Gəlirlər",
+      "type": "REVENUE",
+      "parentCode": "62"
+    },
+    {
+      "code": "63",
+      "nameAz": "Digər Gəlirlər",
+      "nameRu": "Digər Gəlirlər",
+      "nameEn": "Digər Gəlirlər",
+      "type": "REVENUE",
+      "parentCode": "6"
+    },
+    {
+      "code": "631",
+      "nameAz": "Digər əməliyyat gəlirləri",
+      "nameRu": "Digər əməliyyat gəlirləri",
+      "nameEn": "Digər əməliyyat gəlirləri",
+      "type": "REVENUE",
+      "parentCode": "63"
+    },
+    {
+      "code": "631-1",
+      "nameAz": "Torpaq, tikili, avadanlığın və digər uzunmüddətli aktivlərin satışından gəlirlər",
+      "nameRu": "Torpaq, tikili, avadanlığın və digər uzunmüddətli aktivlərin satışından gəlirlər",
+      "nameEn": "Torpaq, tikili, avadanlığın və digər uzunmüddətli aktivlərin satışından gəlirlər",
+      "type": "REVENUE",
+      "parentCode": "631"
+    },
+    {
+      "code": "631-2",
+      "nameAz": "Yenidən qiymətləndirilmədən gəlirlər",
+      "nameRu": "Yenidən qiymətləndirilmədən gəlirlər",
+      "nameEn": "Yenidən qiymətləndirilmədən gəlirlər",
+      "type": "REVENUE",
+      "parentCode": "631"
+    },
+    {
+      "code": "631-3",
+      "nameAz": "Əvəzsiz olaraq alınmış aktivlər",
+      "nameRu": "Əvəzsiz olaraq alınmış aktivlər",
+      "nameEn": "Əvəzsiz olaraq alınmış aktivlər",
+      "type": "REVENUE",
+      "parentCode": "631"
+    },
+    {
+      "code": "631-4",
+      "nameAz": "Cərimələr və digər oxşar ödənişlər",
+      "nameRu": "Cərimələr və digər oxşar ödənişlər",
+      "nameEn": "Cərimələr və digər oxşar ödənişlər",
+      "type": "REVENUE",
+      "parentCode": "631"
+    },
+    {
+      "code": "631-5",
+      "nameAz": "Keçmiş illər üzrə gəlirlər",
+      "nameRu": "Keçmiş illər üzrə gəlirlər",
+      "nameEn": "Keçmiş illər üzrə gəlirlər",
+      "type": "REVENUE",
+      "parentCode": "631"
+    },
+    {
+      "code": "631-6",
+      "nameAz": "Ümidsiz borcların bərpası",
+      "nameRu": "Ümidsiz borcların bərpası",
+      "nameEn": "Ümidsiz borcların bərpası",
+      "type": "REVENUE",
+      "parentCode": "631"
+    },
+    {
+      "code": "631-7",
+      "nameAz": "Silinmiş ehtiyatların bərpası",
+      "nameRu": "Silinmiş ehtiyatların bərpası",
+      "nameEn": "Silinmiş ehtiyatların bərpası",
+      "type": "REVENUE",
+      "parentCode": "631"
+    },
+    {
+      "code": "631-8",
+      "nameAz": "Məzənnə fərqləri üzrə gəlirlər",
+      "nameRu": "Məzənnə fərqləri üzrə gəlirlər",
+      "nameEn": "Məzənnə fərqləri üzrə gəlirlər",
+      "type": "REVENUE",
+      "parentCode": "631"
+    },
+    {
+      "code": "631-9",
+      "nameAz": "Digər əməliyyat gəlirləri",
+      "nameRu": "Digər əməliyyat gəlirləri",
+      "nameEn": "Digər əməliyyat gəlirləri",
+      "type": "REVENUE",
+      "parentCode": "631"
+    },
+    {
+      "code": "632",
+      "nameAz": "Fəaliyyətin dayandırılmasından qazanclar",
+      "nameRu": "Fəaliyyətin dayandırılmasından qazanclar",
+      "nameEn": "Fəaliyyətin dayandırılmasından qazanclar",
+      "type": "REVENUE",
+      "parentCode": "63"
+    },
+    {
+      "code": "633",
+      "nameAz": "Maliyyə gəlirləri",
+      "nameRu": "Maliyyə gəlirləri",
+      "nameEn": "Maliyyə gəlirləri",
+      "type": "REVENUE",
+      "parentCode": "63"
+    },
+    {
+      "code": "633-1",
+      "nameAz": "Faiz gəliri",
+      "nameRu": "Faiz gəliri",
+      "nameEn": "Faiz gəliri",
+      "type": "REVENUE",
+      "parentCode": "633"
+    },
+    {
+      "code": "633-2",
+      "nameAz": "Qiymətdən düşmüş borclar üzrə faiz gəlirləri",
+      "nameRu": "Qiymətdən düşmüş borclar üzrə faiz gəlirləri",
+      "nameEn": "Qiymətdən düşmüş borclar üzrə faiz gəlirləri",
+      "type": "REVENUE",
+      "parentCode": "633"
+    },
+    {
+      "code": "633-3",
+      "nameAz": "Dividend üzrə gəlir",
+      "nameRu": "Dividend üzrə gəlir",
+      "nameEn": "Dividend üzrə gəlir",
+      "type": "REVENUE",
+      "parentCode": "633"
+    },
+    {
+      "code": "633-4",
+      "nameAz": "Maliyyə icarəsi üzrə gəlir",
+      "nameRu": "Maliyyə icarəsi üzrə gəlir",
+      "nameEn": "Maliyyə icarəsi üzrə gəlir",
+      "type": "REVENUE",
+      "parentCode": "633"
+    },
+    {
+      "code": "633-5",
+      "nameAz": "Maliyyə alətlərinin ədalətli dəyərinin dəyişməsindən gəlir",
+      "nameRu": "Maliyyə alətlərinin ədalətli dəyərinin dəyişməsindən gəlir",
+      "nameEn": "Maliyyə alətlərinin ədalətli dəyərinin dəyişməsindən gəlir",
+      "type": "REVENUE",
+      "parentCode": "633"
+    },
+    {
+      "code": "633-6",
+      "nameAz": "Faiz gəlirləri yaradan öhdəliklər üzrə məzənnə gəliri",
+      "nameRu": "Faiz gəlirləri yaradan öhdəliklər üzrə məzənnə gəliri",
+      "nameEn": "Faiz gəlirləri yaradan öhdəliklər üzrə məzənnə gəliri",
+      "type": "REVENUE",
+      "parentCode": "633"
+    },
+    {
+      "code": "633-7",
+      "nameAz": "Digər maliyyə gəlirləri",
+      "nameRu": "Digər maliyyə gəlirləri",
+      "nameEn": "Digər maliyyə gəlirləri",
+      "type": "REVENUE",
+      "parentCode": "633"
+    },
+    {
+      "code": "7",
+      "nameAz": "Xərclər",
+      "nameRu": "Xərclər",
+      "nameEn": "Xərclər",
+      "type": "EXPENSE",
+      "parentCode": null
+    },
+    {
+      "code": "70",
+      "nameAz": "Birja gəlirləri üzrə xərclər",
+      "nameRu": "Birja gəlirləri üzrə xərclər",
+      "nameEn": "Birja gəlirləri üzrə xərclər",
+      "type": "EXPENSE",
+      "parentCode": "7"
+    },
+    {
+      "code": "701",
+      "nameAz": "İstehsal olunmuş məhsulların (məmulatların) dəyəri",
+      "nameRu": "İstehsal olunmuş məhsulların (məmulatların) dəyəri",
+      "nameEn": "İstehsal olunmuş məhsulların (məmulatların) dəyəri",
+      "type": "EXPENSE",
+      "parentCode": "70"
+    },
+    {
+      "code": "702",
+      "nameAz": "Yerinə yetirilmiş işlərin dəyəri",
+      "nameRu": "Yerinə yetirilmiş işlərin dəyəri",
+      "nameEn": "Yerinə yetirilmiş işlərin dəyəri",
+      "type": "EXPENSE",
+      "parentCode": "70"
+    },
+    {
+      "code": "703",
+      "nameAz": "Göstərilmiş xidmətlərin dəyəri",
+      "nameRu": "Göstərilmiş xidmətlərin dəyəri",
+      "nameEn": "Göstərilmiş xidmətlərin dəyəri",
+      "type": "EXPENSE",
+      "parentCode": "70"
+    },
+    {
+      "code": "71",
+      "nameAz": "Qaimə xərcləri",
+      "nameRu": "Qaimə xərcləri",
+      "nameEn": "Qaimə xərcləri",
+      "type": "EXPENSE",
+      "parentCode": "7"
+    },
+    {
+      "code": "711",
+      "nameAz": "İnzibati xərclər",
+      "nameRu": "İnzibati xərclər",
+      "nameEn": "İnzibati xərclər",
+      "type": "EXPENSE",
+      "parentCode": "71"
+    },
+    {
+      "code": "712",
+      "nameAz": "Digər xərclər",
+      "nameRu": "Digər xərclər",
+      "nameEn": "Digər xərclər",
+      "type": "EXPENSE",
+      "parentCode": "71"
+    },
+    {
+      "code": "72",
+      "nameAz": "Maliyyə xərcləri",
+      "nameRu": "Maliyyə xərcləri",
+      "nameEn": "Maliyyə xərcləri",
+      "type": "EXPENSE",
+      "parentCode": "7"
+    },
+    {
+      "code": "721",
+      "nameAz": "Faiz xərcləri",
+      "nameRu": "Faiz xərcləri",
+      "nameEn": "Faiz xərcləri",
+      "type": "EXPENSE",
+      "parentCode": "72"
+    },
+    {
+      "code": "721-1",
+      "nameAz": "Qısamüddətli Bank kreditləri üzrə faiz",
+      "nameRu": "Qısamüddətli Bank kreditləri üzrə faiz",
+      "nameEn": "Qısamüddətli Bank kreditləri üzrə faiz",
+      "type": "EXPENSE",
+      "parentCode": "721"
+    },
+    {
+      "code": "721-2",
+      "nameAz": "Uzunmüddətli Bank kreditləri üzrə faiz",
+      "nameRu": "Uzunmüddətli Bank kreditləri üzrə faiz",
+      "nameEn": "Uzunmüddətli Bank kreditləri üzrə faiz",
+      "type": "EXPENSE",
+      "parentCode": "721"
+    },
+    {
+      "code": "722",
+      "nameAz": "İşçilər üçün Bank kreditləri üzrə faiz",
+      "nameRu": "İşçilər üçün Bank kreditləri üzrə faiz",
+      "nameEn": "İşçilər üçün Bank kreditləri üzrə faiz",
+      "type": "EXPENSE",
+      "parentCode": "72"
+    },
+    {
+      "code": "722-1",
+      "nameAz": "İşçilər üçün qısamüddətli bank kreditləri üzrə faiz",
+      "nameRu": "İşçilər üçün qısamüddətli bank kreditləri üzrə faiz",
+      "nameEn": "İşçilər üçün qısamüddətli bank kreditləri üzrə faiz",
+      "type": "EXPENSE",
+      "parentCode": "722"
+    },
+    {
+      "code": "722-2",
+      "nameAz": "İşçilər üçün uzunmüddətli bank kreditləri üzrə faiz",
+      "nameRu": "İşçilər üçün uzunmüddətli bank kreditləri üzrə faiz",
+      "nameEn": "İşçilər üçün uzunmüddətli bank kreditləri üzrə faiz",
+      "type": "EXPENSE",
+      "parentCode": "722"
+    },
+    {
+      "code": "723",
+      "nameAz": "Konvertasiya olunan istiqrazlar üzrə faiz",
+      "nameRu": "Konvertasiya olunan istiqrazlar üzrə faiz",
+      "nameEn": "Konvertasiya olunan istiqrazlar üzrə faiz",
+      "type": "EXPENSE",
+      "parentCode": "72"
+    },
+    {
+      "code": "723-1",
+      "nameAz": "Qısamüddətli konvertasiya olunan istiqrazlar üzrə faiz",
+      "nameRu": "Qısamüddətli konvertasiya olunan istiqrazlar üzrə faiz",
+      "nameEn": "Qısamüddətli konvertasiya olunan istiqrazlar üzrə faiz",
+      "type": "EXPENSE",
+      "parentCode": "723"
+    },
+    {
+      "code": "723-2",
+      "nameAz": "Uzunmüddətli konvertasiya olunan istiqrazlar üzrə faiz",
+      "nameRu": "Uzunmüddətli konvertasiya olunan istiqrazlar üzrə faiz",
+      "nameEn": "Uzunmüddətli konvertasiya olunan istiqrazlar üzrə faiz",
+      "type": "EXPENSE",
+      "parentCode": "723"
+    },
+    {
+      "code": "724",
+      "nameAz": "Borclar üzrə faiz",
+      "nameRu": "Borclar üzrə faiz",
+      "nameEn": "Borclar üzrə faiz",
+      "type": "EXPENSE",
+      "parentCode": "72"
+    },
+    {
+      "code": "724-1",
+      "nameAz": "Qısamüddətli borclar üzrə faiz",
+      "nameRu": "Qısamüddətli borclar üzrə faiz",
+      "nameEn": "Qısamüddətli borclar üzrə faiz",
+      "type": "EXPENSE",
+      "parentCode": "724"
+    },
+    {
+      "code": "724-2",
+      "nameAz": "Uzunmüddətli borclar üzrə faiz",
+      "nameRu": "Uzunmüddətli borclar üzrə faiz",
+      "nameEn": "Uzunmüddətli borclar üzrə faiz",
+      "type": "EXPENSE",
+      "parentCode": "724"
+    },
+    {
+      "code": "725",
+      "nameAz": "Digər maliyyə xərcləri",
+      "nameRu": "Digər maliyyə xərcləri",
+      "nameEn": "Digər maliyyə xərcləri",
+      "type": "EXPENSE",
+      "parentCode": "72"
+    },
+    {
+      "code": "73",
+      "nameAz": "Qeyri-birja gəlirləri üzrə xərclər",
+      "nameRu": "Qeyri-birja gəlirləri üzrə xərclər",
+      "nameEn": "Qeyri-birja gəlirləri üzrə xərclər",
+      "type": "EXPENSE",
+      "parentCode": "7"
+    },
+    {
+      "code": "731",
+      "nameAz": "İstehsal olunmuş məhsulların dəyəri",
+      "nameRu": "İstehsal olunmuş məhsulların dəyəri",
+      "nameEn": "İstehsal olunmuş məhsulların dəyəri",
+      "type": "EXPENSE",
+      "parentCode": "73"
+    },
+    {
+      "code": "732",
+      "nameAz": "Yerinə yetirilmiş işlərin dəyəri",
+      "nameRu": "Yerinə yetirilmiş işlərin dəyəri",
+      "nameEn": "Yerinə yetirilmiş işlərin dəyəri",
+      "type": "EXPENSE",
+      "parentCode": "73"
+    },
+    {
+      "code": "733",
+      "nameAz": "Göstərilmiş xidmətlərin dəyəri",
+      "nameRu": "Göstərilmiş xidmətlərin dəyəri",
+      "nameEn": "Göstərilmiş xidmətlərin dəyəri",
+      "type": "EXPENSE",
+      "parentCode": "73"
+    },
+    {
+      "code": "74",
+      "nameAz": "Sair mənbələr hesabına xərclər",
+      "nameRu": "Sair mənbələr hesabına xərclər",
+      "nameEn": "Sair mənbələr hesabına xərclər",
+      "type": "EXPENSE",
+      "parentCode": "7"
+    },
+    {
+      "code": "741",
+      "nameAz": "İstehsal olunmuş məhsulun dəyəri",
+      "nameRu": "İstehsal olunmuş məhsulun dəyəri",
+      "nameEn": "İstehsal olunmuş məhsulun dəyəri",
+      "type": "EXPENSE",
+      "parentCode": "74"
+    },
+    {
+      "code": "742",
+      "nameAz": "Yerinə yetirilmiş işlərin dəyəri",
+      "nameRu": "Yerinə yetirilmiş işlərin dəyəri",
+      "nameEn": "Yerinə yetirilmiş işlərin dəyəri",
+      "type": "EXPENSE",
+      "parentCode": "74"
+    },
+    {
+      "code": "743",
+      "nameAz": "Göstərilmiş xidmətlərin dəyəri",
+      "nameRu": "Göstərilmiş xidmətlərin dəyəri",
+      "nameEn": "Göstərilmiş xidmətlərin dəyəri",
+      "type": "EXPENSE",
+      "parentCode": "74"
+    },
+    {
+      "code": "744",
+      "nameAz": "Digər xərclər",
+      "nameRu": "Digər xərclər",
+      "nameEn": "Digər xərclər",
+      "type": "EXPENSE",
+      "parentCode": "74"
+    },
+    {
+      "code": "8",
+      "nameAz": "Mənfəət (zərər)",
+      "nameRu": "Mənfəət (zərər)",
+      "nameEn": "Mənfəət (zərər)",
+      "type": "EQUITY",
+      "parentCode": null
+    },
+    {
+      "code": "80",
+      "nameAz": "Ümumi Mənfəət (zərər)",
+      "nameRu": "Ümumi Mənfəət (zərər)",
+      "nameEn": "Ümumi Mənfəət (zərər)",
+      "type": "EQUITY",
+      "parentCode": "8"
+    },
+    {
+      "code": "801",
+      "nameAz": "Ümumi mənfəət (zərər)",
+      "nameRu": "Ümumi mənfəət (zərər)",
+      "nameEn": "Ümumi mənfəət (zərər)",
+      "type": "EQUITY",
+      "parentCode": "80"
+    },
+    {
+      "code": "81",
+      "nameAz": "Asılı müəssisələrin mənfəətində (zərərində) pay",
+      "nameRu": "Asılı müəssisələrin mənfəətində (zərərində) pay",
+      "nameEn": "Asılı müəssisələrin mənfəətində (zərərində) pay",
+      "type": "EQUITY",
+      "parentCode": "8"
+    },
+    {
+      "code": "811",
+      "nameAz": "Asılı müəssisələrin mənfəətində (zərərində) pay",
+      "nameRu": "Asılı müəssisələrin mənfəətində (zərərində) pay",
+      "nameEn": "Asılı müəssisələrin mənfəətində (zərərində) pay",
+      "type": "EQUITY",
+      "parentCode": "81"
+    },
+    {
+      "code": "9",
+      "nameAz": "Mənfəət vergisi",
+      "nameRu": "Mənfəət vergisi",
+      "nameEn": "Mənfəət vergisi",
+      "type": "EXPENSE",
+      "parentCode": null
+    },
+    {
+      "code": "901",
+      "nameAz": "Cari mənfəət vergisi",
+      "nameRu": "Cari mənfəət vergisi",
+      "nameEn": "Cari mənfəət vergisi",
+      "type": "EXPENSE",
+      "parentCode": "90"
+    },
+    {
+      "code": "902",
+      "nameAz": "Təxirə salınmış mənfəət vergisi",
+      "nameRu": "Təxirə salınmış mənfəət vergisi",
+      "nameEn": "Təxirə salınmış mənfəət vergisi",
+      "type": "EXPENSE",
+      "parentCode": "90"
+    }
+  ]
+}

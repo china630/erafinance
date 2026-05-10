@@ -3,7 +3,7 @@
 -- users не экспортируются (см. комментарий в export-seed-data.ts), кроме DOCKER_INIT_EXPORT_USERS=1.
 -- Односегментные ключи i18n вне белого списка не попадают в дамп.
 --
--- План счетов: шаблон seeds/chart-of-accounts-az.json; TaxConfig в схеме нет.
+-- План счетов: шаблон prisma/catalog/national/chart-of-accounts.json; TaxConfig в схеме нет.
 --
 BEGIN;
 

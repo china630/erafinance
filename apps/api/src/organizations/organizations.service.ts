@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import {
-  CoaTemplateProfile,
+  OrganizationKind,
   UserRole,
   provisionNasAccountsForOrganization,
   type Prisma,
@@ -30,9 +30,9 @@ export class OrganizationsService {
   async provisionChartOfAccountsFromTemplate(
     tx: Prisma.TransactionClient,
     organizationId: string,
-    profile: CoaTemplateProfile = CoaTemplateProfile.COMMERCIAL_FULL,
+    kind: OrganizationKind = OrganizationKind.COMMERCIAL,
   ): Promise<void> {
-    await provisionNasAccountsForOrganization(tx, organizationId, profile);
+    await provisionNasAccountsForOrganization(tx, organizationId, kind);
     await this.accounts.bootstrapMultiGaapForNewOrganization(organizationId, tx);
   }
 

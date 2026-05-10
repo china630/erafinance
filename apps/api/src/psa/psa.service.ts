@@ -208,20 +208,49 @@ export class PsaService {
   }
 
   async ensurePsaHourProduct(organizationId: string) {
-    const existing = await this.prisma.product.findFirst({
-      where: { organizationId, sku: PSA_HOUR_SKU },
-    });
+    const existing = await this.prisma.product.findFirst({ where: { organizationId, sku: PSA_HOUR_SKU } });
     if (existing) return existing;
-    return this.prisma.product.create({
-      data: {
-        organizationId,
-        sku: PSA_HOUR_SKU,
-        name: "PSA billable hour",
-        price: new Decimal(0),
-        vatRate: new Decimal(0),
-        isService: true,
+
+    const templates = await this.prisma.systemProductTemplate.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+      select: {
+        code: true,
+        nameEn: true,
+        kind: true,
+        defaultPrice: true,
+        defaultUomCode: true,
       },
     });
+
+    for (const t of templates) {
+      await this.prisma.product.upsert({
+        where: { organizationId_sku: { organizationId, sku: t.code } },
+        create: {
+          organizationId,
+          sku: t.code,
+          name: t.nameEn,
+          price: t.defaultPrice,
+          vatRate: new Decimal(0),
+          isService: t.kind === "SERVICE",
+          unitOfMeasureCode: t.defaultUomCode,
+        },
+        update: {
+          name: t.nameEn,
+          price: t.defaultPrice,
+          isService: t.kind === "SERVICE",
+          unitOfMeasureCode: t.defaultUomCode,
+        },
+      });
+    }
+
+    const seeded = await this.prisma.product.findFirst({
+      where: { organizationId, sku: PSA_HOUR_SKU },
+    });
+    if (!seeded) {
+      throw new BadRequestException("System product template __PSA_HOUR__ not found");
+    }
+    return seeded;
   }
 
   async generateInvoice(

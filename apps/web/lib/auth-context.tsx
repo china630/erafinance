@@ -17,6 +17,7 @@ import {
   USER_KEY,
 } from "./session-keys";
 import { apiFetch } from "./api-client";
+import { FALLBACK_CURRENCY_CODES } from "./currencies";
 
 export type OrgSummary = {
   id: string;
@@ -24,6 +25,8 @@ export type OrgSummary = {
   taxId: string;
   currency: string;
   role: string;
+  /** NAS plan / organization type from API */
+  kind: "COMMERCIAL" | "BUDGET" | "NGO";
 };
 
 export type AuthUser = {
@@ -36,6 +39,9 @@ export type AuthUser = {
   lastName: string | null;
   fullName: string | null;
   avatarUrl: string | null;
+  phone?: string | null;
+  /** Prisma `UserLocale`: AZ | RU */
+  locale?: "AZ" | "RU";
   /** Глобальный супер-админ платформы. */
   isSuperAdmin?: boolean;
 };
@@ -57,6 +63,8 @@ type AuthContextValue = {
   user: AuthUser | null;
   organizations: OrgSummary[];
   organizationId: string | null;
+  /** Active ISO currency codes from `GET /api/system/currencies` (fallback when logged out). */
+  currencyCodes: readonly string[];
   /** Права для UI (касса/банк/проводки, отчёты холдинга). */
   access: SessionAccessFlags;
   login: (accessToken: string, user: AuthUser, organizations: OrgSummary[]) => void;
@@ -81,6 +89,22 @@ function clearAccessTokenCookie() {
   document.cookie = `${ACCESS_TOKEN_COOKIE_KEY}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax${secure}`;
 }
 
+async function fetchCurrencyCodesFromApi(): Promise<string[]> {
+  try {
+    const res = await apiFetch("/api/system/currencies");
+    if (!res.ok) {
+      return [...FALLBACK_CURRENCY_CODES];
+    }
+    const rows = (await res.json()) as { code?: string }[];
+    const codes = rows
+      .map((r) => String(r.code ?? "").trim().toUpperCase())
+      .filter((c) => /^[A-Z]{3}$/.test(c));
+    return codes.length > 0 ? codes : [...FALLBACK_CURRENCY_CODES];
+  } catch {
+    return [...FALLBACK_CURRENCY_CODES];
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -88,6 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [organizations, setOrganizations] = useState<OrgSummary[]>([]);
   const [access, setAccess] =
     useState<SessionAccessFlags>(DEFAULT_ACCESS_FLAGS);
+  const [currencyCodes, setCurrencyCodes] = useState<string[]>(() => [
+    ...FALLBACK_CURRENCY_CODES,
+  ]);
 
   /** Гидратация из sessionStorage — мгновенный UI; полный список орг подтягивается ниже с сервера. */
   useEffect(() => {
@@ -145,6 +172,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(data.user);
       setOrganizations(data.organizations);
       setAccess(flags);
+      void fetchCurrencyCodesFromApi().then((codes) => {
+        if (!cancelled) setCurrencyCodes(codes);
+      });
     })();
     return () => {
       cancelled = true;
@@ -162,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(u);
       setOrganizations(orgs);
       setAccess(DEFAULT_ACCESS_FLAGS);
+      void fetchCurrencyCodesFromApi().then(setCurrencyCodes);
     },
     [],
   );
@@ -180,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setOrganizations([]);
     setAccess(DEFAULT_ACCESS_FLAGS);
+    setCurrencyCodes([...FALLBACK_CURRENCY_CODES]);
     clearAccessTokenCookie();
     try {
       window.location.replace("/login");
@@ -213,6 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
     setOrganizations(data.organizations);
     setAccess(flags);
+    void fetchCurrencyCodesFromApi().then(setCurrencyCodes);
   }, []);
 
   const refreshSession = useCallback(async () => {
@@ -230,6 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
     setOrganizations(data.organizations);
     setAccess(flags);
+    void fetchCurrencyCodesFromApi().then(setCurrencyCodes);
   }, []);
 
   const impersonateAsUser = useCallback(async (targetUserId: string) => {
@@ -255,6 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
     setOrganizations(data.organizations);
     setAccess(flags);
+    void fetchCurrencyCodesFromApi().then(setCurrencyCodes);
   }, []);
 
   const value = useMemo<AuthContextValue>(
@@ -264,6 +299,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       organizations,
       organizationId: user?.organizationId ?? null,
+      currencyCodes,
       access,
       login,
       logout,
@@ -276,6 +312,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       user,
       organizations,
+      currencyCodes,
       access,
       login,
       logout,

@@ -34,7 +34,7 @@ type TemplateRow = {
   displayName?: string;
   accountType: string;
   parentCode: string | null;
-  templateGroups: string[];
+  kind: string;
 };
 
 function canImportNas(role: string | null | undefined): boolean {
@@ -44,7 +44,7 @@ function canImportNas(role: string | null | undefined): boolean {
 export default function NasChartSettingsPage() {
   const { t, i18n } = useTranslation();
   const { token, ready } = useRequireAuth();
-  const { user } = useAuth();
+  const { user, organizations } = useAuth();
   const canImport = canImportNas(user?.role);
   const loc = uiLangRuAz(i18n.language);
 
@@ -133,11 +133,20 @@ export default function NasChartSettingsPage() {
   if (!ready) return <p>{t("common.loading")}</p>;
   if (!token) return null;
 
+  const currentOrg = organizations.find((o) => o.id === user?.organizationId);
+  const planKindKey =
+    currentOrg?.kind === "BUDGET"
+      ? "chartPage.planKindBudget"
+      : currentOrg?.kind === "NGO"
+        ? "chartPage.planKindNgo"
+        : "chartPage.planKindCommercial";
+  const chartSubtitle = `${t(planKindKey)} — ${t("chartPage.subtitle")}`;
+
   return (
     <div className="space-y-6 max-w-5xl">
       <PageHeader
         title={t("chartPage.title")}
-        subtitle={t("chartPage.subtitle")}
+        subtitle={chartSubtitle}
         actions={
           canImport ? (
             <button

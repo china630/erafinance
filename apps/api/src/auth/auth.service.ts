@@ -15,9 +15,11 @@ import {
   InviteStatus,
   Prisma,
   SubscriptionTier,
+  UserLocale,
   UserRole,
-  coaProfileToSettingsTemplateGroup,
-  resolveCoaTemplateProfileFromDto,
+  legalFormToOrganizationKind,
+  organizationKindToPayrollSettingsTemplateGroup,
+  OrganizationKind,
 } from "@dayday/database";
 import * as bcrypt from "bcrypt";
 import type { Response } from "express";
@@ -29,6 +31,7 @@ import { DEFAULT_NEW_ORGANIZATION_ACTIVE_MODULES } from "../subscription/subscri
 import { computeNewOrganizationDemoPeriodEndsAt } from "../subscription/subscription-demo-period.util";
 import { MailService } from "../mail/mail.service";
 import { PiiCryptoService } from "../security/pii-crypto.service";
+import { GlobalCompanyDirectoryService } from "../global-directory/global-company-directory.service";
 import {
   decodeOrganizationTaxId,
   decryptText,
@@ -40,6 +43,7 @@ import type { CreateOrgDto } from "./dto/create-org.dto";
 import type { LoginDto } from "./dto/login.dto";
 import type { RegisterOrgDto } from "./dto/register-org.dto";
 import type { RegisterUserDto } from "./dto/register-user.dto";
+import type { UpdateMeDto } from "./dto/update-me.dto";
 
 const REFRESH_COOKIE = "refresh_token";
 const REFRESH_EXT_COOKIE = "refresh_token_ext";
@@ -53,6 +57,9 @@ export type PublicUser = {
   lastName: string | null;
   fullName: string | null;
   avatarUrl: string | null;
+  /** E.164 phone when set */
+  phone: string | null;
+  locale: UserLocale;
   role: UserRole | null;
   organizationId: string | null;
   isSuperAdmin: boolean;
@@ -64,6 +71,7 @@ export type OrgSummary = {
   taxId: string;
   currency: string;
   role: UserRole;
+  kind: OrganizationKind;
 };
 
 @Injectable()
@@ -79,6 +87,7 @@ export class AuthService {
     private readonly quota: QuotaService,
     private readonly mail: MailService,
     private readonly piiCrypto: PiiCryptoService,
+    private readonly directory: GlobalCompanyDirectoryService,
   ) {}
 
   private inviteTokenSecret(): string {
@@ -278,10 +287,7 @@ export class AuthService {
     const fn = dto.adminFirstName.trim();
     const ln = dto.adminLastName.trim();
 
-    const coaProfile = resolveCoaTemplateProfileFromDto({
-      coaTemplate: dto.coaTemplate,
-      templateGroup: dto.templateGroup,
-    });
+    const kind = legalFormToOrganizationKind(dto.legalForm);
 
     let org: { id: string; name: string; taxIdCipher: string | null; currency: string };
     let userId: string;
@@ -295,9 +301,10 @@ export class AuthService {
             currency: (dto.currency ?? "AZN").toUpperCase(),
             subscriptionPlan: "mvp",
             activeModules: [...DEFAULT_NEW_ORGANIZATION_ACTIVE_MODULES],
-            coaTemplateProfile: coaProfile,
+            legalForm: dto.legalForm,
+            kind,
             settings: {
-              templateGroup: coaProfileToSettingsTemplateGroup(coaProfile),
+              templateGroup: organizationKindToPayrollSettingsTemplateGroup(kind),
             },
           },
         });
@@ -328,7 +335,7 @@ export class AuthService {
             role: UserRole.OWNER,
           },
         });
-        await this.organizations.provisionChartOfAccountsFromTemplate(tx, o.id, coaProfile);
+        await this.organizations.provisionChartOfAccountsFromTemplate(tx, o.id, kind);
         return { org: o, userId: u.id };
       });
       org = created.org;
@@ -344,6 +351,29 @@ export class AuthService {
       }
       throw e;
     }
+
+    this.directory.scheduleUpsert({
+      taxId: normalizedTaxId,
+      name: org.name.trim(),
+      legalAddress: null,
+      phone: null,
+      directorName: null,
+      legalForm: dto.legalForm,
+    });
+    await this.prisma.globalCounterparty.upsert({
+      where: { taxId: normalizedTaxId },
+      create: {
+        taxId: normalizedTaxId,
+        name: org.name.trim(),
+        legalAddress: null,
+        legalForm: dto.legalForm,
+        vatStatus: null,
+      },
+      update: {
+        name: org.name.trim(),
+        legalForm: dto.legalForm,
+      },
+    });
 
     await this.orgStructure.ensureDefaultDepartmentAndPosition(org.id);
 
@@ -386,10 +416,7 @@ export class AuthService {
       }
     }
 
-    const coaProfile = resolveCoaTemplateProfileFromDto({
-      coaTemplate: dto.coaTemplate,
-      templateGroup: dto.templateGroup,
-    });
+    const kind = legalFormToOrganizationKind(dto.legalForm);
 
     let org: { id: string; name: string; taxIdCipher: string | null; currency: string };
     try {
@@ -402,9 +429,10 @@ export class AuthService {
             currency: (dto.currency ?? "AZN").toUpperCase(),
             subscriptionPlan: "mvp",
             activeModules: [...DEFAULT_NEW_ORGANIZATION_ACTIVE_MODULES],
-            coaTemplateProfile: coaProfile,
+            legalForm: dto.legalForm,
+            kind,
             settings: {
-              templateGroup: coaProfileToSettingsTemplateGroup(coaProfile),
+              templateGroup: organizationKindToPayrollSettingsTemplateGroup(kind),
             },
             ...(dto.holdingId && { holdingId: dto.holdingId }),
           },
@@ -427,7 +455,7 @@ export class AuthService {
             role: UserRole.OWNER,
           },
         });
-        await this.organizations.provisionChartOfAccountsFromTemplate(tx, o.id, coaProfile);
+        await this.organizations.provisionChartOfAccountsFromTemplate(tx, o.id, kind);
         return { org: o };
       });
       org = created.org;
@@ -442,6 +470,29 @@ export class AuthService {
       }
       throw e;
     }
+
+    this.directory.scheduleUpsert({
+      taxId: normalizedTaxId,
+      name: org.name.trim(),
+      legalAddress: null,
+      phone: null,
+      directorName: null,
+      legalForm: dto.legalForm,
+    });
+    await this.prisma.globalCounterparty.upsert({
+      where: { taxId: normalizedTaxId },
+      create: {
+        taxId: normalizedTaxId,
+        name: org.name.trim(),
+        legalAddress: null,
+        legalForm: dto.legalForm,
+        vatStatus: null,
+      },
+      update: {
+        name: org.name.trim(),
+        legalForm: dto.legalForm,
+      },
+    });
 
     await this.orgStructure.ensureDefaultDepartmentAndPosition(org.id);
 
@@ -623,6 +674,115 @@ export class AuthService {
     };
   }
 
+  async getMeProfile(userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    const names = this.decodeUserNames(user);
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: names.firstName,
+      lastName: names.lastName,
+      phone: user.phone ?? null,
+      locale: user.locale,
+      avatarUrl: user.avatarUrl ?? null,
+    };
+  }
+
+  async updateMe(userId: string, dto: UpdateMeDto) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+
+    if (dto.email != null && dto.email.trim().toLowerCase() !== user.email.toLowerCase()) {
+      const emailNorm = dto.email.trim().toLowerCase();
+      const exists = await this.prisma.user.findUnique({
+        where: { email: emailNorm },
+      });
+      if (exists) {
+        throw new ConflictException("Email already in use");
+      }
+    }
+
+    if (dto.passwordChange) {
+      const ok = await bcrypt.compare(
+        dto.passwordChange.currentPassword,
+        user.passwordHash,
+      );
+      if (!ok) {
+        throw new BadRequestException({
+          code: "INVALID_CURRENT_PASSWORD",
+          message: "Invalid current password",
+        });
+      }
+    }
+
+    if (dto.phone != null && dto.phone !== "" && !/^\+994\d{9}$/.test(dto.phone)) {
+      throw new BadRequestException({
+        code: "INVALID_PHONE",
+        message: "Phone must be +994 followed by 9 digits",
+      });
+    }
+
+    const data: Prisma.UserUpdateInput = {};
+
+    if (dto.firstName != null) {
+      data.firstNameCipher = encryptText(normalizeName(dto.firstName));
+    }
+    if (dto.lastName != null) {
+      data.lastNameCipher = encryptText(normalizeName(dto.lastName));
+    }
+    if (dto.firstName != null || dto.lastName != null) {
+      const fn =
+        dto.firstName != null
+          ? normalizeName(dto.firstName)
+          : user.firstNameCipher
+            ? decryptText(user.firstNameCipher)
+            : "";
+      const ln =
+        dto.lastName != null
+          ? normalizeName(dto.lastName)
+          : user.lastNameCipher
+            ? decryptText(user.lastNameCipher)
+            : "";
+      data.fullNameCipher = encryptText(normalizeName(`${fn} ${ln}`.trim()));
+    }
+
+    if (dto.email != null) {
+      data.email = dto.email.trim().toLowerCase();
+    }
+
+    if (dto.phone !== undefined) {
+      data.phone =
+        dto.phone === "" || dto.phone == null ? null : dto.phone.trim();
+    }
+
+    if (dto.locale != null) {
+      data.locale = dto.locale;
+    }
+
+    if (dto.passwordChange) {
+      data.passwordHash = await bcrypt.hash(dto.passwordChange.newPassword, 10);
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data,
+    });
+
+    const names = this.decodeUserNames(updated);
+    return {
+      id: updated.id,
+      email: updated.email,
+      firstName: names.firstName,
+      lastName: names.lastName,
+      phone: updated.phone ?? null,
+      locale: updated.locale,
+      avatarUrl: updated.avatarUrl ?? null,
+    };
+  }
+
   private sessionAccessFlags(
     organizationId: string | null,
     role: UserRole | null,
@@ -682,6 +842,7 @@ export class AuthService {
       taxId: decodeOrganizationTaxId(r.organization),
       currency: r.organization.currency,
       role: r.role,
+      kind: r.organization.kind,
     }));
   }
 
@@ -702,6 +863,8 @@ export class AuthService {
       firstNameCipher: string | null;
       lastNameCipher: string | null;
       avatarUrl: string | null;
+      phone: string | null;
+      locale: UserLocale;
       isSuperAdmin?: boolean;
     },
     organizationId: string,
@@ -715,6 +878,8 @@ export class AuthService {
       lastName: names.lastName,
       fullName: names.fullName,
       avatarUrl: user.avatarUrl ?? null,
+      phone: user.phone ?? null,
+      locale: user.locale,
       role,
       organizationId,
       isSuperAdmin: Boolean(user.isSuperAdmin),
@@ -727,6 +892,8 @@ export class AuthService {
     firstNameCipher: string | null;
     lastNameCipher: string | null;
     avatarUrl: string | null;
+    phone: string | null;
+    locale: UserLocale;
     isSuperAdmin?: boolean;
   }): PublicUser {
     const names = this.decodeUserNames(user);
@@ -737,6 +904,8 @@ export class AuthService {
       lastName: names.lastName,
       fullName: names.fullName,
       avatarUrl: user.avatarUrl ?? null,
+      phone: user.phone ?? null,
+      locale: user.locale,
       role: null,
       organizationId: null,
       isSuperAdmin: Boolean(user.isSuperAdmin),

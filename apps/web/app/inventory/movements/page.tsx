@@ -161,7 +161,9 @@ export default function InventoryMovementsPage() {
                   <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>{rowDate(m)}</td>
                   <td className={DATA_TABLE_TD_CLASS}>{m.warehouse.name}</td>
                   <td className={DATA_TABLE_TD_CLASS}>{m.product.name}</td>
-                  <td className={DATA_TABLE_TD_CLASS}>{m.type}</td>
+                  <td className={DATA_TABLE_TD_CLASS}>
+                    {t(`inventory.movType_${m.type}`, { defaultValue: m.type })}
+                  </td>
                   <td className={DATA_TABLE_TD_CLASS}>
                     {t(`inventory.movReason_${m.reason}`, { defaultValue: m.reason })}
                   </td>

@@ -6,7 +6,6 @@ import { Building2, Plus, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../lib/api-client";
-import type { OrgSummary } from "../../lib/auth-context";
 import { useAuth } from "../../lib/auth-context";
 import {
   CARD_CONTAINER_CLASS,
@@ -176,7 +175,7 @@ export default function CompaniesPage() {
     );
   }
 
-  async function openOrg(o: OrgSummary) {
+  async function openOrg(o: { id: string }) {
     if (o.id === user?.organizationId) {
       router.push("/");
       return;
@@ -217,7 +216,7 @@ export default function CompaniesPage() {
 
   async function openCompanySettings(org: CompanyCardItem) {
     if (org.id !== user?.organizationId) {
-      await openOrg(org as OrgSummary);
+      await openOrg(org);
     }
     router.push("/settings/organization");
   }
@@ -296,7 +295,7 @@ export default function CompaniesPage() {
                     currentWorkspaceLabel={t("companiesPage.currentWorkspaceLabel")}
                     canManageHolding={isOwnerOnly(company.id)}
                     canDetachFromHolding={isOwnerOnly(company.id)}
-                    onOpen={() => void openOrg(company as OrgSummary)}
+                    onOpen={() => void openOrg(company)}
                     onOpenSettings={() => void openCompanySettings(company)}
                     onAttachHolding={() => {
                       setAttachDialogOrg(company);
@@ -338,7 +337,7 @@ export default function CompaniesPage() {
                   currentWorkspaceLabel={t("companiesPage.currentWorkspaceLabel")}
                   canManageHolding={isOwnerOnly(company.id)}
                   canDetachFromHolding={false}
-                  onOpen={() => void openOrg(company as OrgSummary)}
+                  onOpen={() => void openOrg(company)}
                   onOpenSettings={() => void openCompanySettings(company)}
                   onAttachHolding={() => {
                     setAttachDialogOrg(company);

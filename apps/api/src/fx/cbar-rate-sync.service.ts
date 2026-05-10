@@ -1,13 +1,9 @@
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { CbarRateStatus, Prisma } from "@dayday/database";
 import { PrismaService } from "../prisma/prisma.service";
+import { SystemConfigService } from "../system-config/system-config.service";
 import { CbarFxService, type CbarLatestRate, type ParsedCbarDoc } from "./cbar-fx.service";
-import {
-  DASHBOARD_FX_CODES,
-  type FxDashboardRateRow,
-} from "./fx-dashboard.types";
-
-const CHECK_CODES = ["USD", "EUR"] as const;
+import type { FxDashboardRateRow } from "./fx-dashboard.types";
 
 type Decimal = Prisma.Decimal;
 const Decimal = Prisma.Decimal;
@@ -47,6 +43,7 @@ export class CbarRateSyncService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cbar: CbarFxService,
+    private readonly systemConfig: SystemConfigService,
   ) {}
 
   /** Синхронизация по «сегодня» в URL (якорь); в БД пишется дата из атрибута Date в XML. */
@@ -260,7 +257,7 @@ export class CbarRateSyncService {
     rates: FxDashboardRateRow[];
     isFallback: boolean;
   }> {
-    const codes = [...DASHBOARD_FX_CODES] as readonly string[];
+    const codes = await this.systemConfig.getFxDashboardCurrencyCodes();
     const todayKey = this.cbar.formatBakuDate(now);
 
     const rowToFx = (row: {
@@ -333,7 +330,8 @@ export class CbarRateSyncService {
     doc: ParsedCbarDoc,
     rateDate: Date,
   ): Promise<boolean> {
-    for (const code of CHECK_CODES) {
+    const checkCodes = await this.systemConfig.getFxCbarCheckCurrencyCodes();
+    for (const code of checkCodes) {
       const row = await this.prisma.cbarOfficialRate.findUnique({
         where: {
           rateDate_currencyCode: { rateDate, currencyCode: code },

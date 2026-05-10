@@ -22,6 +22,7 @@ import {
   Coins,
   Contact2,
   CreditCard,
+  Database,
   Factory,
   FileCheck2,
   FileText,
@@ -47,11 +48,18 @@ import {
   SlidersHorizontal,
   TrendingDown,
   Upload,
+  User,
   UserPlus,
   Users2,
   Wallet,
 } from "lucide-react";
 import type { AuthUser } from "../../lib/auth-context";
+import { useEarlyAccess } from "../early-access/early-access-context";
+import {
+  EARLY_ACCESS_MODULE_ORDER,
+  EARLY_ACCESS_MODULES,
+  type EarlyAccessModuleKey,
+} from "../early-access/modules.config";
 
 type SidebarLayout = {
   /** Collapsed rail только на lg+; на мобильном выезде — всегда полная ширина. */
@@ -307,6 +315,55 @@ function SideNavItem(props: {
   );
 }
 
+function SideNavTeaser(props: {
+  label: string;
+  icon?: LucideIcon;
+  badge: string;
+  onClick: () => void;
+  onNavClick?: () => void;
+}) {
+  const { layoutCollapsed, setOpenFlyoutKey } = useSidebarLayout();
+  const Icon = props.icon;
+  return (
+    <button
+      type="button"
+      title={layoutCollapsed ? props.label : undefined}
+      onClick={() => {
+        if (layoutCollapsed) setOpenFlyoutKey(null);
+        props.onNavClick?.();
+        props.onClick();
+      }}
+      className={[
+        "flex w-full items-center rounded-lg border group text-left",
+        "gap-2 px-2 py-1.5 text-sm",
+        "border-transparent text-gray-600 hover:border-gray-200 hover:bg-white/70",
+      ].join(" ")}
+    >
+      {Icon ? (
+        <Icon
+          size={16}
+          strokeWidth={2}
+          className="shrink-0 text-[#7F8C8D]"
+          aria-hidden
+        />
+      ) : (
+        <span className="inline-block h-2 w-2 rounded-full bg-primary/70 shrink-0" />
+      )}
+      <span
+        className={[
+          "min-w-0 flex-1 text-sm font-medium",
+          layoutCollapsed ? "lg:sr-only" : "",
+        ].join(" ")}
+      >
+        {props.label}
+      </span>
+      <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-900 shrink-0">
+        {props.badge}
+      </span>
+    </button>
+  );
+}
+
 function SideNavSubItem(props: {
   href: string;
   label: string;
@@ -396,6 +453,7 @@ export function MainSidebar({
 }) {
   const pathname = usePathname();
   const { t } = useTranslation();
+  const { open: openEarlyAccess } = useEarlyAccess();
   const [layoutWide, setLayoutWide] = useState(false);
   const [openFlyoutKey, setOpenFlyoutKey] = useState<string | null>(null);
 
@@ -517,6 +575,37 @@ export function MainSidebar({
             onNavClick={onNavClick}
           />
         </CollapsibleNavSection>
+
+        {token ? (
+          <CollapsibleNavSection
+            sectionKey="industrySolutions"
+            title={t("nav.sectionIndustrySolutions")}
+            icon={Briefcase}
+            sectionActive={false}
+          >
+            {EARLY_ACCESS_MODULE_ORDER.map((modKey: EarlyAccessModuleKey) => {
+              const mod = EARLY_ACCESS_MODULES[modKey];
+              const navLabel =
+                modKey === "RETAIL_ECOM"
+                  ? t("nav.industryRetailEcom")
+                  : modKey === "LOGISTICS_CUSTOMS"
+                    ? t("nav.industryLogisticsCustoms")
+                    : modKey === "CONSTRUCTION"
+                      ? t("nav.industryConstruction")
+                      : t("nav.industryCrmWhatsapp");
+              return (
+                <SideNavTeaser
+                  key={modKey}
+                  label={navLabel}
+                  icon={mod.icon}
+                  badge={t("earlyAccess.beta")}
+                  onClick={() => openEarlyAccess(modKey)}
+                  onNavClick={onNavClick}
+                />
+              );
+            })}
+          </CollapsibleNavSection>
+        ) : null}
 
         <CollapsibleNavSection
           sectionKey="sales"
@@ -841,14 +930,24 @@ export function MainSidebar({
             sectionActive={navSections.adminActive}
           >
             {token ? (
-              <SideNavItem
-                href="/companies"
-                label={t("nav.companies")}
-                isActive={pathname.startsWith("/companies")}
-                icon={Building2}
-                nested
-                onNavClick={onNavClick}
-              />
+              <>
+                <SideNavItem
+                  href="/settings/profile"
+                  label={t("nav.profile")}
+                  isActive={pathname.startsWith("/settings/profile")}
+                  icon={User}
+                  nested
+                  onNavClick={onNavClick}
+                />
+                <SideNavItem
+                  href="/companies"
+                  label={t("nav.companies")}
+                  isActive={pathname.startsWith("/companies")}
+                  icon={Building2}
+                  nested
+                  onNavClick={onNavClick}
+                />
+              </>
             ) : null}
             {user && user.role != null && user.role !== "USER" ? (
               <>
@@ -932,9 +1031,21 @@ export function MainSidebar({
             ) : null}
             {user?.isSuperAdmin ? (
               <SideNavItem
+                href="/super-admin/data"
+                label={t("nav.superAdminData")}
+                isActive={pathname.startsWith("/super-admin/data")}
+                icon={Database}
+                nested
+                onNavClick={onNavClick}
+              />
+            ) : null}
+            {user?.isSuperAdmin ? (
+              <SideNavItem
                 href="/super-admin"
                 label={t("nav.superAdmin")}
-                isActive={pathname.startsWith("/super-admin")}
+                isActive={
+                  pathname.startsWith("/super-admin") && !pathname.startsWith("/super-admin/data")
+                }
                 icon={ShieldCheck}
                 nested
                 onNavClick={onNavClick}

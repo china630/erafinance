@@ -169,7 +169,9 @@ export class InventoryAuditService {
 
         const stock = await tx.stockItem.findMany({
           where: { organizationId, warehouseId: audit.warehouseId },
-          include: { product: { select: { id: true, isService: true } } },
+          include: {
+            product: { select: { id: true, isService: true, unitOfMeasureCode: true } },
+          },
           orderBy: { createdAt: "asc" },
         });
 
@@ -182,6 +184,7 @@ export class InventoryAuditService {
             systemQty: s.quantity,
             factQty: s.quantity,
             costPrice: s.averageCost,
+            unitOfMeasureCode: s.product?.unitOfMeasureCode ?? null,
             discrepancyKind: InventoryDiscrepancyKind.NONE,
             postedAmountAzn: new Decimal(0),
           }));

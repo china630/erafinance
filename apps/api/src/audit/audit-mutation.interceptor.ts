@@ -45,7 +45,9 @@ export class AuditMutationInterceptor implements NestInterceptor {
       pathRaw.includes("/auth/register-user") ||
       pathRaw.includes("/auth/register") ||
       pathRaw.includes("/auth/refresh") ||
-      pathRaw.includes("/billing/webhooks")
+      pathRaw.includes("/billing/webhooks") ||
+      pathRaw.includes("/early-access/events") ||
+      pathRaw.includes("/integrations/drakaris/")
     ) {
       return next.handle();
     }

@@ -9,7 +9,7 @@ import {
   CashOrderPkoSubtype,
   CashOrderRkoSubtype,
   CashOrderStatus,
-  CoaTemplateProfile,
+  OrganizationKind,
   CounterpartyKind,
   CounterpartyRole,
   InvoiceStatus,
@@ -115,7 +115,7 @@ async function recreateOrganization(
         phone: config.phone,
         directorName: config.directorName,
         ownerId,
-        coaTemplateProfile: CoaTemplateProfile.COMMERCIAL_FULL,
+        kind: OrganizationKind.COMMERCIAL,
       },
     });
 
@@ -130,7 +130,7 @@ async function recreateOrganization(
     await provisionNasAccountsForOrganization(
       tx,
       organization.id,
-      CoaTemplateProfile.COMMERCIAL_FULL,
+      OrganizationKind.COMMERCIAL,
     );
     let accountableAccount = await tx.account.findFirst({
       where: {

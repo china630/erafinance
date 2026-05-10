@@ -11,8 +11,11 @@ import type { AuthUser, OrgSummary } from "../../lib/auth-context";
 import { useAuth } from "../../lib/auth-context";
 import { LanguageSwitcher } from "../language-switcher";
 import { PublicLegalFooter } from "../../components/public-legal-footer";
-
-type TemplateGroup = "COMMERCIAL" | "SMALL_BUSINESS";
+import {
+  COUNTERPARTY_LEGAL_FORMS,
+  type CounterpartyLegalForm,
+  counterpartyLegalFormI18nKey,
+} from "../../lib/counterparty-legal-form";
 
 export default function RegisterOrgPage() {
   const { t } = useTranslation();
@@ -24,7 +27,7 @@ export default function RegisterOrgPage() {
   const [adminLastName, setAdminLastName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
-  const [templateGroup, setTemplateGroup] = useState<TemplateGroup>("COMMERCIAL");
+  const [legalForm, setLegalForm] = useState<CounterpartyLegalForm>("LLC");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -54,8 +57,7 @@ export default function RegisterOrgPage() {
           adminLastName: adminLastName.trim(),
           adminEmail,
           adminPassword,
-          templateGroup,
-          coaTemplate: templateGroup === "SMALL_BUSINESS" ? "small" : "full",
+          legalForm,
         }),
       });
       if (!res.ok) {
@@ -110,55 +112,21 @@ export default function RegisterOrgPage() {
               className={FORM_INPUT_CLASS}
             />
           </label>
-          <fieldset className="grid gap-2">
-            <legend className="text-sm font-medium text-gray-700">
-              {t("auth.organizationType")}
-            </legend>
-            <label
-              className={`block rounded-lg border p-3 cursor-pointer transition ${
-                templateGroup === "COMMERCIAL"
-                  ? "border-[#2980B9] bg-[#2980B9]/10"
-                  : "border-[#D5DADF] bg-white hover:border-[#B8C0C8]"
-              }`}
+          <label className="block text-sm font-medium text-gray-700">
+            {t("counterparties.legalFormField")}
+            <select
+              required
+              value={legalForm}
+              onChange={(e) => setLegalForm(e.target.value as CounterpartyLegalForm)}
+              className={FORM_INPUT_CLASS}
             >
-              <input
-                type="radio"
-                name="organizationType"
-                value="COMMERCIAL"
-                checked={templateGroup === "COMMERCIAL"}
-                onChange={() => setTemplateGroup("COMMERCIAL")}
-                className="sr-only"
-              />
-              <p className="text-sm font-semibold text-[#34495E]">
-                {t("auth.organizationTypeCommercial")}
-              </p>
-              <p className="text-xs text-[#7F8C8D] mt-1">
-                {t("auth.organizationTypeCommercialDesc")}
-              </p>
-            </label>
-            <label
-              className={`block rounded-lg border p-3 cursor-pointer transition ${
-                templateGroup === "SMALL_BUSINESS"
-                  ? "border-[#2980B9] bg-[#2980B9]/10"
-                  : "border-[#D5DADF] bg-white hover:border-[#B8C0C8]"
-              }`}
-            >
-              <input
-                type="radio"
-                name="organizationType"
-                value="SMALL_BUSINESS"
-                checked={templateGroup === "SMALL_BUSINESS"}
-                onChange={() => setTemplateGroup("SMALL_BUSINESS")}
-                className="sr-only"
-              />
-              <p className="text-sm font-semibold text-[#34495E]">
-                {t("auth.organizationTypeSmallBusiness")}
-              </p>
-              <p className="text-xs text-[#7F8C8D] mt-1">
-                {t("auth.organizationTypeSmallBusinessDesc")}
-              </p>
-            </label>
-          </fieldset>
+              {COUNTERPARTY_LEGAL_FORMS.map((item) => (
+                <option key={item} value={item}>
+                  {t(counterpartyLegalFormI18nKey(item))}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="block text-sm font-medium text-gray-700">
             {t("auth.firstName")}
             <input

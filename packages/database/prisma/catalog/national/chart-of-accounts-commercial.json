@@ -1,0 +1,793 @@
+{
+  "meta": {
+    "kind": "COMMERCIAL",
+    "source": "docs",
+    "locale": "az+ru"
+  },
+  "accounts": [
+    {
+      "code": "100",
+      "nameAz": "Nağd vəsaitlər və pul sənədləri",
+      "nameRu": "Наличные средства и денежные документы",
+      "nameEn": "Cash and cash equivalents",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "111",
+      "nameAz": "Əsas vəsaitlər",
+      "nameRu": "Основные средства",
+      "nameEn": "Property, plant and equipment",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "131",
+      "nameAz": "Qeyri-maddi aktivlər",
+      "nameRu": "Нематериальные активы",
+      "nameEn": "Intangible assets",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "151",
+      "nameAz": "Uzunmüddətli maliyyə investisiyaları",
+      "nameRu": "Долгосрочные финансовые вложения",
+      "nameEn": "Long-term financial investments",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "200",
+      "nameAz": "Ehtiyatlar",
+      "nameRu": "Запасы",
+      "nameEn": "Inventories",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "210",
+      "nameAz": "Debitor borcu",
+      "nameRu": "Дебиторская задолженность",
+      "nameEn": "Trade and other receivables",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "220",
+      "nameAz": "Banklardakı pul vəsaitləri",
+      "nameRu": "Денежные средства на счетах в банках",
+      "nameEn": "Cash at bank",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "290",
+      "nameAz": "Digər dövri aktivlər",
+      "nameRu": "Прочие оборотные активы",
+      "nameEn": "Other current assets",
+      "type": "ASSET",
+      "parentCode": null
+    },
+    {
+      "code": "500",
+      "nameAz": "Qısamüddətli öhdəliklər",
+      "nameRu": "Краткосрочные обязательства",
+      "nameEn": "Current liabilities",
+      "type": "LIABILITY",
+      "parentCode": null
+    },
+    {
+      "code": "600",
+      "nameAz": "Adi fəaliyyətdən gəlirlər",
+      "nameRu": "Доходы от обычной деятельности",
+      "nameEn": "Operating revenue",
+      "type": "REVENUE",
+      "parentCode": null
+    },
+    {
+      "code": "700",
+      "nameAz": "Adi fəaliyyət üzrə xərclər",
+      "nameRu": "Расходы по обычной деятельности",
+      "nameEn": "Operating expenses",
+      "type": "EXPENSE",
+      "parentCode": null
+    },
+    {
+      "code": "800",
+      "nameAz": "Kapital, ehtiyatlar və maliyyə nəticəsi",
+      "nameRu": "Капитал, резервы и финансовый результат",
+      "nameEn": "Equity, reserves and financial result",
+      "type": "EQUITY",
+      "parentCode": null
+    },
+    {
+      "code": "101",
+      "nameAz": "Milli valyutada nağd pul",
+      "nameRu": "Наличные деньги в национальной валюте",
+      "nameEn": "Cash in local currency",
+      "type": "ASSET",
+      "parentCode": "100"
+    },
+    {
+      "code": "101.01",
+      "nameAz": "Kassa (əməliyyat)",
+      "nameRu": "Касса (операционная)",
+      "nameEn": "Cash desk (operating)",
+      "type": "ASSET",
+      "parentCode": "101"
+    },
+    {
+      "code": "101.02",
+      "nameAz": "Kassa (filial)",
+      "nameRu": "Касса (филиал)",
+      "nameEn": "Cash desk (branch)",
+      "type": "ASSET",
+      "parentCode": "101"
+    },
+    {
+      "code": "102",
+      "nameAz": "Xarici valyutada nağd pul",
+      "nameRu": "Наличные деньги в иностранной валюте",
+      "nameEn": "Cash in foreign currency",
+      "type": "ASSET",
+      "parentCode": "100"
+    },
+    {
+      "code": "102.01",
+      "nameAz": "Kassa (xarici valyuta)",
+      "nameRu": "Касса (иностранная валюта)",
+      "nameEn": "Cash desk (foreign currency)",
+      "type": "ASSET",
+      "parentCode": "102"
+    },
+    {
+      "code": "103",
+      "nameAz": "Pul sənədləri",
+      "nameRu": "Денежные документы",
+      "nameEn": "Monetary documents",
+      "type": "ASSET",
+      "parentCode": "100"
+    },
+    {
+      "code": "112",
+      "nameAz": "Əsas vəsaitlərin yığılmış amortizasiyası",
+      "nameRu": "Накопленная амортизация основных средств",
+      "nameEn": "Accumulated depreciation — PPE",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "113",
+      "nameAz": "Əmlaka gəlir gətirən investisiyalar",
+      "nameRu": "Доходные вложения в материальные ценности",
+      "nameEn": "Investment property",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "132",
+      "nameAz": "Qeyri-maddi aktivlərin yığılmış amortizasiyası",
+      "nameRu": "Накопленная амортизация нематериальных активов",
+      "nameEn": "Accumulated amortization — intangibles",
+      "type": "ASSET",
+      "parentCode": "131"
+    },
+    {
+      "code": "201",
+      "nameAz": "Xammal və materiallar",
+      "nameRu": "Сырьё и материалы",
+      "nameEn": "Raw materials",
+      "type": "ASSET",
+      "parentCode": "200"
+    },
+    {
+      "code": "202",
+      "nameAz": "Alınmış yarımfabrikatlar və komplektləşdirici hissələr",
+      "nameRu": "Покупные полуфабрикаты и комплектующие",
+      "nameEn": "Purchased semi-finished goods and components",
+      "type": "ASSET",
+      "parentCode": "200"
+    },
+    {
+      "code": "203",
+      "nameAz": "Yarımçıq istehsal",
+      "nameRu": "Незавершённое производство",
+      "nameEn": "Work in progress",
+      "type": "ASSET",
+      "parentCode": "200"
+    },
+    {
+      "code": "204",
+      "nameAz": "Hazır məhsul",
+      "nameRu": "Готовая продукция",
+      "nameEn": "Finished goods",
+      "type": "ASSET",
+      "parentCode": "200"
+    },
+    {
+      "code": "205",
+      "nameAz": "Mallar",
+      "nameRu": "Товары",
+      "nameEn": "Merchandise",
+      "type": "ASSET",
+      "parentCode": "200"
+    },
+    {
+      "code": "206",
+      "nameAz": "Az dəyərli və tez yeyilən predmetlər",
+      "nameRu": "Малоценные и быстроизнашивающиеся предметы",
+      "nameEn": "Low-value consumables",
+      "type": "ASSET",
+      "parentCode": "200"
+    },
+    {
+      "code": "211",
+      "nameAz": "Alıcılar və sifarişçilər üzrə debitor borcu",
+      "nameRu": "Дебиторская задолженность покупателей и заказчиков",
+      "nameEn": "Trade receivables",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "212",
+      "nameAz": "Alınmış veksellər",
+      "nameRu": "Векселя полученные",
+      "nameEn": "Notes receivable",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "213",
+      "nameAz": "Törəmə asılı təşkilatlarla hesablaşmalar",
+      "nameRu": "Задолженность дочерних и зависимых организаций",
+      "nameEn": "Due from subsidiaries and associates",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "214",
+      "nameAz": "Verilmiş avanslar",
+      "nameRu": "Авансы выданные",
+      "nameEn": "Prepayments made",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "215",
+      "nameAz": "Hesab verən şəxslərlə hesablaşmalar",
+      "nameRu": "Расчёты с подотчётными лицами",
+      "nameEn": "Accountable persons",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "291",
+      "nameAz": "Debitor borcunun dəyər itkisinə ehtiyatlar",
+      "nameRu": "Резервы под обесценение дебиторской задолженности",
+      "nameEn": "Allowance for doubtful receivables",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "221",
+      "nameAz": "Banklarda cari hesablar",
+      "nameRu": "Расчётные счета в банках",
+      "nameEn": "Bank current accounts",
+      "type": "ASSET",
+      "parentCode": "220"
+    },
+    {
+      "code": "222",
+      "nameAz": "Banklarda cari valyuta hesabları",
+      "nameRu": "Текущие валютные счета в банках",
+      "nameEn": "Foreign currency bank accounts",
+      "type": "ASSET",
+      "parentCode": "220"
+    },
+    {
+      "code": "223",
+      "nameAz": "Banklarda xüsusi hesablar",
+      "nameRu": "Специальные счета в банках",
+      "nameEn": "Special bank accounts",
+      "type": "ASSET",
+      "parentCode": "220"
+    },
+    {
+      "code": "224",
+      "nameAz": "Akkreditivlər",
+      "nameRu": "Аккредитивы",
+      "nameEn": "Letters of credit",
+      "type": "ASSET",
+      "parentCode": "220"
+    },
+    {
+      "code": "191",
+      "nameAz": "Alınmış dəyərlər üzrə ƏDV",
+      "nameRu": "НДС по приобретённым ценностям",
+      "nameEn": "Input VAT",
+      "type": "ASSET",
+      "parentCode": "290"
+    },
+    {
+      "code": "301",
+      "nameAz": "Alınmış qısamüddətli veksellər",
+      "nameRu": "Краткосрочные векселя полученные",
+      "nameEn": "Short-term notes receivable",
+      "type": "ASSET",
+      "parentCode": "290"
+    },
+    {
+      "code": "302",
+      "nameAz": "Digər qısamüddətli maliyyə investisiyaları",
+      "nameRu": "Прочие краткосрочные финансовые вложения",
+      "nameEn": "Other short-term financial investments",
+      "type": "ASSET",
+      "parentCode": "290"
+    },
+    {
+      "code": "312",
+      "nameAz": "Verilmiş avanslar üzrə ƏDV",
+      "nameRu": "НДС по авансам выданным",
+      "nameEn": "VAT on advances issued",
+      "type": "ASSET",
+      "parentCode": "290"
+    },
+    {
+      "code": "501",
+      "nameAz": "Qısamüddətli kreditlər və borclar",
+      "nameRu": "Краткосрочные займы и кредиты",
+      "nameEn": "Short-term loans and borrowings",
+      "type": "LIABILITY",
+      "parentCode": "500"
+    },
+    {
+      "code": "511",
+      "nameAz": "Qısamüddətli veksellər",
+      "nameRu": "Векселя краткосрочные",
+      "nameEn": "Short-term notes payable",
+      "type": "LIABILITY",
+      "parentCode": "500"
+    },
+    {
+      "code": "521",
+      "nameAz": "Vergi və yığımlar üzrə öhdəliklər",
+      "nameRu": "Обязательства по налогам и сборам",
+      "nameEn": "Tax payables",
+      "type": "LIABILITY",
+      "parentCode": "500"
+    },
+    {
+      "code": "522",
+      "nameAz": "Sosial sığorta üzrə öhdəliklər",
+      "nameRu": "Обязательства по социальному страхованию",
+      "nameEn": "Social insurance payables",
+      "type": "LIABILITY",
+      "parentCode": "500"
+    },
+    {
+      "code": "531",
+      "nameAz": "Təchizatçılar və podratçılar qarşısında öhdəliklər",
+      "nameRu": "Обязательства перед поставщиками и подрядчиками",
+      "nameEn": "Trade payables",
+      "type": "LIABILITY",
+      "parentCode": "500"
+    },
+    {
+      "code": "532",
+      "nameAz": "Alıcılardan alınmış avanslar",
+      "nameRu": "Авансы полученные от покупателей",
+      "nameEn": "Advances from customers",
+      "type": "LIABILITY",
+      "parentCode": "500"
+    },
+    {
+      "code": "533",
+      "nameAz": "Əmək haqqı üzrə personal qarşısında öhdəliklər",
+      "nameRu": "Обязательства перед персоналом по оплате труда",
+      "nameEn": "Payroll liabilities",
+      "type": "LIABILITY",
+      "parentCode": "500"
+    },
+    {
+      "code": "534",
+      "nameAz": "Personal qarşısında digər öhdəliklər",
+      "nameRu": "Расчёты по прочим обязательствам перед персоналом",
+      "nameEn": "Other employee-related liabilities",
+      "type": "LIABILITY",
+      "parentCode": "500"
+    },
+    {
+      "code": "541",
+      "nameAz": "İcarə üzrə öhdəliklər",
+      "nameRu": "Обязательства по аренде",
+      "nameEn": "Lease liabilities",
+      "type": "LIABILITY",
+      "parentCode": "500"
+    },
+    {
+      "code": "551",
+      "nameAz": "Büdcəyə digər məcburi ödənişlər üzrə hesablaşmalar",
+      "nameRu": "Расчёты с бюджетом по прочим обязательным платежам",
+      "nameEn": "Other statutory payables to budget",
+      "type": "LIABILITY",
+      "parentCode": "500"
+    },
+    {
+      "code": "561",
+      "nameAz": "Digər qısamüddətli öhdəliklər",
+      "nameRu": "Прочие краткосрочные обязательства",
+      "nameEn": "Other current liabilities",
+      "type": "LIABILITY",
+      "parentCode": "500"
+    },
+    {
+      "code": "601",
+      "nameAz": "Məhsul, mal, iş və xidmət satışından gəlir",
+      "nameRu": "Доход от реализации продукции, товаров, работ и услуг",
+      "nameEn": "Revenue from sale of goods and services",
+      "type": "REVENUE",
+      "parentCode": "600"
+    },
+    {
+      "code": "602",
+      "nameAz": "Digər əməliyyat gəlirləri",
+      "nameRu": "Прочие операционные доходы",
+      "nameEn": "Other operating income",
+      "type": "REVENUE",
+      "parentCode": "600"
+    },
+    {
+      "code": "631",
+      "nameAz": "İnventarizasiya artıqlığı və sair əməliyyat gəlirləri",
+      "nameRu": "Прочие операционные доходы (излишки инвентаризации и др.)",
+      "nameEn": "Other operating income (inventory surpluses, etc.)",
+      "type": "REVENUE",
+      "parentCode": "600"
+    },
+    {
+      "code": "603",
+      "nameAz": "Digər təşkilatlarda iştirakdan gəlirlər",
+      "nameRu": "Доходы от участия в других организациях",
+      "nameEn": "Income from investments in other entities",
+      "type": "REVENUE",
+      "parentCode": "600"
+    },
+    {
+      "code": "604",
+      "nameAz": "Ehtiyatların bərpası və digər əməliyyat gəlirləri",
+      "nameRu": "Восстановление резервов и прочие операционные доходы",
+      "nameEn": "Reversal of provisions and other operating income",
+      "type": "REVENUE",
+      "parentCode": "600"
+    },
+    {
+      "code": "662",
+      "nameAz": "Digər gəlirlər (o cümlədən məzənnə fərqləri)",
+      "nameRu": "Прочие доходы (в т.ч. курсовые разницы)",
+      "nameEn": "Other income (incl. FX differences)",
+      "type": "REVENUE",
+      "parentCode": "600"
+    },
+    {
+      "code": "701",
+      "nameAz": "Satılan malların, məhsulun, iş və xidmətlərin maya dəyəri",
+      "nameRu": "Себестоимость реализованных товаров, продукции, работ, услуг",
+      "nameEn": "Cost of sales",
+      "type": "EXPENSE",
+      "parentCode": "700"
+    },
+    {
+      "code": "711",
+      "nameAz": "Kommersiya xərcləri",
+      "nameRu": "Коммерческие расходы",
+      "nameEn": "Selling expenses",
+      "type": "EXPENSE",
+      "parentCode": "700"
+    },
+    {
+      "code": "721",
+      "nameAz": "İdarəetmə xərcləri",
+      "nameRu": "Административные расходы",
+      "nameEn": "Administrative expenses",
+      "type": "EXPENSE",
+      "parentCode": "700"
+    },
+    {
+      "code": "731",
+      "nameAz": "Digər əməliyyat xərcləri",
+      "nameRu": "Прочие операционные расходы",
+      "nameEn": "Other operating expenses",
+      "type": "EXPENSE",
+      "parentCode": "700"
+    },
+    {
+      "code": "741",
+      "nameAz": "Maliyyə fəaliyyəti xərcləri",
+      "nameRu": "Расходы по финансовой деятельности",
+      "nameEn": "Finance costs",
+      "type": "EXPENSE",
+      "parentCode": "700"
+    },
+    {
+      "code": "751",
+      "nameAz": "Mənfəət vergisı xərcləri",
+      "nameRu": "Расходы по налогу на прибыль",
+      "nameEn": "Income tax expense",
+      "type": "EXPENSE",
+      "parentCode": "700"
+    },
+    {
+      "code": "704",
+      "nameAz": "Ümumi təsərrüfat xərcləri (detallaşdırma)",
+      "nameRu": "Общехозяйственные расходы (детализация)",
+      "nameEn": "General overhead (detail)",
+      "type": "EXPENSE",
+      "parentCode": "700"
+    },
+    {
+      "code": "705",
+      "nameAz": "Satış xərcləri",
+      "nameRu": "Расходы на продажу",
+      "nameEn": "Distribution costs",
+      "type": "EXPENSE",
+      "parentCode": "700"
+    },
+    {
+      "code": "562",
+      "nameAz": "Digər xərclər (o cümlədən məzənnə fərqləri)",
+      "nameRu": "Прочие расходы (в т.ч. курсовые разницы)",
+      "nameEn": "Other expenses (incl. FX differences)",
+      "type": "EXPENSE",
+      "parentCode": "700"
+    },
+    {
+      "code": "801",
+      "nameAz": "Hesabat dövrünün maliyyə nəticəsi (mənfəət/zərər)",
+      "nameRu": "Финансовый результат отчётного периода (прибыль/убыток)",
+      "nameEn": "Profit or loss for the period",
+      "type": "EQUITY",
+      "parentCode": "800"
+    },
+    {
+      "code": "802",
+      "nameAz": "Əvvəlki illərin bölüşdürülməmiş mənfəəti",
+      "nameRu": "Нераспределённая прибыль (непокрытый убыток) прошлых лет",
+      "nameEn": "Retained earnings / accumulated losses",
+      "type": "EQUITY",
+      "parentCode": "800"
+    },
+    {
+      "code": "811",
+      "nameAz": "Ehtiyat kapitalı",
+      "nameRu": "Резервный капитал",
+      "nameEn": "Reserve capital",
+      "type": "EQUITY",
+      "parentCode": "800"
+    },
+    {
+      "code": "821",
+      "nameAz": "Nizamnamə kapitalı",
+      "nameRu": "Уставный капитал",
+      "nameEn": "Share capital",
+      "type": "EQUITY",
+      "parentCode": "800"
+    },
+    {
+      "code": "121",
+      "nameAz": "İnvestisiya mülkiyyətinin dəyəri",
+      "nameRu": "Стоимость инвестиционной недвижимости",
+      "nameEn": "Investment property — cost",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "122",
+      "nameAz": "İnvestisiya mülkiyyəti üzrə yığılmış amortizasiya",
+      "nameRu": "Накопленная амортизация инвестиционной недвижимости",
+      "nameEn": "Investment property — accumulated depreciation",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "123",
+      "nameAz": "İnvestisiya mülkiyyəti ilə bağlı kapitallaşdırılmış xərclər",
+      "nameRu": "Капитализированные затраты по инвестиционной недвижимости",
+      "nameEn": "Investment property — capitalized costs",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "141",
+      "nameAz": "Təbii ehtiyatların (sərvətlərin) dəyəri",
+      "nameRu": "Стоимость природных ресурсов",
+      "nameEn": "Natural resources — carrying amount",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "142",
+      "nameAz": "Təbii ehtiyatların tükənməsi",
+      "nameRu": "Истощение природных ресурсов",
+      "nameEn": "Natural resources — depletion",
+      "type": "ASSET",
+      "parentCode": "111"
+    },
+    {
+      "code": "152",
+      "nameAz": "Birgə müəssisələrə investisiyalar",
+      "nameRu": "Инвестиции в совместные предприятия",
+      "nameEn": "Investments in joint ventures",
+      "type": "ASSET",
+      "parentCode": "151"
+    },
+    {
+      "code": "153",
+      "nameAz": "Asılı müəssisələrə investisiyaların dəyərinin azalması üzrə düzəlişlər",
+      "nameRu": "Корректировки по снижению стоимости инвестиций в зависимые организации",
+      "nameEn": "Impairment adjustments — investments in associates",
+      "type": "ASSET",
+      "parentCode": "151"
+    },
+    {
+      "code": "161",
+      "nameAz": "Mənfəət vergisi üzrə təxirə salınmış vergi aktivləri",
+      "nameRu": "Отложенные налоговые активы по налогу на прибыль",
+      "nameEn": "Deferred tax assets — income tax",
+      "type": "ASSET",
+      "parentCode": "290"
+    },
+    {
+      "code": "162",
+      "nameAz": "Digər təxirə salınmış vergi aktivləri",
+      "nameRu": "Прочие отложенные налоговые активы",
+      "nameEn": "Other deferred tax assets",
+      "type": "ASSET",
+      "parentCode": "290"
+    },
+    {
+      "code": "171",
+      "nameAz": "Alıcıların və sifarişçilərin uzunmüddətli debitor borcu",
+      "nameRu": "Долгосрочная дебиторская задолженность покупателей",
+      "nameEn": "Long-term trade receivables",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "172",
+      "nameAz": "Törəmə müəssisələrin uzunmüddətli debitor borcu",
+      "nameRu": "Долгосрочная дебиторская задолженность зависимых организаций",
+      "nameEn": "Long-term receivables — subsidiaries",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "173",
+      "nameAz": "Əsas idarəetmə heyətinin uzunmüddətli debitor borcu",
+      "nameRu": "Долгосрочная дебиторская задолженность ключевого руководства",
+      "nameEn": "Long-term receivables — key management",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "174",
+      "nameAz": "İcarə üzrə uzunmüddətli debitor borcu",
+      "nameRu": "Долгосрочная дебиторская задолженность по аренде",
+      "nameEn": "Long-term lease receivables",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "175",
+      "nameAz": "Tikinti müqavilələri üzrə uzunmüddətli debitor borcu",
+      "nameRu": "Долгосрочная дебиторская задолженность по строительным контрактам",
+      "nameEn": "Long-term contract receivables",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "176",
+      "nameAz": "Faizlər üzrə uzunmüddətli debitor borcu",
+      "nameRu": "Долгосрочная дебиторская задолженность по процентам",
+      "nameEn": "Long-term interest receivables",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "177",
+      "nameAz": "Digər uzunmüddətli debitor borcları",
+      "nameRu": "Прочая долгосрочная дебиторская задолженность",
+      "nameEn": "Other long-term receivables",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "181",
+      "nameAz": "Ödənişə qədər saxlanılan uzunmüddətli investisiyalar",
+      "nameRu": "Долгосрочные инвестиции, удерживаемые до погашения",
+      "nameEn": "Long-term investments held to maturity",
+      "type": "ASSET",
+      "parentCode": "290"
+    },
+    {
+      "code": "182",
+      "nameAz": "Verilmiş uzunmüddətli borclar",
+      "nameRu": "Выданные долгосрочные займы",
+      "nameEn": "Long-term loans granted",
+      "type": "ASSET",
+      "parentCode": "290"
+    },
+    {
+      "code": "183",
+      "nameAz": "Digər uzunmüddətli investisiyalar",
+      "nameRu": "Прочие долгосрочные инвестиции",
+      "nameEn": "Other long-term investments",
+      "type": "ASSET",
+      "parentCode": "290"
+    },
+    {
+      "code": "184",
+      "nameAz": "Sair uzunmüddətli maliyyə aktivlərinin dəyərinin azalması üzrə düzəlişlər",
+      "nameRu": "Корректировки по снижению стоимости прочих долгосрочных финансовых активов",
+      "nameEn": "Impairment — other long-term financial assets",
+      "type": "ASSET",
+      "parentCode": "290"
+    },
+    {
+      "code": "192",
+      "nameAz": "Verilmiş uzunmüddətli avanslar",
+      "nameRu": "Выданные долгосрочные авансы",
+      "nameEn": "Long-term advances paid",
+      "type": "ASSET",
+      "parentCode": "151"
+    },
+    {
+      "code": "193",
+      "nameAz": "Digər uzunmüddətli aktivlər",
+      "nameRu": "Прочие долгосрочные активы",
+      "nameEn": "Other long-term assets",
+      "type": "ASSET",
+      "parentCode": "290"
+    },
+    {
+      "code": "207",
+      "nameAz": "Digər ehtiyatlar",
+      "nameRu": "Прочие запасы",
+      "nameEn": "Other inventories",
+      "type": "ASSET",
+      "parentCode": "200"
+    },
+    {
+      "code": "208",
+      "nameAz": "Ehtiyatların dəyərinin azalması üzrə düzəlişlər",
+      "nameRu": "Корректировки на снижение стоимости запасов",
+      "nameEn": "Inventory write-down reserve",
+      "type": "ASSET",
+      "parentCode": "200"
+    },
+    {
+      "code": "216",
+      "nameAz": "Faizlər üzrə qısamüddətli debitor borcu",
+      "nameRu": "Краткосрочная дебиторская задолженность по процентам",
+      "nameEn": "Short-term interest receivables",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "217",
+      "nameAz": "Digər qısamüddətli debitor borcları",
+      "nameRu": "Прочая краткосрочная дебиторская задолженность",
+      "nameEn": "Other short-term receivables",
+      "type": "ASSET",
+      "parentCode": "210"
+    },
+    {
+      "code": "218",
+      "nameAz": "Şübhəli borclar üzrə düzəlişlər",
+      "nameRu": "Корректировки по сомнительной задолженности",
+      "nameEn": "Allowance / doubtful debt adjustments",
+      "type": "ASSET",
+      "parentCode": "210"
+    }
+  ]
+}

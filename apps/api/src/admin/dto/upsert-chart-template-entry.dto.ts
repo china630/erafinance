@@ -8,12 +8,12 @@ import {
   MaxLength,
   MinLength,
 } from "class-validator";
-import { AccountType, TemplateGroup } from "@dayday/database";
+import { AccountType, OrganizationKind } from "@dayday/database";
 
 export class UpsertChartTemplateEntryDto {
   @IsOptional()
-  @IsEnum(TemplateGroup)
-  templateGroup?: TemplateGroup;
+  @IsEnum(OrganizationKind)
+  kind?: OrganizationKind;
 
   @IsString()
   @MinLength(1)

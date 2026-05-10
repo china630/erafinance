@@ -50,6 +50,7 @@ alwaysApply: false
 | Регламентированные отчёты (`reports`) | `reports/` | `reports/` | баланс, ДДС и т.д. |
 | Налоговый экспорт (`tax`) | `tax/` | `reporting/tax-export/` | |
 | Доступ и роли (`access`) | `access/` | `settings/team/` | ACL, без отдельного раздела «access» на web |
+| Ранний доступ / painted door (`early-access`) | `early-access/` | сайдбар «Отраслевые решения», модалка; Super-Admin → waitlist | Валидация спроса по вертикалям (PRD §5.0.1); не entitlement |
 | Подписка и квоты (`subscription`, `quota`) | `subscription/` + `quota/` | `settings/subscription/`, `admin/billing/` | |
 | **DayDay Assistant** (browser extension RPA) | — | — | `apps/extension/` (WXT, MV3); Magic Auth + коннекторы порталов (`apps/extension/src/connectors/emas/**`, `apps/extension/src/connectors/etaxes/**`, `apps/extension/src/connectors/customs/**`); см. **TZ §13.6**, **TZ §20** |
 
@@ -76,6 +77,7 @@ alwaysApply: false
 
 - **Схема и миграции:** `packages/database/prisma/` (`schema.prisma`, `migrations/`, скрипты `prisma/*.ts`).
 - При задаче «и БД» добавляй в контекст **`@packages/database/prisma`** или конкретный файл.
+- **AZ customs tariff pipeline:** `packages/database/scripts/parse-az-customs-act-md.mjs` (Markdown акт → JSON), `packages/database/scripts/import-customs-tariff-from-json.ts` (JSON → `customs_tariff_rates`), шаблон CSV `packages/database/data/customs-tariff-import.template.csv`, маппинг кодов ЕИ закона → продукт `packages/database/data/customs-law-uom-mapping.json`. Предрасчёт в API — `apps/api/src/customs/customs-tariff-rates.service.ts`, Super-admin UI — `apps/web/app/super-admin/data/customs-tariffs/page.tsx`.
 
 ## Web-разделы без одноимённой папки в `apps/api/src`
 

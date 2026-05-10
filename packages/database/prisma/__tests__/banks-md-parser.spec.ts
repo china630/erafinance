@@ -7,7 +7,7 @@ import {
   normalizeSwift,
   normalizeAddress,
   parseBanksMd,
-} from "../banks-md-parser";
+} from "../lib/bank/banks-md-parser";
 
 describe("normalizeBankName", () => {
   it.each<[string, string]>([

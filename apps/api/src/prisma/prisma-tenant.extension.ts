@@ -95,7 +95,7 @@ export const prismaTenantExtension = Prisma.defineExtension({
         }
 
         const a = (args ?? {}) as Record<string, unknown>;
-        const q = query as (x: unknown) => ReturnType<typeof query>;
+        const q = query as (x: unknown) => Promise<unknown>;
 
         switch (operation) {
           case "findMany":

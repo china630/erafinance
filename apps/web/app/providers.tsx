@@ -10,6 +10,7 @@ import { LedgerProvider } from "../lib/ledger-context";
 import { SubscriptionProvider } from "../lib/subscription-context";
 import { Toaster } from "sonner";
 import { UpgradePlanModalHost } from "../components/upgrade-required-modal";
+import { EarlyAccessProvider } from "../components/early-access/early-access-context";
 import { I18nOverridesLoader } from "../components/i18n-overrides-loader";
 import { ApiErrorToaster } from "../components/api-error-toaster";
 import { NetworkErrorToaster } from "../components/network-error-toaster";
@@ -67,6 +68,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <I18nOverridesLoader />
       <AuthProvider>
         <SubscriptionProvider>
+          <EarlyAccessProvider>
           <UpgradePlanModalHost />
           <ApiErrorToaster />
           <NetworkErrorToaster />
@@ -74,6 +76,7 @@ export function Providers({ children }: { children: ReactNode }) {
           <LedgerPeriodLockProvider>
             <LedgerProvider>{children}</LedgerProvider>
           </LedgerPeriodLockProvider>
+          </EarlyAccessProvider>
         </SubscriptionProvider>
       </AuthProvider>
     </I18nextProvider>

@@ -23,6 +23,13 @@ export type ProductRow = {
   isService?: boolean;
 };
 
+type UnitOfMeasureRow = {
+  code: string;
+  nameAz: string;
+  nameRu: string;
+  nameEn: string;
+};
+
 type ProductComboboxProps = {
   value: string;
   onChange: (id: string, item: ProductRow | null) => void;
@@ -52,14 +59,29 @@ export function ProductCombobox({
   const dialogTitleId = useId();
   const [quickOpen, setQuickOpen] = useState(false);
   const [qcName, setQcName] = useState("");
-  const [qcUnit, setQcUnit] = useState("");
+  const [qcUnitCode, setQcUnitCode] = useState("");
+  const [uoms, setUoms] = useState<UnitOfMeasureRow[]>([]);
   const [qcBusy, setQcBusy] = useState(false);
 
   useEffect(() => {
     if (!quickOpen) return;
     setQcName("");
-    setQcUnit("");
+    setQcUnitCode("");
     setQcBusy(false);
+  }, [quickOpen]);
+
+  useEffect(() => {
+    if (!quickOpen) return;
+    let alive = true;
+    (async () => {
+      const res = await apiFetch("/api/system/units-of-measure");
+      if (!res.ok) return;
+      const rows = (await res.json()) as UnitOfMeasureRow[];
+      if (alive) setUoms(Array.isArray(rows) ? rows : []);
+    })();
+    return () => {
+      alive = false;
+    };
   }, [quickOpen]);
 
   const fetchProducts = useCallback(
@@ -97,7 +119,7 @@ export function ProductCombobox({
       body: JSON.stringify({
         name,
         sku,
-        unitOfMeasure: qcUnit.trim() || undefined,
+        unitOfMeasureCode: qcUnitCode || undefined,
         price: 0,
         vatRate: 18,
         isService,
@@ -180,12 +202,18 @@ export function ProductCombobox({
                   </label>
                   <label className="block">
                     <span className={MODAL_FIELD_LABEL_CLASS}>{t("ui.productQuickCreateUnit")}</span>
-                    <input
-                      value={qcUnit}
-                      onChange={(e) => setQcUnit(e.target.value)}
+                    <select
+                      value={qcUnitCode}
+                      onChange={(e) => setQcUnitCode(e.target.value)}
                       className={MODAL_INPUT_CLASS}
-                      placeholder={t("ui.productQuickCreateUnitPh")}
-                    />
+                    >
+                      <option value="">{t("ui.productQuickCreateUnitPh")}</option>
+                      {uoms.map((u) => (
+                        <option key={u.code} value={u.code}>
+                          {u.nameRu} ({u.code})
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
                 <div className="mt-6 flex justify-end gap-2">

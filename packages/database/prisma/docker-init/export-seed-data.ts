@@ -65,7 +65,7 @@ async function buildSql(): Promise<string> {
 -- users не экспортируются (см. комментарий в export-seed-data.ts), кроме DOCKER_INIT_EXPORT_USERS=1.
 -- Односегментные ключи i18n вне белого списка не попадают в дамп.
 --
--- План счетов: шаблон seeds/chart-of-accounts-az.json; TaxConfig в схеме нет.
+-- План счетов: шаблон prisma/catalog/national/chart-of-accounts.json; TaxConfig в схеме нет.
 --
 BEGIN;
 `);
@@ -87,19 +87,20 @@ BEGIN;
   }
   if (tr.length > 0) {
     parts.push(
-      `INSERT INTO "translation_overrides" ("id", "locale", "key", "value", "updated_at")\nVALUES\n`,
+      `INSERT INTO "translation_overrides" ("id", "locale", "key", "value", "is_active", "updated_at")\nVALUES\n`,
     );
     parts.push(
       tr
         .map(
           (r) =>
-            `  ('${r.id}'::uuid, '${escLiteral(r.locale)}', '${escLiteral(r.key)}', '${escLiteral(r.value)}', '${ts(r.updatedAt)}'::timestamptz)`,
+            `  ('${r.id}'::uuid, '${escLiteral(r.locale)}', '${escLiteral(r.key)}', '${escLiteral(r.value)}', ${r.isActive !== false}, '${ts(r.updatedAt)}'::timestamptz)`,
         )
         .join(",\n"),
     );
     parts.push(`
 ON CONFLICT ("locale", "key") DO UPDATE SET
   "value" = EXCLUDED."value",
+  "is_active" = EXCLUDED."is_active",
   "updated_at" = EXCLUDED."updated_at";
 `);
   } else {

@@ -9,16 +9,10 @@ import {
   Matches,
   MaxLength,
 } from "class-validator";
-
-const CURRENCIES = ["AZN", "USD", "EUR", "RUB", "TRY"] as const;
-const ACCOUNT_TYPES = [
-  "MAIN",
-  "SALARY",
-  "CARD",
-  "TENDER",
-  "CREDIT",
-  "VAT_DEPOSIT",
-] as const;
+import {
+  ORGANIZATION_BANK_ACCOUNT_CURRENCIES,
+  ORGANIZATION_BANK_ACCOUNT_TYPES,
+} from "@dayday/api-contracts";
 
 export class CreateOrganizationBankAccountDto {
   @ApiProperty({ example: "AZ41NABZ01350100000000001944" })
@@ -38,12 +32,12 @@ export class CreateOrganizationBankAccountDto {
   @MaxLength(32)
   swift?: string | null;
 
-  @ApiPropertyOptional({ enum: CURRENCIES, default: "AZN" })
+  @ApiPropertyOptional({ enum: ORGANIZATION_BANK_ACCOUNT_CURRENCIES, default: "AZN" })
   @IsOptional()
   @IsString()
-  @IsIn(CURRENCIES)
+  @IsIn(ORGANIZATION_BANK_ACCOUNT_CURRENCIES)
   @Transform(({ value }) => String(value ?? "AZN").toUpperCase())
-  currency?: (typeof CURRENCIES)[number];
+  currency?: (typeof ORGANIZATION_BANK_ACCOUNT_CURRENCIES)[number];
 
   /**
    * Bank branch from system glossary (`BankBranch.id`).
@@ -67,11 +61,11 @@ export class CreateOrganizationBankAccountDto {
   @Matches(/^(221|222|223|224|225)(\.\d{2}){0,4}$/)
   ledgerAccountCode?: string;
 
-  @ApiPropertyOptional({ enum: ACCOUNT_TYPES, default: "MAIN" })
+  @ApiPropertyOptional({ enum: ORGANIZATION_BANK_ACCOUNT_TYPES, default: "MAIN" })
   @IsOptional()
   @IsString()
-  @IsIn(ACCOUNT_TYPES)
-  accountType?: (typeof ACCOUNT_TYPES)[number];
+  @IsIn(ORGANIZATION_BANK_ACCOUNT_TYPES)
+  accountType?: (typeof ORGANIZATION_BANK_ACCOUNT_TYPES)[number];
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()

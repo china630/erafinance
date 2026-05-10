@@ -12,7 +12,12 @@ import { Public } from "../auth/decorators/public.decorator";
 import { PaymentWebhookDto } from "./dto/payment-webhook.dto";
 import { PaymentProviderService } from "./payment-provider.service";
 
-const SUPPORTED_PROVIDERS = new Set(["mock", "pasha", "pasha_bank"]);
+const SUPPORTED_PROVIDERS = new Set([
+  "mock",
+  "pasha",
+  "pasha_bank",
+  "drakaris",
+]);
 
 @ApiTags("billing-webhooks")
 @Public()
@@ -29,12 +34,17 @@ export class BillingWebhooksController {
   })
   async receive(
     @Param("provider") provider: string,
-    @Body() body: PaymentWebhookDto,
+    @Body() body: PaymentWebhookDto | Record<string, unknown>,
   ) {
     const p = provider.trim().toLowerCase();
     if (!SUPPORTED_PROVIDERS.has(p)) {
       throw new BadRequestException("Unknown payment provider");
     }
-    return this.payment.handleWebhook(body);
+    if (p === "drakaris") {
+      return this.payment.handleDrakarisWebhook(
+        body as Record<string, unknown>,
+      );
+    }
+    return this.payment.handleWebhook(body as PaymentWebhookDto);
   }
 }

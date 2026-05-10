@@ -13,6 +13,6 @@ export type CreatePaymentSessionParams = {
 export type CreatePaymentSessionResult = {
   paymentUrl: string;
   externalId?: string;
-  /** mock — внутренняя симуляция; pasha_bank — ответ шлюза */
-  providerMode: "mock" | "pasha_bank";
+  /** mock — внутренняя симуляция; pasha_bank — ответ шлюза; drakaris — yığım */
+  providerMode: "mock" | "pasha_bank" | "drakaris";
 };
