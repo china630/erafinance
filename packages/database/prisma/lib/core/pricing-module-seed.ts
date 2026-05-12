@@ -22,6 +22,7 @@ export const PRICING_MODULE_SEED_DEFAULTS: ReadonlyArray<PricingModuleSeedRow> =
   { key: "manufacturing", name: "Manufacturing", pricePerMonth: 9, sortOrder: 5 },
   { key: "hr_full", name: "HR", pricePerMonth: 19, sortOrder: 6 },
   { key: "ifrs_mapping", name: "IFRS", pricePerMonth: 9, sortOrder: 7 },
+  { key: "audit_hub", name: "Audit Hub", pricePerMonth: 29, sortOrder: 8 },
 ];
 
 /**

@@ -133,6 +133,9 @@ model Organization {
   manufacturingReleases        ManufacturingRelease[]
   earlyAccessEvents            EarlyAccessEvent[]
   earlyAccessSignups           EarlyAccessSignup[]
+  auditSamples                 AuditSample[]
+  auditEngagements             AuditEngagement[]
+  auditEngagementInvitesTargets AuditEngagementInvite[] @relation("OrgAuditEngagementInvites")
 
   @@index([ownerId])
   @@index([holdingId, id])
@@ -1334,6 +1337,10 @@ model User {
   approvalStepsDecided            ApprovalStep[]           @relation("ApprovalStepApprover")
   earlyAccessEvents               EarlyAccessEvent[]
   earlyAccessSignups              EarlyAccessSignup[]
+  auditSamplesCreated             AuditSample[]              @relation("AuditSampleAuthor")
+  auditEngagementsCreated         AuditEngagement[]          @relation("AuditEngagementCreator")
+  auditEngagementInvitesSent      AuditEngagementInvite[]    @relation("AuditEngagementInviteInviter")
+  auditEngagementInvitesAccepted  AuditEngagementInvite[]    @relation("AuditEngagementInviteAcceptor")
 
   @@index([defaultWarehouseId])
   @@map("users")
@@ -1438,6 +1445,12 @@ model EarlyAccessThresholdAlert {
   @@map("early_access_threshold_alerts")
 }
 
+/// Comment classification: normal discussion vs auditor-only audit trail notes.
+enum EntityCommentKind {
+  NORMAL
+  AUDIT_NOTE
+}
+
 /// System timeline row (mutation-derived or domain events); not a substitute for `AuditLog`.
 model EntityActivity {
   id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
@@ -1463,6 +1476,7 @@ model EntityComment {
   entityId         String                  @map("entity_id") @db.Uuid
   authorUserId     String                  @map("author_user_id") @db.Uuid
   body             String                  @db.Text
+  kind             EntityCommentKind       @default(NORMAL) @map("kind")
   deletedAt        DateTime?               @map("deleted_at") @db.Timestamptz(6)
   deletedByUserId  String?                 @map("deleted_by_user_id") @db.Uuid
   deletedReason    String?                 @map("deleted_reason")
@@ -1473,7 +1487,83 @@ model EntityComment {
   mentions         EntityCommentMention[]
 
   @@index([organizationId, entityType, entityId, createdAt(sort: Desc)])
+  @@index([organizationId, kind, createdAt(sort: Desc)])
   @@map("entity_comments")
+}
+
+/// Saved audit sampling run (reproducible via seed + params).
+model AuditSample {
+  id              String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  createdByUserId String       @map("created_by_user_id") @db.Uuid
+  scope           String       @db.VarChar(64)
+  mode            String       @db.VarChar(32)
+  params          Json         @default("{}")
+  documentRefs    Json         @default("[]") @map("document_refs")
+  seed            String       @db.VarChar(128)
+  createdAt       DateTime     @default(now()) @map("created_at")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy       User         @relation("AuditSampleAuthor", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@map("audit_samples")
+}
+
+/// Named internal audit review (single tenant).
+enum AuditEngagementStatus {
+  OPEN
+  CLOSED
+}
+
+model AuditEngagement {
+  id               String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId   String                 @map("organization_id") @db.Uuid
+  title            String                 @db.VarChar(200)
+  periodFrom       DateTime?              @map("period_from") @db.Date
+  periodTo         DateTime?              @map("period_to") @db.Date
+  status           AuditEngagementStatus  @default(OPEN)
+  createdByUserId  String                 @map("created_by_user_id") @db.Uuid
+  sampleIds        Json                   @default("[]") @map("sample_ids")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy        User                   @relation("AuditEngagementCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@map("audit_engagements")
+}
+
+/// Cross-org guest auditor invitation (Phase 3).
+enum AuditEngagementInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  REVOKED
+  EXPIRED
+}
+
+model AuditEngagementInvite {
+  id                   String                       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  targetOrganizationId String                       @map("target_organization_id") @db.Uuid
+  inviterUserId        String                       @map("inviter_user_id") @db.Uuid
+  inviteeUserId        String?                      @map("invitee_user_id") @db.Uuid
+  inviteeEmail         String?                      @map("invitee_email") @db.VarChar(320)
+  tokenHash            String                       @unique @map("token_hash") @db.Text
+  status               AuditEngagementInviteStatus  @default(PENDING)
+  expiresAt            DateTime                     @map("expires_at") @db.Timestamptz(6)
+  revokedAt            DateTime?                    @map("revoked_at") @db.Timestamptz(6)
+  acceptedAt           DateTime?                    @map("accepted_at") @db.Timestamptz(6)
+  /// JSON: { "auditHubRead": bool, "auditNotesWrite": bool, "auditBulkExport": bool }
+  permissions          Json                         @default("{\"auditHubRead\":true,\"auditNotesWrite\":true,\"auditBulkExport\":false}")
+  createdAt            DateTime                     @default(now()) @map("created_at")
+  targetOrganization   Organization                 @relation("OrgAuditEngagementInvites", fields: [targetOrganizationId], references: [id], onDelete: Cascade)
+  inviter              User                         @relation("AuditEngagementInviteInviter", fields: [inviterUserId], references: [id], onDelete: Cascade)
+  invitee              User?                        @relation("AuditEngagementInviteAcceptor", fields: [inviteeUserId], references: [id], onDelete: SetNull)
+
+  @@index([targetOrganizationId, status])
+  @@index([inviteeUserId, status])
+  @@map("audit_engagement_invites")
 }
 
 model EntityCommentMention {
