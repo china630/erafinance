@@ -4,7 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { NotificationSeverity } from "@dayday/database";
+import {
+  EntityCommentKind,
+  NotificationSeverity,
+  UserRole,
+} from "@dayday/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { NotificationService } from "../notifications/notification.service";
 import type { ActivityEntitySlug } from "./activity-stream.constants";
@@ -134,6 +138,7 @@ export class ActivityStreamService {
           kind: "comment";
           id: string;
           body: string;
+          commentKind: EntityCommentKind;
           authorUserId: string;
           authorEmail: string | null;
           createdAt: string;
@@ -176,6 +181,7 @@ export class ActivityStreamService {
         select: {
           id: true,
           body: true,
+          kind: true,
           authorUserId: true,
           createdAt: true,
           updatedAt: true,
@@ -198,6 +204,7 @@ export class ActivityStreamService {
           kind: "comment";
           id: string;
           body: string;
+          commentKind: EntityCommentKind;
           authorUserId: string;
           authorEmail: string | null;
           createdAt: string;
@@ -221,6 +228,7 @@ export class ActivityStreamService {
         kind: "comment",
         id: c.id,
         body: c.body,
+        commentKind: c.kind,
         authorUserId: c.authorUserId,
         authorEmail: c.authorUser.email,
         createdAt: c.createdAt.toISOString(),
@@ -246,6 +254,8 @@ export class ActivityStreamService {
     entityTypeParam: string,
     entityId: string,
     dto: CreateEntityCommentDto,
+    authorRole: UserRole,
+    allowEngagementAuditNote?: boolean,
   ): Promise<{ id: string }> {
     if (!isActivityEntitySlug(entityTypeParam)) {
       throw new BadRequestException({ code: "ACTIVITY_INVALID_ENTITY_TYPE" });
@@ -257,6 +267,23 @@ export class ActivityStreamService {
     }
 
     const emails = extractMentionEmails(dto.body);
+    let kind: EntityCommentKind;
+    if (authorRole === UserRole.AUDITOR) {
+      kind = EntityCommentKind.AUDIT_NOTE;
+    } else if (
+      allowEngagementAuditNote &&
+      dto.kind === EntityCommentKind.AUDIT_NOTE
+    ) {
+      kind = EntityCommentKind.AUDIT_NOTE;
+    } else if (dto.kind === EntityCommentKind.AUDIT_NOTE) {
+      throw new ForbiddenException({
+        code: "AUDIT_NOTE_FORBIDDEN",
+        message: "Only users with AUDITOR role may create audit notes.",
+      });
+    } else {
+      kind = EntityCommentKind.NORMAL;
+    }
+
     const mentionedUsers =
       emails.length === 0
         ? []
@@ -277,6 +304,7 @@ export class ActivityStreamService {
           entityId,
           authorUserId,
           body: dto.body.trim(),
+          kind,
         },
       });
       const uniq = new Map<string, string>();
@@ -317,6 +345,7 @@ export class ActivityStreamService {
     commentId: string,
     editorUserId: string,
     dto: UpdateEntityCommentDto,
+    editorRole: UserRole,
   ): Promise<void> {
     const row = await this.prisma.entityComment.findFirst({
       where: { id: commentId, organizationId, deletedAt: null },
@@ -326,6 +355,15 @@ export class ActivityStreamService {
     }
     if (row.authorUserId !== editorUserId) {
       throw new ForbiddenException();
+    }
+    if (
+      editorRole === UserRole.AUDITOR &&
+      row.kind !== EntityCommentKind.AUDIT_NOTE
+    ) {
+      throw new ForbiddenException({
+        code: "AUDITOR_COMMENT_KIND",
+        message: "AUDITOR may only edit audit notes.",
+      });
     }
     await this.prisma.entityComment.update({
       where: { id: commentId },
@@ -338,6 +376,7 @@ export class ActivityStreamService {
     commentId: string,
     editorUserId: string,
     reason?: string | null,
+    editorRole?: UserRole,
   ): Promise<void> {
     const row = await this.prisma.entityComment.findFirst({
       where: { id: commentId, organizationId, deletedAt: null },
@@ -347,6 +386,15 @@ export class ActivityStreamService {
     }
     if (row.authorUserId !== editorUserId) {
       throw new ForbiddenException();
+    }
+    if (
+      editorRole === UserRole.AUDITOR &&
+      row.kind !== EntityCommentKind.AUDIT_NOTE
+    ) {
+      throw new ForbiddenException({
+        code: "AUDITOR_COMMENT_KIND",
+        message: "AUDITOR may only delete audit notes.",
+      });
     }
     await this.prisma.entityComment.update({
       where: { id: commentId },

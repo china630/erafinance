@@ -316,6 +316,13 @@ At **data model and UX** level, sales and purchase documents must carry an expli
 - **PII / секреты в интеграциях (M8):** перед записью в `AuditLog` и в серверных логах банковских адаптеров сырые JSON-пейлоады проходят **рекурсивное маскирование** по списку чувствительных ключей (`password`, `token`, `iban`, `fin`, `balance` и т.д.); значения заменяются на **`***MASKED***`** (см. [TZ.md](./TZ.md) §15.0).
 - [x] **COMPLETED (Hash Chain Verification, v95+):** аудит реализует криптографическую цепочку неизменности (`prevHash -> hash`) для последовательности записей; endpoint `POST /api/audit/verify-chain` программно проверяет целостность chain/legacy-совместимо и возвращает `compromisedIds` при обнаружении ручных правок в БД.
 
+#### 4.8.1. Add-on «Audit Hub» (платное расширение к модулю 8)
+
+- **Подписка:** отдельный entitlement **`audit_hub`** (`OrganizationSubscription.activeModules`, строка в **`pricing_modules`**); UI-флаг **`modules.auditHub`** в `GET /api/subscription/me`; веб-раздел **`/audit-hub`** (навигация для OWNER / ADMIN / ACCOUNTANT / AUDITOR).
+- **MVP:** объединённый таймлайн **AuditLog + EntityActivity** по сущности (или org-wide **AuditLog**); **выборка** с сохранением **`AuditSample`** (random / materiality, **seed**); отчёт **«задние числа»** (дата документа vs дата внесения в систему); **ZIP bulk-export** по выборке (manifest + вложения customs/OCR при наличии ключей в хранилище).
+- **Заметки аудитора:** комментарии **`EntityComment`** с **`kind = AUDIT_NOTE`** в Activity Stream; для роли **AUDITOR** глобальный read-only guard допускает только этот контур мутаций.
+- **Фаза 2–3 (единый трек):** сверка NAS/IFRS, risk dashboard (несколько детекторов + throttle), **`GET /api/audit-hub/calculation/:type/:id`** (invoice, journal_posting, CBAR **`fx_snapshot`**, **`FixedAssetDepreciationMonth`**, **`PayrollRun`**), именованные **`AuditEngagement`** и приглашения; внешний аудитор — **`/api/audit-hub/me/*`**, сессия по заголовкам engagement, consent/decline в UI **`/audit-invitations`**, логирование guest-мутаций в **`AuditLog`** — детали: **`.cursor/plans/audit_hub_phase2_3_unified.plan.md`** (чеклист внизу документа).
+
 ### 4.9. Организационный менеджмент (HR & Org Structure) — целевое развитие
 
 *Статус: не входит в Core MVP модуля 6 в текущем виде; фиксируется как продуктовое направление для аналитики и управления.*

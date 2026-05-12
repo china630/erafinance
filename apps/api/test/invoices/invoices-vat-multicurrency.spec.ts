@@ -2,16 +2,19 @@ import { Prisma } from "@dayday/database";
 import { InvoicesService } from "../../src/invoices/invoices.service";
 
 describe("Invoices VAT and multi-currency rounding", () => {
+  const noop = {} as any;
+
   it("VAT inclusive math stays stable for non-AZN invoice rows", async () => {
     const service = new InvoicesService(
       { product: { findFirst: jest.fn() } } as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      noop,
+      noop,
+      noop,
+      noop,
+      noop,
+      noop,
+      noop,
+      noop,
     );
 
     const out = await (service as any).buildItems(
@@ -32,12 +35,13 @@ describe("Invoices VAT and multi-currency rounding", () => {
     const service = new InvoicesService(
       {} as any,
       accounting as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      noop,
+      noop,
+      noop,
+      noop,
+      noop,
       { createAutoFromInvoicePayment: jest.fn().mockResolvedValue({}) } as any,
+      noop,
     );
     const tx = {
       invoicePayment: { create: jest.fn().mockResolvedValue({ id: "p-1" }) },
@@ -79,12 +83,13 @@ describe("Invoices VAT and multi-currency rounding", () => {
     const service = new InvoicesService(
       {} as any,
       accounting as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      noop,
+      noop,
+      noop,
+      noop,
+      noop,
       { createAutoFromInvoicePayment: jest.fn().mockResolvedValue({}) } as any,
+      noop,
     );
     const tx = {
       invoicePayment: { create: jest.fn().mockResolvedValue({ id: "p-1" }) },

@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { AuthUser } from "../auth/types/auth-user";
+import type { RequestWithAuditEngagement } from "../common/request-with-audit-engagement";
 import { REQUIRES_MODULE_KEY } from "./subscription.constants";
 import { SubscriptionAccessService } from "./subscription-access.service";
 
@@ -25,8 +26,11 @@ export class SubscriptionGuard implements CanActivate {
       return true;
     }
 
-    const req = context.switchToHttp().getRequest<{ user?: AuthUser }>();
-    const orgId = req.user?.organizationId;
+    const req = context.switchToHttp().getRequest<
+      { user?: AuthUser } & RequestWithAuditEngagement
+    >();
+    const orgId =
+      req.auditEngagementEffectiveOrgId ?? req.user?.organizationId;
     if (!orgId) {
       throw new UnauthorizedException();
     }

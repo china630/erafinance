@@ -26,6 +26,7 @@ alwaysApply: false
 | План счетов и маппинг (`accounts`) | `accounts/` | `accounting/chart/`, `accounting/mapping/`, `accounting/ifrs-mapping/` | IFRS-правила |
 | Админка (`admin`) | `admin/` | `admin/`, `super-admin/` | орг. админка и супер-админ |
 | Журнал аудита (`audit`) | `audit/` | `settings/audit/` | |
+| **Рабочее место аудитора (`audit-hub`)** | `audit-hub/` + **`audit-hub/me/*`** (см. подраздел ниже) | `audit-hub/`, **`audit-invitations/`** | add-on **`audit_hub`** на **клиентской** org; guest — заголовки **`x-audit-engagement-invite-id`**, **`x-audit-engagement-token`** |
 | Авторизация и сессии (`auth`) | `auth/` | `login/`, `register/`, `register-org/`, `(public)/` | публичные маршруты |
 | Банк (`banking`) | `banking/` | `banking/`, `(app)/banking/` | часть экранов в route groups |
 | Оплата подписки / checkout (`billing`) | `billing/` | `billing/` | успех оплаты и т.п. |
@@ -53,6 +54,20 @@ alwaysApply: false
 | Ранний доступ / painted door (`early-access`) | `early-access/` | сайдбар «Отраслевые решения», модалка; Super-Admin → waitlist | Валидация спроса по вертикалям (PRD §5.0.1); не entitlement |
 | Подписка и квоты (`subscription`, `quota`) | `subscription/` + `quota/` | `settings/subscription/`, `admin/billing/` | |
 | **DayDay Assistant** (browser extension RPA) | — | — | `apps/extension/` (WXT, MV3); Magic Auth + коннекторы порталов (`apps/extension/src/connectors/emas/**`, `apps/extension/src/connectors/etaxes/**`, `apps/extension/src/connectors/customs/**`); см. **TZ §13.6**, **TZ §20** |
+
+### Audit Hub — внешний аудитор (guest session)
+
+| Слой | Путь / артефакт |
+|------|-----------------|
+| **API (self-service, без `RequiresModule` на домашней org)** | `apps/api/src/audit-hub/audit-hub-me.controller.ts` — префикс контроллера `audit-hub/me`: `GET audit-invites/inbox`, `POST audit-invites/:id/accept`, `POST audit-invites/:id/decline`, `GET audit-engagement/context` |
+| **Резолвинг контекста клиентской org** | `apps/api/src/audit-hub/audit-engagement-resolve.guard.ts` (глобальный guard), `apps/api/src/common/request-with-audit-engagement.ts` (`RequestWithAuditEngagement`, `OrgId` из engagement) |
+| **Инвайты / домен** | `audit-engagement-invite.service.ts`, `audit-engagement.service.ts`, `audit-engagement-guest-access-log.interceptor.ts` |
+| **Web — экран приглашений** | `apps/web/app/audit-invitations/page.tsx` (inbox, accept + consent, decline, запись invite+token в `sessionStorage`) |
+| **Web — клиентская сессия** | `apps/web/lib/audit-engagement-session.tsx` (провайдер в `apps/web/app/app-shell.tsx`), `apps/web/lib/audit-hub-api.ts`, ключи `apps/web/lib/session-keys.ts` (`AUDIT_ENGAGEMENT_INVITE_ID_KEY`, `AUDIT_ENGAGEMENT_TOKEN_KEY`) |
+| **Web — баннер / UX** | `apps/web/components/audit-hub/ExternalAuditEngagementBanner.tsx`, `apps/web/app/audit-hub/layout.tsx` |
+| **Web — отчёты Audit Hub (риск / NAS-IFRS)** | `apps/web/components/audit-hub/audit-hub-risk-result.tsx`, `audit-hub-nas-ifrs-result.tsx`; экспорт **`apps/web/lib/audit-hub-export.ts`** (CSV + XLSX) |
+| **Заголовки к API** | **`x-audit-engagement-invite-id`**, **`x-audit-engagement-token`** (как в `audit-engagement-session.tsx` / `audit-hub-api.ts`; HTTP обычно case-insensitive) |
+| **i18n** | `packages/i18n/src/resources.ts` → ветка **`auditHub.*`** (в т.ч. `invitations*`, `external*`) |
 
 ## Shared packages (web + extension + API types)
 
@@ -96,3 +111,4 @@ alwaysApply: false
 1. **В промпте по имени из таблицы:** «задача в модуле **Склад**» или «в **`inventory`**» — по первому столбцу возьми API- и Web-пути и подставь **`@apps/api/src/<slug>`** и **`@apps/web/app/...`** (для двойных модулей — оба slug, напр. `kassa` и `treasury`).
 2. **Точечно:** если в строке несколько web-путей — в контекст только тот, где правка UI.
 3. **Обновление карты:** новый домен в API → новая строка: модуль (RU + slug), API, Web, примечание.
+4. **Подразделы под строкой таблицы** (напр. **Audit Hub — guest**): детальные файлы и контракты — смотри сразу под таблицей доменных модулей, не дублируй длинные пути в ячейке «Примечание».

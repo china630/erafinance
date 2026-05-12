@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -20,7 +21,9 @@ import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthUser } from "../auth/types/auth-user";
+import type { Request } from "express";
 import { OrganizationId } from "../common/org-id.decorator";
+import type { RequestWithAuditEngagement } from "../common/request-with-audit-engagement";
 import { ActivityStreamService } from "./activity-stream.service";
 import { CreateEntityCommentDto } from "./dto/create-entity-comment.dto";
 import { UpdateEntityCommentDto } from "./dto/update-entity-comment.dto";
@@ -47,6 +50,7 @@ export class ActivityStreamController {
     UserRole.OWNER,
     UserRole.ADMIN,
     UserRole.ACCOUNTANT,
+    UserRole.AUDITOR,
     UserRole.USER,
     UserRole.PROCUREMENT,
     UserRole.WAREHOUSE_KEEPER,
@@ -62,8 +66,20 @@ export class ActivityStreamController {
     @Param("entityId", new ParseUUIDPipe()) entityId: string,
     @Body() dto: CreateEntityCommentDto,
     @CurrentUser() user: AuthUser,
+    @Req() req: Request & RequestWithAuditEngagement,
   ) {
-    return this.activity.createComment(orgId, user.userId, entityType, entityId, dto);
+    const guestAuditNote =
+      Boolean(req.auditEngagementEffectiveOrgId) &&
+      req.auditEngagementInvitePermissions?.auditNotesWrite !== false;
+    return this.activity.createComment(
+      orgId,
+      user.userId,
+      entityType,
+      entityId,
+      dto,
+      user.role ?? UserRole.USER,
+      guestAuditNote,
+    );
   }
 
   @Patch("comments/:id")
@@ -72,6 +88,7 @@ export class ActivityStreamController {
     UserRole.OWNER,
     UserRole.ADMIN,
     UserRole.ACCOUNTANT,
+    UserRole.AUDITOR,
     UserRole.USER,
     UserRole.PROCUREMENT,
     UserRole.WAREHOUSE_KEEPER,
@@ -87,7 +104,13 @@ export class ActivityStreamController {
     @Body() dto: UpdateEntityCommentDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.activity.updateComment(orgId, id, user.userId, dto);
+    return this.activity.updateComment(
+      orgId,
+      id,
+      user.userId,
+      dto,
+      user.role ?? UserRole.USER,
+    );
   }
 
   @Delete("comments/:id")
@@ -96,6 +119,7 @@ export class ActivityStreamController {
     UserRole.OWNER,
     UserRole.ADMIN,
     UserRole.ACCOUNTANT,
+    UserRole.AUDITOR,
     UserRole.USER,
     UserRole.PROCUREMENT,
     UserRole.WAREHOUSE_KEEPER,
@@ -111,6 +135,12 @@ export class ActivityStreamController {
     @CurrentUser() user: AuthUser,
     @Query("reason") reason?: string,
   ) {
-    return this.activity.softDeleteComment(orgId, id, user.userId, reason ?? null);
+    return this.activity.softDeleteComment(
+      orgId,
+      id,
+      user.userId,
+      reason ?? null,
+      user.role ?? UserRole.USER,
+    );
   }
 }

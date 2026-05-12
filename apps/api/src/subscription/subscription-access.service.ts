@@ -56,6 +56,8 @@ export type OrganizationModuleEntitlements = {
   taxPro: boolean;
   /** Customs / e-customs widget capture (trade). */
   tradePro: boolean;
+  /** Paid Audit Hub (timeline, sampling, bulk export, backdating). */
+  auditHub: boolean;
 };
 
 /** v8.1: снимок поля custom_config (конструктор тарифа). */
@@ -96,6 +98,7 @@ function entitlementsFromConstructorModules(
     hrFull: has("hr_full"),
     taxPro: has("tax_pro"),
     tradePro: has("trade_pro"),
+    auditHub: has("audit_hub"),
   };
 }
 
@@ -133,6 +136,7 @@ function emptyOrganizationSnapshot(): {
       hrFull: false,
       taxPro: false,
       tradePro: false,
+      auditHub: false,
     },
     expiresAt: null,
     isTrial: false,
@@ -164,6 +168,7 @@ function computeEntitlementsLegacy(sub: {
     hrFull: true,
     taxPro: has("tax_pro"),
     tradePro: has("trade_pro"),
+    auditHub: has("audit_hub"),
   };
 }
 
@@ -189,6 +194,7 @@ function computeEntitlements(sub: {
       hrFull: true,
       taxPro: true,
       tradePro: true,
+      auditHub: true,
     };
   }
   const customList = parseCustomModules(safe.customConfig);
@@ -226,6 +232,8 @@ function isAllowedByConstructorModules(
       return has("tax_pro");
     case "trade_pro":
       return has("trade_pro");
+    case "audit_hub":
+      return has("audit_hub");
     case "recovery_pro":
       return has("recovery_pro");
     default:
@@ -359,6 +367,9 @@ export class SubscriptionAccessService {
         break;
       case "trade_pro":
         allowed = ent.tradePro;
+        break;
+      case "audit_hub":
+        allowed = ent.auditHub;
         break;
       case "recovery_pro":
         allowed = new Set(normalizeActiveModules(sub.activeModules)).has(
@@ -495,6 +506,7 @@ export class SubscriptionAccessService {
       hr_full?: boolean;
       tax_pro?: boolean;
       trade_pro?: boolean;
+      audit_hub?: boolean;
       recovery_pro?: boolean;
       ifrs_mapping?: boolean;
     },
@@ -522,6 +534,7 @@ export class SubscriptionAccessService {
     apply("hr_full", patch.hr_full);
     apply("tax_pro", patch.tax_pro);
     apply("trade_pro", patch.trade_pro);
+    apply("audit_hub", patch.audit_hub);
     apply("recovery_pro", patch.recovery_pro);
     apply("ifrs_mapping", patch.ifrs_mapping);
 

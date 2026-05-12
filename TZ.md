@@ -1012,6 +1012,23 @@
 
 Продуктовое описание — [PRD.md](./PRD.md) §4.8.
 
+### §9.A API «Audit Hub» (платный add-on)
+
+- Реализация: **`apps/api/src/audit-hub`**, префикс **`/api/audit-hub/*`**, глобально **`SubscriptionGuard` + `@RequiresModule("audit_hub")`**, роли: **OWNER / ADMIN / ACCOUNTANT / AUDITOR** (см. контроллер).
+- **`GET /api/audit-hub/summary`** — KPI для дашборда (30 дней: audit notes, samples, audit mutations, число кандидатов backdating).
+- **`GET /api/audit-hub/timeline`** — объединение **`AuditLog`** + **`EntityActivity`** при переданных `entityType` (activity slug) и `entityId`, иначе org-wide **`AuditLog`**.
+- **`GET /api/audit-hub/backdating`** — расхождение календарной даты документа (**`Invoice.dueDate`**, **`Transaction.date`**) и **`createdAt`**.
+- **`POST /api/audit-hub/sampling`**, **`GET /api/audit-hub/sampling/:id`** — сохранённая выборка **`AuditSample`** (`scope`, `mode`, `params`, `documentRefs` JSON, **`seed`**).
+- **`POST /api/audit-hub/bulk-export`** — ZIP (manifest + файлы из object storage по ссылкам выборки).
+- **`GET /api/audit-hub/reconciliation/nas-ifrs`** — финальные **`Transaction`** за период: (a) **асимметрия** — по **`JournalEntry`** есть строки только **`NAS`** или только **`IFRS`**; (b) опционально **`includeTotalsMismatch=true`** — оба слоя есть, но суммы **`debit`** по **`NAS`** и **`IFRS`** расходятся (эвристика v2, не замена формальному закрытию периода).
+- **`GET /api/audit-hub/risk`** — эвристики риска (детекторы в одном JSON): дубликаты **`CashOrder`** (**`POSTED`**, окно **`windowDays`**); дубликаты **`InvoicePayment`**; **«spikes»** по дебету расходных счетов; концентрация оплат по контрагенту; **z-score** по суммам **`InvoicePayment`** на контрагента (эвристика `|z|≥2`); **`@Throttle`** на контроллере (см. код).
+- **`GET /api/audit-hub/calculation/:type/:id`** — «объяснение» проводки/документа (**`schemaVersion: 1`**): **`journal_posting`**, **`invoice`**; **`fx_snapshot`** — строка **`CbarOfficialRate`** (глобальный справочник курсов, не tenant); **`fixed_asset_depreciation`** — **`FixedAssetDepreciationMonth`**; **`payroll_accrual`** — агрегаты **`PayrollRun`** + **`PayrollSlip`** (без повторного расчёта налоговой математики в HTTP).
+- **Именованные задания аудита:** модель **`AuditEngagement`**, REST **`GET/POST /api/audit-hub/engagements`**, **`PATCH /api/audit-hub/engagements/:id/status`**, **`GET /api/audit-hub/engagements/:id`**; приглашения клиентской org: **`POST /api/audit-hub/engagements/invites`**, **`GET /api/audit-hub/engagements/invites/outbox`**, **`POST .../invites/:id/revoke`**.
+- **Внешний аудитор (guest session):** self-service **`/api/audit-hub/me/*`** — **`GET audit-invites/inbox`**, **`POST audit-invites/:id/accept`**, **`POST audit-invites/:id/decline`** (тело с **`token`**), **`GET audit-engagement/context`**; активная сессия — заголовки **`X-Audit-Engagement-Invite-Id`** + **`X-Audit-Engagement-Token`** (валидируются middleware), **`organizationId` в JWT** временно трактуется как **организация клиента**; биллинг **`audit_hub`** обязателен у **клиентской** org; **`POST /api/audit-hub/bulk-export`** для гостя — **ужесточённый** лимит файлов в ZIP (см. сервис).
+- **Наблюдаемость guest:** глобальный interceptor пишет цепочку **`AuditLog`** для мутаций вне **`GET/HEAD/OPTIONS`** при активной engagement-сессии (метаданные приглашения в payload).
+- **`EntityComment.kind`:** enum **`EntityCommentKind`** (`NORMAL` \| `AUDIT_NOTE`); **AUDITOR** создаёт только **`AUDIT_NOTE`**; **`AuditorMutationGuard`** пропускает мутации только для **`POST/PATCH/DELETE /api/activity/.../comments`** в рамках согласованного контракта.
+- **Производительность (NAS/IFRS + risk):** тяжёлые отчёты используют **`$queryRaw`** с фильтром **`organization_id`** и лимитом **`take`**; в схеме уже есть опорные индексы: **`transactions`** (`organizationId`, `date`, `isFinal` и др.), **`journal_entries`** (`organizationId`, `transactionId`, `ledgerType`), **`cash_orders`** (`organizationId`, `date`), **`invoice_payments`** (`organizationId`, `date`). При росте объёма данных — профилировать `EXPLAIN ANALYZE` на прод-подобной выборке; новые составные индексы добавлять только после подтверждённого плана запроса (избегать лишних индексов на запись).
+
 ---
 
 ## 10. Модуль 9: Inventory Service (склад) — обновление
@@ -1810,6 +1827,8 @@ enum SubscriptionTier {
 
 **Эндпоинт `GET /api/subscription/me`:** возвращает `customConfig`, `modules` (объект флагов для UI), `activeModules`, `tier`, квоты.
 
+- **Add-on `audit_hub`:** платный модуль **Audit Hub**; ключ **`pricing_modules.key = audit_hub`**, включается через **`POST /api/billing/toggle-module`** и **`OrganizationSubscription.activeModules`** (патч `audit_hub` в **`SubscriptionAccessService.updateModuleAddons`**); фронтенд: флаг **`modules.auditHub`**; Web **`/audit-hub`**.
+
 ### 14.3. Демо (релиз продукта 4.1)
 
 При создании организации: `OrganizationSubscription` с `isTrial: true`, `tier: BUSINESS`, `expiresAt` = последний момент текущего UTC-календарного месяца (`23:59:59.999Z`).
@@ -2148,6 +2167,7 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 - **Сырой SQL:** см. **§2** — `TenantPrismaRawService` + `executePlatformRawUnsafe` для не-тенантного DDL.
 - **Контекст:** `AsyncLocalStorage` (или эквивалент), заполняется HTTP-interceptor’ом из JWT (`organizationId`); для маршрутов **`/api/admin`** при `isSuperAdmin` — режим без фильтра по тенанту (только для платформенных эндпоинтов).
 - **Исключения:** модели без тенанта (`User`, `Organization`, `SystemConfig`, `TranslationOverride` и т.д.) не подмешивают `organizationId`.
+- **Audit Hub (§9.A):** таблица **`audit_samples`**, записи **`EntityComment`** с **`kind = AUDIT_NOTE`**, а также все выборки в **`/api/audit-hub/*`** — в рамках **`organizationId`**, переданного в запросе: обычно из JWT активной org, либо **подменённого** контекстом **guest engagement** (см. §9.A); сырой SQL — с явным предикатом по этому **`organizationId`**.
 - **Воркеры BullMQ:** в начале обработки job выставляют тот же контекст (`organizationId` из payload) либо `skipTenantFilter` для глобальных задач (например архив аудита).
 
 ### Async Processing (BullMQ)

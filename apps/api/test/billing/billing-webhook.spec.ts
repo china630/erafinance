@@ -35,6 +35,7 @@ describe("PaymentProviderService webhook auto-resume", () => {
     const systemConfig = {};
     const audit = {};
 
+    const drakaris = {};
     const service = new PaymentProviderService(
       prisma as any,
       billing as any,
@@ -42,6 +43,7 @@ describe("PaymentProviderService webhook auto-resume", () => {
       subscriptionAccess as any,
       orgModules as any,
       pasha as any,
+      drakaris as any,
       config as any,
       systemConfig as any,
       audit as any,

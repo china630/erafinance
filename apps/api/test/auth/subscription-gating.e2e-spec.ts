@@ -45,7 +45,6 @@ describe("SubscriptionReadOnlyGuard (RC1)", () => {
 
   it("GET проходит при истёкшей подписке", async () => {
     prisma.organizationSubscription.findUnique.mockResolvedValue({
-      expiresAt: new Date(0),
       isBlocked: false,
     });
     const ctx = mockExecutionContext("GET", "/api/products", {
@@ -54,25 +53,32 @@ describe("SubscriptionReadOnlyGuard (RC1)", () => {
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
   });
 
-  it("POST при истёкшем expiresAt → 403 SUBSCRIPTION_READ_ONLY", async () => {
+  it("POST при незаблокированной подписке разрешён (истечение срока не режим только чтение)", async () => {
     prisma.organizationSubscription.findUnique.mockResolvedValue({
-      expiresAt: new Date(0),
       isBlocked: false,
+    });
+    const ctx = mockExecutionContext("POST", "/api/products", {
+      organizationId: "00000000-0000-0000-0000-000000000001",
+    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+  });
+
+  it("POST при административной блокировке подписки → 403 SUBSCRIPTION_SUSPENDED_READ_ONLY", async () => {
+    prisma.organizationSubscription.findUnique.mockResolvedValue({
+      isBlocked: true,
     });
     const ctx = mockExecutionContext("POST", "/api/products", {
       organizationId: "00000000-0000-0000-0000-000000000001",
     });
     await expect(guard.canActivate(ctx)).rejects.toMatchObject({
       response: expect.objectContaining({
-        code: "SUBSCRIPTION_READ_ONLY",
+        code: "SUBSCRIPTION_SUSPENDED_READ_ONLY",
       }),
     });
   });
 
-  it("POST при активном expiresAt разрешён", async () => {
-    const future = new Date(Date.now() + 30 * 86400_000);
+  it("POST при активной подписке разрешён", async () => {
     prisma.organizationSubscription.findUnique.mockResolvedValue({
-      expiresAt: future,
       isBlocked: false,
     });
     const ctx = mockExecutionContext("POST", "/api/products", {

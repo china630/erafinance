@@ -25,3 +25,11 @@ export const AUDIT_ENTITY_TYPE_TO_SLUG: Record<string, ActivityEntitySlug> = {
   PayrollSlip: "payroll_slip",
   CustomsDeclaration: "customs_declaration",
 };
+
+/** Inverse map for Audit Hub timeline (slug → AuditLog.entityType). */
+export const ACTIVITY_SLUG_TO_AUDIT_ENTITY_TYPE = Object.fromEntries(
+  Object.entries(AUDIT_ENTITY_TYPE_TO_SLUG).map(([entityType, slug]) => [
+    slug,
+    entityType,
+  ]),
+) as Record<ActivityEntitySlug, string>;

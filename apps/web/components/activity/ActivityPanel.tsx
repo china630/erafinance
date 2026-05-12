@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiFetch } from "../../lib/api-client";
+import { auditHubFetch } from "../../lib/audit-hub-api";
+import { useAuditEngagementSession } from "../../lib/audit-engagement-session";
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "../../lib/design-system";
 import { useAuth } from "../../lib/auth-context";
+import { useSubscription } from "../../lib/subscription-context";
 
 type TimelineItem =
   | {
@@ -21,6 +23,8 @@ type TimelineItem =
       kind: "comment";
       id: string;
       body: string;
+      /** Present when API returns EntityComment.kind (Audit Hub). */
+      commentKind?: string;
       authorUserId: string;
       authorEmail: string | null;
       createdAt: string;
@@ -36,11 +40,21 @@ type Props = {
 export function ActivityPanel({ entityType, entityId, canComment = true }: Props) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { effectiveSnapshot } = useSubscription();
+  const engagement = useAuditEngagementSession();
   const myUserId = user?.id ?? null;
+  const auditHubOn = Boolean(effectiveSnapshot?.modules.auditHub);
+  const guestAuditNotes =
+    engagement.phase === "active" && engagement.permissions.auditNotesWrite !== false;
+  const showAuditHubActivityChrome =
+    auditHubOn ||
+    (engagement.phase === "active" && engagement.permissions.auditHubRead !== false);
+  const isAuditor = user?.role === "AUDITOR";
   const [items, setItems] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [onlyAuditNotes, setOnlyAuditNotes] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState("");
 
@@ -51,7 +65,7 @@ export function ActivityPanel({ entityType, entityId, canComment = true }: Props
       return;
     }
     setLoading(true);
-    const res = await apiFetch(
+    const res = await auditHubFetch(
       `/api/activity/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`,
     );
     if (!res.ok) {
@@ -75,12 +89,16 @@ export function ActivityPanel({ entityType, entityId, canComment = true }: Props
     const text = body.trim();
     if (!text) return;
     setSending(true);
-    const res = await apiFetch(
+    const payload =
+      isAuditor || guestAuditNotes
+        ? { body: text, kind: "AUDIT_NOTE" as const }
+        : { body: text };
+    const res = await auditHubFetch(
       `/api/activity/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}/comments`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: text }),
+        body: JSON.stringify(payload),
       },
     );
     setSending(false);
@@ -96,7 +114,7 @@ export function ActivityPanel({ entityType, entityId, canComment = true }: Props
     if (!editingId) return;
     const text = editBody.trim();
     if (!text) return;
-    const res = await apiFetch(`/api/activity/comments/${encodeURIComponent(editingId)}`, {
+    const res = await auditHubFetch(`/api/activity/comments/${encodeURIComponent(editingId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body: text }),
@@ -111,7 +129,7 @@ export function ActivityPanel({ entityType, entityId, canComment = true }: Props
 
   async function removeComment(id: string) {
     if (!window.confirm(t("activityStream.delete"))) return;
-    const res = await apiFetch(`/api/activity/comments/${encodeURIComponent(id)}`, {
+    const res = await auditHubFetch(`/api/activity/comments/${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
     if (!res.ok) {
@@ -143,7 +161,13 @@ export function ActivityPanel({ entityType, entityId, canComment = true }: Props
         <p className="mt-2 text-xs text-[#7F8C8D]">{t("activityStream.empty")}</p>
       ) : (
         <ul className="mt-3 max-h-80 space-y-3 overflow-y-auto text-xs">
-          {items.map((it) => (
+          {(onlyAuditNotes
+            ? items.filter(
+                (row) =>
+                  row.kind === "comment" && row.commentKind === "AUDIT_NOTE",
+              )
+            : items
+          ).map((it) => (
             <li
               key={`${it.kind}-${it.id}`}
               className="border-b border-[#F3F4F6] pb-2 last:border-0"
@@ -159,9 +183,16 @@ export function ActivityPanel({ entityType, entityId, canComment = true }: Props
                 </div>
               ) : (
                 <div>
-                  <div className="text-[11px] text-[#7F8C8D]">
-                    {it.authorEmail ?? it.authorUserId.slice(0, 8)} ·{" "}
-                    {new Date(it.createdAt).toLocaleString()}
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#7F8C8D]">
+                    <span>
+                      {it.authorEmail ?? it.authorUserId.slice(0, 8)} ·{" "}
+                      {new Date(it.createdAt).toLocaleString()}
+                    </span>
+                    {it.commentKind === "AUDIT_NOTE" ? (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                        {t("activityStream.auditNoteBadge")}
+                      </span>
+                    ) : null}
                   </div>
                   {editingId === it.id ? (
                     <div className="mt-1 space-y-2">
@@ -217,13 +248,28 @@ export function ActivityPanel({ entityType, entityId, canComment = true }: Props
         </ul>
       )}
 
+      {showAuditHubActivityChrome ? (
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-[11px] text-[#34495E]">
+          <input
+            type="checkbox"
+            checked={onlyAuditNotes}
+            onChange={(e) => setOnlyAuditNotes(e.target.checked)}
+          />
+          {t("activityStream.filterAuditNotesOnly")}
+        </label>
+      ) : null}
+
       {canComment && (
         <div className="mt-4 space-y-2 border-t border-[#F3F4F6] pt-3">
           <p className="text-[10px] text-[#95A5A6]">{t("activityStream.hintMention")}</p>
           <textarea
             className="w-full rounded border border-[#D1D5DB] p-2 text-xs"
             rows={3}
-            placeholder={t("activityStream.placeholder")}
+            placeholder={
+              isAuditor || guestAuditNotes
+                ? t("activityStream.placeholderAuditor")
+                : t("activityStream.placeholder")
+            }
             value={body}
             onChange={(e) => setBody(e.target.value)}
             disabled={sending}

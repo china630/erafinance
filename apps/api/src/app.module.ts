@@ -10,6 +10,8 @@ import { AccountingModule } from "./accounting/accounting.module";
 import { AccountsModule } from "./accounts/accounts.module";
 import { AppController } from "./app.controller";
 import { AuditModule } from "./audit/audit.module";
+import { AuditHubModule } from "./audit-hub/audit-hub.module";
+import { AuditEngagementResolveGuard } from "./audit-hub/audit-engagement-resolve.guard";
 import { AuthModule } from "./auth/auth.module";
 import { JwtAuthGuard } from "./auth/guards/jwt-auth.guard";
 import { AuditorMutationGuard } from "./auth/guards/auditor-mutation.guard";
@@ -91,6 +93,7 @@ const apiEnvFiles = apiEnvFilePaths();
     IntegrationsModule,
     TaxModule,
     AuditModule,
+    AuditHubModule,
     AdminModule,
     OrganizationsModule,
     TreasuryModule,
@@ -115,6 +118,10 @@ const apiEnvFiles = apiEnvFilePaths();
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: AuditEngagementResolveGuard,
     },
     {
       provide: APP_GUARD,

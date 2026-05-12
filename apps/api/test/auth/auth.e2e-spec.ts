@@ -10,6 +10,8 @@ import { PrismaService } from "../../src/prisma/prisma.service";
 import { QuotaService } from "../../src/quota/quota.service";
 import { OrganizationsService } from "../../src/organizations/organizations.service";
 import { MailService } from "../../src/mail/mail.service";
+import { PiiCryptoService } from "../../src/security/pii-crypto.service";
+import { GlobalCompanyDirectoryService } from "../../src/global-directory/global-company-directory.service";
 
 describe("AuthService (JWT: login + switch-org)", () => {
   const orgA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -40,7 +42,15 @@ describe("AuthService (JWT: login + switch-org)", () => {
         { provide: OrganizationsService, useValue: {} },
         { provide: OrgStructureService, useValue: {} },
         { provide: QuotaService, useValue: {} },
-        { provide: MailService, useValue: { sendEmailVerificationCode: jest.fn() } },
+        {
+          provide: MailService,
+          useValue: {
+            sendEmailVerificationCode: jest.fn(),
+            sendMail: jest.fn(),
+          },
+        },
+        { provide: PiiCryptoService, useValue: { blindIndexForVoen: jest.fn(() => "test_bi") } },
+        { provide: GlobalCompanyDirectoryService, useValue: {} },
       ],
     }).compile();
 

@@ -15,6 +15,8 @@ import { PrismaService } from "../../src/prisma/prisma.service";
 import { QuotaService } from "../../src/quota/quota.service";
 import { OrganizationsService } from "../../src/organizations/organizations.service";
 import { MailService } from "../../src/mail/mail.service";
+import { PiiCryptoService } from "../../src/security/pii-crypto.service";
+import { GlobalCompanyDirectoryService } from "../../src/global-directory/global-company-directory.service";
 
 describe("AuthService invite security (M1)", () => {
   const userId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
@@ -49,6 +51,8 @@ describe("AuthService invite security (M1)", () => {
           provide: MailService,
           useValue: { sendMail: jest.fn().mockResolvedValue(undefined) },
         },
+        { provide: PiiCryptoService, useValue: { blindIndexForVoen: jest.fn(() => "test_bi") } },
+        { provide: GlobalCompanyDirectoryService, useValue: {} },
       ],
     }).compile();
 

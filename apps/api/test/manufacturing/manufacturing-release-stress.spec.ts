@@ -8,6 +8,7 @@ import { AccountingService } from "../../src/accounting/accounting.service";
 import { ManufacturingService } from "../../src/manufacturing/manufacturing.service";
 import { PrismaService } from "../../src/prisma/prisma.service";
 import { StockService } from "../../src/stock/stock.service";
+import { mockTxInventoryReconciliationClear } from "../helpers/mock-prisma-tx-reconciliation";
 
 describe("ManufacturingService.releaseProduction (M9 stress: 18 components)", () => {
   it("performs 18 component OUT movements inside a single $transaction", async () => {
@@ -20,6 +21,7 @@ describe("ManufacturingService.releaseProduction (M9 stress: 18 components)", ()
     const outCreates: { type: StockMovementType; productId: string }[] = [];
 
     const tx = {
+      ...mockTxInventoryReconciliationClear(),
       stockItem: {
         findUnique: jest.fn().mockResolvedValue({
           quantity: new Decimal(1_000_000),
@@ -32,6 +34,9 @@ describe("ManufacturingService.releaseProduction (M9 stress: 18 components)", ()
           outCreates.push({ type: data.type, productId: data.productId });
           return { id: `mov-${outCreates.length}` };
         }),
+      },
+      manufacturingRelease: {
+        create: jest.fn().mockResolvedValue({ id: "mfg-release-1" }),
       },
     };
 
@@ -57,7 +62,7 @@ describe("ManufacturingService.releaseProduction (M9 stress: 18 components)", ()
     } as unknown as StockService;
 
     const accounting = {
-      postJournalInTransaction: jest.fn().mockResolvedValue(undefined),
+      postJournalInTransaction: jest.fn().mockResolvedValue({ transactionId: "tx-mfg-1" }),
     } as unknown as AccountingService;
 
     const moduleRef = await Test.createTestingModule({

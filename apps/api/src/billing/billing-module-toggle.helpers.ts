@@ -41,6 +41,7 @@ export function catalogModuleKeyToPatch(
   trade_pro?: boolean;
   recovery_pro?: boolean;
   ifrs_mapping?: boolean;
+  audit_hub?: boolean;
 } {
   switch (moduleKey) {
     case "kassa_pro":
@@ -61,6 +62,8 @@ export function catalogModuleKeyToPatch(
       return { recovery_pro: enabled };
     case "ifrs_mapping":
       return { ifrs_mapping: enabled, ifrs: enabled };
+    case "audit_hub":
+      return { audit_hub: enabled };
     default:
       throw new BadRequestException({
         code: "UNKNOWN_MODULE",

@@ -48,4 +48,8 @@ export class UpdateSubscriptionModulesDto {
   @IsOptional()
   @IsBoolean()
   ifrs_mapping?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  audit_hub?: boolean;
 }

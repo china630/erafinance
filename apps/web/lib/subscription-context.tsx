@@ -27,6 +27,7 @@ export type SubscriptionSnapshot = {
     hrFull: boolean;
     taxPro: boolean;
     tradePro: boolean;
+    auditHub: boolean;
   };
   quotas: {
     employees: {
@@ -73,6 +74,7 @@ function enterpriseBypassSnapshot(): SubscriptionSnapshot {
       "hr_full",
       "tax_pro",
       "trade_pro",
+      "audit_hub",
     ],
     customConfig: null,
     modules: {
@@ -83,6 +85,7 @@ function enterpriseBypassSnapshot(): SubscriptionSnapshot {
       hrFull: true,
       taxPro: true,
       tradePro: true,
+      auditHub: true,
     },
     quotas: {
       employees: { current: 0, max: null, atLimit: false },

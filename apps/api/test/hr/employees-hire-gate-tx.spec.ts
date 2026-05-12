@@ -28,7 +28,7 @@ describe("EmployeesService hire-gate (M6 Serializable)", () => {
       }),
     } as unknown as ConstructorParameters<typeof EmployeesService>[0];
 
-    const svc = new EmployeesService(prisma);
+    const svc = new EmployeesService(prisma, {} as any);
     await svc.create("org-1", {
       finCode: "1".repeat(7),
       firstName: "A",
@@ -71,7 +71,7 @@ describe("EmployeesService hire-gate (M6 Serializable)", () => {
       ),
     } as unknown as ConstructorParameters<typeof EmployeesService>[0];
 
-    const svc = new EmployeesService(prisma);
+    const svc = new EmployeesService(prisma, {} as any);
     await expect(
       svc.create("org-1", {
         finCode: "2".repeat(7),

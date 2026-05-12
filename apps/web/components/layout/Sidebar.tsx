@@ -429,6 +429,7 @@ export function MainSidebar({
   lockedFixedAssets,
   lockedIfrsMapping,
   lockedBankingPro,
+  lockedAuditHub,
   token,
   user,
   canPostAccounting,
@@ -444,6 +445,7 @@ export function MainSidebar({
   lockedFixedAssets: boolean;
   lockedIfrsMapping: boolean;
   lockedBankingPro: boolean;
+  lockedAuditHub: boolean;
   token: string | null;
   user: AuthUser | null;
   canPostAccounting: boolean;
@@ -947,6 +949,14 @@ export function MainSidebar({
                   nested
                   onNavClick={onNavClick}
                 />
+                <SideNavItem
+                  href="/audit-invitations"
+                  label={t("nav.auditInvitations")}
+                  isActive={pathname.startsWith("/audit-invitations")}
+                  icon={Inbox}
+                  nested
+                  onNavClick={onNavClick}
+                />
               </>
             ) : null}
             {user && user.role != null && user.role !== "USER" ? (
@@ -986,6 +996,20 @@ export function MainSidebar({
                       onNavClick={onNavClick}
                     />
                   </>
+                )}
+                {(user.role === "OWNER" ||
+                  user.role === "ADMIN" ||
+                  user.role === "ACCOUNTANT" ||
+                  user.role === "AUDITOR") && (
+                  <SideNavItem
+                    href="/audit-hub"
+                    label={t("auditHub.navTitle")}
+                    isActive={pathname.startsWith("/audit-hub")}
+                    icon={ClipboardList}
+                    nested
+                    locked={lockedAuditHub}
+                    onNavClick={onNavClick}
+                  />
                 )}
                 {user.role === "OWNER" ? (
                   <>

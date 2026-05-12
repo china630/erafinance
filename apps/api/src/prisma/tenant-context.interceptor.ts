@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { Observable } from "rxjs";
 import { actorContextStorage } from "../common/actor-context";
+import type { RequestWithAuditEngagement } from "../common/request-with-audit-engagement";
 import { tenantContextStorage } from "./tenant-context";
 
 /**
@@ -23,7 +24,7 @@ export class TenantContextInterceptor implements NestInterceptor {
       };
       originalUrl?: string;
       url?: string;
-    }>();
+    } & RequestWithAuditEngagement>();
     const url = (req.originalUrl ?? req.url ?? "").split("?")[0];
     const user = req.user;
 
@@ -52,12 +53,15 @@ export class TenantContextInterceptor implements NestInterceptor {
       return runWithContexts({ organizationId: null, skipTenantFilter: true });
     }
 
+    const effectiveOrgId =
+      req.auditEngagementEffectiveOrgId ?? user.organizationId ?? null;
+
     /** TZ §15 / PRD §7.6: маршруты `/api/admin/*` — супер-админ видит всю систему (Prisma без merge по organizationId). */
     const skipTenantFilter =
       Boolean(user.isSuperAdmin) && url.startsWith("/api/admin");
 
     return runWithContexts({
-      organizationId: user.organizationId ?? null,
+      organizationId: effectiveOrgId,
       skipTenantFilter,
     });
   }

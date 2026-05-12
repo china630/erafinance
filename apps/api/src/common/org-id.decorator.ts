@@ -4,6 +4,7 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import type { AuthUser } from "../auth/types/auth-user";
+import type { RequestWithAuditEngagement } from "./request-with-audit-engagement";
 
 /** Заголовок legacy (не рекомендуется; тенант из JWT). */
 export const ORG_HEADER = "x-organization-id";
@@ -13,7 +14,10 @@ export const OrganizationId = createParamDecorator(
     const req = ctx.switchToHttp().getRequest<{
       user?: AuthUser;
       headers: Record<string, string | undefined>;
-    }>();
+    } & RequestWithAuditEngagement>();
+    if (req.auditEngagementEffectiveOrgId) {
+      return req.auditEngagementEffectiveOrgId;
+    }
     if (req.user?.organizationId) {
       return req.user.organizationId;
     }

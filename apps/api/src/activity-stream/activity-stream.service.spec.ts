@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import { UserRole } from "@dayday/database";
 import { ActivityStreamService } from "./activity-stream.service";
 
 describe("ActivityStreamService", () => {
@@ -50,7 +51,7 @@ describe("ActivityStreamService", () => {
 
     await svc.createComment(org, userA, "invoice", inv, {
       body: "Hello @colleague@example.com",
-    });
+    }, UserRole.OWNER);
 
     expect(prisma.$transaction).toHaveBeenCalled();
     expect(notifications.createNotification).toHaveBeenCalledWith(
@@ -70,13 +71,14 @@ describe("ActivityStreamService", () => {
           organizationId: org,
           authorUserId: userA,
           deletedAt: null,
+          kind: "NORMAL",
         }),
       },
     };
     const notifications = { createNotification: jest.fn() };
     const svc = new ActivityStreamService(prisma as any, notifications as any);
     await expect(
-      svc.updateComment(org, "c1", userB, { body: "x" }),
+      svc.updateComment(org, "c1", userB, { body: "x" }, UserRole.OWNER),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

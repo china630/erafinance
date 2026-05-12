@@ -13,6 +13,8 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MainSidebar } from "../components/layout/Sidebar";
 import { MainHeader } from "../components/layout/Header";
 import { InAppNotificationBell } from "../components/notifications/in-app-notification-bell";
+import { ExternalAuditEngagementBanner } from "../components/audit-hub/ExternalAuditEngagementBanner";
+import { AuditEngagementSessionProvider } from "../lib/audit-engagement-session";
 
 const quickActionItemClass =
   "block px-3 py-2 text-sm text-gray-700 hover:bg-action/10 hover:text-primary rounded-md mx-1";
@@ -486,6 +488,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return !snapshot.modules.bankingPro;
   }, [token, subReady, snapshot]);
 
+  const lockedAuditHub = useMemo(() => {
+    if (!token || !subReady) return false;
+    if (!snapshot) return false;
+    if (String(snapshot.tier).toUpperCase() === "ENTERPRISE") return false;
+    return !snapshot.modules.auditHub;
+  }, [token, subReady, snapshot]);
+
   const billingBanner = useMemo(() => {
     const status = snapshot?.billingStatus;
     if (status === "SOFT_BLOCK") {
@@ -528,7 +537,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const adminActive =
       pathname.startsWith("/companies") ||
       pathname.startsWith("/settings") ||
-      pathname.startsWith("/super-admin");
+      pathname.startsWith("/super-admin") ||
+      pathname.startsWith("/audit-hub") ||
+      pathname.startsWith("/audit-invitations");
     const reportingHubActive =
       !pathname.startsWith("/reports") &&
       (pathname === "/reporting" ||
@@ -652,6 +663,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <AuditEngagementSessionProvider>
     <div className="min-h-screen overflow-x-hidden bg-[#EBEDF0]">
       {mobileNavOpen ? (
         <button
@@ -670,6 +682,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         lockedFixedAssets={lockedFixedAssets}
         lockedIfrsMapping={lockedIfrsMapping}
         lockedBankingPro={lockedBankingPro}
+        lockedAuditHub={lockedAuditHub}
         token={token}
         user={user}
         canPostAccounting={canPostAccounting}
@@ -708,6 +721,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <main className="app-shell-main mx-auto w-full min-w-0 max-w-screen-xl px-4 py-6 pb-24 sm:px-6 sm:py-8 lg:px-8 lg:pb-8">
           {ready && token ? <TrialBanner /> : null}
+          {ready && token ? <ExternalAuditEngagementBanner /> : null}
           {ready && token && billingBanner ? (
             <div
               className={[
@@ -731,6 +745,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         />
       ) : null}
     </div>
+    </AuditEngagementSessionProvider>
   );
 }
 

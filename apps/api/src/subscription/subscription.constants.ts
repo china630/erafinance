@@ -42,6 +42,8 @@ export const ModuleEntitlement = {
    * Today recovery admin APIs are super-admin only; this slug is reserved for constructor billing alignment.
    */
   RECOVERY_PRO: "recovery_pro",
+  /** Auditor workplace: timeline, sampling, bulk export, backdating reports (paid add-on). */
+  AUDIT_HUB: "audit_hub",
 } as const;
 
 export type ModuleEntitlementKey =

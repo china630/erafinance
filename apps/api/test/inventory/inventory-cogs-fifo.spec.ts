@@ -6,10 +6,12 @@ import {
 } from "@dayday/database";
 import { InventoryService } from "../../src/inventory/inventory.service";
 import { StockService } from "../../src/stock/stock.service";
+import { mockTxInventoryReconciliationClear } from "../helpers/mock-prisma-tx-reconciliation";
 
 describe("Inventory COGS / FIFO hardening", () => {
   it("FIFO: purchase layers -> partial sale -> COGS journal amount is correct", async () => {
     const tx = {
+      ...mockTxInventoryReconciliationClear(),
       invoice: {
         findFirst: jest.fn().mockResolvedValue({
           id: "inv-1",
@@ -98,6 +100,7 @@ describe("Inventory COGS / FIFO hardening", () => {
       },
       $transaction: jest.fn(async (fn: (tx: any) => Promise<unknown>) =>
         fn({
+          ...mockTxInventoryReconciliationClear(),
           product: {
             findFirst: jest.fn().mockResolvedValue({ isService: false }),
           },
@@ -130,6 +133,7 @@ describe("Inventory COGS / FIFO hardening", () => {
 
   it("AVCO: COGS uses weighted average stock cost", async () => {
     const tx = {
+      ...mockTxInventoryReconciliationClear(),
       invoice: {
         findFirst: jest.fn().mockResolvedValue({
           id: "inv-2",

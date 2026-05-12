@@ -7,6 +7,7 @@ import { InventoryService } from "../../src/inventory/inventory.service";
 import type { AccountingService } from "../../src/accounting/accounting.service";
 import type { PrismaService } from "../../src/prisma/prisma.service";
 import type { StockService } from "../../src/stock/stock.service";
+import { mockTxInventoryReconciliationClear } from "../helpers/mock-prisma-tx-reconciliation";
 
 type Decimal = Prisma.Decimal;
 const Decimal = Prisma.Decimal;
@@ -36,6 +37,7 @@ describe("InventoryService (stock / adjust)", () => {
     } as unknown as AccountingService;
 
     const tx = {
+      ...mockTxInventoryReconciliationClear(),
       warehouse: {
         findFirst: jest.fn().mockResolvedValue({
           id: whId,

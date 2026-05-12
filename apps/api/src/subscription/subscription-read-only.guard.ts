@@ -31,7 +31,7 @@ export class SubscriptionReadOnlyGuard implements CanActivate {
       path?: string;
       url?: string;
       user?: AuthUser;
-    }>();
+    } & import("../common/request-with-audit-engagement").RequestWithAuditEngagement>();
     const method = (req.method ?? "GET").toUpperCase();
     const path = this.normalizePath(
       req.originalUrl?.split("?")[0] ??
@@ -40,11 +40,13 @@ export class SubscriptionReadOnlyGuard implements CanActivate {
         "",
     );
     const user = req.user;
-    if (!user?.organizationId || user.isSuperAdmin) return true;
+    const orgForBlock =
+      req.auditEngagementEffectiveOrgId ?? user?.organizationId;
+    if (!orgForBlock || user?.isSuperAdmin) return true;
     if (READ_METHODS.has(method) || this.isWhitelistedPath(path)) return true;
 
     const sub = await this.prisma.organizationSubscription.findUnique({
-      where: { organizationId: user.organizationId },
+      where: { organizationId: orgForBlock },
       select: { isBlocked: true },
     });
     if (!sub?.isBlocked) return true;
@@ -69,7 +71,8 @@ export class SubscriptionReadOnlyGuard implements CanActivate {
       path.startsWith("/api/public") ||
       path === "/api/billing/checkout" ||
       path.startsWith("/api/billing/webhooks/") ||
-      path.startsWith("/api/early-access/")
+      path.startsWith("/api/early-access/") ||
+      path.startsWith("/api/audit-hub/me/")
     );
   }
 }

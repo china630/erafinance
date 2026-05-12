@@ -6,6 +6,7 @@ import {
 } from "@dayday/database";
 import { InventoryService } from "../../src/inventory/inventory.service";
 import { MISC_OPERATING_EXPENSE_ACCOUNT_CODE } from "../../src/ledger.constants";
+import { mockTxInventoryReconciliationClear } from "../helpers/mock-prisma-tx-reconciliation";
 
 describe("InventoryService.postAdjustment (physical / write-off)", () => {
   it("WRITE_OFF: uses FIFO issue unit cost for shortage quantity", async () => {
@@ -40,6 +41,7 @@ describe("InventoryService.postAdjustment (physical / write-off)", () => {
 
     const existingQty = new Prisma.Decimal(5);
     const tx = {
+      ...mockTxInventoryReconciliationClear(),
       organization: {
         findUnique: jest.fn().mockResolvedValue({ settings: {} }),
       },

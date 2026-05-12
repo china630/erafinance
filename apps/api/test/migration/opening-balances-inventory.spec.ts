@@ -3,6 +3,7 @@ import { Prisma, StockMovementType } from "@dayday/database";
 import { OpeningBalancesService } from "../../src/migration/opening-balances.service";
 import type { AccountingService, PostTransactionLine } from "../../src/accounting/accounting.service";
 import type { PrismaService } from "../../src/prisma/prisma.service";
+import { mockTxInventoryReconciliationClear } from "../helpers/mock-prisma-tx-reconciliation";
 
 describe("OpeningBalancesService (inventory import)", () => {
   const organizationId = "00000000-0000-0000-0000-000000000001";
@@ -22,6 +23,7 @@ describe("OpeningBalancesService (inventory import)", () => {
     const postedLines: PostTransactionLine[][] = [];
 
     const tx = {
+      ...mockTxInventoryReconciliationClear(),
       account: {
         findFirst: jest.fn().mockImplementation(({ where }) => {
           if (where.code === "000") return openingAccount;
@@ -100,6 +102,7 @@ describe("OpeningBalancesService (inventory import)", () => {
       updatedAt: new Date("2026-04-27T00:00:00.000Z"),
     };
     const tx = {
+      ...mockTxInventoryReconciliationClear(),
       account: {
         findFirst: jest.fn().mockImplementation(({ where }) => {
           if (where.code === "000") return openingAccount;
@@ -167,6 +170,7 @@ describe("OpeningBalancesService (inventory import)", () => {
       updatedAt: new Date("2026-04-27T00:00:00.000Z"),
     };
     const tx = {
+      ...mockTxInventoryReconciliationClear(),
       account: {
         findFirst: jest.fn().mockImplementation(({ where }) => {
           if (where.code === "000") return openingAccount;

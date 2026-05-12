@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   Building2,
   Calculator,
+  ClipboardList,
   Factory,
   Landmark,
   Lock,
@@ -101,6 +102,8 @@ function moduleIcon(key: string) {
       return <Ship className={common} aria-hidden />;
     case "ifrs_mapping":
       return <Calculator className={common} aria-hidden />;
+    case "audit_hub":
+      return <ClipboardList className={common} aria-hidden />;
     default:
       return <Package className={common} aria-hidden />;
   }

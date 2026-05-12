@@ -15,6 +15,7 @@ export const OrganizationModuleEntitlementsSchema = z.object({
   hrFull: z.boolean(),
   taxPro: z.boolean(),
   tradePro: z.boolean(),
+  auditHub: z.boolean(),
 });
 
 export const QuotaSnapshotSchema = z.object({
@@ -61,6 +62,8 @@ export const ModuleEntitlementKeySchema = z.enum([
   "kassa",
   "tax_pro",
   "trade_pro",
+  "audit_hub",
+  "recovery_pro",
 ]);
 
 export type ModuleEntitlementKey = z.infer<typeof ModuleEntitlementKeySchema>;

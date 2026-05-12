@@ -15,7 +15,9 @@ export class AuditorMutationGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<{
       method?: string;
       path?: string;
+      url?: string;
       originalUrl?: string;
+      body?: unknown;
       user?: AuthUser;
     }>();
     const method = (req.method ?? "").toUpperCase();
@@ -28,11 +30,34 @@ export class AuditorMutationGuard implements CanActivate {
       return true;
     }
 
-    const path = req.path ?? req.originalUrl ?? "";
-    if (path.endsWith("/auth/logout")) {
+    const url = (req.originalUrl ?? req.url ?? req.path ?? "").split("?")[0] ?? "";
+    if (url.endsWith("/auth/logout") || url.includes("/api/auth/logout")) {
       return true;
     }
-    if (path.includes("/early-access/")) {
+    if (url.includes("/early-access/")) {
+      return true;
+    }
+
+    /** AUDITOR may post/patch/delete activity-stream comments only as audit notes (cowork layer). */
+    const isActivityCommentPost = /\/activity\/[^/]+\/[0-9a-f-]{8}-[0-9a-f-]{4}-[0-9a-f-]{4}-[0-9a-f-]{4}-[0-9a-f-]{12}\/comments$/i.test(
+      url,
+    );
+    const isActivityCommentById =
+      /\/activity\/comments\/[0-9a-f-]{8}-[0-9a-f-]{4}-[0-9a-f-]{4}-[0-9a-f-]{4}-[0-9a-f-]{12}$/i.test(
+        url,
+      );
+    const body = req.body as { kind?: unknown } | undefined;
+    if (method === "POST" && isActivityCommentPost) {
+      if (body?.kind === "AUDIT_NOTE") {
+        return true;
+      }
+      throw new ForbiddenException({
+        code: "AUDITOR_READ_ONLY",
+        message:
+          "AUDITOR may only create comments with kind AUDIT_NOTE (audit requests / notes).",
+      });
+    }
+    if ((method === "PATCH" || method === "DELETE") && isActivityCommentById) {
       return true;
     }
 
