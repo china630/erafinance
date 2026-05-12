@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { CbarFxService } from "./cbar-fx.service";
 
 /**

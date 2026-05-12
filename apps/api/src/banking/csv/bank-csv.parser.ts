@@ -1,4 +1,4 @@
-import { BankStatementLineType, Prisma } from "@dayday/database";
+import { BankStatementLineType, Prisma } from "@erafinance/database";
 
 type Decimal = Prisma.Decimal;
 const Decimal = Prisma.Decimal;

@@ -1,11 +1,11 @@
 ---
-description: DayDay ERP — роли агентов, язык, тенантность, безопасность, UI↔DESIGN, ссылки на PRD/TZ
+description: ERA Finance — роли агентов, язык, тенантность, безопасность, UI↔DESIGN, ссылки на PRD/TZ
 alwaysApply: true
 ---
 
-# DayDay ERP — роли агентов и общие законы
+# ERA Finance — роли агентов и общие законы
 
-**Документы:** `PRD.md` и `TZ.md` в **`.cursorignore`** — для нетривиальных задач **прикрепляй** `@PRD.md`, `@TZ.md`. **`DESIGN.md`** в индексе (не в ignore); для UI см. также **`dayday-ui-design.mdc`**. Карта путей коду — **`dayday-module-map.mdc`**.
+**Документы:** `PRD.md` и `TZ.md` в **`.cursorignore`** — для нетривиальных задач **прикрепляй** `@PRD.md`, `@TZ.md`. **`DESIGN.md`** в индексе (не в ignore); для UI см. также **`erafinance-ui-design.mdc`**. Карта путей коду — **`erafinance-module-map.mdc`**.
 
 | Агент | Краткое описание |
 |-------|------------------|
@@ -15,7 +15,7 @@ alwaysApply: true
 | [Sync Master] | Доки: предлагает обновить `PRD.md` / `TZ.md` до или вместе с изменением продукта или контрактов API/модели. |
 | [Compliance] | AZN, VÖEN, +994, форматы дат Азербайджана. |
 | [Security Auditor] | DTO-валидация, `AuditMutationInterceptor` на мутациях. |
-| [Infra Expert] | Docker Compose, BullMQ, Windows, `D:\DockerData\dayday_erp`. |
+| [Infra Expert] | Docker Compose, BullMQ, Windows, `D:\DockerData\erafinance_erp`. |
 
 **Language:** код, комментарии, коммиты и добавляемая в репо дока — **English**. Общение с пользователем — **Russian**.
 
@@ -71,7 +71,7 @@ alwaysApply: true
 
 ### [Infra Expert]
 
-- Локально на Windows: тома **`D:\DockerData\dayday_erp`** (PRD §12, TZ §1). **Docker Compose**, **Redis**, **BullMQ** (очереди, воркеры, payroll/import по TZ).
+- Локально на Windows: тома **`D:\DockerData\erafinance_erp`** (PRD §12, TZ §1). **Docker Compose**, **Redis**, **BullMQ** (очереди, воркеры, payroll/import по TZ).
 
 ---
 
@@ -89,4 +89,4 @@ alwaysApply: true
 | IAM, validation, audit, Prisma extension | TZ §2, §9, §16–17 |
 | Subscription, gating, billing API | TZ §14, PRD §7.12 |
 
-**Навигация по коду:** см. **`dayday-module-map.mdc`** (модуль по-русски или по slug → папки API / Web / Prisma).
+**Навигация по коду:** см. **`erafinance-module-map.mdc`** (модуль по-русски или по slug → папки API / Web / Prisma).

@@ -1,16 +1,16 @@
 /**
  * 503 body for maintenance mode (middleware). Keep in sync with `docs/maintenance.html`.
  */
-export const DAYDAY_MAINTENANCE_HTML = `<!doctype html>
+export const ERAFINANCE_MAINTENANCE_HTML = `<!doctype html>
 <html lang="ru">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
-    <title>DayDay — Maintenance</title>
+    <title>ERA — Maintenance</title>
     <style>
       :root {
-        --dayday-blue: #2980b9;
+        --erafinance-blue: #2980b9;
         --bg: #0b1220;
         --card: rgba(255, 255, 255, 0.06);
         --text: rgba(255, 255, 255, 0.92);
@@ -66,7 +66,7 @@ export const DAYDAY_MAINTENANCE_HTML = `<!doctype html>
         width: 38px;
         height: 38px;
         border-radius: 12px;
-        background: var(--dayday-blue);
+        background: var(--erafinance-blue);
         box-shadow: 0 10px 30px rgba(41, 128, 185, 0.35);
         position: relative;
       }
@@ -120,7 +120,7 @@ export const DAYDAY_MAINTENANCE_HTML = `<!doctype html>
         width: 10px;
         height: 10px;
         border-radius: 999px;
-        background: var(--dayday-blue);
+        background: var(--erafinance-blue);
         box-shadow: 0 0 0 6px rgba(41, 128, 185, 0.18);
         flex: 0 0 auto;
       }
@@ -141,7 +141,7 @@ export const DAYDAY_MAINTENANCE_HTML = `<!doctype html>
       <div class="card" role="status" aria-live="polite">
         <div class="brand" aria-hidden="true">
           <div class="logo"></div>
-          <h1>DayDay</h1>
+          <h1>ERA</h1>
         </div>
 
         <p class="title">Maintenance</p>
@@ -163,7 +163,7 @@ export const DAYDAY_MAINTENANCE_HTML = `<!doctype html>
         </div>
 
         <p class="foot">
-          HTTP 503 · DayDay ERP
+          HTTP 503 · ERA Finance
         </p>
       </div>
     </div>

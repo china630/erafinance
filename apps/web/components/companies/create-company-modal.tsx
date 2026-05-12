@@ -17,7 +17,7 @@ import {
   MODAL_INPUT_CLASS,
 } from "../../lib/design-system";
 import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogHeader } from "@dayday/ui";
+import { Dialog, DialogContent, DialogHeader } from "@erafinance/ui";
 import {
   COUNTERPARTY_LEGAL_FORMS,
   type CounterpartyLegalForm,

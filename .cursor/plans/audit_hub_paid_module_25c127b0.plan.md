@@ -39,7 +39,7 @@ todos:
     content: i18n RU/AZ в resources.ts (auditHub.*), npm run i18n:audit + i18n:catalog + db:sync-i18n
     status: completed
   - id: docs-prd-tz
-    content: Обновить PRD.md (§4.x, §7), TZ.md (§9, §14, §16), dayday-module-map.mdc
+    content: Обновить PRD.md (§4.x, §7), TZ.md (§9, §14, §16), era-module-map.mdc
     status: completed
   - id: phase2-reconciliation
     content: "Фаза 2: NAS/IFRS reconciliation и risk dashboard — в отдельной итерации"
@@ -138,7 +138,7 @@ Multi-tenancy: все запросы проходят через `PrismaService`
 Навигация:
 
 - В `apps/web/components/layout/Sidebar.tsx` добавить секцию «Аудит» с пунктом «Audit Hub» (`href="/audit-hub"`), видимым для ролей `AUDITOR/OWNER/ADMIN/ACCOUNTANT`, с замком, если `subscription.modules.auditHub === false`.
-- Дизайн: следовать `DESIGN.md` и `dayday-ui-design.mdc` (палитра/радиусы/типографика, без эмодзи).
+- Дизайн: следовать `DESIGN.md` и `erafinance-ui-design.mdc` (палитра/радиусы/типографика, без эмодзи).
 
 ## 6. i18n
 
@@ -156,7 +156,7 @@ Multi-tenancy: все запросы проходят через `PrismaService`
 
 - В `PRD.md`: новый раздел «§4.10 Audit Hub» (модули 1–9 → 1–10 либо как 9.x), правки §7 (платный модуль, цена), §8 (модель `AuditSample`).
 - В `TZ.md`: §9.x «Audit Hub API», §14 (subscription: добавление `AUDIT_HUB`), §16 (multi-tenancy для новых таблиц/эндпоинтов).
-- В `.cursor/rules/dayday-module-map.mdc`: строка «Рабочее место аудитора (`audit-hub`) | `audit-hub/` | `audit-hub/` | платный модуль».
+- В `.cursor/rules/erafinance-module-map.mdc`: строка «Рабочее место аудитора (`audit-hub`) | `audit-hub/` | `audit-hub/` | платный модуль».
 
 ## 9. Фазирование
 

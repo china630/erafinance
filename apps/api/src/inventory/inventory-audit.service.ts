@@ -11,7 +11,7 @@ import {
   StockMovementReason,
   StockMovementType,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { assertMayPostManualJournal } from "../auth/policies/invoice-finance.policy";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateInventoryAuditDto } from "./dto/create-inventory-audit.dto";

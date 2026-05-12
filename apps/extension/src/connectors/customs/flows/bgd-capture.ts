@@ -1,4 +1,4 @@
-import type { CustomsDeclarationFullPrefill } from "@dayday/api-contracts";
+import type { CustomsDeclarationFullPrefill } from "@erafinance/api-contracts";
 import { mapDomToFullPrefill } from "../adapters/portal-to-bgd";
 
 export type BgdCaptureFlow = {

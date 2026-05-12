@@ -14,7 +14,7 @@ import {
   MODAL_TEXTAREA_CLASS,
 } from "../../lib/design-system";
 import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogHeader } from "@dayday/ui";
+import { Dialog, DialogContent, DialogHeader } from "@erafinance/ui";
 import {
   EARLY_ACCESS_MODULES,
   type EarlyAccessModuleKey,

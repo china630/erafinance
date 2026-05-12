@@ -34,7 +34,7 @@ This document is the **source of truth** for launch checklist items **66–97** 
 
 | Item | Status |
 |------|--------|
-| `SnapshotService.takeSnapshot` | Writes a **versioned JSON artifact** (`dayday-tenant-snapshot-v1`) to object storage and stores `s3Key` / `sha256` / `sizeBytes` in `organization_data_snapshots`. |
+| `SnapshotService.takeSnapshot` | Writes a **versioned JSON artifact** (`erafinance-tenant-snapshot-v1`) to object storage and stores `s3Key` / `sha256` / `sizeBytes` in `organization_data_snapshots`. |
 | `LogicalTenantSnapshotWorker` | **No-op** until BullMQ + `COPY … TO STDOUT` full logical export is wired; table order draft: `tenant-tables.ts`. |
 | `RollbackService.restoreFromSnapshot` | Queues `TenantRollbackRecord` only; **full ETL restore** is not implemented in this build (see service logs). |
 | `RollbackService.restoreToPointInTime` | **Not implemented** — throws `NotImplementedException` after locating baseline snapshot (R5.2 forward replay backlog). |
@@ -57,7 +57,7 @@ This document is the **source of truth** for launch checklist items **66–97** 
 
 ## Browser extension (79)
 
-Source: `apps/extension/**` (WXT). Gating and org context: `apps/web/components/extension-bridge.tsx`, subscription context, and extension paywall views. Chrome IDs: `NEXT_PUBLIC_DAYDAY_EXT_IDS` (web `.env.example`).
+Source: `apps/extension/**` (WXT). Gating and org context: `apps/web/components/extension-bridge.tsx`, subscription context, and extension paywall views. Chrome IDs: `NEXT_PUBLIC_ERAFINANCE_EXT_IDS` (web `.env.example`).
 
 ## Help, legal, status, video (82, 88–89, 91–96)
 
@@ -65,7 +65,7 @@ Source: `apps/extension/**` (WXT). Gating and org context: `apps/web/components/
 |---------|----------------|
 | FAQ / first steps | Public route **`/help`** (`apps/web/app/help/page.tsx`) + i18n keys `help.*`. |
 | Footer on auth screens | `PublicLegalFooter` — links appear when env URLs are set. |
-| Env (web) | `NEXT_PUBLIC_DAYDAY_TERMS_URL`, `NEXT_PUBLIC_DAYDAY_PRIVACY_URL`, `NEXT_PUBLIC_DAYDAY_STATUS_URL`, `NEXT_PUBLIC_DAYDAY_DOCS_URL`, `NEXT_PUBLIC_DAYDAY_VIDEO_URL` — see `apps/web/.env.example`. |
+| Env (web) | `NEXT_PUBLIC_ERAFINANCE_TERMS_URL`, `NEXT_PUBLIC_ERAFINANCE_PRIVACY_URL`, `NEXT_PUBLIC_ERAFINANCE_STATUS_URL`, `NEXT_PUBLIC_ERAFINANCE_DOCS_URL`, `NEXT_PUBLIC_ERAFINANCE_VIDEO_URL` — see `apps/web/.env.example`. |
 
 Terms and privacy **content** lives outside the repo; the app only needs HTTPS URLs.
 

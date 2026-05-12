@@ -3,7 +3,7 @@ import {
   FixedAssetDepreciationMethod,
   FixedAssetStatus,
   Prisma,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { AccountingService } from "../accounting/accounting.service";
 import {
   ACCUMULATED_DEPRECIATION_ACCOUNT_CODE,

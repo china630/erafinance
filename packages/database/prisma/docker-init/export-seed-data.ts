@@ -11,13 +11,13 @@
  *
  * Из корня монорепо (пишет packages/database/prisma/docker-init/01-seed-data.sql по умолчанию):
  *   npm run db:dump-to-prod
- *   dotenv -e .env -- npm run docker-init:export -w @dayday/database
+ *   dotenv -e .env -- npm run docker-init:export -w @erafinance/database
  *
  * Только в stdout (без записи файла):
- *   DOCKER_INIT_OUT=- dotenv -e .env -- npm run docker-init:export -w @dayday/database
+ *   DOCKER_INIT_OUT=- dotenv -e .env -- npm run docker-init:export -w @erafinance/database
  *
  * Явный путь:
- *   DOCKER_INIT_OUT=prisma/docker-init/custom.sql dotenv -e .env -- npm run docker-init:export -w @dayday/database
+ *   DOCKER_INIT_OUT=prisma/docker-init/custom.sql dotenv -e .env -- npm run docker-init:export -w @erafinance/database
  */
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -60,7 +60,7 @@ function sqlNullableString(v: string | null | undefined): string {
 
 async function buildSql(): Promise<string> {
   const parts: string[] = [];
-  parts.push(`-- DayDay ERP: экспорт справочных данных (export-seed-data.ts), Postgres 16
+  parts.push(`-- ERA Finance: экспорт справочных данных (export-seed-data.ts), Postgres 16
 -- Порядок: translation_overrides, system_config, pricing_modules, pricing, pricing_bundles.
 -- users не экспортируются (см. комментарий в export-seed-data.ts), кроме DOCKER_INIT_EXPORT_USERS=1.
 -- Односегментные ключи i18n вне белого списка не попадают в дамп.

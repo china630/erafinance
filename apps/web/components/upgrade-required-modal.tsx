@@ -58,13 +58,13 @@ export function UpgradePlanModalHost() {
   }, []);
 
   useEffect(() => {
-    window.addEventListener("dayday:subscription-read-only", onReadOnly);
-    window.addEventListener("dayday:quota-upgrade", onQuota);
-    window.addEventListener("dayday:upgrade-modal-custom", onCustomUpgrade);
+    window.addEventListener("erafinance:subscription-read-only", onReadOnly);
+    window.addEventListener("erafinance:quota-upgrade", onQuota);
+    window.addEventListener("erafinance:upgrade-modal-custom", onCustomUpgrade);
     return () => {
-      window.removeEventListener("dayday:subscription-read-only", onReadOnly);
-      window.removeEventListener("dayday:quota-upgrade", onQuota);
-      window.removeEventListener("dayday:upgrade-modal-custom", onCustomUpgrade);
+      window.removeEventListener("erafinance:subscription-read-only", onReadOnly);
+      window.removeEventListener("erafinance:quota-upgrade", onQuota);
+      window.removeEventListener("erafinance:upgrade-modal-custom", onCustomUpgrade);
     };
   }, [onCustomUpgrade, onQuota, onReadOnly]);
 

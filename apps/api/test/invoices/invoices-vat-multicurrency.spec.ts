@@ -1,4 +1,4 @@
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { InvoicesService } from "../../src/invoices/invoices.service";
 
 describe("Invoices VAT and multi-currency rounding", () => {

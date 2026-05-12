@@ -11,7 +11,7 @@ export default defineContentScript({
   async main(_ctx) {
     const disposeInjection = mountCustomsCaptureInjection();
     const host = document.createElement("div");
-    host.id = "dayday-assistant-host";
+    host.id = "erafinance-assistant-host";
     host.style.position = "fixed";
     host.style.right = "16px";
     host.style.bottom = "16px";

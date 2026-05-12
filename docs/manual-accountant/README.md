@@ -8,17 +8,17 @@
 ## Сборка PDF
 
 ```bash
-cd "path/to/dayday_erp"
+cd "path/to/era_erp"
 python -m pip install -r docs/manual-accountant/requirements-pdf.txt
 python tools/md_to_pdf.py docs/manual-accountant/manual-buhgalter.md -o docs/manual-accountant/manual-buhgalter.pdf
 ```
 
-PDF собирается через **headless Chrome / Edge** (тот же движок, что у браузера): нормальные **таблицы**, шрифты и оглавление со ссылками. Нужен установленный **Google Chrome** или **Microsoft Edge** (на Windows обычно уже есть Edge). Явный путь к браузеру: переменная **`DAYDAY_CHROME_BIN`** или флаг **`--browser "C:\...\msedge.exe"`**. Если браузера нет (типично CI/Linux без Chromium), установите **`pip install weasyprint`** и запускайте с **`--engine weasyprint`**.
+PDF собирается через **headless Chrome / Edge** (тот же движок, что у браузера): нормальные **таблицы**, шрифты и оглавление со ссылками. Нужен установленный **Google Chrome** или **Microsoft Edge** (на Windows обычно уже есть Edge). Явный путь к браузеру: переменная **`ERAFINANCE_CHROME_BIN`** или флаг **`--browser "C:\...\msedge.exe"`**. Если браузера нет (типично CI/Linux без Chromium), установите **`pip install weasyprint`** и запускайте с **`--engine weasyprint`**.
 
 ## Сборка HTML
 
 ```bash
-cd "path/to/dayday_erp"
+cd "path/to/era_erp"
 python -m pip install markdown
 python tools/md_to_html.py docs/manual-accountant/manual-buhgalter.md -o docs/manual-accountant/manual-buhgalter.html
 ```

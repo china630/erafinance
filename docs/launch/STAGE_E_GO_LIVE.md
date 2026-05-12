@@ -8,10 +8,10 @@ Companion to `100_STEPS_TO_LIVE.md` §E (127–152) and §F (153–172). **Forma
 |------|-------------------|------|
 | RU+AZ completeness | `npm run i18n:audit` | **Every** root `npm run build` (gate). |
 | Super-Admin defaults | `npm run i18n:catalog` → `apps/api/src/admin/i18n-default-catalog-data.json` | Same PR as new/changed keys in `packages/i18n/src/resources.ts`. |
-| DB overrides | `npm run db:sync-i18n` or `npm run db:deploy` | Staging/prod after i18n PR (see `dayday-local-dev.mdc`). |
-| Dangerous overrides | `npm run db:audit-i18n-overrides -w @dayday/database` | Before prod deploy if editors touched `translation_overrides`. |
+| DB overrides | `npm run db:sync-i18n` or `npm run db:deploy` | Staging/prod after i18n PR (see `erafinance-local-dev.mdc`). |
+| Dangerous overrides | `npm run db:audit-i18n-overrides -w @erafinance/database` | Before prod deploy if editors touched `translation_overrides`. |
 | UI fallback | `apps/web/lib/i18n/ui-lang.ts` — `ru` vs default **`az`** | No action if unchanged. |
-| Zod / API messages | `@dayday/api-contracts` + web copy | Prefer AZ/RU in user-visible strings; English-only developer messages are OK if never surfaced. |
+| Zod / API messages | `@erafinance/api-contracts` + web copy | Prefer AZ/RU in user-visible strings; English-only developer messages are OK if never surfaced. |
 
 **Dispute / security strings:** `superAdmin.security*` and `disputePublic.*` in `packages/i18n/src/resources.ts` (RU+AZ).
 
@@ -39,9 +39,9 @@ Record pass/fail and commit hash in the release ticket.
 | Topic | Notes |
 |-------|--------|
 | Load test (137) | Optional k6/Locust; watch PDF and BullMQ workers separately (step 159). |
-| On-call (139) | Telegram/webhook alerts from `DAYDAY_BULLMQ_ALERT_WEBHOOK_URL`, `AUDIT_ALERT_WEBHOOK_URL`, monitoring stack in `docs/deploy/monitoring/`. |
+| On-call (139) | Telegram/webhook alerts from `ERAFINANCE_BULLMQ_ALERT_WEBHOOK_URL`, `AUDIT_ALERT_WEBHOOK_URL`, monitoring stack in `docs/deploy/monitoring/`. |
 | 48h KPI (141) | Error rate, latency, failed webhooks, `billingStatus` stuck SOFT/HARD. |
-| Legal links (142) | `NEXT_PUBLIC_DAYDAY_TERMS_URL`, `PRIVACY`, `STATUS` on auth footer + `/help`. |
+| Legal links (142) | `NEXT_PUBLIC_ERAFINANCE_TERMS_URL`, `PRIVACY`, `STATUS` on auth footer + `/help`. |
 | Freeze window (143) | No schema drift; migrations only via `migrate deploy`. |
 | Go-Live sign-off (144, 172) | Product + engineering + support agree; this doc is not a substitute. |
 
@@ -66,7 +66,7 @@ Record pass/fail and commit hash in the release ticket.
 | Pen-test (160) | Out-of-band from functional QA; fix criticals before broad marketing. |
 | VAT exempt -1 (168) | Search `vatRate` / `VAT` in API+web for regressions when touching invoices. |
 | Dispute freeze test (169) | Add integration coverage when CI stable — guard is in `APP_GUARD`. |
-| api-contracts vs web (171) | Breaking DTO changes require coordinated bump of `@dayday/api-contracts` and web callers. |
+| api-contracts vs web (171) | Breaking DTO changes require coordinated bump of `@erafinance/api-contracts` and web callers. |
 
 ---
 

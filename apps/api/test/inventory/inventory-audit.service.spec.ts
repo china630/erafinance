@@ -4,7 +4,7 @@ import {
   InventoryAuditStatus,
   InventoryDiscrepancyKind,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { InventoryAuditService } from "../../src/inventory/inventory-audit.service";
 import type { AccountingService } from "../../src/accounting/accounting.service";
 import type { PrismaService } from "../../src/prisma/prisma.service";

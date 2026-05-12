@@ -9,7 +9,7 @@ import {
   MaxLength,
   MinLength,
 } from "class-validator";
-import { CounterpartyLegalForm } from "@dayday/database";
+import { CounterpartyLegalForm } from "@erafinance/database";
 
 export class RegisterOrgDto {
   @ApiProperty({ example: "ООО Пример" })

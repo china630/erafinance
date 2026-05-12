@@ -12,7 +12,7 @@ import {
   EmployeeKind,
   PayrollRunStatus,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { AccountingService } from "../accounting/accounting.service";
 import {
   PAYABLE_SUPPLIERS_ACCOUNT_CODE,

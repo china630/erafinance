@@ -1,4 +1,4 @@
-import { SubscriptionTier } from "@dayday/database";
+import { SubscriptionTier } from "@erafinance/database";
 
 export type TierQuotas = {
   /** Максимум организаций на один «биллинговый» контур (v4.1+); при 1:1 org–subscription — ориентир для политики. */

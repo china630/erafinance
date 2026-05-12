@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
-import { UserRole } from "@dayday/database";
+import { UserRole } from "@erafinance/database";
 import { ActivityStreamService } from "./activity-stream.service";
 
 describe("ActivityStreamService", () => {

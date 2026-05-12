@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const common_1 = require("@nestjs/common");
-const database_1 = require("@dayday/database");
+const database_1 = require("@erafinance/database");
 const accounting_service_1 = require("../../src/accounting/accounting.service");
 describe("AccountingService", () => {
     const orgId = "00000000-0000-0000-0000-000000000001";

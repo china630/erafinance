@@ -3,7 +3,7 @@ import {
   InventoryValuationMethod,
   Prisma,
   StockMovementType,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 
 type Tx = Prisma.TransactionClient;

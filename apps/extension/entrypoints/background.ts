@@ -21,7 +21,7 @@ import {
 } from "../src/background/auth-flow";
 
 export default defineBackground(() => {
-  browser.alarms.create("dayday-keepalive", { periodInMinutes: 0.5 });
+  browser.alarms.create("erafinance-keepalive", { periodInMinutes: 0.5 });
   browser.alarms.onAlarm.addListener(() => {
     /* keep service worker alive between long portal sessions */
   });

@@ -11,11 +11,11 @@ function trimUrl(v: string | undefined): string | null {
 
 export function PublicLegalFooter() {
   const { t } = useTranslation();
-  const terms = trimUrl(process.env.NEXT_PUBLIC_DAYDAY_TERMS_URL);
-  const privacy = trimUrl(process.env.NEXT_PUBLIC_DAYDAY_PRIVACY_URL);
-  const status = trimUrl(process.env.NEXT_PUBLIC_DAYDAY_STATUS_URL);
-  const docs = trimUrl(process.env.NEXT_PUBLIC_DAYDAY_DOCS_URL);
-  const video = trimUrl(process.env.NEXT_PUBLIC_DAYDAY_VIDEO_URL);
+  const terms = trimUrl(process.env.NEXT_PUBLIC_ERAFINANCE_TERMS_URL);
+  const privacy = trimUrl(process.env.NEXT_PUBLIC_ERAFINANCE_PRIVACY_URL);
+  const status = trimUrl(process.env.NEXT_PUBLIC_ERAFINANCE_STATUS_URL);
+  const docs = trimUrl(process.env.NEXT_PUBLIC_ERAFINANCE_DOCS_URL);
+  const video = trimUrl(process.env.NEXT_PUBLIC_ERAFINANCE_VIDEO_URL);
 
   const linkClass = `${LINK_ACCENT_CLASS} whitespace-nowrap`;
 

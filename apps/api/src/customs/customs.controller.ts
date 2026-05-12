@@ -10,11 +10,11 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { UserRole } from "@dayday/database";
+import { UserRole } from "@erafinance/database";
 import {
   CustomsDeclarationFullPrefillCaptureSchema,
   CustomsDeclarationPrefillCaptureSchema,
-} from "@dayday/api-contracts";
+} from "@erafinance/api-contracts";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { RolesGuard } from "../auth/guards/roles.guard";

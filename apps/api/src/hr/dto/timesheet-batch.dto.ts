@@ -11,7 +11,7 @@ import {
   Min,
   ValidateNested,
 } from "class-validator";
-import { TimesheetEntryType } from "@dayday/database";
+import { TimesheetEntryType } from "@erafinance/database";
 
 export class TimesheetBatchItemDto {
   @ApiProperty()

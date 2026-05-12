@@ -3,7 +3,7 @@ import {
   BillingStatus,
   Prisma,
   SubscriptionInvoiceStatus,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 import { runWithTenantContextAsync } from "../prisma/tenant-context";

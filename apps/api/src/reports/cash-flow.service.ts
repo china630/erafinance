@@ -5,7 +5,7 @@ import {
   LedgerType,
   Prisma,
   type BankStatementLineType,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReportsCacheService } from "./reports-cache.service";
 

@@ -1,4 +1,4 @@
-# Запуск DayDay ERP: чек-лист к live (объединённый)
+# Запуск ERA Finance: чек-лист к live (объединённый)
 
 **Роль:** Principal System Architect & CTO  
 **Источники правды:** [PRD.md](../../PRD.md), [TZ.md](../../TZ.md).  
@@ -38,7 +38,7 @@
 
 1. [x] Зафиксировать **целевую версию Node.js** и зафиксировать в CI/образах (см. [docs/deploy/PRE-RELEASE-CHECKLIST.md](../deploy/PRE-RELEASE-CHECKLIST.md)).
 2. [x] Выровнять **Prisma** с планом апгрейда (там же) — или явно отложить с записью риска в релиз-нотах.
-3. [x] Единый корневой **`.env`** по [`.cursor/rules/dayday-local-dev.mdc`](../../.cursor/rules/dayday-local-dev.mdc): `JWT_SECRET`, `JWT_REFRESH_SECRET`, `DATABASE_URL`, `REDIS_URL`, `AUDIT_HASH_SECRET` (или осознанный fallback — см. `apps/api/src/audit/audit.service.ts`).
+3. [x] Единый корневой **`.env`** по [`.cursor/rules/erafinance-local-dev.mdc`](../../.cursor/rules/erafinance-local-dev.mdc): `JWT_SECRET`, `JWT_REFRESH_SECRET`, `DATABASE_URL`, `REDIS_URL`, `AUDIT_HASH_SECRET` (или осознанный fallback — см. `apps/api/src/audit/audit.service.ts`).
 4. [x] Проверить **`apps/api/.env`** не перетирает критичные прод-секреты при деплое (`apps/api/src/load-env-paths.ts`).
 5. [x] **`STEP_UP_HMAC_SECRET`** — `apps/api/src/platform-recovery/step-up/step-up-auth.service.ts`.
 6. [x] **`INVOICE_PORTAL_TOKEN_SECRET`** (TZ §14.0.1).
@@ -48,9 +48,9 @@
 10. [x] **`ensureBucketVersioningAndObjectLock`** — без бесконечных WARN; подтвердить конфиг бакета.
 11. [x] **`npm run db:migrate`** на staging/prod — `packages/database/prisma/migrations/`.
 12. [x] **`npm run db:deploy`** после релиза со строками UI (TZ §17).
-13. [x] **`npm run db:generate -w @dayday/database`** после миграций.
+13. [x] **`npm run db:generate -w @erafinance/database`** после миграций.
 14. [x] **`npm run build`** — зелёный (включает `i18n:audit`).
-15. [x] **ESLint `no-raw-tenant-mutation`:** `apps/api/.eslintrc.cjs`, `apps/api/eslint-rules/no-raw-tenant-mutation.js` — `npm run lint -w @dayday/api`.
+15. [x] **ESLint `no-raw-tenant-mutation`:** `apps/api/.eslintrc.cjs`, `apps/api/eslint-rules/no-raw-tenant-mutation.js` — `npm run lint -w @erafinance/api`.
 16. [x] Ручной аудит **`$queryRaw` / `$executeRaw`** в `apps/api/src` — предикат `organizationId` / whitelist.
 17. [x] **Порядок `APP_GUARD`:** `apps/api/src/app.module.ts` (`ThrottlerGuard`, `JwtAuthGuard`, `DisputeFreezeGuard`, `SubscriptionReadOnlyGuard`, `BillingAccessGuard`, `AuditorMutationGuard`).
 18. [x] Задокументировать порядок guards для on-call (ссылка на этот файл + TZ §2/§9).
@@ -96,7 +96,7 @@
 53. [x] **Capacity planning** — vCPU/RAM Postgres+API+Web.
 54. [x] **PITR + WAL в S3** (если self-hosted) — процедура в DR_RUNBOOK; managed RDS — использовать нативный PITR.
 55. [x] **Versioning** для бакета (не только evidence/invoices — см. уже реализованные префиксы в `storage.constants.ts`).
-56. [x] **Nginx** reverse proxy + gzip/brotli — [docs/nginx-maintenance.conf](../nginx-maintenance.conf), пример прода: [docs/nginx-dayday-production.example.conf](../nginx-dayday-production.example.conf).
+56. [x] **Nginx** reverse proxy + gzip/brotli — [docs/nginx-maintenance.conf](../nginx-maintenance.conf), пример прода: [docs/nginx-erafinance-production.example.conf](../nginx-erafinance-production.example.conf).
 57. [x] **Let's Encrypt** для публичных хостов API/Web.
 58. [x] **Grafana + Prometheus** — RAM/CPU/API latency.
 59. [x] **Sentry** на **web** (если ещё не подключён) — симметрично API.
@@ -130,23 +130,23 @@
 79. [x] **Extension gating** — `apps/extension/**` + веб-мост / подписка (STAGE_C).
 80. [x] **Справочники** — курсы ЦБ (`fx/cbar-*`), NAS в сиде / онбординге.
 81. [x] **Демо-org политика** — флаг сида + отдельный UUID; soft-delete на tenant-моделях по TZ.
-82. [x] **Manual / docs** — футер на auth + `/help`; URL через `NEXT_PUBLIC_DAYDAY_*` (см. `apps/web/.env.example`).
+82. [x] **Manual / docs** — футер на auth + `/help`; URL через `NEXT_PUBLIC_ERAFINANCE_*` (см. `apps/web/.env.example`).
 83. [x] **Dispute legal templates** — `apps/api/src/platform-recovery/dispute/legal-templates/*.md`.
 84. [x] **`/dispute/[id]`** — `apps/web/app/dispute/[id]/page.tsx` + публичный путь в `middleware` / `layout`.
 85. [x] **Super-admin security** — `apps/web/app/super-admin/organizations/[id]/security/page.tsx`.
 86. [x] **i18n** — `packages/i18n/src/resources.ts`; `npm run i18n:audit` (RU+AZ).
 87. [x] **AZ терминология** — единый каталог ключей в i18n; выверка с носителем — процесс в STAGE_C.
-88. [x] **Terms of Service** — контент вне репо; ссылка `NEXT_PUBLIC_DAYDAY_TERMS_URL` в UI.
-89. [x] **Privacy Policy** — контент вне репо; ссылка `NEXT_PUBLIC_DAYDAY_PRIVACY_URL` в UI.
+88. [x] **Terms of Service** — контент вне репо; ссылка `NEXT_PUBLIC_ERAFINANCE_TERMS_URL` в UI.
+89. [x] **Privacy Policy** — контент вне репо; ссылка `NEXT_PUBLIC_ERAFINANCE_PRIVACY_URL` в UI.
 90. [x] **Dispute Notice** — email-тело в copy-модуле; юридические шаблоны — `legal-templates/*.md`.
 91. [x] **FAQ** — `/help` (ASAN İmza, первые шаги) + i18n `help.*`.
 92. [ ] **Email-шаблоны** — SMTP есть; HTML-шаблоны регистрации/оплаты — бэклог (STAGE_C).  
     > **Architect:** plain-текст достаточен для MVP; HTML, бренд, локали — отдельный спринт. Не блокирует эквайринг и webhooks.
 93. [ ] **Landing / RPA+OCR** — маркетинг вне монорепо (ссылки через env / STAGE_C).  
     > **Architect:** маркетинг и SEO — отдельный деплой/CDN; в монорепо — продукт и deeplink через `NEXT_PUBLIC_*`.
-94. [x] **Видеоинструкция** — `NEXT_PUBLIC_DAYDAY_VIDEO_URL` в футере и `/help`.
+94. [x] **Видеоинструкция** — `NEXT_PUBLIC_ERAFINANCE_VIDEO_URL` в футере и `/help`.
 95. [x] **Баннеры `RpaUpsellModal`** — `apps/web/components/rpa-upsell-modal.tsx` + i18n `bulk.upsell.*`.
-96. [x] **Status page** — внешний URL `NEXT_PUBLIC_DAYDAY_STATUS_URL` + процесс обновления в STAGE_C.
+96. [x] **Status page** — внешний URL `NEXT_PUBLIC_ERAFINANCE_STATUS_URL` + процесс обновления в STAGE_C.
 97. [ ] **Справочник банков AZ** — централизованной таблицы нет; SWIFT/MFO в счетах организации/контрагента (бэклог сида — STAGE_C).  
     > **Architect:** автокомплит и справочник CBAR — отдельная модель + актуализация; пока — free-text SWIFT в `OrganizationBankAccount` и валидация формата.
 
@@ -218,7 +218,7 @@
     > **Architect:** «готово» = ростер дежурных + маршрут эскалации + тестовый триггер алерта до Go-Live.
 140. [x] **Post-deploy** — [docs/deploy/deploy.ru.md](../deploy/deploy.ru.md).
 141. [ ] **48h KPI мониторинг** — ops после первого prod-трафика.
-142. [x] **Юридические ссылки** — `NEXT_PUBLIC_DAYDAY_*` + `PublicLegalFooter` / `/help` (этап C).
+142. [x] **Юридические ссылки** — `NEXT_PUBLIC_ERAFINANCE_*` + `PublicLegalFooter` / `/help` (этап C).
 143. [ ] **Freeze window** — календарное решение продукта; техника: только `migrate deploy`, без `db push` на прод.
 144. [ ] **Go-Live sign-off** — вне репозитория (руководство + инженерия + поддержка).
 145. [ ] **Zod / validation messages** — AZ/RU там, где текст уходит в UI.  
@@ -239,7 +239,7 @@
 Детали и smoke: **[docs/launch/STAGE_E_GO_LIVE.md](STAGE_E_GO_LIVE.md)** §Stage F.
 
 153. [ ] **Публикация расширения** в Chrome Web Store — [EXTENSION_MVP_DEPLOY.md](../deploy/EXTENSION_MVP_DEPLOY.md).  
-    > **Architect:** версия extension и ERP должны быть совместимы по `@dayday/api-contracts` и CORS; rollout extension — отдельной волной от API.
+    > **Architect:** версия extension и ERP должны быть совместимы по `@erafinance/api-contracts` и CORS; rollout extension — отдельной волной от API.
 154. [ ] **Smoke RPA / e-taxes** — staging + реальная org; сценарии из плана extension.  
     > **Architect:** закрывать только при зафиксированном видео/логе сценария: login → capture → submit → callback/status.
 155. [ ] **Очистка staging** — `db:wipe-tenant` и т.д.; **никогда** произвольный wipe prod.  
@@ -272,7 +272,7 @@
 169. [ ] **`DisputeFreezeGuard`** — интеграционный тест (бэклог CI); guard уже в `APP_GUARD`.  
     > **Architect:** не блокер текущего Go-Live при наличии unit/feature smoke, но обязателен до масштабирования recovery-модуля.
 170. [ ] **Очистка `uploads/` / dev Redis** — только не-клиентские артефакты; не трогать prod storage с данными org.
-171. [x] **Согласованность `@dayday/api-contracts` и web** — workspace dependency `*` в `apps/web` и `apps/extension`; breaking changes — единый PR/мажор.
+171. [x] **Согласованность `@erafinance/api-contracts` и web** — workspace dependency `*` в `apps/web` и `apps/extension`; breaking changes — единый PR/мажор.
 172. [ ] **GO LIVE** — формальное закрытие чек-листа (бизнес-решение).
 
 ---

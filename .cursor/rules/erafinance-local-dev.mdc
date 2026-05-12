@@ -1,9 +1,9 @@
 ---
-description: DayDay ERP — локальная инфраструктура, Windows, Next/Nest, .env
+description: ERA Finance — локальная инфраструктура, Windows, Next/Nest, .env
 alwaysApply: true
 ---
 
-# Локальная разработка DayDay ERP
+# Локальная разработка ERA Finance
 
 ## Один источник правды: корневой `.env`
 
@@ -14,7 +14,7 @@ alwaysApply: true
 
 ## Docker (Postgres + Redis)
 
-1. При необходимости создайте каталоги на **`D:\DockerData\dayday_erp\`** (тома Docker, кэш npm и т.д.) — вручную или любым удобным способом.
+1. При необходимости создайте каталоги на **`D:\DockerData\erafinance_erp\`** (тома Docker, кэш npm и т.д.) — вручную или любым удобным способом.
 2. `npm run docker:up`.
 3. При необходимости: **`npm run db:migrate`** из корня — это **`prisma migrate deploy`** (подтянуть уже смерженные миграции, **без** вопросов в терминале). Чтобы **создать** новую миграцию из `schema.prisma`: **`npm run db:migrate:dev`** (интерактивно, как раньше `migrate dev`).
 
@@ -46,7 +46,7 @@ alwaysApply: true
 |-----------|--------|--------------------------------|
 | **`apps/web/lib/i18n/resources.ts`** | Единственный источник для **Next.js** (`t(...)`, бандл). Без правок здесь в UI не появится строка. | Добавить **и** `ru`, **и** `az` (сборка гоняет **`npm run i18n:audit`**). Динамические ключи (`counterparties.legalForm_LLC` и т.д.) скрипт аудита по `t("...")` не ищет — их всё равно нужно положить в дерево `resources` с тем же путём, что в `t(counterpartyLegalFormI18nKey(...))`. |
 | **`apps/api/src/admin/i18n-default-catalog-data.json`** | Снимок дефолтов для **Super-Admin → переводы** и прочих вызовов API с дефолтами из кода. **Не** влияет на сам по себе Postgres и **не** подменяет бандл веба. | **`npm run i18n:catalog`** из корня, затем **закоммитить** обновлённый JSON. Если команда не запускалась или артефакт не задеплоен, в админке «дефолт» по ключу будет пустым/старым, хотя в `resources.ts` всё есть. |
-| **Таблица `translation_overrides` (Postgres)** | Оверрайды поверх бандла; отдаёт **`GET /api/public/translations?locale=`** для клиента. | **`npm run db:sync-i18n`** (или **`db:sync-i18n:prune`** / **`npm run db:deploy`** — подтягивает строки из `resources.ts` в БД и поднимает **`i18n.cacheVersion`**). Руками в БД: **`locale`** только в нижнем регистре (`ru` / `az`), ключ — как во flat из ресурсов (`counterparties.legalForm_LLC`, **не** `counterparties.legalForm.LLC`). Опасные родители-строки и «сырой» placeholder см. в **`apps/web/lib/i18n/apply-db-overrides.ts`**; сухой прогон: **`npm run db:audit-i18n-overrides -w @dayday/database`**. |
+| **Таблица `translation_overrides` (Postgres)** | Оверрайды поверх бандла; отдаёт **`GET /api/public/translations?locale=`** для клиента. | **`npm run db:sync-i18n`** (или **`db:sync-i18n:prune`** / **`npm run db:deploy`** — подтягивает строки из `resources.ts` в БД и поднимает **`i18n.cacheVersion`**). Руками в БД: **`locale`** только в нижнем регистре (`ru` / `az`), ключ — как во flat из ресурсов (`counterparties.legalForm_LLC`, **не** `counterparties.legalForm.LLC`). Опасные родители-строки и «сырой» placeholder см. в **`apps/web/lib/i18n/apply-db-overrides.ts`**; сухой прогон: **`npm run db:audit-i18n-overrides -w @erafinance/database`**. |
 
 **Практический чеклист в одном PR:** правки в **`resources.ts`** → **`npm run i18n:catalog`** + коммит **`i18n-default-catalog-data.json`** → **`npm run db:sync-i18n`** (или deploy-скрипт) → локально перезапуск **`dev:web`** / **`dev:api`** или жёсткое обновление страницы, на проде — новый образ/билд с актуальным JSON и применённой синхронизацией БД.
 

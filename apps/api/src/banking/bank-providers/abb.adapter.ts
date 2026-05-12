@@ -224,7 +224,7 @@ export class AbbAdapter implements BankingProviderInterface, OnModuleDestroy {
         url: this.salaryPaymentsPath,
         data: {
           base64aDoc,
-          externalReference: payload.reference ?? `dayday-${Date.now()}`,
+          externalReference: payload.reference ?? `erafinance-${Date.now()}`,
         },
       },
       true,

@@ -10,7 +10,7 @@ import {
   SubscriptionInvoiceStatus,
   SubscriptionTier,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import PDFDocument from "pdfkit";
 import { registerUnicodeFonts, PDF_FONT_UNICODE } from "../reporting/pdf-font.util";
 import { PrismaService } from "../prisma/prisma.service";
@@ -341,7 +341,7 @@ export class BillingPlatformService {
       const doc = new PDFDocument({
         size: "A4",
         margin: 48,
-        info: { Title: "DayDay ERP — platform subscription invoice" },
+        info: { Title: "ERA Finance — platform subscription invoice" },
       });
       const chunks: Buffer[] = [];
       doc.on("data", (c: Buffer) => {
@@ -358,7 +358,7 @@ export class BillingPlatformService {
       doc
         .fontSize(18)
         .fillColor("#34495E")
-        .text("DayDay ERP — Platform subscription invoice / Platforma abunə hesab-fakturası", {
+        .text("ERA Finance — Platform subscription invoice / Platforma abunə hesab-fakturası", {
           align: "left",
         });
       doc.moveDown(0.5);
@@ -411,7 +411,7 @@ export class BillingPlatformService {
         .fontSize(9)
         .fillColor("#7F8C8D")
         .text(
-          "Payment and allocation record for DayDay ERP services. / Ödəniş və xidmət bölgüsü. " +
+          "Payment and allocation record for ERA Finance services. / Ödəniş və xidmət bölgüsü. " +
             "Not a fiscal sales invoice.",
           { align: "left" },
         );

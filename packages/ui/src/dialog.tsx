@@ -42,7 +42,7 @@ export function Dialog({
   children: ReactNode;
 }) {
   const contentId = useMemo(
-    () => `dayday-dialog-${Math.random().toString(36).slice(2, 9)}`,
+    () => `erafinance-dialog-${Math.random().toString(36).slice(2, 9)}`,
     [],
   );
   return (

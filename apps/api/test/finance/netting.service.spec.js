@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const database_1 = require("@dayday/database");
-const database_2 = require("@dayday/database");
+const database_1 = require("@erafinance/database");
+const database_2 = require("@erafinance/database");
 const netting_service_1 = require("../../src/accounting/netting.service");
 const ledger_constants_1 = require("../../src/ledger.constants");
 describe("NettingService.createNetting (взаимозачёт)", () => {

@@ -6,9 +6,9 @@
  * иначе одинаковый `key` у двух локалей затирается и отчёт врёт.
  *
  * Запуск из корня монорепо:
- *   npx dotenv-cli -e .env -- npm run db:audit-i18n-overrides -w @dayday/database
+ *   npx dotenv-cli -e .env -- npm run db:audit-i18n-overrides -w @erafinance/database
  * Исправление (удаление проблемных строк + bump кэша i18n):
- *   npx dotenv-cli -e .env -- npm run db:audit-i18n-overrides:fix -w @dayday/database
+ *   npx dotenv-cli -e .env -- npm run db:audit-i18n-overrides:fix -w @erafinance/database
  */
 import { closePrismaPool, createPrismaClient } from "../../../prisma-client";
 import {

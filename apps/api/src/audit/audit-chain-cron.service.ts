@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron } from "@nestjs/schedule";
-import { SecurityMode } from "@dayday/database";
+import { SecurityMode } from "@erafinance/database";
 import { MailService } from "../mail/mail.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "./audit.service";
@@ -21,7 +21,7 @@ export class AuditChainCronService {
   async verifyAuditChainDaily(): Promise<void> {
     const res = await this.audit.verifyChain();
     if (res.compromisedOrganizations > 0) {
-      const msg = `[CRITICAL] DayDay ERP: Обнаружено нарушение целостности Audit Log. Возможна ручная манипуляция в БД. Скомпрометированные ID: ${res.compromisedIds.join(",")}`;
+      const msg = `[CRITICAL] ERA Finance: Обнаружено нарушение целостности Audit Log. Возможна ручная манипуляция в БД. Скомпрометированные ID: ${res.compromisedIds.join(",")}`;
       this.logger.error(
         `Audit chain check failed: ${res.compromisedOrganizations} organization(s), compromisedIds=${res.compromisedIds.join(",")}`,
       );
@@ -55,7 +55,7 @@ export class AuditChainCronService {
         if (!a.email) continue;
         await this.mail.sendMail({
           to: a.email,
-          subject: "DayDay ERP — CRITICAL: audit chain integrity failure",
+          subject: "ERA Finance — CRITICAL: audit chain integrity failure",
           text: msg,
         });
       }

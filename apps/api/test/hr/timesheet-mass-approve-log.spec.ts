@@ -1,5 +1,5 @@
 import { Logger } from "@nestjs/common";
-import { TimesheetStatus } from "@dayday/database";
+import { TimesheetStatus } from "@erafinance/database";
 import { TimesheetService } from "../../src/hr/timesheet.service";
 
 describe("TimesheetService massApprove performance log (M6)", () => {

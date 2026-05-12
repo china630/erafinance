@@ -1,7 +1,7 @@
 import {
   ExtensionRefreshResponseSchema,
   type ExtensionRefreshResponse,
-} from "@dayday/api-contracts";
+} from "@erafinance/api-contracts";
 import { apiBaseUrl } from "./config";
 import { getAccessToken, clearAccessSession } from "./session-store";
 import { getActiveOrganizationId } from "./local-store";

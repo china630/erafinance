@@ -2,7 +2,7 @@ import { ConfigService } from "@nestjs/config";
 import {
   PaymentOrderStatus,
   SubscriptionTier,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PaymentProviderService } from "../../../billing/payment-provider.service";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { SystemConfigService } from "../../../system-config/system-config.service";

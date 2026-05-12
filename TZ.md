@@ -1,8 +1,8 @@
-# Техническое задание (Т/З): DayDay ERP
+# Техническое задание (Т/З): ERA Finance
 
 Единый документ для разработки: объединяет ядро Core MVP, расширения v2, интеграции v3 и слой монетизации v4. Сводные продуктовые решения — **[PRD.md](./PRD.md)** (§12 и др.). Детализация REST — **§0.0** ниже и Swagger API.
 
-**Оглавление (верхний уровень):** **§0.0** — реестр ключевых REST; §0 — статус синхронизации; §1 — инфраструктура; §2–§10 — модули **1–9**; **§6.0** — Treasury + касса/банк; **§7.0** — HR, табель, payroll, ЦФО; §11 — паттерн разработки (**§11.1** — web: `PageHeader`, сайдбар-only); §12–§14 — дорожные карты; **§13.6** — Browser Extension RPA (DayDay Assistant); §15 — Super-Admin; §16–§17 — hardening; **§21** — Dispute & Recovery (платформа).
+**Оглавление (верхний уровень):** **§0.0** — реестр ключевых REST; §0 — статус синхронизации; §1 — инфраструктура; §2–§10 — модули **1–9**; **§6.0** — Treasury + касса/банк; **§7.0** — HR, табель, payroll, ЦФО; §11 — паттерн разработки (**§11.1** — web: `PageHeader`, сайдбар-only); §12–§14 — дорожные карты; **§13.6** — Browser Extension RPA (ERA Finance Assistant); §15 — Super-Admin; §16–§17 — hardening; **§21** — Dispute & Recovery (платформа).
 
 **Стандарт статусов (глобально для PRD/TZ):**
 - [x] **COMPLETED (scope):** задача реализована и зафиксирована.
@@ -95,7 +95,7 @@
 | **Почта** | **Nodemailer (SMTP)** — счета, сброс пароля |
 | **Monorepo** | `apps/web` (Next.js), `apps/api` (NestJS), `packages/database` (Prisma и общие типы при необходимости) |
 | **Локаль** | БД: **UTC**; UI: **i18next** (**RU** и **AZ**); при неопределённом коде языка — **`az`**; форматирование дат и **AZN** — по правилам продукта (часто локаль Азербайджана); детали — §17 |
-| **Локальная инфра (Windows)** | Тома Docker, загрузки API, **npm-кэш**, **TEMP/TMP** — только **D:** (`D:\DockerData\dayday_erp`); корневой `.npmrc`. Образы Docker — **Disk image location** на D в Docker Desktop |
+| **Локальная инфра (Windows)** | Тома Docker, загрузки API, **npm-кэш**, **TEMP/TMP** — только **D:** (`D:\DockerData\erafinance_erp`); корневой `.npmrc`. Образы Docker — **Disk image location** на D в Docker Desktop |
 
 **Production HTTPS requirement (hardening):**
 
@@ -300,7 +300,7 @@
 ### Сырой SQL и изоляция тенанта
 
 - При использовании **`$queryRaw`** / **`$executeRaw`** в запросах к данным организации вручную добавлять условие по **`organizationId`** (или параметризованный эквивалент), чтобы исключить пересечение тенантов.
-- **Реализация (v23.0):** в API доступен **`TenantPrismaRawService`** (`$queryRaw` / `$executeRaw` / `*Tx`) — **обязательный аргумент `organizationId`** на уровне вызова; SQL собирается через `Prisma.sql` и должен связывать этот идентификатор. DDL и платформенный SQL без тенанта — только через **`executePlatformRawUnsafe`** в пакете `@dayday/database` (скрипты вроде `prod-init.ts`), не через tenant-обёртку.
+- **Реализация (v23.0):** в API доступен **`TenantPrismaRawService`** (`$queryRaw` / `$executeRaw` / `*Tx`) — **обязательный аргумент `organizationId`** на уровне вызова; SQL собирается через `Prisma.sql` и должен связывать этот идентификатор. DDL и платформенный SQL без тенанта — только через **`executePlatformRawUnsafe`** в пакете `@erafinance/database` (скрипты вроде `prod-init.ts`), не через tenant-обёртку.
 
 **Неизменяемый журнал аудита (продуктовый модуль 8)** — требования к `AuditMutationInterceptor`, полям `AuditLog` и архиву: **§9**.
 
@@ -319,7 +319,7 @@
 - **Многоязычные наименования (v2026.04.22):** у **`Account`**, **`ChartOfAccountsEntry`** и **`TemplateAccount`** хранятся **`name_az`**, **`name_ru`**, **`name_en`**; отображаемое имя — по локали (`GET /api/accounts?locale=…`, **`Accept-Language`**).
 - **Архитектура «Global → Local»:** эталонный NAS платформы — таблица **`TemplateAccount`** с полем **`kind: OrganizationKind`** и **`@@unique([kind, code])`** (коды могут совпадать между видами плана с разным смыслом). В организацию при онбординге копируются строки с тем же **`kind`**, что у **`organizations.kind`**. Локальные счета — **`Account`**; опциональная связь **`templateAccountId`**.
 - **Legacy:** **`ChartOfAccountsEntry`** + super-admin UI остаются; при **пустом** наборе **`template_accounts`** для данного **`kind`** онбординг использует **`syncChartForOrganization`** (загрузка JSON каталога + сид каталога в БД при необходимости).
-- **Seeding:** `prisma db seed` вызывает **`upsertGlobalNasTemplateAccounts`**; отдельно: **`npm run db:seed:nas-templates --workspace=@dayday/database`** (`prisma/scripts/seed-nas-accounts.ts`). Канон — **`loadChartJson(kind)`** и JSON **`prisma/catalog/national/chart-of-accounts-{commercial|budget|ngo}.json`**.
+- **Seeding:** `prisma db seed` вызывает **`upsertGlobalNasTemplateAccounts`**; отдельно: **`npm run db:seed:nas-templates --workspace=@erafinance/database`** (`prisma/scripts/seed-nas-accounts.ts`). Канон — **`loadChartJson(kind)`** и JSON **`prisma/catalog/national/chart-of-accounts-{commercial|budget|ngo}.json`**.
 - **Smart Seeding (vClean ERP):** `prisma/seed.ts` использует модульный раннер `packages/database/prisma/seeds/_engine/runner.ts` с флагами `--layers`, `--skip`, `--only`, `--dry-run`, `--region` (`SEED_REGION`, default `AZ`).
 - **Layer scripts:** `db:seed:core`, `db:seed:national`, `db:seed:hr`, `db:seed:bank`, `db:seed:trade`, `db:seed:geo`, `db:seed:placeholders`.
 - **Currency/UoM hardening:** currency columns переведены на FK к `currencies(code)`; UoM поля нормализованы в `unit_of_measure_code` (FK к `units_of_measure(code)`), включая `customs_declaration_items`.
@@ -1397,7 +1397,7 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 
 - Внедрение горизонтального автоскейлинга воркеров через API DigitalOcean / Kubernetes.
 - Оптимизация транзакций Ledger: переход на пакетную запись итогов расчётов (**Batch Insert**) для массовых сценариев.
-- Разработка маппера данных **1С → DayDay NAS** для сценариев Migration Mode.
+- Разработка маппера данных **1С → ERA NAS** для сценариев Migration Mode.
 - [x] **COMPLETED:** реализация интерфейса ввода начальных остатков (**Opening Balances Wizard**) для кассы/банка, склада и зарплатных обязательств.
 - [x] **COMPLETED:** контракты Migration Wizard (`POST /api/migration/opening-balances/finance`, `.../hr`, `.../inventory`) введены в эксплуатацию (детали в §12.7).
 
@@ -1580,7 +1580,7 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 
 - **Продуктовая архитектура DVX (ГНС):** поэтапная стратегия интеграции с порталом **e-taxes.gov.az** — **[PRD.md](./PRD.md) §6.1.1** (по духу согласована с поэтапным подходом **ƏMAS / PRD §13.0**). **Целевой контур (фаза 3):** e-qaimə и прочие машинные поверхности — через **официальный закрытый B2B System-to-System API** (**API-ключ организации** или преемник по контракту DVX). **До полного S2S:** лицевой счёт / сверки — **PULL** с **переходным Live Session** после **ASAN İmza** и/или сценарий **фазы 2** (единое браузерное расширение — **§13.6**). **Инвариант:** **отказ от физических Android-ферм**. Технические границы адаптера (хранение сессии, ротация, аудит, PII, соответствие ToS оператора) задаются при спайке/реализации и не подменяют продуктовое решение PRD.
 - **Фаза 1 — файловый обмен (XML/Excel, backend/UI):** серверный контур генерирует **XML** деклараций (где применимо) и **Excel/CSV** пакеты для массовых операций; бухгалтер выполняет **ручную** загрузку/выгрузку на **e-taxes.gov.az**; в ERP сохраняются **журнал отправок**, статусы, метки времени, корреляционные ключи, версии выгрузки; повторные попытки — с **идемпотентностью** по бизнес-ключу (конкретные поля — на этапе реализации адаптера).
-- **Фаза 2 — RPA (Browser Extension):** пользовательский компонент **DayDay Assistant** (Chrome/Firefox, **Manifest V3**, единая кодовая база — **§13.6**) активируется **только** после **явного** действия пользователя на вкладке **e-taxes.gov.az** при уже открытой **аутентифицированной** сессии (включая **ASAN İmza**, если портал требует); расширение **предзаполняет** допустимые поля форм (в т.ч. **e-qaimə**), но кнопки **«İmzala» / Submit** нажимает **только человек**; события автозаполнения и ошибки интеграции фиксируются в **аудите** с привязкой к **`organizationId`**, выбранному в плагине (см. **§13.6** про multi-tenant gating).
+- **Фаза 2 — RPA (Browser Extension):** пользовательский компонент **ERA Finance Assistant** (Chrome/Firefox, **Manifest V3**, единая кодовая база — **§13.6**) активируется **только** после **явного** действия пользователя на вкладке **e-taxes.gov.az** при уже открытой **аутентифицированной** сессии (включая **ASAN İmza**, если портал требует); расширение **предзаполняет** допустимые поля форм (в т.ч. **e-qaimə**), но кнопки **«İmzala» / Submit** нажимает **только человек**; события автозаполнения и ошибки интеграции фиксируются в **аудите** с привязкой к **`organizationId`**, выбранному в плагине (см. **§13.6** про multi-tenant gating).
 - **Текущий scope фазы 2 (DVX):** connector `etaxes` с flow **e-qaimə** использует endpoint `GET /api/invoices/:id/prefill`; подробный контракт протокола `PORTAL_PREFILL` (flow-dispatch) и entitlement `tax_pro` зафиксированы в **§13.6**.
 - **Исследование:** официальные API e-taxes / BTP; авторизация, форматы, лимиты, тестовый контур.
 - **Реализация:** вариант A — прямая отправка из API; вариант B — очередь через BTP-клиент / агент при нестабильном API; UI — «Отправить в e-taxes» + журнал попыток.
@@ -1598,7 +1598,7 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 
 **[x] COMPLETED (companies-workspace-componentization, v2026.05):** страница `/companies` переведена на компонентный подход с переиспользуемой карточкой `CompanyCard`; структура — секции по холдингам + нижний блок `Sərbəst Şirkətlər` в grid-раскладке. Контекстные действия по компании (настройки, привязка, отвязка) вынесены в `DropdownMenu` на карточке для визуальной чистоты. Контракты API (`/api/organizations/tree`, `/api/holdings`, `POST/DELETE /api/holdings/:holdingId/organizations/:organizationId`) остаются без изменений.
 
-**[x] COMPLETED (ui-primitives-standard, v2026.05):** для нового и рефакторимого фронтенда обязательны общие примитивы из `@dayday/ui`: `Dialog`, `DropdownMenu`, `Popover`. Локальные ad-hoc оверлеи и кастомные dropdown-реализации в продуктовых экранах не добавляются; при рефакторинге заменяются на общий пакет. Базовые требования accessibility: trap focus + `Esc` в `Dialog`, keyboard navigation (`ArrowUp/ArrowDown`, `Esc`) в `DropdownMenu`.
+**[x] COMPLETED (ui-primitives-standard, v2026.05):** для нового и рефакторимого фронтенда обязательны общие примитивы из `@erafinance/ui`: `Dialog`, `DropdownMenu`, `Popover`. Локальные ad-hoc оверлеи и кастомные dropdown-реализации в продуктовых экранах не добавляются; при рефакторинге заменяются на общий пакет. Базовые требования accessibility: trap focus + `Esc` в `Dialog`, keyboard navigation (`ArrowUp/ArrowDown`, `Esc`) в `DropdownMenu`.
 
 ### 13.3. Direct Banking (Pasha Bank, ABB и др.)
 
@@ -1643,19 +1643,19 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 - Все тяжёлые операции идут через Async-First pipeline (см. §1.4 и PRD §10.3).
 - Финансовая запись в Ledger выполняется транзакционно и балансно (см. §3), независимо от источника задачи (HTTP/job/replay).
 
-### 13.6. Browser Extension RPA (DayDay Assistant)
+### 13.6. Browser Extension RPA (ERA Finance Assistant)
 
 **Назначение:** единый клиентский слой **RPA-помощника** для сценариев **фазы 2** интеграций с государственными порталами (**ƏMAS**, **e-taxes.gov.az / DVX** и др. по мере включения в продукт), без замены юридически значимых действий пользователя на стороне оператора портала.
 
 1. **Single Extension (единая кодовая база):** один артефакт браузерного расширения (**Manifest V3**; стек — **WXT** + React + TypeScript) с **модульными «коннекторами»** на домены порталов; запрещено плодить **отдельные** несвязанные репозитории расширений на каждый портал без архитектурного обоснования (fork допускается только как временный spike с последующей консолидацией). Исходники: `apps/extension/`; см. **`apps/extension/README.md`**.
 2. **Изоляция подписок (Multi-tenant SaaS gating):** платформа — **холдинговый SaaS** (**1 биллинг-юнит = 1 `organizationId`**). Расширение **не** опирается на предположение «достаточно JWT пользователя»: **entitlement** для функций автозаполнения проверяется **в контексте выбранной организации** (см. п.3), чтобы исключить утечку платных сценариев между компаниями одного пользователя.
-3. **User flow (контракт взаимодействия с API DayDay):**
+3. **User flow (контракт взаимодействия с API ERA):**
    - **Magic Auth / extension session:** `POST /api/auth/extension/refresh` в двух режимах: **bootstrap** — с Origin веб-приложения ERP и HttpOnly cookie стандартного `refresh_token` (как у SPA), ответ выставляет изолированную cookie **`refresh_token_ext`** (`path=/api/auth/extension`, `SameSite=None`, `Secure` в prod) и тело с **access JWT**; **silent** — с Origin `chrome-extension://…` / `moz-extension://…` и cookie `refresh_token_ext`, ротация refresh. Секрет refresh расширения: **`EXT_REFRESH_SECRET`** (fallback `JWT_SECRET`), TTL: **`EXT_REFRESH_EXPIRES`**. CORS: **`CORS_EXTENSION_ORIGINS`**, веб-Origins bootstrap: **`ERP_WEB_ORIGINS`**. Logout расширения: `POST /api/auth/extension/logout`. На вкладке ERP монтируется **`ExtensionBridge`** (`window.postMessage` ↔ content script расширения).
    - пользователь проходит **аутентификацию в расширении** (выдача **JWT** тем же доверенным контуром, что и веб-клиент; хранение access-токена в **`chrome.storage.session`**, явный logout);
    - пользователь выбирает **текущую организацию** (**Org switcher** в UI расширения; значение = активный `organizationId`);
    - расширение вызывает **`GET /api/subscription/me`** (или канонический эквивалент из веб-клиента, зафиксированный в OpenAPI на момент реализации) с передачей **`organizationId`** выбранной компании (заголовок **`X-Organization-Id`** / query — **как в основном SPA**, единообразие обязательно);
    - если для этой организации **не активен** требуемый модуль (**например** `tax_pro`, `hr_full` — точные коды **`ModuleEntitlement`** см. subscription-константы), расширение **блокирует** автозаполнение и показывает **локальный Paywall/Upsell** («Купите/активируйте модуль для **этой** компании») без обращения к полям портала;
-   - **VÖEN cross-check обязателен:** перед автозаполнением connector извлекает **активный VÖEN** из текущей сессии портала и сравнивает с `taxId` активной организации в DayDay ERP. При несовпадении (или при `null` VÖEN портала в явно authenticated-сессии) расширение показывает ошибку контекста и **запрещает** autofill до устранения конфликта;
+   - **VÖEN cross-check обязателен:** перед автозаполнением connector извлекает **активный VÖEN** из текущей сессии портала и сравнивает с `taxId` активной организации в ERA Finance. При несовпадении (или при `null` VÖEN портала в явно authenticated-сессии) расширение показывает ошибку контекста и **запрещает** autofill до устранения конфликта;
    - для flow `e-qaime` (DVX) расширение запрашивает `GET /api/invoices/:id/prefill`; entitlement для доступа к flow — `tax_pro`;
    - prefill `GET /api/invoices/:id/prefill` в фазе 2 ограничен валютой **AZN** (non-AZN → `INVOICE_NOT_AZN`); для строк с освобождением от НДС (`vatRate=-1`) API нормализует ответ как `vatExempt=true`, `vatRatePct=0`;
    - протокол `MSG.PORTAL_PREFILL` унифицирован по `flow`: `emuqavile` (payload `employeeId`) и `eqaime` (payload `invoiceId`), маршрутизация выполняется в background service worker;
@@ -1663,11 +1663,11 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
    - **Rate-limit safety для порталов:** BulkRunner работает последовательно (no parallel submit), с jitter-паузой между итерациями, backoff на ошибках и circuit-breaker при серии ошибок/дрейфе VÖEN-контекста;
    - результаты массовой синхронизации фиксируются в БД: статусы на `Invoice` / `Employee` + журнал прогона `integration_sync_runs` (portal, transport, counters, started/completed);
    - **Excel fallback (free path):** `GET /api/integrations/dvx/invoices/export.xlsx`, `POST /api/integrations/dvx/invoices/import-result`, `GET /api/integrations/emas/employees/export.xlsx`, `POST /api/integrations/emas/employees/import-result` доступны без module-gating;
-   - при активном модуле расширение запрашивает у API **минимальный DTO** для предзаполнения (без массовой утечки PII в content-script; маскирование логов — **§15.0** / `DataMaskingService`). Контракты DTO (Zod) — пакет **`@dayday/api-contracts`**; общие строки RU/AZ — **`@dayday/i18n`** (включая ключи `extension.*`).
-   - **Marketing CTA в ERP:** веб-интерфейс показывает CTA «Установите DayDay Assistant» в `sales/invoices` (баннер) и `admin/integrations` (карточка). Ссылка управляется env-переменной `NEXT_PUBLIC_EXTENSION_INSTALL_URL` (дефолт локали: `/docs/extension`, на проде — URL Web Store).
-   - для уже существующих БД (где `pricing_modules` был инициализирован до `tax_pro`) применяется одноразовый idempotent-скрипт `npm run db:ensure-tax-pro-pricing -w @dayday/database`.
+   - при активном модуле расширение запрашивает у API **минимальный DTO** для предзаполнения (без массовой утечки PII в content-script; маскирование логов — **§15.0** / `DataMaskingService`). Контракты DTO (Zod) — пакет **`@erafinance/api-contracts`**; общие строки RU/AZ — **`@erafinance/i18n`** (включая ключи `extension.*`).
+   - **Marketing CTA в ERP:** веб-интерфейс показывает CTA «Установите ERA Finance Assistant» в `sales/invoices` (баннер) и `admin/integrations` (карточка). Ссылка управляется env-переменной `NEXT_PUBLIC_EXTENSION_INSTALL_URL` (дефолт локали: `/docs/extension`, на проде — URL Web Store).
+   - для уже существующих БД (где `pricing_modules` был инициализирован до `tax_pro`) применяется одноразовый idempotent-скрипт `npm run db:ensure-tax-pro-pricing -w @erafinance/database`.
 
-**Нефункциональные требования:** соответствие **ToS** магазинов расширений и порталов; отсутствие «тихого» скрейпинга без explicit user gesture; запрет хранения **ASAN İmza** PIN/паролей DayDay; телеметрия ошибок — без сырого HTML портала в логах.
+**Нефункциональные требования:** соответствие **ToS** магазинов расширений и порталов; отсутствие «тихого» скрейпинга без explicit user gesture; запрет хранения **ASAN İmza** PIN/паролей ERA; телеметрия ошибок — без сырого HTML портала в логах.
 
 ### Критерии приёмки v3.0 (сводно)
 
@@ -1747,7 +1747,7 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
   | 21 | Ziraat Bank Azərbaycan ASC | 1303953611 | TCZBAZ22 |
   | 22 | Yelo Bank ASC | 9900014901 | NICBAZ22 |
 - **Seed-функция `seedBankGlossary(prisma)`** идемпотентна и устойчива к перетасовке `voen` между `code`: внутри одной транзакции выполняется двухфазный upsert (placeholder VÖEN → реальный VÖEN), благодаря чему UNIQUE на `voen` не нарушается даже при swap'ах. Заодно создаётся head-office запись в `bank_branches` (`isHeadOffice=true`, `branchCode=headBranchCode`, `name="Baş ofis"`).
-- **Импорт / сид филиалов** — таблица-источник в репозитории: `packages/database/prisma/catalog/bank/banks-table.md` (входит в пакет `@dayday/database`). Снимок для рантайма: `packages/database/prisma/catalog/bank/bank-branches.generated.ts` (регенерация: `npm run db:gen:banks-branches-seed`). Отдельный CLI для ручного прогона markdown: `npm run db:import-banks-md` (apply) и `npm run db:import-banks-md:dry` (только отчёт). Логика: `parseBanksMd()` (`packages/database/prisma/lib/bank/banks-md-parser.ts`) → `importBanksMd()` (`packages/database/prisma/lib/bank/banks-md-importer.ts`) → upsert в `bank_glossary` + `bank_branches`. Маппинг `head row → BankGlossary.code` идёт **по VÖEN** (а не по позиции в файле). Несовпавшие VÖEN попадают в `unmatchedHeadVoens` и пропускаются. На контрольном прогоне 2026-05-07 матчатся все 22 банка, апсёртятся 22 записи в `bank_glossary` и 647 в `bank_branches` (22 head-office + 625 филиалов).
+- **Импорт / сид филиалов** — таблица-источник в репозитории: `packages/database/prisma/catalog/bank/banks-table.md` (входит в пакет `@erafinance/database`). Снимок для рантайма: `packages/database/prisma/catalog/bank/bank-branches.generated.ts` (регенерация: `npm run db:gen:banks-branches-seed`). Отдельный CLI для ручного прогона markdown: `npm run db:import-banks-md` (apply) и `npm run db:import-banks-md:dry` (только отчёт). Логика: `parseBanksMd()` (`packages/database/prisma/lib/bank/banks-md-parser.ts`) → `importBanksMd()` (`packages/database/prisma/lib/bank/banks-md-importer.ts`) → upsert в `bank_glossary` + `bank_branches`. Маппинг `head row → BankGlossary.code` идёт **по VÖEN** (а не по позиции в файле). Несовпавшие VÖEN попадают в `unmatchedHeadVoens` и пропускаются. На контрольном прогоне 2026-05-07 матчатся все 22 банка, апсёртятся 22 записи в `bank_glossary` и 647 в `bank_branches` (22 head-office + 625 филиалов).
 - **Маска NAS-субсчёта**: `221.<BankCode>.<Sequence>` — `BankCode` берётся из `bank_glossary.code`, `Sequence` — двузначный (`01`–`99`) счётчик внутри **(organizationId × bankCode)** на основе уже существующих записей в `accounts` (NAS).
 - **Хук в модуле бухгалтерии**: **`apps/api/src/accounting/bank-subaccount.service.ts`** → `BankSubaccountService`, методы:
   - `nextSubaccountCode(organizationId, bankCode, db)` — следующий двузначный `Sequence`, валидация маски, защита от переполнения (`> 99` → `BadRequestException`);
@@ -1902,7 +1902,7 @@ enum SubscriptionTier {
 
 ### 14.8. Владелец организации, схема биллинга и API (PRD §7.12, Billing v10.0)
 
-**Цель:** зафиксировать целевую модель данных и контракты API для **биллинга платформы** (подписка DayDay ERP), не смешивая их с **инвойсами продаж** (`Invoice` в домене учёта).
+**Цель:** зафиксировать целевую модель данных и контракты API для **биллинга платформы** (подписка ERA Finance), не смешивая их с **инвойсами продаж** (`Invoice` в домене учёта).
 
 **Доступ к Billing (UI и API):** только пользователь с ролью **`OWNER`** в соответствующей организации; **Admin / Accountant / User** биллинг не видят (см. PRD §7.12.1). Маршруты привязки карты и истории платежей — те же правила.
 
@@ -2016,7 +2016,7 @@ enum SubscriptionTier {
 
 **Декоратор `@CheckQuota(resource)`** (Nest): метаданные для ресурса (`USERS`, `INVOICES_PER_MONTH`, `STORAGE` — квота хранилища дополняется проверками в сервисах загрузки файлов / PDF). Guard вызывает **`QuotaService`** до мутации; при превышении — **`QuotaExceededException` → HTTP 402** с телом `QUOTA_EXCEEDED`.
 
-**Фронтенд:** глобальный перехват в `apiFetch` для `402` + `code === "QUOTA_EXCEEDED"` — событие **`dayday:quota-upgrade`** и отображение модалки апгрейда (тот же UX-паттерн, что и `SUBSCRIPTION_READ_ONLY`).
+**Фронтенд:** глобальный перехват в `apiFetch` для `402` + `code === "QUOTA_EXCEEDED"` — событие **`erafinance:quota-upgrade`** и отображение модалки апгрейда (тот же UX-паттерн, что и `SUBSCRIPTION_READ_ONLY`).
 
 #### 14.8.8. Вебхуки платёжных систем (v23.0)
 
@@ -2044,7 +2044,7 @@ enum SubscriptionTier {
 
 #### 14.8.14. Drakaris (yığım) — второй платёжный провайдер подписки (v2026.06)
 
-**Семантика:** Drakaris/yığım — внешний агрегатор оплаты, который **сам обращается** к публичному API DayDay (Basic Auth), запрашивает у клиента сумму и инициирует пополнение — в отличие от PAŞA Bank, где DayDay редиректит пользователя на платёжку и принимает HMAC-вебхук. Поэтому status-коды spec (`200 / 401 / 402 / 404 / 405 / 406 / 407 / 408`) реализованы как ответы **нашего REST-эндпоинта**, не как обработка чужих кодов.
+**Семантика:** Drakaris/yığım — внешний агрегатор оплаты, который **сам обращается** к публичному API ERA (Basic Auth), запрашивает у клиента сумму и инициирует пополнение — в отличие от PAŞA Bank, где ERA редиректит пользователя на платёжку и принимает HMAC-вебхук. Поэтому status-коды spec (`200 / 401 / 402 / 404 / 405 / 406 / 407 / 408`) реализованы как ответы **нашего REST-эндпоинта**, не как обработка чужих кодов.
 
 **Модуль:** `apps/api/src/integrations/payment-providers/drakaris/`
 
@@ -2260,7 +2260,7 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 - **`npm run db:deploy`** — рекомендуемый шаг **после** `prisma migrate deploy` на проде: `migrate deploy` + **`db:sync-i18n:prune`** — полный upsert всех плоских ключей **ru/az** из `resources.ts` в **`translation_overrides`**, удаление строк с ключами, которых больше нет в `resources.ts`, инкремент **`i18n.cacheVersion`** (клиенты перезагрузят оверрайды). DDL миграции **не** содержат текстов переводов (см. миграцию `20260502180000_i18n_deploy_post_migrate_note`).
 - **`npm run db:sync-i18n`** — только upsert + bump кэша (**без** удаления устаревших ключей; удобно для локальных экспериментов).
 - **`npm run db:sync-i18n:prune`** — то же + удаление «лишних» **ru/az** строк в БД относительно текущего `resources.ts`.
-- **`npm run db:audit-i18n-overrides -w @dayday/database`** — dry-run по таблице **`translation_overrides`**: сравнение с **`processTranslationOverridesFlat`** (из корня: `npx dotenv-cli -e .env -- npm run db:audit-i18n-overrides -w @dayday/database`). С **`--fix`** — удаление строк, которые клиент всё равно отбросит, + bump **`i18n.cacheVersion`**.
+- **`npm run db:audit-i18n-overrides -w @erafinance/database`** — dry-run по таблице **`translation_overrides`**: сравнение с **`processTranslationOverridesFlat`** (из корня: `npx dotenv-cli -e .env -- npm run db:audit-i18n-overrides -w @erafinance/database`). С **`--fix`** — удаление строк, которые клиент всё равно отбросит, + bump **`i18n.cacheVersion`**.
 
 **Вне репозитория / не для прод:** произвольные файлы вида `_i18n-default-catalog-data.new.json` в корне **не** подключаются к Nest и **не** заменяют `i18n-default-catalog-data.json`; хранить их в git не следует — это источник путаницы и рассинхрона с п.2.
 
@@ -2326,7 +2326,7 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 - **DR Runbook:** документ `docs/deploy/DR_RUNBOOK.md` фиксирует пошаговое восстановление БД из `*.sql.gz`, валидацию и rollback-порядок.
 - **Audit Daily Check:** `@Cron('0 2 * * *')` запускает `AuditService.verifyChain()`; при разрывах цепочки пишется `error` лог с compromised IDs.
 - **External Critical Alerting (M8):** при `compromisedIds.length > 0` cron дополнительно отправляет критическое внешнее уведомление на `AUDIT_ALERT_WEBHOOK_URL` (Slack/Telegram-compatible webhook) с текстом:
-  `"[CRITICAL] DayDay ERP: Обнаружено нарушение целостности Audit Log. Возможна ручная манипуляция в БД. Скомпрометированные ID: ..."`  
+  `"[CRITICAL] ERA Finance: Обнаружено нарушение целостности Audit Log. Возможна ручная манипуляция в БД. Скомпрометированные ID: ..."`  
   При отсутствии webhook-конфига событие обязательно остаётся в error-логе.
 - **Banking Circuit Breaker:** в `BankingGatewayService` реализован fail-fast:
   - 3 подряд ошибки провайдера переводят circuit в `OPEN` на 5 минут;
@@ -2391,7 +2391,7 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 - **Компонент:** `apps/web/app/register-org/page.tsx` (форма регистрации организации).
 - **UI-элемент:** radio/cards с обязательным выбором **`kind`**.
 - **Варианты:**
-  - **`COMMERCIAL`** — коммерческий план (каталог `chart-of-accounts-commercial.json`; DayDay: касса **`101`**, банк **`221.*`** и т.д.).
+  - **`COMMERCIAL`** — коммерческий план (каталог `chart-of-accounts-commercial.json`; ERA: касса **`101`**, банк **`221.*`** и т.д.).
   - **`BUDGET`** — бюджетный план (NAS-GOV, `chart-of-accounts-budget.json`).
   - **`NGO`** — некоммерческие организации (`chart-of-accounts-ngo.json`).
 - **Локализация:** ключи **`auth.organizationTypeCommercial` / `Budget` / `Nco`** и описания **`auth.organizationType*Desc`**; для списка компаний — **`companiesPage.organizationKind*`**; super-admin колонка **`superAdmin.chartColKind`**.
@@ -2412,7 +2412,7 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 
 ### 20. Phase 12 — Customs widget RPA & Excel fallback
 
-- **Premium path (`trade_pro`):** browser extension connector `customs` on `e-customs.gov.az` / `*.customs.gov.az` (`apps/extension/src/connectors/customs/**`, entrypoint `customs.content.tsx`). User-triggered **BGD capture** posts to **`POST /api/customs/declarations/prefill-capture`** (Zod: `CustomsDeclarationPrefillCaptureSchema` in `@dayday/api-contracts`). Gating: **`SubscriptionGuard` + `@RequiresModule(trade_pro)`** (slug `trade_pro` in `OrganizationSubscription.activeModules` / constructor). Idempotency: unique `(organizationId, bgdNumber)` — duplicate returns `{ deduplicated: true }` without second insert.
+- **Premium path (`trade_pro`):** browser extension connector `customs` on `e-customs.gov.az` / `*.customs.gov.az` (`apps/extension/src/connectors/customs/**`, entrypoint `customs.content.tsx`). User-triggered **BGD capture** posts to **`POST /api/customs/declarations/prefill-capture`** (Zod: `CustomsDeclarationPrefillCaptureSchema` in `@erafinance/api-contracts`). Gating: **`SubscriptionGuard` + `@RequiresModule(trade_pro)`** (slug `trade_pro` in `OrganizationSubscription.activeModules` / constructor). Idempotency: unique `(organizationId, bgdNumber)` — duplicate returns `{ deduplicated: true }` without second insert.
 - **Sync logging:** `IntegrationSyncRun` with **`IntegrationPortal.CUSTOMS`**, flows `bgd-capture` (transport `RPA_WIDGET`) and `bgd-import` / `bgd-export` (transport `EXCEL_IMPORT`). Capture path wraps **insert + sync run start/complete** in one **`prisma.$transaction`** (same `TransactionClient` passed into `IntegrationSyncRunService.start/complete`).
 - **Safety:** reuse **VÖEN cross-check** in `FloatingWidget` (ERP active org `taxId` vs portal-detected VÖEN) before calling capture; extension does **not** auto-submit portal forms.
 - **Free path (no module gate):** **`GET /api/integrations/customs/declarations/export.xlsx`** (optional `?ids=`), **`POST /api/integrations/customs/declarations/import-excel`** (multipart), **`GET /api/integrations/customs/declarations/template.xlsx`** (blank `bgd-blank.xlsx` under `apps/api/src/integrations/templates/customs/`).
@@ -2421,7 +2421,7 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 ### 20.1 Phase 12.1 — Full BGD capture (items + GATT pre-calc)
 
 - `POST /api/customs/declarations/prefill-capture` now supports both legacy flat capture and full capture (`CustomsDeclarationFullPrefillCaptureSchema`) with sender/receiver, currency rate and line items.
-- Extension customs flow keeps floating widget and additionally injects **"DayDay Capture"** button into portal action bars (`apps/extension/src/connectors/customs/injection.ts`) via MutationObserver.
+- Extension customs flow keeps floating widget and additionally injects **"ERA Capture"** button into portal action bars (`apps/extension/src/connectors/customs/injection.ts`) via MutationObserver.
 - `CustomsDeclaration` upgraded with `status` (`DRAFT|CAPTURED|ATTACHED|ARCHIVED`), sender/receiver fields and calc totals; line positions stored in new `customs_declaration_items`.
 - New tariff table `customs_tariff_rates` + seed script `npm run db:seed-customs-tariffs` + super-admin API `/api/admin/customs-tariff-rates` (upsert + list + `POST …/deactivate` / `POST …/restore`, без hard DELETE).
 - GATT pre-calc implemented server-side: longest-prefix HS match; duty/excise on statistical value; VAT on (value + duty + excise). Calculated values are persisted for portal-vs-ERP reconciliation.

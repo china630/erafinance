@@ -1,5 +1,5 @@
 import { HttpException } from "@nestjs/common";
-import { EmployeeKind, Prisma } from "@dayday/database";
+import { EmployeeKind, Prisma } from "@erafinance/database";
 import { EmployeesService } from "../../src/hr/employees.service";
 
 describe("EmployeesService hire-gate (M6 Serializable)", () => {

@@ -4,9 +4,9 @@ import { defineConfig } from "wxt";
 export default defineConfig({
   modules: ["@wxt-dev/module-react"],
   manifest: {
-    name: "DayDay Assistant",
+    name: "ERA Finance Assistant",
     description:
-      "DayDay ERP helper for government portals (ƏMAS, e-taxes, e-customs) — explicit user actions only.",
+      "ERA Finance helper for government portals (ƏMAS, e-taxes, e-customs) — explicit user actions only.",
     key: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApJ0Luhfq3ZIR5fekavvTFZwwRV83hqhZWjnk/arZjFpTMK/KB5PBsK62A36f+QU4P5OdvsLnxp/EQ6u3duhJEINr04yOJxrt2+jopW2n5NU+LuSyR9ADy3JPfYRQEQcI/oPJNnbNkrfqVkCc4HcYqqZdm4CzR2Jl0UtRYwznKP/ryUn8THRXReKN+iOOJcdy3pxFhZxzFEb1FPaZMaj3mKSVdmZViogpV0qAfYn6iTjSafYnnYgX95u4GzRk9ISt8Ts/4zw/V3AV90TJwJXqrkyPD1uw62CeM9PLpRksN01M+NxKqseEQlMxKD7ZRZYSbc1lNzNQ1eCuyqBbdMX9YQIDAQAB",
     permissions: ["storage", "alarms", "tabs", "scripting"],
     host_permissions: [
@@ -14,8 +14,8 @@ export default defineConfig({
       "http://localhost:4000/*",
       "http://localhost:3000/*",
       "http://127.0.0.1:3000/*",
-      "https://api.dayday.az/*",
-      "https://erp.dayday.az/*",
+      "https://api.example.com/*",
+      "https://erp.example.com/*",
       "https://*.e-taxes.gov.az/*",
       "https://new.e-taxes.gov.az/*",
       "https://login.e-taxes.gov.az/*",
@@ -25,7 +25,7 @@ export default defineConfig({
     ],
     externally_connectable: {
       matches: [
-        "https://erp.dayday.az/*",
+        "https://erp.example.com/*",
         "http://localhost:3000/*",
         "http://127.0.0.1:3000/*",
       ],

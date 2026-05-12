@@ -40,7 +40,7 @@ export class BillingMonthlyWorker implements OnModuleInit, OnModuleDestroy {
       this.worker,
       BILLING_MONTHLY_QUEUE,
       this.logger,
-      this.config.get<string>("DAYDAY_BULLMQ_ALERT_WEBHOOK_URL") ?? undefined,
+      this.config.get<string>("ERAFINANCE_BULLMQ_ALERT_WEBHOOK_URL") ?? undefined,
     );
   }
 

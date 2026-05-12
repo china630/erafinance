@@ -9,7 +9,7 @@ import {
   MinLength,
   IsOptional,
 } from "class-validator";
-import { SubscriptionTier } from "@dayday/database";
+import { SubscriptionTier } from "@erafinance/database";
 
 export class CheckoutDto {
   /** Default: PAŞA Bank redirect / mock. Use `drakaris` for yığım integration. */

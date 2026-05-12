@@ -5,7 +5,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { STORAGE_SERVICE, type StorageService } from "../../storage/storage.interface";
 
 type SnapshotArtifactV1 = {
-  format: "dayday-tenant-snapshot-v1";
+  format: "erafinance-tenant-snapshot-v1";
   snapshotId: string;
   organizationId: string;
   reason: string;
@@ -37,7 +37,7 @@ export class SnapshotService {
     const s3Key = `snapshots/${organizationId}/${snapshotId}.json`;
     const takenAt = new Date().toISOString();
     const payload: SnapshotArtifactV1 = {
-      format: "dayday-tenant-snapshot-v1",
+      format: "erafinance-tenant-snapshot-v1",
       snapshotId,
       organizationId,
       reason,

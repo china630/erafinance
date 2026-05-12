@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { SubscriptionAccessService } from "../subscription/subscription-access.service";
 import { catalogModuleKeyToPatch } from "./billing-module-toggle.helpers";

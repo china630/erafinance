@@ -4,9 +4,9 @@ exports.resources = void 0;
 exports.resources = {
     ru: {
         translation: {
-            appTitle: "DayDay ERP",
+            appTitle: "ERA Finance",
             seo: {
-                title: "DayDay ERP | Бюджет и Учет",
+                title: "ERA Finance | Бюджет и Учет",
                 description: "SaaS учёт для бизнеса в Азербайджане",
             },
             language: "Язык",
@@ -114,7 +114,7 @@ exports.resources = {
                 creating: "Создание…",
                 cancel: "Отмена",
                 joinTitle: "Запросить доступ по VÖEN",
-                joinHint: "Если организация уже есть в DayDay, владелец получит запрос и сможет назначить роль.",
+                joinHint: "Если организация уже есть в ERA, владелец получит запрос и сможет назначить роль.",
                 messageOptional: "Сообщение владельцу (необязательно)",
                 joinSubmit: "Отправить запрос",
                 joinOk: "Запрос отправлен. Ожидайте решения владельца.",
@@ -220,7 +220,7 @@ exports.resources = {
             },
             verify: {
                 title: "Проверка ЭЦП",
-                subtitle: "Публичная верификация документа DayDay ERP",
+                subtitle: "Публичная верификация документа ERA Finance",
                 documentSigned: "Sənəd rəqəmsal imzalanıb",
                 statusConfirmed: "Документ подтверждён",
                 notFound: "Подпись не найдена или не завершена",
@@ -844,7 +844,7 @@ exports.resources = {
             },
             subscription: {
                 loadErr: "Не удалось загрузить данные подписки.",
-                upgradeHref: "mailto:sales@dayday.az",
+                upgradeHref: "mailto:sales@example.com",
                 navLockedTooltip: "Недоступно в текущем тарифе",
                 employeesLimitTooltip: "Limit dolub",
                 paywall: {
@@ -905,7 +905,7 @@ exports.resources = {
             },
             billingSuccess: {
                 title: "Оплата прошла успешно",
-                subtitle: "Подписка обновлена. Спасибо! Можете продолжить работу в DayDay ERP.",
+                subtitle: "Подписка обновлена. Спасибо! Можете продолжить работу в ERA Finance.",
                 orderRef: "Заказ",
                 status: "Статус",
                 backWork: "На главную",
@@ -933,9 +933,9 @@ exports.resources = {
     },
     az: {
         translation: {
-            appTitle: "DayDay ERP",
+            appTitle: "ERA Finance",
             seo: {
-                title: "DayDay ERP | Büdcə və uçot",
+                title: "ERA Finance | Büdcə və uçot",
                 description: "Azərbaycanda biznes üçün SaaS uçot",
             },
             language: "Dil",
@@ -1043,7 +1043,7 @@ exports.resources = {
                 creating: "Yaradılır…",
                 cancel: "Ləğv",
                 joinTitle: "VÖEN ilə giriş sorğusu",
-                joinHint: "Təşkilat DayDay-də artıq varsa, sahib sorğunu görəcək və rol təyin edə bilər.",
+                joinHint: "Təşkilat ERA-də artıq varsa, sahib sorğunu görəcək və rol təyin edə bilər.",
                 messageOptional: "Sahibə mesaj (istəyə bağlı)",
                 joinSubmit: "Sorğu göndər",
                 joinOk: "Sorğu göndərildi. Sahibin qərarını gözləyin.",
@@ -1150,7 +1150,7 @@ exports.resources = {
             },
             verify: {
                 title: "Eİ yoxlaması",
-                subtitle: "DayDay ERP sənədinin ictimai təsdiqi",
+                subtitle: "ERA Finance sənədinin ictimai təsdiqi",
                 documentSigned: "Sənəd rəqəmsal imzalanıb",
                 statusConfirmed: "Sənəd təsdiqlənib",
                 notFound: "İmza tapılmadı və ya tamamlanmayıb",
@@ -1781,7 +1781,7 @@ exports.resources = {
             },
             subscription: {
                 loadErr: "Abunə məlumatları yüklənmədi.",
-                upgradeHref: "mailto:sales@dayday.az",
+                upgradeHref: "mailto:sales@example.com",
                 navLockedTooltip: "Cari tarifdə əlçatan deyil",
                 employeesLimitTooltip: "Limit dolub",
                 paywall: {
@@ -1842,7 +1842,7 @@ exports.resources = {
             },
             billingSuccess: {
                 title: "Ödəniş uğurlu oldu",
-                subtitle: "Abunəlik yeniləndi. Təşəkkür edirik! DayDay ERP-də işə davam edə bilərsiniz.",
+                subtitle: "Abunəlik yeniləndi. Təşəkkür edirik! ERA Finance-də işə davam edə bilərsiniz.",
                 orderRef: "Sifariş",
                 status: "Status",
                 backWork: "Əsas səhifə",

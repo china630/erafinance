@@ -7,7 +7,7 @@ const HANDSHAKE_ERR = "ext-handshake-err";
 
 export default defineContentScript({
   matches: [
-    "https://erp.dayday.az/*",
+    "https://erp.example.com/*",
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*",
   ],
@@ -27,15 +27,15 @@ export default defineContentScript({
 
       const onWindowMessage = (event: MessageEvent) => {
         if (event.source !== window) return;
-        if (event.data?.__dayday === HANDSHAKE_OK) {
+        if (event.data?.__erafinance === HANDSHAKE_OK) {
           finish({ ok: true, payload: event.data.payload });
-        } else if (event.data?.__dayday === HANDSHAKE_ERR) {
+        } else if (event.data?.__erafinance === HANDSHAKE_ERR) {
           finish({ ok: false, error: event.data });
         }
       };
 
       window.addEventListener("message", onWindowMessage);
-      window.postMessage({ __dayday: HANDSHAKE_REQ }, window.location.origin);
+      window.postMessage({ __erafinance: HANDSHAKE_REQ }, window.location.origin);
 
       const timer = window.setTimeout(() => {
         finish({ ok: false, error: "Handshake timeout" });

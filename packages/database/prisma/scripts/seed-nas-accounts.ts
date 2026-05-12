@@ -1,6 +1,6 @@
 /**
  * Заполняет глобальный справочник NAS (`template_accounts`) из канонических данных (JSON или встроенный план).
- * Запуск: `npm run db:seed:nas-templates --workspace=@dayday/database`
+ * Запуск: `npm run db:seed:nas-templates --workspace=@erafinance/database`
  */
 import { closePrismaPool, createPrismaClient } from "../prisma-client";
 import { upsertGlobalNasTemplateAccounts } from "../lib/chart/chart-seed";

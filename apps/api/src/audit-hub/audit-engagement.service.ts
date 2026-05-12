@@ -7,7 +7,7 @@ import {
 import {
   AuditEngagementStatus,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()

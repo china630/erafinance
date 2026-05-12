@@ -4,7 +4,7 @@ import {
   NotificationSeverity,
   Prisma,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { MailService } from "../mail/mail.service";
 import {

@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { LedgerType, Prisma } from "@dayday/database";
+import { LedgerType, Prisma } from "@erafinance/database";
 import { AccessControlService } from "../access/access-control.service";
 import { BankBalancesSyncQueueService } from "../banking/bank-balances-sync.queue";
 import { BankingGatewayService } from "../banking/banking-gateway.service";

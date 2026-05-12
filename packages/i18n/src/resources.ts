@@ -1,7 +1,7 @@
 export const resources = {
   ru: {
     translation: {
-      appTitle: "DayDay ERP",
+      appTitle: "ERA Finance",
       disputePublic: {
         title: "Спор о владении",
         intro:
@@ -15,7 +15,7 @@ export const resources = {
         statusLabel: "Статус",
       },
       seo: {
-        title: "DayDay ERP | Бюджет и Учет",
+        title: "ERA Finance | Бюджет и Учет",
         description: "SaaS учёт для бизнеса в Азербайджане",
       },
       language: "Язык",
@@ -410,7 +410,7 @@ export const resources = {
         organizationType: "Тип организации",
         organizationTypeCommercial: "Коммерческая организация",
         organizationTypeCommercialDesc:
-          "План счетов NAS (DayDay): касса/банк и полный коммерческий контур для ООО и ИП.",
+          "План счетов NAS (ERA): касса/банк и полный коммерческий контур для ООО и ИП.",
         organizationTypeBudget: "Бюджетная / государственная",
         organizationTypeBudgetDesc:
           "План счетов NAS для бюджетных и квазибюджетных организаций (госсектор).",
@@ -443,7 +443,7 @@ export const resources = {
       help: {
         title: "Справка и первые шаги",
         intro:
-          "Краткие подсказки по DayDay ERP. Подробная документация и юридические документы размещаются вне приложения — задайте ссылки через переменные окружения веба (см. docs/launch/STAGE_C_CONTENT.md).",
+          "Краткие подсказки по ERA Finance. Подробная документация и юридические документы размещаются вне приложения — задайте ссылки через переменные окружения веба (см. docs/launch/STAGE_C_CONTENT.md).",
         asanTitle: "ASAN İmza и вход",
         asanBody:
           "Для сценариев с усиленной аутентификой следуйте подсказкам в интерфейсе (step-up). При проблемах с сертификатом обратитесь к поставщику ASAN İmza.",
@@ -494,7 +494,7 @@ export const resources = {
           featuresTitle: "Что даст модуль",
           feature1: "Автосинхронизация остатков с Umico и Trendyol.",
           feature2: "Отдельный POS-интерфейс для кассиров.",
-          feature3: "Связка продаж с номенклатурой и складом DayDay.",
+          feature3: "Связка продаж с номенклатурой и складом ERA.",
           feature4: "Меньше ручного ввода — меньше ошибок в AZN-учёте.",
           priceHook: "Ориентир: +15 AZN/мес. за точку продаж.",
         },
@@ -773,7 +773,7 @@ export const resources = {
         cancel: "Отмена",
         joinTitle: "Запросить доступ по VÖEN",
         joinHint:
-          "Если организация уже есть в DayDay, владелец получит запрос и сможет назначить роль.",
+          "Если организация уже есть в ERA, владелец получит запрос и сможет назначить роль.",
         messageOptional: "Сообщение владельцу (необязательно)",
         joinSubmit: "Отправить запрос",
         joinOk: "Запрос отправлен. Ожидайте решения владельца.",
@@ -993,7 +993,7 @@ export const resources = {
       },
       verify: {
         title: "Проверка ЭЦП",
-        subtitle: "Публичная верификация документа DayDay ERP",
+        subtitle: "Публичная верификация документа ERA Finance",
         documentSigned: "Документ подписан электронной подписью",
         statusConfirmed: "Документ подтверждён",
         notFound: "Подпись не найдена или не завершена",
@@ -2498,7 +2498,7 @@ export const resources = {
         loadErr: "Не удалось загрузить данные подписки.",
         loadErrHint:
           "Проверьте соединение и что API запущен. Повторите запрос или обновите страницу через минуту.",
-        upgradeHref: "mailto:sales@dayday.az",
+        upgradeHref: "mailto:sales@example.com",
         navLockedTooltip: "Недоступно в текущем тарифе",
         employeesLimitTooltip: "Лимит по сотрудникам исчерпан",
         paywall: {
@@ -2580,7 +2580,7 @@ export const resources = {
         quotaStorage: "Хранилище файлов (ГБ)",
         platformInvoicesTitle: "Счета платформы",
         platformInvoicesHint:
-          "История выставленных счетов DayDay ERP на ваш аккаунт владельца (не путать с инвойсами продаж).",
+          "История выставленных счетов ERA Finance на ваш аккаунт владельца (не путать с инвойсами продаж).",
         platformInvoicesEmpty: "Пока нет выставленных счетов.",
         invColDate: "Дата",
         invColAmount: "Сумма",
@@ -2691,7 +2691,7 @@ export const resources = {
       billingSuccess: {
         title: "Оплата прошла успешно",
         subtitle:
-          "Подписка обновлена. Спасибо! Можете продолжить работу в DayDay ERP.",
+          "Подписка обновлена. Спасибо! Можете продолжить работу в ERA Finance.",
         orderRef: "Заказ",
         status: "Статус",
         backWork: "На главную",
@@ -2711,7 +2711,7 @@ export const resources = {
       },
       extension: {
         cta: {
-          title: "Установите DayDay Assistant",
+          title: "Установите ERA Finance Assistant",
           body: "Автоматически выгружайте e-qaimə из ERP в e-taxes.gov.az.",
           cta: "Установить расширение",
         },
@@ -2946,7 +2946,7 @@ export const resources = {
           bulkHint:
             "Экспорт и импорт Excel доступны на любом тарифе. Захват декларации с e-customs — модуль Trade Pro.",
           widgetCta: "Захват с e-customs (виджет)",
-          widgetHint: "Нужен Trade Pro и расширение DayDay Assistant на странице BGD.",
+          widgetHint: "Нужен Trade Pro и расширение ERA Finance Assistant на странице BGD.",
           exportExcel: "Экспорт в Excel",
           importExcel: "Импорт BGD из Excel",
           templateDownload: "Скачать пустой шаблон",
@@ -2985,7 +2985,7 @@ export const resources = {
   },
   az: {
     translation: {
-      appTitle: "DayDay ERP",
+      appTitle: "ERA Finance",
       disputePublic: {
         title: "Mülkiyyət mübahisəsi",
         intro:
@@ -2999,7 +2999,7 @@ export const resources = {
         statusLabel: "Status",
       },
       seo: {
-        title: "DayDay ERP | Büdcə və uçot",
+        title: "ERA Finance | Büdcə və uçot",
         description: "Azərbaycanda biznes üçün SaaS uçot",
       },
       language: "Dil",
@@ -3393,7 +3393,7 @@ export const resources = {
         organizationType: "Təşkilat tipi",
         organizationTypeCommercial: "Kommersiya təşkilatı",
         organizationTypeCommercialDesc:
-          "NAS hesab planı (DayDay): kassa/bank və tam kommersiya konturu MMC və fərdi sahibkar üçün.",
+          "NAS hesab planı (ERA): kassa/bank və tam kommersiya konturu MMC və fərdi sahibkar üçün.",
         organizationTypeBudget: "Büdcə / dövlət",
         organizationTypeBudgetDesc:
           "Dövlət və büdcə təşkilatları üçün NAS hesab planı.",
@@ -3426,7 +3426,7 @@ export const resources = {
       help: {
         title: "Kömək və ilk addımlar",
         intro:
-          "DayDay ERP üçün qısa məsləhətlər. Ətraflı sənədlər və hüquqi mətnlər tətbiq xaricində yerləşdirilir — veb üçün mühit dəyişənlərini təyin edin (bax: docs/launch/STAGE_C_CONTENT.md).",
+          "ERA Finance üçün qısa məsləhətlər. Ətraflı sənədlər və hüquqi mətnlər tətbiq xaricində yerləşdirilir — veb üçün mühit dəyişənlərini təyin edin (bax: docs/launch/STAGE_C_CONTENT.md).",
         asanTitle: "ASAN İmza və giriş",
         asanBody:
           "Gücləndirilmiş autentifikasiya ssenarilərində interfeysdəki göstərişləri izləyin (step-up). Sertifikat problemlərində ASAN İmza təchizatçısına müraciət edin.",
@@ -3756,7 +3756,7 @@ export const resources = {
         cancel: "Ləğv",
         joinTitle: "VÖEN ilə giriş sorğusu",
         joinHint:
-          "Təşkilat DayDay-də artıq varsa, sahib sorğunu görəcək və rol təyin edə bilər.",
+          "Təşkilat ERA-də artıq varsa, sahib sorğunu görəcək və rol təyin edə bilər.",
         messageOptional: "Sahibə mesaj (istəyə bağlı)",
         joinSubmit: "Sorğu göndər",
         joinOk: "Sorğu göndərildi. Sahibin qərarını gözləyin.",
@@ -3977,7 +3977,7 @@ export const resources = {
       },
       verify: {
         title: "Eİ yoxlaması",
-        subtitle: "DayDay ERP sənədinin ictimai təsdiqi",
+        subtitle: "ERA Finance sənədinin ictimai təsdiqi",
         documentSigned: "Sənəd rəqəmsal imzalanıb",
         statusConfirmed: "Sənəd təsdiqlənib",
         notFound: "İmza tapılmadı və ya tamamlanmayıb",
@@ -5483,7 +5483,7 @@ export const resources = {
         loadErr: "Abunə məlumatları yüklənmədi.",
         loadErrHint:
           "İnternet və API-nin işlədiyini yoxlayın. Bir az sonra yenidən cəhd edin və ya səhifəni yeniləyin.",
-        upgradeHref: "mailto:sales@dayday.az",
+        upgradeHref: "mailto:sales@example.com",
         navLockedTooltip: "Cari tarifdə əlçatan deyil",
         employeesLimitTooltip: "İşçi limiti dolub",
         paywall: {
@@ -5565,7 +5565,7 @@ export const resources = {
         quotaStorage: "Fayl saxlama (GB)",
         platformInvoicesTitle: "Platforma hesabları",
         platformInvoicesHint:
-          "DayDay ERP-nin sahib hesabınıza çıxardığı hesab-fakturaların tarixi (satış hesab-fakturaları ilə qarışdırmayın).",
+          "ERA Finance-nin sahib hesabınıza çıxardığı hesab-fakturaların tarixi (satış hesab-fakturaları ilə qarışdırmayın).",
         platformInvoicesEmpty: "Hələ hesab yoxdur.",
         invColDate: "Tarix",
         invColAmount: "Məbləğ",
@@ -5676,7 +5676,7 @@ export const resources = {
       billingSuccess: {
         title: "Ödəniş uğurlu oldu",
         subtitle:
-          "Abunəlik yeniləndi. Təşəkkür edirik! DayDay ERP-də işə davam edə bilərsiniz.",
+          "Abunəlik yeniləndi. Təşəkkür edirik! ERA Finance-də işə davam edə bilərsiniz.",
         orderRef: "Sifariş",
         status: "Status",
         backWork: "Əsas səhifə",
@@ -5697,7 +5697,7 @@ export const resources = {
       },
       extension: {
         cta: {
-          title: "DayDay Assistant quraşdırın",
+          title: "ERA Finance Assistant quraşdırın",
           body: "e-qaiməni ERP-dən e-taxes.gov.az portalına avtomatik ötürün.",
           cta: "Genişləndirməni quraşdır",
         },
@@ -5933,7 +5933,7 @@ export const resources = {
           bulkHint:
             "Excel ixrac və idxal istənilən tarifdə. e-customs-dan bəyannamə tutma — Trade Pro modulu.",
           widgetCta: "e-customs-dan tutma (vidcet)",
-          widgetHint: "Trade Pro və BGD səhifəsində DayDay Assistant genişləndirməsi lazımdır.",
+          widgetHint: "Trade Pro və BGD səhifəsində ERA Finance Assistant genişləndirməsi lazımdır.",
           exportExcel: "Excelə ixrac",
           importExcel: "Exceldən BGD idxalı",
           templateDownload: "Boş şablon yüklə",

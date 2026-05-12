@@ -11,7 +11,7 @@ function resolveKey(primaryName: string, fallbackName = "JWT_SECRET"): Buffer {
     if (asB64.length >= 32) return createHash("sha256").update(asB64).digest();
     return createHash("sha256").update(raw).digest();
   }
-  const fallback = process.env[fallbackName] ?? "dayday-dev-fallback";
+  const fallback = process.env[fallbackName] ?? "erafinance-dev-fallback";
   return createHash("sha256").update(`${primaryName}:${fallback}`).digest();
 }
 

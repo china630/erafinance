@@ -1,6 +1,6 @@
 # `prisma/scripts/ops/` — operational CLIs
 
-One-off and maintenance TypeScript entrypoints (not `prisma db seed` layers). Invoked via `npm run db:*` in `@dayday/database`.
+One-off and maintenance TypeScript entrypoints (not `prisma db seed` layers). Invoked via `npm run db:*` in `@erafinance/database`.
 
 | Folder | Scripts |
 |--------|---------|

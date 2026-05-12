@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { ForeignInvoicePrefillSchema } from "@dayday/api-contracts";
+import { ForeignInvoicePrefillSchema } from "@erafinance/api-contracts";
 import type { OcrVisionInput, OcrVisionProvider } from "./ocr-vision.interface";
 
 @Injectable()

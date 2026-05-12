@@ -9,7 +9,7 @@ import {
   CounterpartyLegalForm,
   CounterpartyRole,
   Prisma,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { GlobalCompanyDirectoryService } from "../global-directory/global-company-directory.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { TaxpayerIntegrationService } from "../tax/taxpayer-integration.service";

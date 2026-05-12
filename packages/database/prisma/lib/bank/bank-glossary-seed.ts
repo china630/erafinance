@@ -15,7 +15,7 @@ import type { PrismaClient } from "@prisma/client";
  *
  * **Branches** are applied from the committed snapshot
  * `prisma/catalog/bank/bank-branches.generated.ts` (regenerate via
- * `npm run db:gen:banks-branches-seed` in `@dayday/database`).
+ * `npm run db:gen:banks-branches-seed` in `@erafinance/database`).
  */
 export interface BankGlossarySeedRow {
   /** Two-character platform code, `01`–`22` (alphabetical slot). */

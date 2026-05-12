@@ -11,7 +11,7 @@ import {
   MaxLength,
   Min,
 } from "class-validator";
-import { TaxRateKind } from "@dayday/database";
+import { TaxRateKind } from "@erafinance/database";
 
 export class CreateTaxRateDto {
   @ApiProperty({ example: "EDV_5" })

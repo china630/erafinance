@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { FixedAssetStatus } from "@dayday/database";
+import { FixedAssetStatus } from "@erafinance/database";
 import { Type } from "class-transformer";
 import {
   IsEnum,

@@ -12,7 +12,7 @@ import {
 } from "class-validator";
 import {
   InventoryValuationMethod,
-} from "@dayday/database";
+} from "@erafinance/database";
 
 export class OrganizationBankAccountInputDto {
   @IsOptional()

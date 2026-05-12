@@ -25,7 +25,7 @@ Runtime secrets: copy `env.production.example` → `.env` next to `docker-compos
 
 ## Local Windows helpers (not in git)
 
-If you keep `*.bat` in the repo root (e.g. `START-ERP.bat`), verify each script: `cd /d` to the monorepo root (path may contain spaces), call `npm run dev` / `dev:api` / `dev:web` from [root `package.json`](../../package.json), free ports **3000** / **4000** before start (`npm run stop:next` / `stop:api`), and load the root `.env` (see [`.cursor/rules/dayday-local-dev.mdc`](../../.cursor/rules/dayday-local-dev.mdc)).
+If you keep `*.bat` in the repo root (e.g. `START-ERP.bat`), verify each script: `cd /d` to the monorepo root (path may contain spaces), call `npm run dev` / `dev:api` / `dev:web` from [root `package.json`](../../package.json), free ports **3000** / **4000** before start (`npm run stop:next` / `stop:api`), and load the root `.env` (see [`.cursor/rules/erafinance-local-dev.mdc`](../../.cursor/rules/erafinance-local-dev.mdc)).
 
 ## Quick Scenario Map
 
@@ -55,12 +55,12 @@ If you keep `*.bat` in the repo root (e.g. `START-ERP.bat`), verify each script:
 
 ## Extension Release
 
-- `EXTENSION_MVP_DEPLOY.md` — DayDay Assistant rollout checklist (Staging/Production), including env vars, `tax_pro` seed step, and QA smoke tests.
+- `EXTENSION_MVP_DEPLOY.md` — ERA Finance Assistant rollout checklist (Staging/Production), including env vars, `tax_pro` seed step, and QA smoke tests.
 
 ## Reverse proxy examples
 
 - `../nginx-maintenance.conf` — file-based maintenance toggle.
-- `../nginx-dayday-production.example.conf` — gzip, upstreams to API/Web, TLS placeholders.
+- `../nginx-erafinance-production.example.conf` — gzip, upstreams to API/Web, TLS placeholders.
 
 ## Generated Artifacts
 

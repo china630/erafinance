@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { LedgerType, UserRole } from "@dayday/database";
+import { LedgerType, UserRole } from "@erafinance/database";
 import { NettingService } from "../accounting/netting.service";
 
 /**

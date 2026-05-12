@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { HoldingAccessRole, UserRole } from "@dayday/database";
+import { HoldingAccessRole, UserRole } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateHoldingDto } from "./dto/create-holding.dto";
 import type { UpdateHoldingDto } from "./dto/update-holding.dto";

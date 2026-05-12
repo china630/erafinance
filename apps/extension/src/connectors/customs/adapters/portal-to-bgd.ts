@@ -1,4 +1,4 @@
-import type { CustomsDeclarationFullPrefill, CustomsDeclarationPrefill } from "@dayday/api-contracts";
+import type { CustomsDeclarationFullPrefill, CustomsDeclarationPrefill } from "@erafinance/api-contracts";
 import { CUSTOMS_SELECTORS } from "../selectors";
 
 function textOrNum(doc: Document, sel: string, fallbackNum: number): string | number {
@@ -55,7 +55,7 @@ function strFromEl(el: Element | null, fallback: string): string {
 }
 
 /**
- * Parse line items from `[data-dayday-bgd-item-row]` rows. Empty → caller uses synthetic single line.
+ * Parse line items from `[data-erafinance-bgd-item-row]` rows. Empty → caller uses synthetic single line.
  */
 export function parseItemRowsFromDom(doc: Document): Array<{
   sequenceNumber: number;

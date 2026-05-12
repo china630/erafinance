@@ -7,7 +7,7 @@ import {
   PaymentOrderStatus,
   SubscriptionTier,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import PDFDocument from "pdfkit";
 import { registerUnicodeFonts, PDF_FONT_UNICODE } from "../reporting/pdf-font.util";
 import { PrismaService } from "../prisma/prisma.service";
@@ -163,7 +163,7 @@ export class BillingPaymentOrdersService {
       doc
         .fontSize(18)
         .fillColor("#34495E")
-        .text("DayDay ERP — Payment confirmation / Ödəniş təsdiqi", { align: "left" });
+        .text("ERA Finance — Payment confirmation / Ödəniş təsdiqi", { align: "left" });
       doc.moveDown(0.5);
       doc
         .fontSize(10)
@@ -208,7 +208,7 @@ export class BillingPaymentOrdersService {
         .fontSize(9)
         .fillColor("#7F8C8D")
         .text(
-          "SaaS payment record for DayDay ERP. Not a fiscal / VAT invoice. / Vergi qaiməsi deyil.",
+          "SaaS payment record for ERA Finance. Not a fiscal / VAT invoice. / Vergi qaiməsi deyil.",
           { align: "left" },
         );
 

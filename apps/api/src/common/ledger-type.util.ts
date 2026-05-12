@@ -1,5 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
-import { LedgerType } from "@dayday/database";
+import { LedgerType } from "@erafinance/database";
 
 export function parseLedgerTypeQuery(value: string | undefined): LedgerType {
   if (value == null || value === "") {

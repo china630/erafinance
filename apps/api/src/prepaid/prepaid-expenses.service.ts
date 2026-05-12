@@ -7,8 +7,8 @@ import {
   LedgerType,
   PrepaidExpenseScheduleStatus,
   PrepaidExpenseStatus,
-} from "@dayday/database";
-import { Decimal } from "@dayday/database";
+} from "@erafinance/database";
+import { Decimal } from "@erafinance/database";
 import { AccountingService } from "../accounting/accounting.service";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreatePrepaidExpenseDto } from "./dto/create-prepaid-expense.dto";

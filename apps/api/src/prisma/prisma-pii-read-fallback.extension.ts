@@ -1,4 +1,4 @@
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { decryptText } from "../security/pii-crypto.util";
 
 function applyPiiFallbackToRow(row: Record<string, unknown>): void {

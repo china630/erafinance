@@ -11,7 +11,7 @@ import {
   Prisma,
   StockMovementReason,
   StockMovementType,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { AccountingService, type PostTransactionLine } from "../accounting/accounting.service";
 import { assertWarehouseNotUnderReconciliation } from "../inventory/inventory-reconciliation-lock";
 import { PrismaService } from "../prisma/prisma.service";

@@ -20,7 +20,7 @@ import {
   legalFormToOrganizationKind,
   organizationKindToPayrollSettingsTemplateGroup,
   OrganizationKind,
-} from "@dayday/database";
+} from "@erafinance/database";
 import * as bcrypt from "bcrypt";
 import type { Response } from "express";
 import { OrgStructureService } from "../hr/org-structure.service";
@@ -1447,7 +1447,7 @@ export class AuthService {
     try {
       await this.mail.sendMail({
         to: norm,
-        subject: `DayDay ERP invite: ${created.organization.name}`,
+        subject: `ERA Finance invite: ${created.organization.name}`,
         text: `You were invited to ${created.organization.name}. Open this link to accept: ${acceptUrl}`,
       });
     } catch (e) {

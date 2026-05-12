@@ -1,4 +1,4 @@
-import type { ForeignInvoicePrefill } from "@dayday/api-contracts";
+import type { ForeignInvoicePrefill } from "@erafinance/api-contracts";
 
 export type OcrVisionInput = {
   mimeType: string;

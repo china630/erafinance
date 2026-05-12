@@ -1,12 +1,12 @@
-# DayDay ERP — Cursor
+# ERA Finance — Cursor
 
 Long-form project rules were moved to **`.cursor/rules/*.mdc`** (Project Rules). Do not duplicate them here.
 
 | File | Role |
 |------|------|
-| `.cursor/rules/dayday-local-dev.mdc` | Env, Docker, Prisma migrations, i18n, dev commands |
-| `.cursor/rules/dayday-module-map.mdc` | Module names ↔ `apps/api` / `apps/web` / Prisma |
-| `.cursor/rules/dayday-agent-roles.mdc` | Agent personas, security, tenancy, compliance |
-| `.cursor/rules/dayday-ui-design.mdc` | Web UI: follow root `DESIGN.md` when editing `apps/web` |
+| `.cursor/rules/erafinance-local-dev.mdc` | Env, Docker, Prisma migrations, i18n, dev commands |
+| `.cursor/rules/erafinance-module-map.mdc` | Module names ↔ `apps/api` / `apps/web` / Prisma |
+| `.cursor/rules/erafinance-agent-roles.mdc` | Agent personas, security, tenancy, compliance |
+| `.cursor/rules/erafinance-ui-design.mdc` | Web UI: follow root `DESIGN.md` when editing `apps/web` |
 
 Attach `@PRD.md`, `@TZ.md` when product/spec matter (they are in `.cursorignore`). `DESIGN.md` is indexed; `@DESIGN.md` works for extra emphasis.

@@ -4,7 +4,7 @@
  */
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
-const { PrismaClient } = require("@dayday/database");
+const { PrismaClient } = require("@erafinance/database");
 const { Pool } = require("pg");
 const { PrismaPg } = require("@prisma/adapter-pg");
 

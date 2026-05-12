@@ -2,7 +2,7 @@ import {
   ForbiddenException,
   Injectable,
 } from "@nestjs/common";
-import { HoldingAccessRole, UserRole } from "@dayday/database";
+import { HoldingAccessRole, UserRole } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 
 /**

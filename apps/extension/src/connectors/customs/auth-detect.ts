@@ -18,8 +18,8 @@ export function detectCustomsAuthState(doc: Document): AuthState {
 /** Active VÖEN on portal session — TODO: replace with real selector from e-customs header. */
 export async function detectCustomsActiveVoen(doc: Document): Promise<string | null> {
   const el =
-    doc.querySelector("[data-dayday-active-voen]") ??
-    doc.querySelector("meta[name='dayday-active-voen']");
+    doc.querySelector("[data-erafinance-active-voen]") ??
+    doc.querySelector("meta[name='erafinance-active-voen']");
   const fromAttr = el?.getAttribute("content") ?? el?.textContent ?? "";
   const trimmed = fromAttr.replace(/\D/g, "").slice(0, 10);
   if (trimmed.length === 10) return trimmed;

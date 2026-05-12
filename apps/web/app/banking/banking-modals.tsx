@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../lib/api-client";
 import { EmptyState } from "../../components/empty-state";
 import { Button } from "../../components/ui/button";
-import { Dialog, DialogContent, DialogHeader } from "@dayday/ui";
+import { Dialog, DialogContent, DialogHeader } from "@erafinance/ui";
 import {
   MODAL_CLOSE_BUTTON_CLASS,
   MODAL_DIALOG_CONTENT_CLASS,

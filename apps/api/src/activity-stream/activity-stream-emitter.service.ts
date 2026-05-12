@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import type { Prisma } from "@dayday/database";
+import type { Prisma } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   AUDIT_ENTITY_TYPE_TO_SLUG,

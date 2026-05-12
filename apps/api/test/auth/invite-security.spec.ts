@@ -7,7 +7,7 @@ import {
 } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { ConfigModule } from "@nestjs/config";
-import { InviteStatus, Prisma, UserRole } from "@dayday/database";
+import { InviteStatus, Prisma, UserRole } from "@erafinance/database";
 import { AuthService } from "../../src/auth/auth.service";
 import { AccountsService } from "../../src/accounts/accounts.service";
 import { OrgStructureService } from "../../src/hr/org-structure.service";

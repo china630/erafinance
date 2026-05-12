@@ -8,8 +8,8 @@ import { PublicLegalFooter } from "../../components/public-legal-footer";
 
 export default function HelpPage() {
   const { t } = useTranslation();
-  const docs = process.env.NEXT_PUBLIC_DAYDAY_DOCS_URL?.trim();
-  const video = process.env.NEXT_PUBLIC_DAYDAY_VIDEO_URL?.trim();
+  const docs = process.env.NEXT_PUBLIC_ERAFINANCE_DOCS_URL?.trim();
+  const video = process.env.NEXT_PUBLIC_ERAFINANCE_VIDEO_URL?.trim();
 
   return (
     <main className="min-h-screen bg-[#EBEDF0] flex flex-col items-center px-4 py-10">

@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { UserRole } from "@dayday/database";
+import { UserRole } from "@erafinance/database";
 import { IsEmail, IsEnum } from "class-validator";
 
 export class CreateInviteDto {

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import type { Prisma } from "@dayday/database";
+import type { Prisma } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { BankingCredentialsService } from "./banking-credentials.service";
 import type { BankingDirectRestBankConfig } from "./bank-providers/bank-rest.types";

@@ -1,6 +1,6 @@
 # DR Runbook: PostgreSQL Restore
 
-This runbook describes how to restore DayDay ERP PostgreSQL data from backups produced by `scripts/db-backup.sh`.
+This runbook describes how to restore ERA Finance PostgreSQL data from backups produced by `scripts/db-backup.sh`.
 
 ## 1) Preconditions
 
@@ -13,7 +13,7 @@ This runbook describes how to restore DayDay ERP PostgreSQL data from backups pr
 
 1. Locate backup folder (default): `backups/db/`
 2. Pick archive by timestamp, for example:
-   - `dayday-dayday-20260511-020001.sql.gz`
+   - `erafinance-erafinance-20260511-020001.sql.gz`
 3. Verify file integrity:
    - `gzip -t "<backup-file>.sql.gz"`
 

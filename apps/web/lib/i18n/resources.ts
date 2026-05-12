@@ -1,2 +1,2 @@
-/** Web UI translations — source of truth: `@dayday/i18n`. */
-export { resources } from "@dayday/i18n";
+/** Web UI translations — source of truth: `@erafinance/i18n`. */
+export { resources } from "@erafinance/i18n";

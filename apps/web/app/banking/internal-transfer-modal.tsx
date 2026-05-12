@@ -15,7 +15,7 @@ import {
   MODAL_INPUT_NUMERIC_CLASS,
 } from "../../lib/design-system";
 import { Button } from "../../components/ui/button";
-import { Dialog, DialogContent, DialogHeader } from "@dayday/ui";
+import { Dialog, DialogContent, DialogHeader } from "@erafinance/ui";
 
 type BankAccount = {
   id: string;

@@ -15,7 +15,7 @@ export function ownershipDisputeInAppMessage(disputeId: string): string {
 }
 
 export function ownershipDisputeEmailSubject(): string {
-  return "DayDay ERP — mülkiyyət mübahisəsi / спор о владении";
+  return "ERA Finance — mülkiyyət mübahisəsi / спор о владении";
 }
 
 export function ownershipDisputeEmailBody(disputeUrlPath: string, absoluteAppOrigin: string): string {
@@ -30,6 +30,6 @@ export function ownershipDisputeEmailBody(disputeUrlPath: string, absoluteAppOri
     "(EN) Ownership dispute opened. Secure link to submit a counter-claim:",
     fullUrl,
     "",
-    "DayDay ERP",
+    "ERA Finance",
   ].join("\n");
 }

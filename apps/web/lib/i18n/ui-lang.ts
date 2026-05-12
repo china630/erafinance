@@ -1,5 +1,5 @@
 /**
- * Два UI-языка DayDay: только явный `ru`, всё остальное (включая пустой код) — `az`.
+ * Два UI-языка ERA: только явный `ru`, всё остальное (включая пустой код) — `az`.
  * Согласовано с `client-i18n.ts` / переключателем языка.
  */
 export function uiLangRuAz(lang: string | undefined | null): "ru" | "az" {

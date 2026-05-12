@@ -6,7 +6,7 @@ import {
   Injectable,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { BillingStatus } from "@dayday/database";
+import { BillingStatus } from "@erafinance/database";
 import { IS_PUBLIC_KEY } from "../auth/constants";
 import type { AuthUser } from "../auth/types/auth-user";
 import { PrismaService } from "../prisma/prisma.service";

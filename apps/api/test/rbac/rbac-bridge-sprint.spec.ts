@@ -1,7 +1,7 @@
 import { ExecutionContext, ForbiddenException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
-import { UserRole } from "@dayday/database";
+import { UserRole } from "@erafinance/database";
 import { RolesGuard } from "../../src/auth/guards/roles.guard";
 import { AuditorMutationGuard } from "../../src/auth/guards/auditor-mutation.guard";
 import { InventoryAuditController } from "../../src/inventory/inventory-audit.controller";

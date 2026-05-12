@@ -1,4 +1,4 @@
-# `prisma/catalog/` — versioned reference data (`@dayday/database`)
+# `prisma/catalog/` — versioned reference data (`@erafinance/database`)
 
 **Layout mirrors `prisma/seeds/`** (same layer names; no `_engine/` here): `core/`, `national/`, `bank/`, `geo/`, `hr/`, `trade/`. Each folder holds artifacts for that layer; empty dirs keep a `.gitkeep` until data is moved out of TS modules. **`seeds/`** only orchestrates and imports from here.
 

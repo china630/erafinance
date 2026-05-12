@@ -1,6 +1,6 @@
 /** Lightweight cross-page list invalidation (no SWR/React Query in this app). */
 
-export const LIST_REFRESH_EVENT = "dayday:list-refresh";
+export const LIST_REFRESH_EVENT = "erafinance:list-refresh";
 
 export type ListRefreshKey =
   | "counterparties"

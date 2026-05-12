@@ -4,7 +4,7 @@ Təşkilat: **{{organizationName}}** (VÖEN {{taxId}})
 
 Hörmətli **{{incumbentName}}**,
 
-DayDay ERP sistemində təşkilatınız üzrə **mülkiyyət mübahisəsi** başladılıb (iş ID: `{{disputeId}}`).
+ERA Finance sistemində təşkilatınız üzrə **mülkiyyət mübahisəsi** başladılıb (iş ID: `{{disputeId}}`).
 
 **Əks-iddia** üçün e-poçt və ya SMS-dəki birdəfəlik keçiddən istifadə edin. Keçidin müddəti məhduddur.
 

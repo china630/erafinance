@@ -1,4 +1,4 @@
-# DayDay ERP - Production Deployment (Ubuntu 24.04 + Docker Compose)
+# ERA Finance - Production Deployment (Ubuntu 24.04 + Docker Compose)
 
 Russian version: [deploy.ru.md](./deploy.ru.md).
 
@@ -68,11 +68,13 @@ sudo apt-get install -y git
 ## 4. Clone repository
 
 ```bash
-sudo mkdir -p /opt/dayday_erp
-sudo chown "$USER":"$USER" /opt/dayday_erp
-cd /opt/dayday_erp
+sudo mkdir -p /opt/erafinance_erp
+sudo chown "$USER":"$USER" /opt/erafinance_erp
+cd /opt/erafinance_erp
 git clone YOUR_GIT_URL .
 ```
+
+`YOUR_GIT_URL` may point at any Git remote (after renaming the repo on GitHub, update `git remote` or use the new URL when cloning). The server directory (`/opt/erafinance_erp`) is a documented convention only; if you clone elsewhere, substitute your path in all commands below.
 
 ---
 
@@ -172,8 +174,8 @@ Example sequence on server:
 
 ```bash
 # 1) one-time: place maintenance.html and include nginx snippet
-sudo cp /opt/dayday_erp/docs/maintenance.html /var/www/html/maintenance.html
-# include /opt/dayday_erp/docs/nginx-maintenance.conf; inside server { ... }
+sudo cp /opt/erafinance_erp/docs/maintenance.html /var/www/html/maintenance.html
+# include /opt/erafinance_erp/docs/nginx-maintenance.conf; inside server { ... }
 
 # 2) enable maintenance
 sudo touch /var/www/html/maintenance.enable
@@ -297,7 +299,7 @@ npx dotenv-cli -e .env -- npm run db:deploy
 Dry-run DB consistency check with i18n override pipeline:
 
 ```bash
-npx dotenv-cli -e .env -- npm run db:audit-i18n-overrides -w @dayday/database
+npx dotenv-cli -e .env -- npm run db:audit-i18n-overrides -w @erafinance/database
 ```
 
 Expected: `dropped normalized keys=0`, `invalid raw keys=0`.
@@ -357,7 +359,7 @@ API does not need separate public exposure: browser uses same-origin `/api/*` th
 ## 10. Common issues
 
 - `npm install` / `prisma generate` fails because of `DATABASE_URL`: verify root `.env` and `POSTGRES_*`.
-- Windows local `.next` ENOTEMPTY/EPERM: stop Next, run `npm run clean -w @dayday/web`, retry build.
+- Windows local `.next` ENOTEMPTY/EPERM: stop Next, run `npm run clean -w @erafinance/web`, retry build.
 - Stale/incorrect i18n labels after deploy: run section 7.3 command (`db:sync-i18n:prune`), clear browser cache, verify localStorage language key.
 
 ---
@@ -369,11 +371,11 @@ Use this only when production contains no business data and full server recreati
 ### 11.1 On new machine (Ubuntu 24.04)
 
 1) Install Docker and Git (sections 2-3).
-2) Clone repository into `/opt/dayday_erp`.
+2) Clone repository into `/opt/erafinance_erp`.
 3) Prepare `.env`:
 
 ```bash
-cd /opt/dayday_erp
+cd /opt/erafinance_erp
 cp env.production.example .env
 nano .env
 ```
@@ -383,7 +385,7 @@ Minimum: `POSTGRES_PASSWORD`, `REDIS_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `
 ### 11.2 Bring stack + migrations
 
 ```bash
-cd /opt/dayday_erp
+cd /opt/erafinance_erp
 docker compose -f docker-compose.prod.yml up -d --build
 
 docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
@@ -402,7 +404,7 @@ docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
 Stop and remove containers with volumes:
 
 ```bash
-cd /opt/dayday_erp
+cd /opt/erafinance_erp
 docker compose -f docker-compose.prod.yml down -v
 ```
 

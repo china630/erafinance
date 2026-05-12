@@ -10,7 +10,7 @@ import {
   InvoiceStatus,
   SignatureProvider,
   SignedDocumentKind,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { parseSignerDisplayName } from "../common/certificate-subject.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
@@ -185,8 +185,8 @@ export class SignatureService {
     const thumb = `MOCK-${randomBytes(16).toString("hex")}`;
     const issuer =
       provider === SignatureProvider.ASAN_IMZA
-        ? "CN=DayDay Mock ASAN İmza CA"
-        : "CN=DayDay Mock SİMA Biometric CA";
+        ? "CN=ERA Mock ASAN İmza CA"
+        : "CN=ERA Mock SİMA Biometric CA";
     let completed = false;
     await this.prisma.$transaction(async (tx) => {
       const done = await tx.digitalSignatureLog.updateMany({

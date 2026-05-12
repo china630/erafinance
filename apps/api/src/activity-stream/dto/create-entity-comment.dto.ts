@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { EntityCommentKind } from "@dayday/database";
+import { EntityCommentKind } from "@erafinance/database";
 import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
 
 export class CreateEntityCommentDto {

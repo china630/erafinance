@@ -1,4 +1,4 @@
-import { CounterpartyKind, CounterpartyLegalForm } from "@dayday/database";
+import { CounterpartyKind, CounterpartyLegalForm } from "@erafinance/database";
 
 /** Физ./юр. лицо выводится из ОПФ: только `INDIVIDUAL` (F/Ш) → `CounterpartyKind.INDIVIDUAL`. */
 export function counterpartyKindFromLegalForm(

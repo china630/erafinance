@@ -3,4 +3,4 @@ export {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@dayday/ui";
+} from "@erafinance/ui";

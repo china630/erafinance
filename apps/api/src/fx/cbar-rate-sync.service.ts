@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
-import { CbarRateStatus, Prisma } from "@dayday/database";
+import { CbarRateStatus, Prisma } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { SystemConfigService } from "../system-config/system-config.service";
 import { CbarFxService, type CbarLatestRate, type ParsedCbarDoc } from "./cbar-fx.service";

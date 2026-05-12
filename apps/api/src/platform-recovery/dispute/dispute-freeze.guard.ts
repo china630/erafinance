@@ -6,7 +6,7 @@ import {
   SetMetadata,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { SecurityMode } from "@dayday/database";
+import { SecurityMode } from "@erafinance/database";
 import { PrismaService } from "../../prisma/prisma.service";
 
 export const ALLOW_IN_DISPUTE_MODE = "allowInDisputeMode";

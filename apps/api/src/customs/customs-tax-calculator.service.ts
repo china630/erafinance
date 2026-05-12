@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { Prisma } from "@dayday/database";
-import type { CustomsDeclarationItemPrefill } from "@dayday/api-contracts";
+import { Prisma } from "@erafinance/database";
+import type { CustomsDeclarationItemPrefill } from "@erafinance/api-contracts";
 import { CustomsTariffRatesService } from "./customs-tariff-rates.service";
 
 export type ComputedLine = {

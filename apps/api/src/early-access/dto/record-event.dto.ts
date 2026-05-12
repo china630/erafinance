@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   EarlyAccessEventType,
   EarlyAccessModuleKey,
-} from "@dayday/database";
+} from "@erafinance/database";
 import {
   IsEnum,
   IsInt,

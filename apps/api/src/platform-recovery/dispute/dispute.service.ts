@@ -7,7 +7,7 @@ import {
   DisputeStatus,
   SecurityMode,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { AuditService } from "../../audit/audit.service";
 import { STORAGE_SERVICE, type StorageService } from "../../storage/storage.interface";
 import { NotificationService } from "../../notifications/notification.service";

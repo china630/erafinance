@@ -7,7 +7,7 @@ import {
   Decimal,
   StockMovementReason,
   StockMovementType,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { AccountingService } from "../accounting/accounting.service";
 import {
   FINISHED_GOODS_ACCOUNT_CODE,

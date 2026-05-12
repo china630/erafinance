@@ -13,7 +13,7 @@ import {
   Decimal,
   NotificationSeverity,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { NotificationService } from "../notifications/notification.service";
 

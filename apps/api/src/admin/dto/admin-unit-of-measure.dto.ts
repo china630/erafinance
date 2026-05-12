@@ -10,7 +10,7 @@ import {
   MaxLength,
   Min,
 } from "class-validator";
-import { UnitOfMeasureKind } from "@dayday/database";
+import { UnitOfMeasureKind } from "@erafinance/database";
 
 export class CreateUnitOfMeasureDto {
   @ApiProperty({ example: "PCS" })

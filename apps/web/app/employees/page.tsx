@@ -142,9 +142,9 @@ export default function EmployeesPage() {
       setUpsellOpen(true);
       return;
     }
-    window.localStorage.setItem("daydayAssistantBulkFlow", "emuqavile");
-    window.localStorage.setItem("daydayAssistantBulkIds", JSON.stringify(selectedIds));
-    alert("Bulk payload prepared for DayDay Assistant");
+    window.localStorage.setItem("erafinanceAssistantBulkFlow", "emuqavile");
+    window.localStorage.setItem("erafinanceAssistantBulkIds", JSON.stringify(selectedIds));
+    alert("Bulk payload prepared for ERA Finance Assistant");
   }
 
   if (!ready) {

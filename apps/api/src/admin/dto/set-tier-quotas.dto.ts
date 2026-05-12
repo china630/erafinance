@@ -6,7 +6,7 @@ import {
   Min,
   ValidateNested,
 } from "class-validator";
-import { SubscriptionTier } from "@dayday/database";
+import { SubscriptionTier } from "@erafinance/database";
 
 export class TierQuotasDto {
   @IsOptional()

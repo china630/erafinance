@@ -1,4 +1,4 @@
-import { AuthSnapshotSchema, type OrgSummary } from "@dayday/api-contracts";
+import { AuthSnapshotSchema, type OrgSummary } from "@erafinance/api-contracts";
 import { MSG } from "./messages";
 
 export async function getErpActiveOrganization(): Promise<OrgSummary | null> {

@@ -8,7 +8,7 @@ import {
   InvoiceStatus,
   ProjectBillingMode,
   TimeEntryStatus,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { InvoicesService } from "../invoices/invoices.service";
 import { PrismaService } from "../prisma/prisma.service";
 import {

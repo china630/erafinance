@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
-import { Prisma, StockMovementType } from "@dayday/database";
+import { Prisma, StockMovementType } from "@erafinance/database";
 import { OpeningBalancesService } from "../../src/migration/opening-balances.service";
 import type { AccountingService, PostTransactionLine } from "../../src/accounting/accounting.service";
 import type { PrismaService } from "../../src/prisma/prisma.service";

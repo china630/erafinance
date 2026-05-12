@@ -1,4 +1,4 @@
-import { CustomsDeclarationFullPrefillCaptureSchema } from "@dayday/api-contracts";
+import { CustomsDeclarationFullPrefillCaptureSchema } from "@erafinance/api-contracts";
 import { MSG } from "../../shared/messages";
 import { parseOpenBgdPage } from "./flows/bgd-capture";
 

@@ -8,7 +8,7 @@ import {
   pickAccountDisplayName,
   type Prisma,
   type UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { assertMayPostManualJournal } from "../auth/policies/invoice-finance.policy";
 import { AccountingService } from "../accounting/accounting.service";
 import { BankSubaccountService } from "../accounting/bank-subaccount.service";

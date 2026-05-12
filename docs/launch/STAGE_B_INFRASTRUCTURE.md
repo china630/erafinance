@@ -34,7 +34,7 @@ Maps to [100_STEPS_TO_LIVE.md](./100_STEPS_TO_LIVE.md) steps **34–65**. Produc
 | OCR | `ocr.queue.ts` (backoff + `removeOnFail`) + `ocr.worker.ts` |
 | Audit archive | `audit-archive.queue.ts` + `audit-archive.worker.ts` |
 
-Failed jobs: optional webhook **`DAYDAY_BULLMQ_ALERT_WEBHOOK_URL`** (wired via `apps/api/src/queue/bullmq-worker-alerts.ts`).
+Failed jobs: optional webhook **`ERAFINANCE_BULLMQ_ALERT_WEBHOOK_URL`** (wired via `apps/api/src/queue/bullmq-worker-alerts.ts`).
 
 ## Metrics (44, 58)
 
@@ -66,7 +66,7 @@ Failed jobs: optional webhook **`DAYDAY_BULLMQ_ALERT_WEBHOOK_URL`** (wired via `
 ## Nginx / TLS (56–57)
 
 - Maintenance snippet: `docs/nginx-maintenance.conf`.
-- Full example (gzip, upstreams, TLS stubs): `docs/nginx-dayday-production.example.conf`.
+- Full example (gzip, upstreams, TLS stubs): `docs/nginx-erafinance-production.example.conf`.
 - Let's Encrypt / Caddy: `docs/deploy/deploy.md` (reverse proxy section).
 
 ## Sentry web (59)
@@ -75,7 +75,7 @@ Failed jobs: optional webhook **`DAYDAY_BULLMQ_ALERT_WEBHOOK_URL`** (wired via `
 
 ## Telegram / platform alerts (60)
 
-- Reuse patterns: `AUDIT_ALERT_WEBHOOK_URL` (audit cron), **`DAYDAY_BULLMQ_ALERT_WEBHOOK_URL`** (BullMQ failures). Telegram Bot `sendMessage` URL works if you encode `chat_id` in the query string.
+- Reuse patterns: `AUDIT_ALERT_WEBHOOK_URL` (audit cron), **`ERAFINANCE_BULLMQ_ALERT_WEBHOOK_URL`** (BullMQ failures). Telegram Bot `sendMessage` URL works if you encode `chat_id` in the query string.
 - External synthetic monitoring (UptimeRobot, etc.) should hit **`/api/health`** through the public edge.
 
 ## Timezone (52)

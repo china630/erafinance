@@ -6,7 +6,7 @@ import { Roles } from "../auth/decorators/roles.decorator";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthUser } from "../auth/types/auth-user";
 import { OrganizationId } from "../common/org-id.decorator";
-import { UserRole } from "@dayday/database";
+import { UserRole } from "@erafinance/database";
 import { IntegrationReliabilityService } from "./integration-reliability.service";
 
 @ApiTags("integrations")

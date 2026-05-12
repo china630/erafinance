@@ -1,12 +1,12 @@
 import { Injectable } from "@nestjs/common";
-import { seedPricingModuleIfEmpty } from "@dayday/database";
+import { seedPricingModuleIfEmpty } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { SystemConfigService } from "../system-config/system-config.service";
 
 /**
  * Каталог модулей: источник правды — таблица `pricing_modules` (v12.4).
  * При пустой таблице выполняется то же первичное наполнение, что и в `prisma db seed`
- * (`seedPricingModuleIfEmpty` в @dayday/database).
+ * (`seedPricingModuleIfEmpty` в @erafinance/database).
  */
 export type ConstructorModuleRow = {
   id: string;

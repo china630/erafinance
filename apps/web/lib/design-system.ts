@@ -1,5 +1,5 @@
 /**
- * DESIGN.md — DayDay ERP visual tokens (palette, compact UI).
+ * DESIGN.md — ERA Finance visual tokens (palette, compact UI).
  * Primary #34495E, Secondary #7F8C8D, Background #EBEDF0, Action #2980B9.
  */
 

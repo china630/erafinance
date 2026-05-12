@@ -1,4 +1,4 @@
-# Product Requirements Document (PRD): DayDay ERP
+# Product Requirements Document (PRD): ERA Finance
 
 Единый документ продукта: объединяет базовое ядро (исходный PRD), направления v2, экосистему v3 и коммерческую модель v4. Детализация реализации — в [TZ.md](./TZ.md) (единый ТЗ).
 
@@ -210,7 +210,7 @@
 | **Просмотр** | Номер счёта, срок, суммы, позиции, реквизиты организации (в т.ч. логотип и банковские счета из `organization_bank_accounts`). |
 | **Статус оплаты** | Явная индикация **Оплачено** / **Ожидает оплаты** (по факту полной выплаты: остаток ≤ 0). |
 | **PDF** | Кнопка **«Скачать PDF»** — файл формируется на лету тем же движком, что и внутренний PDF счёта. |
-| **Ссылка для менеджера** | В карточке счёта (JWT) — действие **«Поделиться ссылкой»**: копирование в буфер URL вида `{origin}/portal/invoice/{token}` (прод: канонический домен, напр. `https://erp.dayday.az/...`). |
+| **Ссылка для менеджера** | В карточке счёта (JWT) — действие **«Поделиться ссылкой»**: копирование в буфер URL вида `{origin}/portal/invoice/{token}` (прод: канонический домен, напр. `https://erp.example.com/...`). |
 | **Локализация** | Язык интерфейса портала: поле **`portal_locale`** у контрагента (`az` / `ru` / `en`), иначе — язык браузера (**Accept-Language**). |
 | **Безопасность** | См. **TZ.md §14.0** — неугадываемый токен + rate limit на публичные GET. |
 
@@ -599,7 +599,7 @@ If `ProjectedBalance` drops below zero on a date, UI marks it as **cash-gap risk
 
 - Внедрение горизонтального автоскейлинга воркеров через API DigitalOcean / Kubernetes.
 - Оптимизация транзакций Ledger: переход на пакетную запись итогов расчётов (**Batch Insert**).
-- Разработка маппера данных **1С → DayDay NAS** для контролируемого Migration Mode.
+- Разработка маппера данных **1С → ERA NAS** для контролируемого Migration Mode.
 - [x] **COMPLETED:** интерфейс ввода начальных остатков (**Opening Balances Wizard**) для кассы/банка, склада и HR-задолженности (backend + frontend UX + шаблоны импорта).
 
 ---
@@ -622,13 +622,13 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 #### Phase 1 — File exchange (XML / Excel)
 
-- **Declarations & mass operations:** DayDay ERP **generates** machine-readable outputs (**XML** for tax declarations where applicable, **Excel/CSV** templates for bulk filings and reconciliation packages) for accountant review.
-- **Manual portal step:** the accountant performs **manual upload / download** on **e-taxes.gov.az** (outbound filings, attachments, extracts). DayDay maintains a **submission journal** (status, timestamps, correlation keys, operator notes) aligned with compliance workflows in **[TZ.md](./TZ.md) §13.2**.
+- **Declarations & mass operations:** ERA Finance **generates** machine-readable outputs (**XML** for tax declarations where applicable, **Excel/CSV** templates for bulk filings and reconciliation packages) for accountant review.
+- **Manual portal step:** the accountant performs **manual upload / download** on **e-taxes.gov.az** (outbound filings, attachments, extracts). ERA maintains a **submission journal** (status, timestamps, correlation keys, operator notes) aligned with compliance workflows in **[TZ.md](./TZ.md) §13.2**.
 
 #### Phase 2 — RPA (Browser Extension)
 
 - **Single extension (Chrome / Firefox / Chromium family — store targets TBD)** for users who already have an **authenticated session** on **e-taxes.gov.az**, including **ASAN İmza** where the portal requires it.
-- **Explicit user action only:** on an explicit user click, the extension **pre-fills** eligible portal forms (for example **e-qaimə** flows) from data selected in DayDay ERP. The user **must personally activate** the portal’s own **“Sign” / “Submit”** actions; the extension **does not** replace legal approval, human review, or portal Terms of Use compliance.
+- **Explicit user action only:** on an explicit user click, the extension **pre-fills** eligible portal forms (for example **e-qaimə** flows) from data selected in ERA Finance. The user **must personally activate** the portal’s own **“Sign” / “Submit”** actions; the extension **does not** replace legal approval, human review, or portal Terms of Use compliance.
 - **Shared architecture** with other government portals (ƏMAS, DVX) and **subscription gating per selected organization** are specified in **[TZ.md](./TZ.md) §13.6**.
 - **Phase 10 split monetization:** bulk operations are available in two equal tracks — **Premium Bulk RPA** in the extension (gated by `tax_pro` for DVX, `hr_full` for ƏMAS, and **`trade_pro`** for e-customs BGD capture) and **Free Excel fallback** (export/import endpoints in ERP backend) for all authenticated users.
 
@@ -721,7 +721,7 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 **Architecture requirements (future scope):**
 
-- **Single corporate BSP path:** Under the hood, DayDay ERP uses **one platform-level Business Solution Provider (BSP) account** with an official vendor (**Meta Cloud API** and/or **Infobip** / **Twilio** — final vendor is a **deployment choice**, not a per-tenant integration). Tenant traffic is **logically isolated** (organizationId, templates, audit); **phone numbers / WABA** may be customer-linked per compliance rules at rollout.
+- **Single corporate BSP path:** Under the hood, ERA Finance uses **one platform-level Business Solution Provider (BSP) account** with an official vendor (**Meta Cloud API** and/or **Infobip** / **Twilio** — final vendor is a **deployment choice**, not a per-tenant integration). Tenant traffic is **logically isolated** (organizationId, templates, audit); **phone numbers / WABA** may be customer-linked per compliance rules at rollout.
 - **Internal billing in Settings → Subscription:** Implement **message-pack purchase**, **balance tracking**, and **hard block** of send actions when the **message balance is zero** (API returns predictable **402** / dedicated code consistent with quota patterns in [TZ.md](./TZ.md) §14.5–14.8 — exact code at implementation).
 
 ---
@@ -824,7 +824,7 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 - **Политика удаления:** в UI и предписанных admin API для этих сущностей **нет hard-delete**; используются **деактивация**, **`TranslationOverride.is_active`**, **`deletedAt`** у таможенных ставок, **снятие с эксплуатации** (`isDeprecated`) и **сброс к дефолту** для `SystemConfig`, с сохранением историчности и аудита мутаций.
 - **Обратная совместимость:** `/super-admin/translations` и `/super-admin/customs-tariff-rates` перенаправляют на подмаршруты Data hub.
 
-**Чеклист релиза расширения DayDay Assistant (Staging/Prod):** [docs/deploy/EXTENSION_MVP_DEPLOY.md](./docs/deploy/EXTENSION_MVP_DEPLOY.md).
+**Чеклист релиза расширения ERA Finance Assistant (Staging/Prod):** [docs/deploy/EXTENSION_MVP_DEPLOY.md](./docs/deploy/EXTENSION_MVP_DEPLOY.md).
 
 **Центр деплой-документации (сценарии + порядок для on-call):** [docs/deploy/README.md](./docs/deploy/README.md).
 
@@ -958,13 +958,13 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 #### 7.12.4. Платежи и счета платформы (не путать с Sales Invoice)
 
-**Счёт платформы** — документ к **владельцу** за подписку DayDay ERP. В коде и БД — отдельные сущности (**`billing_invoices` / `BillingInvoice`**), не таблица **`invoices`** (продажи).
+**Счёт платформы** — документ к **владельцу** за подписку ERA Finance. В коде и БД — отдельные сущности (**`billing_invoices` / `BillingInvoice`**), не таблица **`invoices`** (продажи).
 
 | Правило | Описание |
 |--------|----------|
 | **Единый месячный инвойс** | **Owner** получает **один** счёт платформы за **месячный** период, **суммирующий** все начисления по **всем** организациям, где он владелец (`ownerUserId` = этот пользователь). Внутри счёта — строки по каждой организации (VÖEN) и типу начисления (база, модуль, квота). |
 | **Billing History** | Раздел UI: **детализированная таблица** транзакций/счетов платформы (дата, период, сумма, статус); для каждого счёта — **скачивание PDF** (`pdfLink`). |
-| **Платёжные провайдеры** | Платформа поддерживает **несколько** провайдеров оплаты подписки: **PAŞA Bank** (web-checkout с редиректом на платёжку, HMAC-вебхук) и **Drakaris/yığım** — внешний агрегатор, который сам обращается к публичному API DayDay по **Basic Auth** (см. [TZ.md](./TZ.md) §14.8.14). Идемпотентность результирующего `PaymentOrder` — по `idempotencyKey` (для Drakaris это `transaction-id` агрегатора), повторное уведомление не продлевает подписку дважды. |
+| **Платёжные провайдеры** | Платформа поддерживает **несколько** провайдеров оплаты подписки: **PAŞA Bank** (web-checkout с редиректом на платёжку, HMAC-вебхук) и **Drakaris/yığım** — внешний агрегатор, который сам обращается к публичному API ERA по **Basic Auth** (см. [TZ.md](./TZ.md) §14.8.14). Идемпотентность результирующего `PaymentOrder` — по `idempotencyKey` (для Drakaris это `transaction-id` агрегатора), повторное уведомление не продлевает подписку дважды. |
 
 Обязательные атрибуты счёта:
 
@@ -1155,14 +1155,14 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 | **Интеграции MVP** | Импорт CSV/Excel; API банков — после sandbox/доступов. |
 | **UI и i18n** | **i18next**; в интерфейсе два языка — **RU** и **AZ**; при неопределённом коде языка действует **`az`** (единственный дефолт). Детали merge оверрайдов и хелперы — §7.6.1 и [TZ.md](./TZ.md) §17. |
 | **Время и форматы** | В БД — **UTC**; отображение — локаль Азербайджана, суммы в **AZN**. |
-| **Локальная инфра (Windows)** | Данные контейнеров, файлы, npm-кэш, temp — **D:** (`D:\DockerData\dayday_erp`); образы Docker — хранилище на D в Docker Desktop. |
+| **Локальная инфра (Windows)** | Данные контейнеров, файлы, npm-кэш, temp — **D:** (`D:\DockerData\erafinance_erp`); образы Docker — хранилище на D в Docker Desktop. |
 | **Тип организации / NAS kind** | **`Organization.kind`** фиксируется при создании организации; после появления первой проводки в Ledger смена **`kind`** запрещена для сохранения целостности и исторической сопоставимости отчётов. |
 
 ---
 
 ## 13. Интеграции: ƏMAS (Əmək və Məşğulluq Alt Sistemi)
 
-Интеграция с **ƏMAS** (государственный подсистемный контур **Əmək və Məşğulluq Alt Sistemi**, Министерство труда и социальной защиты населения АР) позиционируется как **стратегическое конкурентное преимущество** DayDay ERP на рынке Азербайджана: снижение ручного ввода при онбординге, согласованность кадровых событий с официальным учётом и снижение операционного риска несоответствия требованиям **Трудового кодекса АР** и подзаконных актов по кадровому делопроизводству и уведомлениям работодателя.
+Интеграция с **ƏMAS** (государственный подсистемный контур **Əmək və Məşğulluq Alt Sistemi**, Министерство труда и социальной защиты населения АР) позиционируется как **стратегическое конкурентное преимущество** ERA Finance на рынке Азербайджана: снижение ручного ввода при онбординге, согласованность кадровых событий с официальным учётом и снижение операционного риска несоответствия требованиям **Трудового кодекса АР** и подзаконных актов по кадровому делопроизводству и уведомлениям работодателя.
 
 Спецификация ниже задаёт **продуктовые** рамки; техническая реализация (адаптер, очереди, идемпотентность, маскирование PII в логах) — в **[TZ.md](./TZ.md) §8.0**.
 
@@ -1172,12 +1172,12 @@ Product-approved **staged** path for **ƏMAS** integration via the **DOST RIM** 
 
 #### Phase 1 — Smart MVP (file import / export)
 
-- **PULL:** A **smart parser** for **Excel exports** from ƏMAS (including **Ştat cədvəli** / staffing schedule and **employee roster** layouts) enables **bulk automatic creation or refresh** of employee cards and **organizational staffing structure** in DayDay ERP without manual re-keying (column mapping, validation, preview/dry-run — implementation scope in TZ §8.0).
+- **PULL:** A **smart parser** for **Excel exports** from ƏMAS (including **Ştat cədvəli** / staffing schedule and **employee roster** layouts) enables **bulk automatic creation or refresh** of employee cards and **organizational staffing structure** in ERA Finance without manual re-keying (column mapping, validation, preview/dry-run — implementation scope in TZ §8.0).
 - **PUSH:** **Automated generation** of HR **orders (Əmr)** from ERP data as **PDF/DOCX** files, ready for **manual upload** by HR staff into the ƏMAS portal (no live B2B API required in this phase).
 
 #### Phase 2 — RPA (browser extension, Google Chrome)
 
-- A **Chrome extension** targets HR users who already have an **open authenticated session** on the ƏMAS portal: on **explicit user action**, it **pre-fills** forms for creating an **electronic employment contract (e-müqavilə)** from DayDay ERP data. The HR user **must still click** **«İmzala»** (Sign); the extension does **not** replace legal approval, human review, or portal Terms of Use compliance.
+- A **Chrome extension** targets HR users who already have an **open authenticated session** on the ƏMAS portal: on **explicit user action**, it **pre-fills** forms for creating an **electronic employment contract (e-müqavilə)** from ERA Finance data. The HR user **must still click** **«İmzala»** (Sign); the extension does **not** replace legal approval, human review, or portal Terms of Use compliance.
 
 #### Phase 3 — Official B2B API (System-to-System)
 
@@ -1190,26 +1190,26 @@ Product-approved **staged** path for **ƏMAS** integration via the **DOST RIM** 
 
 Интеграция работает **двунаправленно** и не смешивает бизнес-логику GL/склада с транспортом госсистемы:
 
-- **PULL (входящий поток):** периодический и по запросу импорт из ƏMAS в DayDay ERP для **автоматического создания/обновления карточек сотрудников**, загрузки **штатного расписания** (структура должностей/лимиты при наличии в источнике), а также **истории отпусков и служебных командировок** (при доступности в API). Цель — минимизировать ручной ввод при подключении новых клиентов и при массовых изменениях из госреестра.
-- **PUSH (исходящий поток):** из интерфейса DayDay ERP — формирование и отправка **bildiriş** (уведомлений работодателя), **приказов/решений о приёме**, **переводах** и **увольнении** в ƏMAS через **официальный API** государственной платформы с аутентификацией **ASAN Login** (или иным каноническим механизмом, установленным оператором ƏMAS на момент реализации). Исходящие операции должны поддерживать **подтверждение доставки**, **корреляционные идентификаторы** и **повтор при сетевых сбоях** без дублирования юридически значимых событий (см. TZ §8.0).
+- **PULL (входящий поток):** периодический и по запросу импорт из ƏMAS в ERA Finance для **автоматического создания/обновления карточек сотрудников**, загрузки **штатного расписания** (структура должностей/лимиты при наличии в источнике), а также **истории отпусков и служебных командировок** (при доступности в API). Цель — минимизировать ручной ввод при подключении новых клиентов и при массовых изменениях из госреестра.
+- **PUSH (исходящий поток):** из интерфейса ERA Finance — формирование и отправка **bildiriş** (уведомлений работодателя), **приказов/решений о приёме**, **переводах** и **увольнении** в ƏMAS через **официальный API** государственной платформы с аутентификацией **ASAN Login** (или иным каноническим механизмом, установленным оператором ƏMAS на момент реализации). Исходящие операции должны поддерживать **подтверждение доставки**, **корреляционные идентификаторы** и **повтор при сетевых сбоях** без дублирования юридически значимых событий (см. TZ §8.0).
 
 ### 13.2. Поддержка гибридной модели («серые» компании)
 
-DayDay ERP **не навязывает** обязательную синхронизацию с ƏMAS на уровне организации. Поддерживаются режимы:
+ERA Finance **не навязывает** обязательную синхронизацию с ƏMAS на уровне организации. Поддерживаются режимы:
 
 - **Full Sync:** кадровые события в ERP **должны** быть отражены в ƏMAS (либо подтверждены пользователем после исходящего запроса, либо синхронизированы автоматически — вариант настройки политики); расхождения считаются **исключением**, требующим явной сверки.
-- **Manual / Offline:** кадровый учёт ведётся **только** в DayDay ERP; поля, специфичные для ƏMAS (идентификаторы уведомлений, внешние ключи событий и т.п.), **опциональны** и не блокируют сохранение карточки сотрудника.
+- **Manual / Offline:** кадровый учёт ведётся **только** в ERA Finance; поля, специфичные для ƏMAS (идентификаторы уведомлений, внешние ключи событий и т.п.), **опциональны** и не блокируют сохранение карточки сотрудника.
 - **Selective:** часть сотрудников помечается как **«официальный контур ƏMAS»** (синхронизация включается на уровне сотрудника/подразделения), остальные остаются во **внутреннем** учёте (типичный сценарий для смешанных штатов и подрядчиков без обязательного включения в госпоток).
 
 ### 13.3. Функциональные требования
 
 - **Статус синхронизации** в карточке сотрудника относительно ƏMAS: **Активен** (последняя синхронизация успешна), **Ожидает** (запрос отправлен / ожидается ответ или ручное подтверждение), **Оффлайн** (организация или сотрудник в режиме без интеграции / ошибка авторизации).
 - **Валидация по требованиям министерства** (в т.ч. **VÖEN**, **FIN** (PIN), параметры **трудового договора** и ставок/режимов, если заданы регулятором для электронного контура): выполняется **только** при включённой интеграции или для сотрудников/организаций в режиме **Full Sync** / **Selective** с флагом участия в ƏMAS; в **Manual / Offline** — предупреждения «мягкие», без блокировки сохранения, если иное не задано политикой организации.
-- **Массовая выгрузка и загрузка** (CSV/XLSX или машиночитаемый формат по согласованию с API) для **Reconciliation** между внутренним учётом DayDay ERP и выгрузкой/данными ƏMAS: сопоставление по FIN, табельным номерам, внешним ID, периодам отсутствий; отчёт о расхождениях для бухгалтерии и HR.
+- **Массовая выгрузка и загрузка** (CSV/XLSX или машиночитаемый формат по согласованию с API) для **Reconciliation** между внутренним учётом ERA Finance и выгрузкой/данными ƏMAS: сопоставление по FIN, табельным номерам, внешним ID, периодам отсутствий; отчёт о расхождениях для бухгалтерии и HR.
 
 ### 13.4. Законодательный и операционный контекст (АР)
 
-Продукт признаёт, что перечень обязательных **bildiriş** и формат **электронных кадровых документов** может обновляться нормативными актами MLSA; DayDay ERP должен позволять **версионировать маппинг полей** и **временно отключать** отдельные PUSH-операции при смене контракта API без остановки внутреннего учёта. Аудит действий интеграции — в общем контуре **неизменяемого аудита** (см. PRD §4.8, TZ по AuditMutationInterceptor) с **редакцией PII** в сырых payload интеграций (см. существующие требования M8).
+Продукт признаёт, что перечень обязательных **bildiriş** и формат **электронных кадровых документов** может обновляться нормативными актами MLSA; ERA Finance должен позволять **версионировать маппинг полей** и **временно отключать** отдельные PUSH-операции при смене контракта API без остановки внутреннего учёта. Аудит действий интеграции — в общем контуре **неизменяемого аудита** (см. PRD §4.8, TZ по AuditMutationInterceptor) с **редакцией PII** в сырых payload интеграций (см. существующие требования M8).
 
 ---
 
@@ -1248,7 +1248,7 @@ DayDay ERP **не навязывает** обязательную синхрон
 | **2026.04.29** | Архив | **M6/M7 Integration:** Payroll department-level cost allocation and P&L departmental filtering. |
 | **2026.04.30** | Архив | **M9 Completion:** Dynamic FIFO/AVCO valuation toggle and Manufacturing Release workflow with automated ledger postings. |
 | **2026.05.01** | Текущая | **v2 Completion:** Full IFRS parallel reporting views (Trial Balance, P&L) and global NAS/IFRS UI toggle. |
-| **2026.05.05** | Текущая | **`v1.0.0-RC2`**: Унификация UI-Kit (**`@dayday/ui`**), внедрение Платёжного календаря и Cash Flow прогнозирования. |
+| **2026.05.05** | Текущая | **`v1.0.0-RC2`**: Унификация UI-Kit (**`@erafinance/ui`**), внедрение Платёжного календаря и Cash Flow прогнозирования. |
 | **2026.05.05** | Текущая | **Core Stabilization (Treasury/API):** закрыт техдолг по внутренним переводам и конвертациям: удалены остатки дублирующего CRUD в OrganizationsModule, treasury-операции покрыты сервисными тестами на балансировку проводок и `isFrozen`-ограничения, статусы PRD синхронизированы в `COMPLETED`. |
 | **2026.05.06** | Текущая | **PRD Synchronization (95%+ Push):** Unified documentation update covering CRM Merge, Netting, Hire-Gate, Outbound Banking, WMS Bins, and Audit Chain Verification. |
 | **2026.05.07** | Текущая | **Roadmap 95+ (Billing Pivot):** Transitioned to Post-Paid model, zero-friction module activation, and 1st-of-month invoice generation. |
@@ -1273,7 +1273,7 @@ DayDay ERP **не навязывает** обязательную синхрон
 | **2026.05.30** | Текущая | **Международная торговля (Import/Export):** добавлен **§4.4.2** — разделение **Daxili / Xarici**, экспорт (İxrac: без обязательной e-qaimə, Commercial Invoice, таможня), импорт (İdxal: AI‑Vision OCR для предзаполнения **Alış Fakturası**, BGD как база для себестоимости/ƏDV, сценарий **Qeyri-rezidentin e-qaiməsi** для услуг). |
 | **2026.05.31** | Текущая | Отражена поэтапная стратегия интеграции с DVX (включая Chrome RPA) и зафиксирована архитектура единого браузерного расширения с проверкой подписки на уровне выбранной организации (Multi-tenant RPA Gating). |
 | **2026.06.01** | Текущая | **Phase 11:** международные инвойсы (`isInternational`) и Commercial Invoice PDF, AI-OCR импорт foreign supplier invoices, BGD/Customs declarations с проводками себестоимости и входящего НДС; техконтракты и пайплайн — [TZ.md](./TZ.md) §19. |
-| **2026.06.02** | Текущая | **Phase 12:** Customs — premium **DayDay Assistant** capture с `e-customs.gov.az` (модуль **`trade_pro`**, `POST /api/customs/declarations/prefill-capture`, `IntegrationPortal.CUSTOMS`) и бесплатный **Excel** import/export для BGD; техконтракт — [TZ.md](./TZ.md) §20. |
+| **2026.06.02** | Текущая | **Phase 12:** Customs — premium **ERA Finance Assistant** capture с `e-customs.gov.az` (модуль **`trade_pro`**, `POST /api/customs/declarations/prefill-capture`, `IntegrationPortal.CUSTOMS`) и бесплатный **Excel** import/export для BGD; техконтракт — [TZ.md](./TZ.md) §20. |
 | **2026.06.03** | Текущая | **Phase 12.1:** Trade Pro Customs upgraded to full BGD capture (line items, sender/receiver VÖEN, HS-based GATT pre-calc, injected portal action button + widget, super-admin tariff rates) with detail review UI; техконтракт — [TZ.md](./TZ.md) §20.1. |
 | **2026.06.04** | Текущая | **Profile / Billing providers / FA monthly:** добавлены (a) self-service **«Профиль»** (`/settings/profile`), поля **`User.phone`** и **`User.locale`** (`UserLocale = AZ \| RU`), API **`GET/PATCH /api/users/me`** со сменой пароля; (b) второй провайдер оплаты подписки **Drakaris/yığım** (Basic Auth, REST `/api/integrations/drakaris/v1/...`, идемпотентность по `transaction-id` → `PaymentOrder.idempotencyKey`, `Organization.drakarisClientId`); (c) ежемесячный BullMQ-воркер начисления амортизации (`monthly-depreciation`, cron `0 1 1 * *`, env-выключатель `FIXED_ASSETS_MONTHLY_DISABLED`). Техконтракты — [TZ.md](./TZ.md) §2.2, §12.5, §14.8.2, §14.8.14. |
 | **2026.06.05** | Текущая | **Таможенные ставки AZ / HS:** курируемый справочник `CustomsTariffRate` (приложения к актам КМ, парсинг MD → JSON, импорт, версии по **`effective_from`**); **§7.6.2**; техконтракт — [TZ.md](./TZ.md) §20.2. |

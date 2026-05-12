@@ -12,7 +12,7 @@ import {
 
 export type LedgerType = "NAS" | "IFRS";
 
-const STORAGE_KEY = "dayday-ledger-type";
+const STORAGE_KEY = "erafinance-ledger-type";
 
 function readStored(): LedgerType {
   if (typeof window === "undefined") return "NAS";

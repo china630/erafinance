@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   Injectable,
 } from "@nestjs/common";
-import { UserRole } from "@dayday/database";
+import { UserRole } from "@erafinance/database";
 import type { AuthUser } from "../types/auth-user";
 
 const MUTATION_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);

@@ -1,7 +1,7 @@
 import { SetMetadata } from "@nestjs/common";
 import type { QuotaResource } from "../../quota/quota-resource";
 
-export const CHECK_QUOTA_KEY = "dayday:checkQuota";
+export const CHECK_QUOTA_KEY = "era:checkQuota";
 
 /** Declares which quota {@link QuotaGuard} must assert before the handler runs. */
 export const CheckQuota = (resource: QuotaResource) =>

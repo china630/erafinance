@@ -12,7 +12,7 @@ import {
 import {
   ORGANIZATION_BANK_ACCOUNT_CURRENCIES,
   ORGANIZATION_BANK_ACCOUNT_TYPES,
-} from "@dayday/api-contracts";
+} from "@erafinance/api-contracts";
 
 export class CreateOrganizationBankAccountDto {
   @ApiProperty({ example: "AZ41NABZ01350100000000001944" })

@@ -1,4 +1,4 @@
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 
 export type TariffRateRow = {
   hsCode: string;

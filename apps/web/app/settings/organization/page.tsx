@@ -226,7 +226,7 @@ export default function OrganizationSettingsPage() {
       }
       if (res.status === 402 || (res.status === 403 && code === "MODULE_NOT_ENTITLED")) {
         window.dispatchEvent(
-          new CustomEvent("dayday:upgrade-modal-custom", {
+          new CustomEvent("erafinance:upgrade-modal-custom", {
             detail: {
               title: t("orgSettings.ibanDeepPaywallTitle"),
               body: t("orgSettings.ibanDeepPaywallBody"),

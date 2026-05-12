@@ -1,4 +1,4 @@
-﻿# DayDay ERP — развёртывание в production (Ubuntu 24.04 + Docker Compose)
+﻿# ERA Finance — развёртывание в production (Ubuntu 24.04 + Docker Compose)
 
 Цель: поднять стек из `docker-compose.prod.yml`:
 - Postgres **16** (`db`)
@@ -66,11 +66,13 @@ sudo apt-get install -y git
 ## 4. Клонирование репозитория
 
 ```bash
-sudo mkdir -p /opt/dayday_erp
-sudo chown "$USER":"$USER" /opt/dayday_erp
-cd /opt/dayday_erp
+sudo mkdir -p /opt/erafinance_erp
+sudo chown "$USER":"$USER" /opt/erafinance_erp
+cd /opt/erafinance_erp
 git clone YOUR_GIT_URL .
 ```
+
+`YOUR_GIT_URL` — любой URL удалённого репозитория (после переименования на GitHub достаточно обновить `git remote` или использовать новый URL при клоне). Имя каталога на сервере (`/opt/erafinance_erp`) в документации условное: если клонируете в другой путь, подставьте его во всех командах ниже.
 
 ---
 
@@ -169,8 +171,8 @@ docker compose -f docker-compose.prod.yml up -d web
 
 ```bash
 # 1) разово: положить maintenance.html и подключить nginx-сниппет
-sudo cp /opt/dayday_erp/docs/maintenance.html /var/www/html/maintenance.html
-# include /opt/dayday_erp/docs/nginx-maintenance.conf; внутри server { ... }
+sudo cp /opt/erafinance_erp/docs/maintenance.html /var/www/html/maintenance.html
+# include /opt/erafinance_erp/docs/nginx-maintenance.conf; внутри server { ... }
 
 # 2) включить maintenance
 sudo touch /var/www/html/maintenance.enable
@@ -258,7 +260,7 @@ docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
 docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
 ```
 
-Примечание: `db:prod-init` должен быть идемпотентным; это не “reset”. Корневой **`npm run db:prod-init`** (так его вызывают из `docker compose … exec api`) уже включает **`db:migrate:deploy`**, **`db:seed`**, **`db:sync-i18n:prune`** и скрипт **`db:prod-init`** в workspace `@dayday/database` — отдельный §7.3 в этом случае дублирует синхронизацию, но не вредит. Если хотите **явный** порядок без повторного `migrate`/`seed` из корня: выполните §7.1 и §7.3, затем только **`npm run db:prod-init -w @dayday/database`** (доводка платформы без полной цепочки корня).
+Примечание: `db:prod-init` должен быть идемпотентным; это не “reset”. Корневой **`npm run db:prod-init`** (так его вызывают из `docker compose … exec api`) уже включает **`db:migrate:deploy`**, **`db:seed`**, **`db:sync-i18n:prune`** и скрипт **`db:prod-init`** в workspace `@erafinance/database` — отдельный §7.3 в этом случае дублирует синхронизацию, но не вредит. Если хотите **явный** порядок без повторного `migrate`/`seed` из корня: выполните §7.1 и §7.3, затем только **`npm run db:prod-init -w @erafinance/database`** (доводка платформы без полной цепочки корня).
 
 ### 7.3. Синхронизация переводов (i18n) в Postgres — **не пропускать на проде**
 
@@ -290,7 +292,7 @@ docker compose -f docker-compose.prod.yml exec api npm run db:deploy
 
 ### 7.4. Локально (Windows / dev): тот же порядок, что «migrate + prune + bump»
 
-Из **корня** монорепо, с **`DATABASE_URL`** в корневом **`.env`** (как в [dayday-local-dev](../.cursor/rules/dayday-local-dev.mdc)):
+Из **корня** монорепо, с **`DATABASE_URL`** в корневом **`.env`** (как в [erafinance-local-dev](../.cursor/rules/erafinance-local-dev.mdc)):
 
 ```bash
 npx dotenv-cli -e .env -- npm run db:deploy
@@ -301,7 +303,7 @@ npx dotenv-cli -e .env -- npm run db:deploy
 Проверка согласованности БД с клиентским пайплайном оверрайдов (dry-run):
 
 ```bash
-npx dotenv-cli -e .env -- npm run db:audit-i18n-overrides -w @dayday/database
+npx dotenv-cli -e .env -- npm run db:audit-i18n-overrides -w @erafinance/database
 ```
 
 Ожидаемо: `dropped normalized keys=0`, `invalid raw keys=0`. Подробности — **TZ §17**.
@@ -354,14 +356,14 @@ API можно не публиковать отдельно: браузер хо
 - `GET /api/health` через публичный web-origin (например `https://your-domain.tld/api/health`)
 - Логин/регистрация в UI
 - Проверка, что переводы подгружаются (нет ошибок `Failed to fetch`/`Unexpected end of JSON input`)
-- После шага §7.3: **`GET /api/public/translations?locale=ru`** и **`?locale=az`** — при полном зеркале из `resources.ts` в ответе большой объект оверрайдов; переключатель языка в UI (**ru** / **az**) должен показывать ожидаемые строки (при расхождении повторите `db:sync-i18n:prune`, сбросьте кэш браузера и проверьте `dayday_i18n_lang` в localStorage)
+- После шага §7.3: **`GET /api/public/translations?locale=ru`** и **`?locale=az`** — при полном зеркале из `resources.ts` в ответе большой объект оверрайдов; переключатель языка в UI (**ru** / **az**) должен показывать ожидаемые строки (при расхождении повторите `db:sync-i18n:prune`, сбросьте кэш браузера и проверьте `erafinance_i18n_lang` в localStorage)
 
 ---
 
 ## 10. Типовые проблемы
 
 - **`npm install` / `prisma generate` падает из-за `DATABASE_URL`**: убедитесь, что `.env` в корне и `DATABASE_URL`/`POSTGRES_*` заданы корректно (в compose `DATABASE_URL` для `api` собирается автоматически).
-- **Windows локально: ENOTEMPTY/EPERM в `.next`**: остановить `next dev`, запустить `npm run clean -w @dayday/web`, повторить build; добавить исключение антивируса для `apps/web/.next`.
+- **Windows локально: ENOTEMPTY/EPERM в `.next`**: остановить `next dev`, запустить `npm run clean -w @erafinance/web`, повторить build; добавить исключение антивируса для `apps/web/.next`.
 - **На проде «старые» подписи или сырые ключи i18n после деплоя**: не выполнен §7.3 — запустите `docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune` (или `db:deploy` сразу после миграций). Локально: из корня репозитория `npx dotenv-cli -e .env -o -- npm run db:sync-i18n` (без prune) или `… db:sync-i18n:prune`.
 
 ---
@@ -373,11 +375,11 @@ API можно не публиковать отдельно: браузер хо
 ### 11.1. На новой машине (Ubuntu 24.04)
 
 1) Установи Docker и Git (см. разделы 2–3).
-2) Клонируй репозиторий в `/opt/dayday_erp`.
+2) Клонируй репозиторий в `/opt/erafinance_erp`.
 3) Подготовь `.env`:
 
 ```bash
-cd /opt/dayday_erp
+cd /opt/erafinance_erp
 cp env.production.example .env
 nano .env
 ```
@@ -387,7 +389,7 @@ nano .env
 ### 11.2. Поднять стек + миграции
 
 ```bash
-cd /opt/dayday_erp
+cd /opt/erafinance_erp
 docker compose -f docker-compose.prod.yml up -d --build
 
 docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
@@ -408,7 +410,7 @@ docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
 Остановить и удалить контейнеры и данные:
 
 ```bash
-cd /opt/dayday_erp
+cd /opt/erafinance_erp
 docker compose -f docker-compose.prod.yml down -v
 ```
 

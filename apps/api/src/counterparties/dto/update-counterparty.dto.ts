@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { CounterpartyLegalForm, CounterpartyRole } from "@dayday/database";
+import { CounterpartyLegalForm, CounterpartyRole } from "@erafinance/database";
 import { Type } from "class-transformer";
 import {
   IsBoolean,

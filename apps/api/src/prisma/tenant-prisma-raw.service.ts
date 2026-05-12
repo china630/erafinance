@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { PrismaService } from "./prisma.service";
 
 type Db = PrismaService | Prisma.TransactionClient;

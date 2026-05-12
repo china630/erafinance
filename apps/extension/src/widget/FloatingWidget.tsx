@@ -1,12 +1,12 @@
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { getExtensionMergedResources } from "@dayday/i18n";
+import { getExtensionMergedResources } from "@erafinance/i18n";
 import { matchPortal } from "../connectors/registry";
 import { AwaitAsanStep } from "./steps/AwaitAsanStep";
 import { AutofillStep } from "./steps/AutofillStep";
 import { CaptureBgdStep } from "./steps/CaptureBgdStep";
 import { AwaitSignStep } from "./steps/AwaitSignStep";
-import type { OrgSummary } from "@dayday/api-contracts";
+import type { OrgSummary } from "@erafinance/api-contracts";
 import type { PortalPrefillFlow } from "../shared/messages";
 
 function pickLang(): "ru" | "az" {
@@ -49,8 +49,8 @@ const shell: CSSProperties = {
 function isDebugBadgeEnabled(): boolean {
   try {
     const qs = new URLSearchParams(window.location.search);
-    if (qs.get("daydayAssistantDebug") === "1") return true;
-    return window.localStorage.getItem("daydayAssistantDebug") === "1";
+    if (qs.get("erafinanceAssistantDebug") === "1") return true;
+    return window.localStorage.getItem("erafinanceAssistantDebug") === "1";
   } catch {
     return false;
   }
@@ -128,7 +128,7 @@ export function FloatingWidget(props: {
         <span style={{ fontSize: 13, fontWeight: 700 }}>{t("extension.widget.title")}</span>
         <a
           style={{ fontSize: 11, color: "#2563eb" }}
-          href="https://erp.dayday.az"
+          href="https://erp.example.com"
           target="_blank"
           rel="noreferrer"
         >

@@ -39,7 +39,7 @@ export async function savePlaywrightStorage(context: BrowserContext): Promise<vo
 }
 
 /**
- * Playwright storageState не сохраняет sessionStorage; токен DayDay лежит в sessionStorage —
+ * Playwright storageState не сохраняет sessionStorage; токен ERA лежит в sessionStorage —
  * восстанавливаем через addInitScript до загрузки приложения.
  */
 export async function applyLocaleInitScript(

@@ -1,5 +1,5 @@
 import { ForbiddenException } from "@nestjs/common";
-import { UserRole } from "@dayday/database";
+import { UserRole } from "@erafinance/database";
 
 export function assertMayAccessPayrollFinance(role: UserRole): void {
   if (role !== UserRole.OWNER && role !== UserRole.ACCOUNTANT) {

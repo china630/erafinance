@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { AccountType, LedgerType, Prisma } from "@dayday/database";
+import { AccountType, LedgerType, Prisma } from "@erafinance/database";
 import { AccountingService } from "../accounting/accounting.service";
 import {
   FX_GAIN_ACCOUNT_CODE,

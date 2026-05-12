@@ -15,7 +15,7 @@ export function PaywallView(props: { t: (k: string) => string }) {
         {props.t("extension.paywall.body")}
       </p>
       <a
-        href="https://erp.dayday.az/settings/subscription"
+        href="https://erp.example.com/settings/subscription"
         target="_blank"
         rel="noreferrer"
         style={{

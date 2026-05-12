@@ -22,8 +22,8 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { BankStatementChannel } from "@dayday/database";
-import { UserRole } from "@dayday/database";
+import { BankStatementChannel } from "@erafinance/database";
+import { UserRole } from "@erafinance/database";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { RolesGuard } from "../auth/guards/roles.guard";

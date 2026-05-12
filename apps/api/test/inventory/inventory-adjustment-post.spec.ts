@@ -3,7 +3,7 @@ import {
   InventoryAdjustmentStatus,
   Prisma,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { InventoryService } from "../../src/inventory/inventory.service";
 import { MISC_OPERATING_EXPENSE_ACCOUNT_CODE } from "../../src/ledger.constants";
 import { mockTxInventoryReconciliationClear } from "../helpers/mock-prisma-tx-reconciliation";

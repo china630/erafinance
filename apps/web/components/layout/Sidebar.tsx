@@ -138,7 +138,7 @@ function SidebarLogo({ layoutCollapsed }: { layoutCollapsed: boolean }) {
         </svg>
       </div>
       <div className={["leading-tight", layoutCollapsed ? "lg:hidden" : ""].join(" ")}>
-        <div className="text-[15px] font-semibold text-gray-900">DayDay ERP</div>
+        <div className="text-[15px] font-semibold text-gray-900">ERA Finance</div>
         <div className="text-[12px] text-gray-500">Budget & accounting</div>
       </div>
     </div>
@@ -490,7 +490,7 @@ export function MainSidebar({
       <SidebarLayoutContext.Provider value={sidebarLayout}>
         <nav
           className={[
-            "dayday-sidebar-scroll flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3 pt-2 max-h-screen",
+            "erafinance-sidebar-scroll flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3 pt-2 max-h-screen",
             layoutCollapsed ? "lg:px-2" : "",
           ].join(" ")}
           aria-label="Main navigation"

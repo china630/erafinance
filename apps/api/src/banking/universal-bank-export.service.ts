@@ -19,7 +19,7 @@ export class UniversalBankExportService {
     rows: SalaryRegistryExportRow[];
   }): Promise<{ filename: string; base64: string }> {
     const wb = new ExcelJS.Workbook();
-    wb.creator = "DayDay ERP";
+    wb.creator = "ERA Finance";
     wb.created = new Date();
     const ws = wb.addWorksheet("SalaryRegistry");
     ws.columns = [

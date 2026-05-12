@@ -8,7 +8,7 @@ import {
   Decimal,
   PayrollRunStatus,
   Prisma,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateAbsenceDto } from "./dto/create-absence.dto";
 import { UpdateAbsenceDto } from "./dto/update-absence.dto";

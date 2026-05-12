@@ -11,7 +11,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { IsEnum, IsOptional, IsString, IsUUID } from "class-validator";
 import type { Request } from "express";
-import { DisputeStatus, DisputeSeverity } from "@dayday/database";
+import { DisputeStatus, DisputeSeverity } from "@erafinance/database";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { SuperAdminGuard } from "../../auth/guards/super-admin.guard";
 import type { AuthUser } from "../../auth/types/auth-user";

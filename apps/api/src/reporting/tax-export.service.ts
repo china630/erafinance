@@ -9,7 +9,7 @@ import {
   LedgerType,
   Prisma,
   TaxDeclarationExportStatus,
-} from "@dayday/database";
+} from "@erafinance/database";
 import ExcelJS from "exceljs";
 import { endOfUtcDay, monthRangeUtc } from "./reporting-period.util";
 import { PrismaService } from "../prisma/prisma.service";
@@ -132,7 +132,7 @@ export class TaxExportService {
     simplifiedTaxAmountAzn: Decimal;
   }): Promise<Buffer> {
     const wb = new ExcelJS.Workbook();
-    wb.creator = "DayDay ERP";
+    wb.creator = "ERA Finance";
     wb.created = new Date();
     const sheet = wb.addWorksheet("SimplifiedTax");
     sheet.columns = [

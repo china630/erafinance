@@ -17,7 +17,7 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { UserRole } from "@dayday/database";
+import { UserRole } from "@erafinance/database";
 import { OrganizationId } from "../common/org-id.decorator";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";

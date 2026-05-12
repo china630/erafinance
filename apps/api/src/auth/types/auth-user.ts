@@ -1,4 +1,4 @@
-import type { UserRole } from "@dayday/database";
+import type { UserRole } from "@erafinance/database";
 
 export type AuthUser = {
   userId: string;

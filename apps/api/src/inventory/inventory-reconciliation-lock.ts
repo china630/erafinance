@@ -1,5 +1,5 @@
 import { ConflictException } from "@nestjs/common";
-import { InventoryAuditStatus, Prisma } from "@dayday/database";
+import { InventoryAuditStatus, Prisma } from "@erafinance/database";
 
 type Tx = Prisma.TransactionClient;
 

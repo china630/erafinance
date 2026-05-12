@@ -1,4 +1,4 @@
-import { BankStatementLineType } from "@dayday/database";
+import { BankStatementLineType } from "@erafinance/database";
 import { ApiProperty } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {

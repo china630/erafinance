@@ -24,7 +24,7 @@ export class PiiCryptoService {
       if (asB64.length >= 32) return createHash("sha256").update(asB64).digest();
       return createHash("sha256").update(raw).digest();
     }
-    const fallback = this.config.get<string>(fallbackSecretName) ?? "dayday-dev-fallback";
+    const fallback = this.config.get<string>(fallbackSecretName) ?? "erafinance-dev-fallback";
     return createHash("sha256").update(`${primaryName}:${fallback}`).digest();
   }
 

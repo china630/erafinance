@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { SignatureProvider } from "@dayday/database";
+import { SignatureProvider } from "@erafinance/database";
 import { IsEnum } from "class-validator";
 
 export class InitiateSignatureDto {

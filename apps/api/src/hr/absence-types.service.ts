@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { AbsencePayFormula } from "@dayday/database";
+import { AbsencePayFormula } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 
 const DEFAULT_ABSENCE_TYPES: {

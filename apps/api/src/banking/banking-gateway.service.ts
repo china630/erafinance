@@ -5,7 +5,7 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { Inject } from "@nestjs/common";
-import { Decimal, UserRole } from "@dayday/database";
+import { Decimal, UserRole } from "@erafinance/database";
 import { AuditService } from "../audit/audit.service";
 import { assertMayAccessPayrollFinance } from "../auth/policies/hr-payroll.policy";
 import { PrismaService } from "../prisma/prisma.service";

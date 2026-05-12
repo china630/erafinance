@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { X } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { validateAzIban } from "../../lib/iban";
-import { ORGANIZATION_BANK_ACCOUNT_CURRENCIES, ORGANIZATION_BANK_ACCOUNT_TYPES } from "@dayday/api-contracts";
+import { ORGANIZATION_BANK_ACCOUNT_CURRENCIES, ORGANIZATION_BANK_ACCOUNT_TYPES } from "@erafinance/api-contracts";
 import { AsyncCombobox } from "../ui/async-combobox";
 import {
   MODAL_CLOSE_BUTTON_CLASS,

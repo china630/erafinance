@@ -74,7 +74,7 @@ Legend: `[x]` done · `[~]` partial · `[ ]` not started
 
 - [x] Model **`AuditEngagementInvite`**: target org, token hash, expiry, revoke, permissions JSON
 - [x] Accept / **decline** flow; idempotent accept where applicable
-- [ ] Optional: invite without pre-existing DayDay user (email signup path) — **product decision / future**
+- [ ] Optional: invite without pre-existing ERA user (email signup path) — **product decision / future**
 
 ### 3.3 Auth & tenancy (critical)
 
@@ -102,7 +102,7 @@ Legend: `[x]` done · `[~]` partial · `[ ]` not started
 ### 3.7 Documentation
 
 - [x] PRD §4.8.1 + TZ §9.A — Phase 2–3 contracts and tenancy (this iteration)
-- [x] `dayday-module-map.mdc` — audit-hub + guest / `audit-invitations` paths and files
+- [x] `erafinance-module-map.mdc` — audit-hub + guest / `audit-invitations` paths and files
 
 ---
 
@@ -129,12 +129,12 @@ Legend: `[x]` done · `[~]` partial · `[ ]` not started
 ## Open questions (remaining)
 
 - Formal legal sign-off on cross-org consent text (RU/AZ copy is product placeholder)
-- Optional: email-based invite for users without a DayDay account
+- Optional: email-based invite for users without a ERA account
 
 ## Documentation (ongoing)
 
 - При смене контрактов calculation / risk / reconciliation — синхронизировать **PRD §4.8.1** и **TZ §9.A**
-- **`dayday-module-map.mdc`** — подраздел **Audit Hub — внешний аудитор (guest session)** синхронизирован с репо (2026-05-11)
+- **`erafinance-module-map.mdc`** — подраздел **Audit Hub — внешний аудитор (guest session)** синхронизирован с репо (2026-05-11)
 
 ---
 
@@ -154,7 +154,7 @@ Use this list to see **repo status** at a glance (last reviewed: **2026-05-11**)
 - [x] Tests (Jest): `audit-hub-nas-ifrs.service`, `audit-hub-risk.service`, `audit-hub-calculation.service`, `audit-engagement-invite-decline`, `roles-guard-audit-engagement`
 - [x] `npx nest build` (API) green for this tree
 - [x] `npm run i18n:audit` green
-- [x] `dayday-module-map.mdc` — подраздел Audit Hub guest + правка строки таблицы
+- [x] `erafinance-module-map.mdc` — подраздел Audit Hub guest + правка строки таблицы
 
 ### Short backlog (cleared 2026-05-11)
 
@@ -172,4 +172,4 @@ Use this list to see **repo status** at a glance (last reviewed: **2026-05-11**)
 
 - [x] **CI (`.github/workflows/ci.yml`):** после `jest src/` добавлен шаг **`npm run test:integration`** (`test/*.spec.ts`, без `*.e2e-spec.ts`); `timeout-minutes` **45**
 - [x] **RBAC scanner:** `AuditHubMeController` — класс **`@UseGuards(JwtAuthGuard)`** (accept/decline проходят `rbac-scanner.spec.ts`)
-- [x] Локально: `npm run test:integration -w @dayday/api`, `npx jest --testPathPattern=src/ -w @dayday/api`, `npm run i18n:audit`, `npm run build` (перед выкладкой)
+- [x] Локально: `npm run test:integration -w @erafinance/api`, `npx jest --testPathPattern=src/ -w @erafinance/api`, `npm run i18n:audit`, `npm run build` (перед выкладкой)

@@ -1,4 +1,4 @@
-import type { BankStatementLineType, Prisma } from "@dayday/database";
+import type { BankStatementLineType, Prisma } from "@erafinance/database";
 
 /** Унифицированная операция из банка перед записью в bank_statement_lines */
 export type InboundBankTransaction = {

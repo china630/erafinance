@@ -1,4 +1,4 @@
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { roundMoney2, type PayrollBreakdownPrivate } from "../hr/payroll-calculator";
 
 type Decimal = Prisma.Decimal;

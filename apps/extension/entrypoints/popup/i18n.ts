@@ -1,4 +1,4 @@
-import { getExtensionMergedResources } from "@dayday/i18n";
+import { getExtensionMergedResources } from "@erafinance/i18n";
 
 export function pickLang(): "ru" | "az" {
   try {

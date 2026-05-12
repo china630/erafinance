@@ -35,7 +35,7 @@ function main(): void {
   lines.push("/**");
   lines.push(" * AUTO-GENERATED — do not edit by hand.");
   lines.push(
-    " * Regenerate: `npm run db:gen:banks-branches-seed` in @dayday/database.",
+    " * Regenerate: `npm run db:gen:banks-branches-seed` in @erafinance/database.",
   );
   lines.push(" */");
   lines.push("");

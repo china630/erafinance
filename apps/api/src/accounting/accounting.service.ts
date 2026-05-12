@@ -12,7 +12,7 @@ import {
   OrganizationKind,
   Prisma,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { assertMayPostManualJournal } from "../auth/policies/invoice-finance.policy";
 import { PrismaService } from "../prisma/prisma.service";
 import {

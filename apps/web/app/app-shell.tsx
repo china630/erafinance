@@ -569,13 +569,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (window.localStorage.getItem("dayday_sidebar_collapsed") === "1") {
+    if (window.localStorage.getItem("erafinance_sidebar_collapsed") === "1") {
       setSidebarCollapsed(true);
     }
   }, []);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("dayday_sidebar_collapsed", sidebarCollapsed ? "1" : "0");
+    window.localStorage.setItem("erafinance_sidebar_collapsed", sidebarCollapsed ? "1" : "0");
   }, [sidebarCollapsed]);
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);

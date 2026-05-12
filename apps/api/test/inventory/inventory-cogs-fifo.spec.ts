@@ -3,7 +3,7 @@ import {
   InventoryValuationMethod,
   Prisma,
   StockMovementType,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { InventoryService } from "../../src/inventory/inventory.service";
 import { StockService } from "../../src/stock/stock.service";
 import { mockTxInventoryReconciliationClear } from "../helpers/mock-prisma-tx-reconciliation";

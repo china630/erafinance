@@ -1,7 +1,7 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
-import { UserRole } from "@dayday/database";
+import { UserRole } from "@erafinance/database";
 import request from "supertest";
 import type { NextFunction, Request, Response } from "express";
 import { OpeningBalancesController } from "../../src/migration/opening-balances.controller";

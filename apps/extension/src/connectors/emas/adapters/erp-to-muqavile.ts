@@ -1,4 +1,4 @@
-import type { EmployeeContractPrefill } from "@dayday/api-contracts";
+import type { EmployeeContractPrefill } from "@erafinance/api-contracts";
 import { EmasSelectors } from "../selectors";
 
 /** Map ERP prefill DTO to the first matching inputs (best-effort MVP). */

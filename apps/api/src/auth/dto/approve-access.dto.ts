@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { UserRole } from "@dayday/database";
+import { UserRole } from "@erafinance/database";
 import { IsEnum, IsOptional } from "class-validator";
 
 export class ApproveAccessDto {

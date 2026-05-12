@@ -1,22 +1,22 @@
 const config = {
-  logo: <span>DayDay ERP Help Center</span>,
+  logo: <span>ERA Finance Help Center</span>,
   project: {
-    link: 'https://dayday.az'
+    link: 'https://example.com'
   },
   docsRepositoryBase: 'https://github.com/dayday-erp/dayday_erp/tree/main/apps/docs',
   footer: {
-    text: `DayDay ERP Help Center ${new Date().getFullYear()}`
+    text: `ERA Finance Help Center ${new Date().getFullYear()}`
   },
   useNextSeoProps() {
     return {
-      titleTemplate: '%s - DayDay ERP Help Center'
+      titleTemplate: '%s - ERA Finance Help Center'
     }
   },
   head: (
     <>
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <meta name="description" content="User documentation for DayDay ERP" />
-      <meta name="og:title" content="DayDay ERP Help Center" />
+      <meta name="description" content="User documentation for ERA Finance" />
+      <meta name="og:title" content="ERA Finance Help Center" />
     </>
   )
 }

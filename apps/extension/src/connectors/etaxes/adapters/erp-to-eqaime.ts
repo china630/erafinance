@@ -1,4 +1,4 @@
-import type { InvoicePrefill } from "@dayday/api-contracts";
+import type { InvoicePrefill } from "@erafinance/api-contracts";
 import { EtaxesSelectors } from "../selectors";
 
 function trySetBySelectors(

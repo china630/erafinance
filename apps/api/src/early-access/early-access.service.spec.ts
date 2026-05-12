@@ -2,7 +2,7 @@ import {
   EarlyAccessEventType,
   EarlyAccessModuleKey,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { EarlyAccessService } from "./early-access.service";
 import type { AuthUser } from "../auth/types/auth-user";
 

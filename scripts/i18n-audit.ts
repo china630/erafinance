@@ -8,7 +8,7 @@ import {
   extensionResources,
   mergeLocaleResources,
   resources,
-} from "@dayday/i18n";
+} from "@erafinance/i18n";
 
 const SCAN_ROOTS = [
   path.join(process.cwd(), "apps/web/app"),

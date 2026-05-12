@@ -109,7 +109,7 @@ async function bootstrap() {
   app.setGlobalPrefix("api");
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle("DayDay ERP API")
+    .setTitle("ERA Finance API")
     .setDescription(
       "Core MVP: JWT Bearer (access). Refresh token — HttpOnly cookie для POST /api/auth/refresh. Extension: POST /api/auth/extension/refresh (cookie refresh_token_ext, см. TZ §13.6).",
     )

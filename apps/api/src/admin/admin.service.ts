@@ -10,7 +10,7 @@ import {
   PaymentOrderStatus,
   Prisma,
   SubscriptionTier,
-} from "@dayday/database";
+} from "@erafinance/database";
 import type { TierQuotas } from "../constants/quotas";
 import { PrismaService } from "../prisma/prisma.service";
 import {

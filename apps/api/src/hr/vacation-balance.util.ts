@@ -1,4 +1,4 @@
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 
 const Decimal = Prisma.Decimal;
 const RM_HALF_UP = 4;

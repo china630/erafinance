@@ -3,7 +3,7 @@ import {
   DigitalSignatureStatus,
   SignatureProvider,
   SignedDocumentKind,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { verifyQrPublicBase } from "../common/verify-public-url";
 import { PrismaService } from "../prisma/prisma.service";
 import { decryptText } from "../security/pii-crypto.util";

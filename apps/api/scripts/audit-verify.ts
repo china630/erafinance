@@ -1,7 +1,7 @@
 /**
  * Verify audit log hash chains (staging / prod drill).
  *
- *   npm run audit:verify -w @dayday/api
+ *   npm run audit:verify -w @erafinance/api
  *
  * Optional: `AUDIT_VERIFY_ORG_ID=<uuid>` — single organization only.
  * Optional: `AUDIT_VERIFY_STRICT=1` — exit 1 if any chain is compromised (use on staging/prod copies).

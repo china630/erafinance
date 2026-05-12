@@ -7,14 +7,14 @@ const HANDSHAKE_OK = "ext-handshake-ok";
 const HANDSHAKE_ERR = "ext-handshake-err";
 
 /**
- * Listens for postMessage from DayDay Assistant content script; runs same-origin
+ * Listens for postMessage from ERA Finance Assistant content script; runs same-origin
  * POST /api/auth/extension/refresh so HttpOnly cookies apply (Next rewrites to API).
  */
 export function ExtensionBridge() {
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.source !== window) return;
-      if (event.data?.__dayday !== HANDSHAKE_REQ) return;
+      if (event.data?.__erafinance !== HANDSHAKE_REQ) return;
 
       const url = "/api/auth/extension/refresh";
       void fetch(url, { method: "POST", credentials: "include" })
@@ -29,7 +29,7 @@ export function ExtensionBridge() {
           if (!r.ok) {
             window.postMessage(
               {
-                __dayday: HANDSHAKE_ERR,
+                __erafinance: HANDSHAKE_ERR,
                 status: r.status,
                 payload,
               },
@@ -38,14 +38,14 @@ export function ExtensionBridge() {
             return;
           }
           window.postMessage(
-            { __dayday: HANDSHAKE_OK, payload },
+            { __erafinance: HANDSHAKE_OK, payload },
             window.location.origin,
           );
         })
         .catch((err: unknown) => {
           window.postMessage(
             {
-              __dayday: HANDSHAKE_ERR,
+              __erafinance: HANDSHAKE_ERR,
               message: err instanceof Error ? err.message : String(err),
             },
             window.location.origin,

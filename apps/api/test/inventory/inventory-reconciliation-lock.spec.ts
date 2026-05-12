@@ -1,5 +1,5 @@
 import { ConflictException } from "@nestjs/common";
-import { InventoryAuditStatus } from "@dayday/database";
+import { InventoryAuditStatus } from "@erafinance/database";
 import { assertWarehouseNotUnderReconciliation } from "../../src/inventory/inventory-reconciliation-lock";
 
 describe("assertWarehouseNotUnderReconciliation", () => {

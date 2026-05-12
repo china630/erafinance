@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { HoldingAccessRole } from "@dayday/database";
+import { HoldingAccessRole } from "@erafinance/database";
 import { IsEnum, IsUUID } from "class-validator";
 
 export class AddHoldingMemberDto {

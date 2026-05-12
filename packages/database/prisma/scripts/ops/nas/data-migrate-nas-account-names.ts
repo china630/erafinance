@@ -3,7 +3,7 @@
  * matched by organization `kind` + account `code`.
  *
  * Run from repo root (with DATABASE_URL):
- *   npm run db:migrate:nas-names --workspace=@dayday/database
+ *   npm run db:migrate:nas-names --workspace=@erafinance/database
  */
 import { LedgerType, OrganizationKind } from "@prisma/client";
 import { closePrismaPool, createPrismaClient } from "../../../prisma-client";

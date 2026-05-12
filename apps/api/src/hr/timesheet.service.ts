@@ -11,7 +11,7 @@ import {
   Decimal,
   TimesheetEntryType,
   TimesheetStatus,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { isAzWorkingDay } from "./calendar/az-2026";
 import { countAzWorkingDaysInMonth } from "./payroll-month-calendar";

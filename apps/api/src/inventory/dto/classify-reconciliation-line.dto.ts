@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { InventoryDiscrepancyKind } from "@dayday/database";
+import { InventoryDiscrepancyKind } from "@erafinance/database";
 import { IsEnum, IsOptional, IsString, IsUUID, MaxLength } from "class-validator";
 
 export class ClassifyReconciliationLineDto {

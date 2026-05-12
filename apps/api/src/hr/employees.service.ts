@@ -10,7 +10,7 @@ import {
   EmployeeEmploymentStatus,
   EmployeeKind,
   Prisma,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { IntegrationSyncRunService } from "../integrations/integration-sync-run.service";
 import { BulkSyncResultEmployeesDto } from "./dto/bulk-sync-result-employees.dto";
@@ -188,7 +188,7 @@ export class EmployeesService {
     return row;
   }
 
-  /** Minimal DTO for DayDay Assistant (ƏMAS e-müqavilə prefill). */
+  /** Minimal DTO for ERA Finance Assistant (ƏMAS e-müqavilə prefill). */
   async getExtensionPrefill(organizationId: string, id: string) {
     const row = await this.getOne(organizationId, id);
     const start = row.startDate.toISOString().slice(0, 10);

@@ -14,7 +14,7 @@ export function LanguageSwitcher() {
           const lng = e.target.value;
           void i18n.changeLanguage(lng);
           try {
-            localStorage.setItem("dayday_i18n_lang", lng);
+            localStorage.setItem("erafinance_i18n_lang", lng);
           } catch {
             /* ignore */
           }

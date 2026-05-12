@@ -1,5 +1,5 @@
 {
-  "name": "@dayday/i18n",
+  "name": "@erafinance/i18n",
   "version": "0.0.1",
   "private": true,
   "main": "src/index.ts",

@@ -9,7 +9,7 @@ import {
   Decimal,
   InvoiceStatus,
   type BankStatementLine,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { InvoicesService } from "../invoices/invoices.service";
 import { extractInvoiceNumbersFromText } from "./utils/invoice-numbers-in-text";

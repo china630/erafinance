@@ -13,7 +13,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@dayday/ui";
+} from "@erafinance/ui";
 
 type BadgeVariant = "neutral" | "owner" | "admin" | "accountant" | "user";
 

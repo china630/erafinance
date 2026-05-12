@@ -11,7 +11,7 @@ import { LINK_ACCENT_CLASS, PRIMARY_BUTTON_CLASS } from "../../lib/design-system
 import { LanguageSwitcher } from "../language-switcher";
 import { PublicLegalFooter } from "../../components/public-legal-footer";
 
-const LOGIN_RECENT_EMAILS_KEY = "dayday_login_recent_emails";
+const LOGIN_RECENT_EMAILS_KEY = "erafinance_login_recent_emails";
 const MAX_RECENT_EMAILS = 10;
 
 function loadRecentLoginEmails(): string[] {
@@ -110,7 +110,7 @@ export default function LoginPage() {
         </div>
         <h1 className="text-2xl font-semibold text-gray-900 mb-6">{t("auth.loginTitle")}</h1>
         <form onSubmit={(e) => void onSubmit(e)} className="grid gap-4" autoComplete="on">
-          <datalist id="dayday-login-recent-emails">
+          <datalist id="erafinance-login-recent-emails">
             {recentEmails.map((e) => (
               <option key={e} value={e} />
             ))}
@@ -122,7 +122,7 @@ export default function LoginPage() {
               name="email"
               required
               autoComplete="username"
-              list="dayday-login-recent-emails"
+              list="erafinance-login-recent-emails"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="block w-full mt-1.5"

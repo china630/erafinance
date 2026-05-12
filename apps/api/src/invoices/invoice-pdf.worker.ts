@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createHash } from "node:crypto";
-import { DigitalSignatureStatus, SignedDocumentKind } from "@dayday/database";
+import { DigitalSignatureStatus, SignedDocumentKind } from "@erafinance/database";
 import { Job, Worker } from "bullmq";
 import { PrismaService } from "../prisma/prisma.service";
 import { QuotaService } from "../quota/quota.service";
@@ -40,7 +40,7 @@ export class InvoicePdfWorker implements OnModuleInit, OnModuleDestroy {
       this.worker,
       INVOICE_PDF_QUEUE,
       this.logger,
-      this.config.get<string>("DAYDAY_BULLMQ_ALERT_WEBHOOK_URL") ?? undefined,
+      this.config.get<string>("ERAFINANCE_BULLMQ_ALERT_WEBHOOK_URL") ?? undefined,
     );
   }
 

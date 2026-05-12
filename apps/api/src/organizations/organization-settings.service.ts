@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { randomUUID } from "node:crypto";
 import { serializeForAudit } from "../audit/audit-serialize";
 import { GlobalCompanyDirectoryService } from "../global-directory/global-company-directory.service";
@@ -16,7 +16,7 @@ import {
 } from "../storage/storage.interface";
 import { mergeLockedPeriodUntil } from "../reporting/reporting-period.util";
 import type { PatchOrganizationSettingsDto } from "./dto/patch-organization-settings.dto";
-import { InventoryValuationMethod } from "@dayday/database";
+import { InventoryValuationMethod } from "@erafinance/database";
 import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
 
 const LOGO_MAX_BYTES = 2 * 1024 * 1024;

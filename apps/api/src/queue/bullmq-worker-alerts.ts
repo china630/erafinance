@@ -3,7 +3,7 @@ import type { Job, Worker } from "bullmq";
 
 /**
  * Optional webhook for failed BullMQ jobs (Slack incoming webhook, Telegram Bot API, etc.).
- * Env: `DAYDAY_BULLMQ_ALERT_WEBHOOK_URL`.
+ * Env: `ERAFINANCE_BULLMQ_ALERT_WEBHOOK_URL`.
  */
 export function attachWorkerFailureAlert(
   worker: Worker,
@@ -31,7 +31,7 @@ async function postOptionalWebhook(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        text: `DayDay BullMQ: queue=${queueName} jobId=${jobId ?? "?"} error=${errorMessage}`,
+        text: `ERA BullMQ: queue=${queueName} jobId=${jobId ?? "?"} error=${errorMessage}`,
         source: "bullmq-worker",
         queue: queueName,
         jobId: jobId ?? null,

@@ -1,4 +1,4 @@
-# Monorepo-aware production image: @dayday/database + @dayday/api.
+# Monorepo-aware production image: @erafinance/database + @erafinance/api.
 # Build from repository root: docker build -f apps/api/Dockerfile .
 
 FROM node:22-alpine AS builder
@@ -17,13 +17,13 @@ COPY apps/api apps/api
 # Used by `npm run db:sync-i18n` / `db:prod-init` (packages/database → apps/web path).
 COPY apps/web/lib/i18n/resources.ts apps/web/lib/i18n/resources.ts
 
-# @dayday/database postinstall runs `prisma generate`; prisma.config.ts requires DATABASE_URL.
+# @erafinance/database postinstall runs `prisma generate`; prisma.config.ts requires DATABASE_URL.
 # `.env` is not in the image build context; placeholder is for generate only (no connection).
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
 
 RUN npm ci
 
-RUN npm run build -w @dayday/database && npm run build -w @dayday/api
+RUN npm run build -w @erafinance/database && npm run build -w @erafinance/api
 
 RUN npm prune --omit=dev
 

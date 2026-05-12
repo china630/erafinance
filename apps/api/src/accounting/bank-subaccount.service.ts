@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { AccountType, LedgerType, Prisma } from "@dayday/database";
+import { AccountType, LedgerType, Prisma } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 
 /** Mask root for bank subaccounts in the NAS chart of accounts (PRD §4.6). */

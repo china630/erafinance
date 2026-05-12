@@ -1,4 +1,4 @@
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { pickLatestTariffRatePerHsCode } from "./customs-tariff-rate-dedupe";
 
 describe("pickLatestTariffRatePerHsCode", () => {

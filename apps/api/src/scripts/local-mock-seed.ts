@@ -17,7 +17,7 @@ import {
   Prisma,
   UserRole,
   provisionNasAccountsForOrganization,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { AccountingService } from "../accounting/accounting.service";
 import { IfrsAutoMappingService } from "../accounting/ifrs-auto-mapping.service";
 import { apiEnvFilePaths } from "../load-env-paths";

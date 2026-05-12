@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { LedgerType } from "@dayday/database";
+import { LedgerType } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 
 const ALL_TYPES = new Set([

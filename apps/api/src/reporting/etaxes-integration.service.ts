@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import axios from "axios";
-import { LedgerType } from "@dayday/database";
+import { LedgerType } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { REVENUE_ACCOUNT_CODE } from "../ledger.constants";
 import { endOfUtcDay, parseIsoDateOnly } from "./reporting-period.util";

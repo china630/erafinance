@@ -8,7 +8,7 @@ import {
   EntityCommentKind,
   NotificationSeverity,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { NotificationService } from "../notifications/notification.service";
 import type { ActivityEntitySlug } from "./activity-stream.constants";

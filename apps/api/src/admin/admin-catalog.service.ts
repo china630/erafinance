@@ -13,11 +13,11 @@ import {
   cashProfileForNasCode,
   legalFormToOrganizationKind,
   TaxRateKind,
-} from "@dayday/database";
+} from "@erafinance/database";
 import {
   ORGANIZATION_BANK_ACCOUNT_CURRENCIES,
   ORGANIZATION_BANK_ACCOUNT_TYPES,
-} from "@dayday/api-contracts";
+} from "@erafinance/api-contracts";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateCurrencyDto, PatchCurrencyDto } from "./dto/admin-currency.dto";
 import type {

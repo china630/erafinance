@@ -13,7 +13,7 @@ const CBAR_BASE = "https://www.cbar.az/currencies";
  */
 const CBAR_HTTP_HEADERS_DEFAULT = {
   "User-Agent":
-    "Mozilla/5.0 (compatible; DayDayERP/1.0; +https://github.com/china630/dayday_erp) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (compatible; EraFinance/1.0; +https://github.com/china630/erafinance_erp) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   Accept: "application/xml, text/xml, application/xhtml+xml;q=0.9, */*;q=0.8",
   "Accept-Language": "az-AZ,az;q=0.9,en;q=0.8",
   Referer: "https://www.cbar.az/currencies/",

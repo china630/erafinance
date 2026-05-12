@@ -11,7 +11,7 @@ import {
   BankStatementLineType,
   type Prisma,
   Prisma as DbPrisma,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { BankMatchService } from "./bank-match.service";
 import {

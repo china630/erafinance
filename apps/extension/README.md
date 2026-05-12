@@ -1,4 +1,4 @@
-# DayDay Assistant (browser extension)
+# ERA Finance Assistant (browser extension)
 
 WXT + React + Manifest V3. Targets **ƏMAS** (`emas.sosial.gov.az`), **e-taxes** (`*.e-taxes.gov.az`), and **e-customs** (`e-customs.gov.az`, `*.customs.gov.az`) for BGD capture (Phase 12).
 
@@ -6,7 +6,7 @@ WXT + React + Manifest V3. Targets **ƏMAS** (`emas.sosial.gov.az`), **e-taxes**
 
 - Root `.env` with `JWT_*`, `DATABASE_URL`, and extension-related vars (see root [`.env.example`](../../.env.example)): `EXT_REFRESH_EXPIRES`, optional `EXT_REFRESH_SECRET`, production `ERP_WEB_ORIGINS`, `CORS_EXTENSION_ORIGINS`.
 - ERP web running (e.g. `npm run dev:web`) and API (`npm run dev:api`) so Magic Auth can complete.
-- For existing DBs where `pricing_modules` was seeded before `tax_pro` existed, run once: `npm run db:ensure-tax-pro-pricing -w @dayday/database`.
+- For existing DBs where `pricing_modules` was seeded before `tax_pro` existed, run once: `npm run db:ensure-tax-pro-pricing -w @erafinance/database`.
 
 ## Dev
 
@@ -58,10 +58,10 @@ ERP UI banner/card for plugin promotion uses `NEXT_PUBLIC_EXTENSION_INSTALL_URL`
 
 To show a small debug panel inside the widget (auth state + ERP/portal VÖEN + cross-check status), enable one of these in portal tab:
 
-- DevTools Console: `localStorage.setItem("daydayAssistantDebug", "1")`
-- URL query: `?daydayAssistantDebug=1`
+- DevTools Console: `localStorage.setItem("erafinanceAssistantDebug", "1")`
+- URL query: `?erafinanceAssistantDebug=1`
 
-Disable with: `localStorage.removeItem("daydayAssistantDebug")`.
+Disable with: `localStorage.removeItem("erafinanceAssistantDebug")`.
 
 ## API surface used
 
@@ -78,7 +78,7 @@ Disable with: `localStorage.removeItem("daydayAssistantDebug")`.
 
 - HR ƏMAS: `{ type: MSG.PORTAL_PREFILL, flow: "emuqavile", employeeId }`
 - DVX e-qaimə: `{ type: MSG.PORTAL_PREFILL, flow: "eqaime", invoiceId }`
-- **e-customs BGD → ERP:** `{ type: MSG.PORTAL_PREFILL, flow: "customs", capture }` where `capture` matches `CustomsDeclarationFullPrefillCaptureSchema` (legacy-flat compatible) from `@dayday/api-contracts`.
+- **e-customs BGD → ERP:** `{ type: MSG.PORTAL_PREFILL, flow: "customs", capture }` where `capture` matches `CustomsDeclarationFullPrefillCaptureSchema` (legacy-flat compatible) from `@erafinance/api-contracts`.
 
 Bulk protocol:
 
@@ -90,4 +90,4 @@ Bulk protocol:
 
 ## i18n
 
-Extension strings live under `extension.*` in `@dayday/i18n` (`packages/i18n/src/extension.ts`). Root `npm run i18n:audit` scans `apps/extension/src/**`.
+Extension strings live under `extension.*` in `@erafinance/i18n` (`packages/i18n/src/extension.ts`). Root `npm run i18n:audit` scans `apps/extension/src/**`.

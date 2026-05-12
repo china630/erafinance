@@ -1,15 +1,15 @@
-# Скриншоты экранов DayDay ERP (Playwright)
+# Скриншоты экранов ERA Finance (Playwright)
 
 Отдельный мини-пакет в `tools/playwright-screenshots/`: не смешивается с `apps/web` и `apps/api`.
 
 ## Что делает скрипт
 
 1. Читает **корневой** `.env` и при наличии **`tools/playwright-screenshots/.env`** (второй перекрывает первый). Учётные данные: **`E2E_EMAIL`** и **`E2E_PASSWORD`** (или синонимы `PLAYWRIGHT_*` / `SCREENSHOT_*`). Без этих имён переменные не подхватятся, даже если заданы `EMAIL`/`PASSWORD` под другими названиями.
-2. Локаль UI: **`E2E_LOCALE=az`** или **`ru`** (по умолчанию **az**). Через `localStorage` (`dayday_i18n_lang`) до загрузки React — как переключатель языка на странице входа.
+2. Локаль UI: **`E2E_LOCALE=az`** или **`ru`** (по умолчанию **az**). Через `localStorage` (`erafinance_i18n_lang`) до загрузки React — как переключатель языка на странице входа.
 3. Опционально `E2E_BASE_URL`, **`E2E_ORG_NAME`**, **`E2E_ORG_ID`**: последний — **uuid организации или VÖEN** (`taxId` в сессии, обычно только цифры).
 4. Логин на `/login`, при необходимости выбор компании (`/companies` или переключатель в шапке).
 5. Сохраняет сессию в `tools/playwright-screenshots/.auth/`:
-   - `session.json` — ключи `sessionStorage` (токен DayDay хранится там; стандартный `storageState` Playwright этого не сохраняет);
+   - `session.json` — ключи `sessionStorage` (токен ERA хранится там; стандартный `storageState` Playwright этого не сохраняет);
    - `playwright-storage.json` — cookies для Playwright.
 6. Обходит маршруты из `src/config.ts` (`pagesToScreenshot`), ждёт стабильную загрузку UI/API (включая догрузку переводов), делает PNG **на всю высоту страницы** (`fullPage: true`), viewport **1920×1080**.
 7. Публичные экраны (`/login`, `/register`, `/register-org`) снимаются в отдельном неавторизованном контексте и не пропускаются из-за активной сессии.

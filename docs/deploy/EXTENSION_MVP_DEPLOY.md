@@ -1,4 +1,4 @@
-# DayDay Assistant MVP Deploy Checklist
+# ERA Finance Assistant MVP Deploy Checklist
 
 Release scope: DVX (`e-taxes`) + ƏMAS + **e-customs** connectors; `tax_pro`, `hr_full`, and **`trade_pro`** monetization where applicable; ERP install CTA.
 
@@ -50,7 +50,7 @@ Add or verify these variables in your secrets manager (Vault) and runtime `.env`
 For environments where `pricing_modules` was initialized before `tax_pro` was introduced, run:
 
 ```bash
-npm run db:ensure-tax-pro-pricing -w @dayday/database
+npm run db:ensure-tax-pro-pricing -w @erafinance/database
 ```
 
 For **`trade_pro`** (Customs / e-customs widget), run:
@@ -59,7 +59,7 @@ For **`trade_pro`** (Customs / e-customs widget), run:
 npm run db:ensure-trade-pro-pricing
 ```
 
-(or `npm run db:ensure-trade-pro-pricing -w @dayday/database`). Both commands are idempotent.
+(or `npm run db:ensure-trade-pro-pricing -w @erafinance/database`). Both commands are idempotent.
 
 ## 3) Build + Deploy Sequence
 

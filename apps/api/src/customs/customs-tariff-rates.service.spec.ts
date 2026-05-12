@@ -1,4 +1,4 @@
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { CustomsTariffRatesService } from "./customs-tariff-rates.service";
 
 describe("CustomsTariffRatesService.findBestMatchFromRows", () => {

@@ -9,7 +9,7 @@ import {
   LedgerType,
   Prisma,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { assertMayPostManualJournal } from "../auth/policies/invoice-finance.policy";
 import { AccountingService } from "./accounting.service";
 import {

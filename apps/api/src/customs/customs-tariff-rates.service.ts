@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   pickLatestTariffRatePerHsCode,

@@ -15,8 +15,8 @@ TIMESTAMP="$(date +'%Y%m%d-%H%M%S')"
 
 DB_HOST="${PGHOST:-${POSTGRES_HOST:-127.0.0.1}}"
 DB_PORT="${PGPORT:-${POSTGRES_PORT:-5432}}"
-DB_NAME="${PGDATABASE:-${POSTGRES_DB:-dayday}}"
-DB_USER="${PGUSER:-${POSTGRES_USER:-dayday}}"
+DB_NAME="${PGDATABASE:-${POSTGRES_DB:-erafinance}}"
+DB_USER="${PGUSER:-${POSTGRES_USER:-erafinance}}"
 
 # Either export PGPASSWORD, or rely on ~/.pgpass.
 : "${PGPASSWORD:=}"
@@ -24,7 +24,7 @@ export PGPASSWORD
 
 mkdir -p "${BACKUP_DIR}"
 
-RAW_FILE="${BACKUP_DIR}/dayday-${DB_NAME}-${TIMESTAMP}.sql"
+RAW_FILE="${BACKUP_DIR}/erafinance-${DB_NAME}-${TIMESTAMP}.sql"
 ARCHIVE_FILE="${RAW_FILE}.gz"
 
 echo "[db-backup] Dumping database ${DB_NAME} from ${DB_HOST}:${DB_PORT}"

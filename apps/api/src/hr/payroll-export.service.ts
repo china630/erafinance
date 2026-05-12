@@ -20,7 +20,7 @@ export class PayrollExportService {
     if (!run) throw new NotFoundException("Payroll run not found");
 
     const wb = new ExcelJS.Workbook();
-    wb.creator = "DayDay ERP";
+    wb.creator = "ERA Finance";
     wb.created = new Date();
 
     const sheet = wb.addWorksheet("Payroll", {

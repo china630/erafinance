@@ -14,7 +14,7 @@ import {
   Decimal,
   LedgerType,
   type Prisma,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { AccountingService } from "../accounting/accounting.service";
 import {
   ACCOUNTABLE_PERSONS_ACCOUNT_CODE,

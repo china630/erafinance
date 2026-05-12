@@ -3,7 +3,7 @@
  * Организация: ORG_ID в env или первая по дате создания.
  *
  * Запуск из корня репозитория:
- *   npx dotenv-cli -e .env -- npm run db:ifrs-demo-map -w @dayday/database
+ *   npx dotenv-cli -e .env -- npm run db:ifrs-demo-map -w @erafinance/database
  */
 import {
   AccountType,

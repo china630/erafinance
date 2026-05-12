@@ -52,7 +52,7 @@ def _first_h1_title(md_text: str) -> str | None:
 
 def _chromium_candidates() -> list[Path]:
     paths: list[Path] = []
-    for env in ("DAYDAY_CHROME_BIN", "GOOGLE_CHROME_BIN", "CHROME_PATH"):
+    for env in ("ERAFINANCE_CHROME_BIN", "GOOGLE_CHROME_BIN", "CHROME_PATH"):
         v = os.environ.get(env)
         if v:
             paths.append(Path(v).expanduser())
@@ -311,7 +311,7 @@ def main() -> int:
         "--browser",
         type=Path,
         default=None,
-        help="Explicit path to chrome.exe / msedge.exe (overrides search and DAYDAY_CHROME_BIN)",
+        help="Explicit path to chrome.exe / msedge.exe (overrides search and ERAFINANCE_CHROME_BIN)",
     )
     args = parser.parse_args()
 
@@ -357,7 +357,7 @@ def main() -> int:
             if not exe:
                 print(
                     "No Chromium-based browser found (Chrome / Edge). "
-                    "Install one, set DAYDAY_CHROME_BIN, pass --browser, "
+                    "Install one, set ERAFINANCE_CHROME_BIN, pass --browser, "
                     "or use: pip install weasyprint && python tools/md_to_pdf.py ... --engine weasyprint",
                     file=sys.stderr,
                 )

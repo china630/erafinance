@@ -1,5 +1,5 @@
-import { Prisma } from "@dayday/database";
-import { LedgerType } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
+import { LedgerType } from "@erafinance/database";
 import { ReportingService } from "../../src/reporting/reporting.service";
 
 describe("ReportingService performance and cross-validation", () => {

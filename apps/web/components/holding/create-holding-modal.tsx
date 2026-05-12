@@ -16,7 +16,7 @@ import {
 import type { SupportedCurrency } from "../../lib/currencies";
 import { Button } from "../ui/button";
 import { CurrencySelect } from "../ui/currency-select";
-import { Dialog, DialogContent, DialogHeader } from "@dayday/ui";
+import { Dialog, DialogContent, DialogHeader } from "@erafinance/ui";
 
 export function CreateHoldingModal({
   open,

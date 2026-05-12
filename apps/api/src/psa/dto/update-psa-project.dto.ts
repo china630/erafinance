@@ -10,7 +10,7 @@ import {
   Min,
   MinLength,
 } from "class-validator";
-import { ProjectBillingMode, ProjectStatus } from "@dayday/database";
+import { ProjectBillingMode, ProjectStatus } from "@erafinance/database";
 
 export class UpdatePsaProjectDto {
   @ApiPropertyOptional()

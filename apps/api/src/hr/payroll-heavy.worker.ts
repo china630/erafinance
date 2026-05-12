@@ -42,7 +42,7 @@ export class PayrollHeavyWorker implements OnModuleInit, OnModuleDestroy {
       this.worker,
       PAYROLL_HEAVY_QUEUE,
       this.logger,
-      this.config.get<string>("DAYDAY_BULLMQ_ALERT_WEBHOOK_URL") ?? undefined,
+      this.config.get<string>("ERAFINANCE_BULLMQ_ALERT_WEBHOOK_URL") ?? undefined,
     );
   }
 

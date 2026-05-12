@@ -6,7 +6,7 @@ export type AccountNameFields = {
   nameEn: string;
 };
 
-/** Согласовано с `pickAccountDisplayName` в `@dayday/database`. Только `ru` | `az` (см. `ui-lang.ts`). */
+/** Согласовано с `pickAccountDisplayName` в `@erafinance/database`. Только `ru` | `az` (см. `ui-lang.ts`). */
 export function accountDisplayName(
   row: AccountNameFields,
   locale: string | undefined,

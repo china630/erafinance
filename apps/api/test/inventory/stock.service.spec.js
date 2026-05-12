@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const database_1 = require("@dayday/database");
+const database_1 = require("@erafinance/database");
 const ledger_constants_1 = require("../../src/ledger.constants");
 const inventory_service_1 = require("../../src/inventory/inventory.service");
 describe("InventoryService (stock / adjust)", () => {

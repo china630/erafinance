@@ -8,7 +8,7 @@ import {
   MaxLength,
   MinLength,
 } from "class-validator";
-import { AccountType, OrganizationKind } from "@dayday/database";
+import { AccountType, OrganizationKind } from "@erafinance/database";
 
 export class UpsertChartTemplateEntryDto {
   @IsOptional()

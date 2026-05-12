@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { Reflector } from "@nestjs/core";
-import { UserRole } from "@dayday/database";
+import { UserRole } from "@erafinance/database";
 import { ROLES_KEY } from "../../src/auth/decorators/roles.decorator";
 import { RolesGuard } from "../../src/auth/guards/roles.guard";
 import { AccountingController } from "../../src/accounting/accounting.controller";

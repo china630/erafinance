@@ -270,7 +270,7 @@ export function cashProfileForNasCode(kind: OrganizationKind, code: string): str
     if (code === "222" || code.startsWith("222.")) return "FX";
     return null;
   }
-  // COMMERCIAL — DayDay harmonized (101 kassa, 102 FX cash)
+  // COMMERCIAL — ERA harmonized (101 kassa, 102 FX cash)
   if (code === "101" || code.startsWith("101.")) return "AZN";
   if (code === "102" || code.startsWith("102.")) return "FX";
   return null;

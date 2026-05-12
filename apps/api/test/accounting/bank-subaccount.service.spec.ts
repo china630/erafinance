@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import { AccountType, LedgerType } from "@dayday/database";
+import { AccountType, LedgerType } from "@erafinance/database";
 import { BankSubaccountService } from "../../src/accounting/bank-subaccount.service";
 import type { PrismaService } from "../../src/prisma/prisma.service";
 

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { DAYDAY_MAINTENANCE_HTML } from "./lib/maintenance-page-html";
+import { ERAFINANCE_MAINTENANCE_HTML } from "./lib/maintenance-page-html";
 
-const ACCESS_TOKEN_COOKIE_KEY = "dayday_access_token";
+const ACCESS_TOKEN_COOKIE_KEY = "erafinance_access_token";
 
 /** Bracket access: improves chance the value is read at runtime (not inlined at build) under `next start`. */
 function maintenanceModeEnabled(): boolean {
@@ -38,7 +38,7 @@ export function middleware(req: NextRequest) {
 
   // Expose pathname to RSC/layout for auth-only rendering decisions.
   const requestHeaders = new Headers(req.headers);
-  requestHeaders.set("x-dayday-pathname", pathname);
+  requestHeaders.set("x-erafinance-pathname", pathname);
 
   // Allow static assets early.
   if (isSkippableAssetPath(pathname)) {
@@ -46,7 +46,7 @@ export function middleware(req: NextRequest) {
   }
 
   if (maintenanceModeEnabled()) {
-    return new NextResponse(DAYDAY_MAINTENANCE_HTML, {
+    return new NextResponse(ERAFINANCE_MAINTENANCE_HTML, {
       status: 503,
       headers: {
         "Content-Type": "text/html; charset=utf-8",

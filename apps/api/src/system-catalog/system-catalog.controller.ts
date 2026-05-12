@@ -5,7 +5,7 @@ import {
   StockMovementType,
   TaxRateKind,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { PrismaService } from "../prisma/prisma.service";
 

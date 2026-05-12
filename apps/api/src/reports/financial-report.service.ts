@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { AccountType, LedgerType, Prisma } from "@dayday/database";
+import { AccountType, LedgerType, Prisma } from "@erafinance/database";
 import { ReportingService } from "../reporting/reporting.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReportsCacheService } from "./reports-cache.service";

@@ -8,7 +8,7 @@ Single source of truth for cross-cutting release tasks. **Stage A (Foundations)*
 - [x] **Postgres 16.x** — `docker-compose.yml` / `docker-compose.prod.yml` images (`postgres:16-alpine`).
 - [x] **Redis 7.x** — compose images (`redis:7-alpine`).
 - [x] **Prisma 7.x** — `packages/database` (`prisma`, `@prisma/client`, `@prisma/adapter-pg`), `prisma.config.ts`, driver adapter per [deploy.md](./deploy.md).
-- [x] **Replace legacy `package.json#prisma` config** — superseded by `prisma.config.ts` in `@dayday/database`.
+- [x] **Replace legacy `package.json#prisma` config** — superseded by `prisma.config.ts` in `@erafinance/database`.
 
 ## Before each production deploy
 
@@ -29,6 +29,6 @@ Extended checklist and smoke matrix: [docs/launch/STAGE_E_GO_LIVE.md](../launch/
 ## Full verification after major ORM / runtime upgrades
 
 - [ ] `npm run db:generate`
-- [ ] `npm run build -w @dayday/database -w @dayday/api`
+- [ ] `npm run build -w @erafinance/database -w @erafinance/api`
 - [ ] `npm run dev` smoke (API + Web)
 - [ ] Basic auth (login/register) against running API

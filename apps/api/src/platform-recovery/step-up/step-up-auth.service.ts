@@ -50,7 +50,7 @@ export class StepUpAuthService {
     await this.redis.set(key, JSON.stringify({ h: this.hashCode(code), n: 0 }), "EX", TTL_SEC);
     await this.mail.sendMail({
       to: email,
-      subject: "DayDay ERP — step-up code",
+      subject: "ERA Finance — step-up code",
       text: `Your code: ${code}\nPurpose: ${purpose}\nValid for ${Math.floor(TTL_SEC / 60)} minutes.`,
     });
   }

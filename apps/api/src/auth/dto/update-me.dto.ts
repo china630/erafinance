@@ -9,7 +9,7 @@ import {
   ValidateNested,
 } from "class-validator";
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { UserLocale } from "@dayday/database";
+import { UserLocale } from "@erafinance/database";
 
 export class PasswordChangeDto {
   @ApiPropertyOptional()

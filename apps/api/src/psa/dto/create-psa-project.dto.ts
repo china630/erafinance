@@ -10,7 +10,7 @@ import {
   Min,
   MinLength,
 } from "class-validator";
-import { ProjectBillingMode } from "@dayday/database";
+import { ProjectBillingMode } from "@erafinance/database";
 
 export class CreatePsaProjectDto {
   @ApiProperty({ example: "PRJ-001" })

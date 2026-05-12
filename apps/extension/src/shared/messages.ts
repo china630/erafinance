@@ -1,15 +1,15 @@
 /** Popup / content script ↔ background protocol. */
 export const MSG = {
-  AUTH_REQUEST_MAGIC: "dayday:auth:requestMagic",
-  AUTH_SNAPSHOT: "dayday:auth:snapshot",
-  AUTH_SWITCH_ORG: "dayday:auth:switchOrg",
-  AUTH_LOGOUT: "dayday:auth:logout",
-  ENTITLEMENTS_GET: "dayday:entitlements:get",
-  PORTAL_PREFILL: "dayday:portal:prefill",
-  PORTAL_BULK_PREFILL: "dayday:portal:bulkPrefill",
-  PORTAL_BULK_RESULT: "dayday:portal:bulkResult",
-  ERP_HANDSHAKE: "dayday:erp:handshake",
-  ERP_HANDSHAKE_RESULT: "dayday:erp:handshakeResult",
+  AUTH_REQUEST_MAGIC: "erafinance:auth:requestMagic",
+  AUTH_SNAPSHOT: "erafinance:auth:snapshot",
+  AUTH_SWITCH_ORG: "erafinance:auth:switchOrg",
+  AUTH_LOGOUT: "erafinance:auth:logout",
+  ENTITLEMENTS_GET: "erafinance:entitlements:get",
+  PORTAL_PREFILL: "erafinance:portal:prefill",
+  PORTAL_BULK_PREFILL: "erafinance:portal:bulkPrefill",
+  PORTAL_BULK_RESULT: "erafinance:portal:bulkResult",
+  ERP_HANDSHAKE: "erafinance:erp:handshake",
+  ERP_HANDSHAKE_RESULT: "erafinance:erp:handshakeResult",
 } as const;
 
 export type PortalPrefillFlow = "emuqavile" | "eqaime" | "customs";

@@ -1,4 +1,4 @@
-import { UserRole } from "@dayday/database";
+import { UserRole } from "@erafinance/database";
 import { BankingGatewayService } from "../../src/banking/banking-gateway.service";
 
 describe("SalaryRegistry payout strategy", () => {

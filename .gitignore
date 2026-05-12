@@ -18,3 +18,8 @@ _i18n-default-catalog-data.new.json
 
 # Generated large AZ customs parse output (regenerate with npm run db:parse-az-customs-md)
 docs/tmp/parsed-az-customs-tariff.json
+
+# Local tool scratch (md_to_pdf etc.)
+tools/__pycache__/
+tools/_*.pdf
+tools/_*.html

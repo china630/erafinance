@@ -49,7 +49,7 @@ export function HubView(props: {
         </a>
       </div>
       <a
-        href="https://erp.dayday.az"
+        href="https://erp.example.com"
         target="_blank"
         rel="noreferrer"
         style={{ fontSize: 12, color: "#2563eb" }}

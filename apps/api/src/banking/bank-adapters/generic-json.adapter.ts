@@ -1,4 +1,4 @@
-import { BankStatementLineType, Prisma } from "@dayday/database";
+import { BankStatementLineType, Prisma } from "@erafinance/database";
 import type { InboundBankTransaction } from "../bank-providers/bank-inbound.types";
 import type { BankTransactionAdapter } from "./bank-adapter.interface";
 

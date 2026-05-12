@@ -1,5 +1,5 @@
 {
-  "name": "@dayday/extension",
+  "name": "@erafinance/extension",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -11,9 +11,9 @@
     "zip": "wxt zip"
   },
   "dependencies": {
-    "@dayday/api-contracts": "*",
-    "@dayday/i18n": "*",
-    "@dayday/ui": "*",
+    "@erafinance/api-contracts": "*",
+    "@erafinance/i18n": "*",
+    "@erafinance/ui": "*",
     "react": "19.2.5",
     "react-dom": "19.2.5",
     "zod": "^3.24.0"

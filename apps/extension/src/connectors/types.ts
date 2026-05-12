@@ -1,4 +1,4 @@
-import type { ModuleEntitlementKey } from "@dayday/api-contracts";
+import type { ModuleEntitlementKey } from "@erafinance/api-contracts";
 
 export type PortalId = "etaxes" | "emas" | "customs";
 

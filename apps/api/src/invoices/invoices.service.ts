@@ -6,8 +6,8 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { InvoiceStatus, Prisma, type UserRole } from "@dayday/database";
-import { InvoicePrefillSchema, type InvoicePrefill } from "@dayday/api-contracts";
+import { InvoiceStatus, Prisma, type UserRole } from "@erafinance/database";
+import { InvoicePrefillSchema, type InvoicePrefill } from "@erafinance/api-contracts";
 import { assertUserMayMutateInvoiceInPaidStatus } from "../auth/policies/invoice-finance.policy";
 import { AccountingService } from "../accounting/accounting.service";
 import {
@@ -1284,7 +1284,7 @@ export class InvoicesService {
   private portalPublicOrigin(): string {
     const raw =
       this.config.get<string>("INVOICE_PORTAL_PUBLIC_ORIGIN")?.trim() ??
-      "https://erp.dayday.az";
+      "https://erp.example.com";
     return raw.replace(/\/$/, "");
   }
 

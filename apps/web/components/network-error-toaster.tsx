@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 const MSG =
-  "Сервер DayDay временно недоступен. Проверьте интернет-соединение";
+  "Сервер ERA временно недоступен. Проверьте интернет-соединение";
 
 function isFetchNetworkTypeError(err: unknown): boolean {
   if (!(err instanceof TypeError)) return false;

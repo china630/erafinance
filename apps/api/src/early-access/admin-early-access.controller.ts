@@ -4,7 +4,7 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { EarlyAccessModuleKey } from "@dayday/database";
+import { EarlyAccessModuleKey } from "@erafinance/database";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { SuperAdminGuard } from "../auth/guards/super-admin.guard";
 import { EarlyAccessService } from "./early-access.service";

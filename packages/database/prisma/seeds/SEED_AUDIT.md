@@ -41,7 +41,7 @@
 Run from repo root (no DB required for unit specs):
 
 ```bash
-npm run db:seed:verify -w @dayday/database
+npm run db:seed:verify -w @erafinance/database
 ```
 
 This runs `build:chart` plus `jest` over `packages/database` (includes seed idempotency, enum/mapper, parsers).
@@ -54,4 +54,4 @@ Operational lists at runtime (avoid duplicating in seeds):
 - Invoice VAT options: `GET /api/system/invoice-vat-rates`
 - Team invite roles: `GET /api/system/team-assignable-roles`
 - Stock movement enums (filters/UI): `GET /api/system/inventory-movement-enums`
-- Org bank account kinds / allowed currencies: `@dayday/api-contracts` (`ORGANIZATION_BANK_ACCOUNT_TYPES`, `ORGANIZATION_BANK_ACCOUNT_CURRENCIES`)
+- Org bank account kinds / allowed currencies: `@erafinance/api-contracts` (`ORGANIZATION_BANK_ACCOUNT_TYPES`, `ORGANIZATION_BANK_ACCOUNT_CURRENCIES`)

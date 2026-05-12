@@ -1,6 +1,6 @@
-# DESIGN.md — DayDay ERP (Management)
+# DESIGN.md — ERA Finance (Management)
 
-**Final single source of truth** for all DayDay ERP UI (web `apps/web` and aligned surfaces). Any layout or styling task should be implementable from this file alone. **Reference implementation:** the cash **«Avans hesabatı»** advance-report draft modal (`banking.cash.btnAdvanceTop`) — modal shell, spacing, fields, and footer actions without a separator strip.
+**Final single source of truth** for all ERA Finance UI (web `apps/web` and aligned surfaces). Any layout or styling task should be implementable from this file alone. **Reference implementation:** the cash **«Avans hesabatı»** advance-report draft modal (`banking.cash.btnAdvanceTop`) — modal shell, spacing, fields, and footer actions without a separator strip.
 
 Code tokens: `apps/web/lib/design-system.ts`, `apps/web/lib/form-styles.ts`, `apps/web/lib/form-classes.ts`. New and refactored screens **must** match this document; divergent legacy UI is **debt to remove**, not an alternate standard.
 

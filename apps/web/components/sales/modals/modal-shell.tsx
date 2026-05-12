@@ -95,7 +95,7 @@ export function SalesModalFooter({
   busy,
   saveDisabled,
   formId,
-  /** `outline` — белый фон, серая рамка (эталон DayDay); `ghost` — текстовая отмена. */
+  /** `outline` — белый фон, серая рамка (эталон ERA); `ghost` — текстовая отмена. */
   cancelVariant = "outline",
 }: {
   onCancel: () => void;

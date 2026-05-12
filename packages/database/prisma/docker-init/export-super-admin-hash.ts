@@ -1,7 +1,7 @@
 /**
  * Печатает password_hash пользователя для подстановки в 02-super-admin-seed.sql.
  *
- * Из корня: dotenv -e .env -- npm run docker-init:super-admin-hash -w @dayday/database
+ * Из корня: dotenv -e .env -- npm run docker-init:super-admin-hash -w @erafinance/database
  *
  * Переменная SUPER_ADMIN_EMAIL (по умолчанию shirinov.chingiz@gmail.com).
  */

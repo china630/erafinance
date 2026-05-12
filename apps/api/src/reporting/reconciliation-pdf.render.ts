@@ -46,7 +46,7 @@ export type ReconciliationPdfModel = {
   lines: ReconciliationPdfLine[];
   /** Azərbaycan mətni (PDF üçün). */
   methodologyNoteAz?: string;
-  /** Подписанный акт: QR на https://erp.dayday.az/verify/[logId] */
+  /** Подписанный акт: QR на https://erp.example.com/verify/[logId] */
   signatureVerifyUrl?: string;
 };
 

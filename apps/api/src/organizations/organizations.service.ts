@@ -8,7 +8,7 @@ import {
   UserRole,
   provisionNasAccountsForOrganization,
   type Prisma,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { AccountsService } from "../accounts/accounts.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AccessControlService } from "../access/access-control.service";

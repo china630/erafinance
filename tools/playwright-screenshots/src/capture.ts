@@ -20,7 +20,7 @@ import {
 import { pagesToScreenshot, type ScreenshotPage } from "./config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-/** Корень монорепо (dayday_erp/) */
+/** Корень монорепо (era_erp/) */
 const REPO_ROOT = path.join(__dirname, "..", "..", "..");
 
 /** Корневой `.env`, затем локальный `tools/playwright-screenshots/.env` (перекрывает). */
@@ -167,10 +167,10 @@ async function resolveTargetOrgName(page: Page): Promise<string | null> {
   if (idOrVoen) {
     let orgsJson: string | null = null;
     try {
-      orgsJson = await page.evaluate(() => sessionStorage.getItem("dayday_organizations"));
+      orgsJson = await page.evaluate(() => sessionStorage.getItem("erafinance_organizations"));
     } catch {
       await page.waitForLoadState("domcontentloaded").catch(() => undefined);
-      orgsJson = await page.evaluate(() => sessionStorage.getItem("dayday_organizations")).catch(() => "[]");
+      orgsJson = await page.evaluate(() => sessionStorage.getItem("erafinance_organizations")).catch(() => "[]");
     }
     try {
       const orgs = JSON.parse(orgsJson || "[]") as OrgFromSession[];
@@ -425,7 +425,7 @@ async function switchOrgInShellIfNeeded(page: Page, matchName: string | null): P
   await page.waitForLoadState("networkidle");
   let orgs: Array<{ id: string; name: string }> = [];
   try {
-    const orgsJson = await page.evaluate(() => sessionStorage.getItem("dayday_organizations"));
+    const orgsJson = await page.evaluate(() => sessionStorage.getItem("erafinance_organizations"));
     orgs = JSON.parse(orgsJson || "[]");
   } catch {
     return;
@@ -434,7 +434,7 @@ async function switchOrgInShellIfNeeded(page: Page, matchName: string | null): P
 
   let user: { organizationId?: string | null } = {};
   try {
-    const userJson = await page.evaluate(() => sessionStorage.getItem("dayday_user"));
+    const userJson = await page.evaluate(() => sessionStorage.getItem("erafinance_user"));
     user = JSON.parse(userJson || "{}");
   } catch {
     return;
@@ -476,7 +476,7 @@ async function performLogin(context: BrowserContext, page: Page): Promise<void> 
           .waitForFunction(
             () =>
               !window.location.pathname.endsWith("/login") ||
-              Boolean(sessionStorage.getItem("dayday_access_token")),
+              Boolean(sessionStorage.getItem("erafinance_access_token")),
             undefined,
             { timeout: 30000 },
           )
@@ -936,7 +936,7 @@ async function main(): Promise<void> {
   await gotoWithRetry(page, `${BASE_URL}/`);
 
   /** Главная без токена не редиректит на /login — проверяем sessionStorage. */
-  const hasToken = await page.evaluate(() => Boolean(sessionStorage.getItem("dayday_access_token")));
+  const hasToken = await page.evaluate(() => Boolean(sessionStorage.getItem("erafinance_access_token")));
 
   if (page.url().includes("/login") || !hasToken) {
     await page.close();

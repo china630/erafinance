@@ -25,8 +25,8 @@ export function ApiErrorToaster() {
         duration: 8000,
       });
     };
-    window.addEventListener("dayday:api-error", onErr);
-    return () => window.removeEventListener("dayday:api-error", onErr);
+    window.addEventListener("erafinance:api-error", onErr);
+    return () => window.removeEventListener("erafinance:api-error", onErr);
   }, [t]);
 
   return null;

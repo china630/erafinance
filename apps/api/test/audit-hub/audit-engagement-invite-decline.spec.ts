@@ -1,7 +1,7 @@
 import { Test } from "@nestjs/testing";
 import {
   AuditEngagementInviteStatus,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { AuditEngagementInviteService } from "../../src/audit-hub/audit-engagement-invite.service";
 import { PrismaService } from "../../src/prisma/prisma.service";
 import { SubscriptionAccessService } from "../../src/subscription/subscription-access.service";

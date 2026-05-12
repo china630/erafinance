@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { CashOrderPkoSubtype } from "@dayday/database";
+import { CashOrderPkoSubtype } from "@erafinance/database";
 import { Type } from "class-transformer";
 import {
   IsDateString,

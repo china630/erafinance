@@ -1,4 +1,4 @@
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { getActorUserId } from "../common/actor-context";
 import { isIncludeSoftDeleted } from "./recovery-context";
 

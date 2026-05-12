@@ -1,6 +1,6 @@
 /**
  * AUTO-GENERATED — do not edit by hand.
- * Regenerate: `npm run db:gen:banks-branches-seed` in @dayday/database.
+ * Regenerate: `npm run db:gen:banks-branches-seed` in @erafinance/database.
  */
 
 import type { BankBranchSeedRow } from "../../lib/bank/banks-md-importer";

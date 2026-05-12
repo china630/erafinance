@@ -55,7 +55,7 @@ export type SubscriptionSnapshot = {
   trialDaysLeft: number | null;
 };
 
-const CACHE_KEY = "dayday_subscription_cache_v1";
+const CACHE_KEY = "erafinance_subscription_cache_v1";
 
 /** Dev / support: full module access on the client when API returns 403 for subscription. */
 const FRONTEND_SUBSCRIPTION_BYPASS_EMAILS = new Set([

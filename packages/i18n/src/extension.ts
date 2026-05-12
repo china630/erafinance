@@ -1,10 +1,10 @@
-/** DayDay Assistant (browser extension) — RU/AZ only per i18n:audit. */
+/** ERA Finance Assistant (browser extension) — RU/AZ only per i18n:audit. */
 export const extensionResources = {
   ru: {
     translation: {
       extension: {
         hub: {
-          title: "DayDay Assistant",
+          title: "ERA Finance Assistant",
           subtitle: "Порталы и компании",
           openErp: "Открыть ERP",
           serviceEmas: "ƏMAS (кадры)",
@@ -17,7 +17,7 @@ export const extensionResources = {
         },
         paywall: {
           title: "Модуль не активен",
-          body: "Для этой компании не подключён нужный модуль. Оформите подписку в DayDay ERP.",
+          body: "Для этой компании не подключён нужный модуль. Оформите подписку в ERA Finance.",
           cta: "Открыть подписку",
         },
         portal: {
@@ -30,15 +30,15 @@ export const extensionResources = {
           flowBgdCapture: "Таможенная декларация (BGD) → ERP",
         },
         widget: {
-          title: "DayDay",
+          title: "ERA",
           stepAsan: "Шаг 1: вход на портале",
           stepFill: "Шаг 2: заполнение из ERP",
           stepFillInvoice: "Шаг 2: заполнение инвойса из ERP",
           stepSign: "Шаг 3: подпись",
           mismatchError:
-            "Внимание: VÖEN в DayDay ERP ({erpVoen}) не совпадает с VÖEN на портале ({portalVoen}). Пожалуйста, смените компанию в плагине или на портале.",
-          fillButton: "Заполнить из DayDay",
-          fillButtonInvoice: "Заполнить e-qaimə из DayDay",
+            "Внимание: VÖEN в ERA Finance ({erpVoen}) не совпадает с VÖEN на портале ({portalVoen}). Пожалуйста, смените компанию в плагине или на портале.",
+          fillButton: "Заполнить из ERA",
+          fillButtonInvoice: "Заполнить e-qaimə из ERA",
           selectEmployee: "Сотрудник",
           selectInvoice: "Инвойс",
           awaitSignHint: "Нажмите «İmzala» на портале — расширение не подписывает за вас.",
@@ -49,9 +49,9 @@ export const extensionResources = {
           bulkCancel: "Отмена",
           stepCaptureBgd: "Шаг 2: захват BGD в ERP",
           captureBgdHint:
-            "Откройте карточку BGD на e-customs и нажмите кнопку — в DayDay создастся черновик (при дубликате номера строка не дублируется).",
+            "Откройте карточку BGD на e-customs и нажмите кнопку — в ERA создастся черновик (при дубликате номера строка не дублируется).",
           captureToErp: "Захватить в ERP",
-          captureOk: "BGD отправлен в DayDay ERP (новая вкладка).",
+          captureOk: "BGD отправлен в ERA Finance (новая вкладка).",
           captureDeduped: "Такой BGD уже есть в ERP — дубликат не создан.",
           captureUnexpected: "Неожиданный ответ API.",
           captureItemsPreview: "Позиции (предпросмотр)",
@@ -62,7 +62,7 @@ export const extensionResources = {
         },
         auth: {
           magicInProgress: "Подключение к ERP…",
-          needLogin: "Войдите в DayDay ERP в браузере, затем откройте расширение снова.",
+          needLogin: "Войдите в ERA Finance в браузере, затем откройте расширение снова.",
           error: "Ошибка авторизации",
         },
       },
@@ -72,7 +72,7 @@ export const extensionResources = {
     translation: {
       extension: {
         hub: {
-          title: "DayDay Assistant",
+          title: "ERA Finance Assistant",
           subtitle: "Portallar və şirkətlər",
           openErp: "ERP aç",
           serviceEmas: "ƏMAS (kadrlar)",
@@ -85,7 +85,7 @@ export const extensionResources = {
         },
         paywall: {
           title: "Modul aktiv deyil",
-          body: "Bu şirkət üçün lazımi modul qoşulmayıb. DayDay ERP-də abunəni aktivləşdirin.",
+          body: "Bu şirkət üçün lazımi modul qoşulmayıb. ERA Finance-də abunəni aktivləşdirin.",
           cta: "Abunəyə keç",
         },
         portal: {
@@ -98,15 +98,15 @@ export const extensionResources = {
           flowBgdCapture: "Gömrük bəyannaməsi (BGD) → ERP",
         },
         widget: {
-          title: "DayDay",
+          title: "ERA",
           stepAsan: "Addım 1: portala giriş",
           stepFill: "Addım 2: ERP-dən doldurma",
           stepFillInvoice: "Addım 2: ERP-dən qaimə doldurma",
           stepSign: "Addım 3: imza",
           mismatchError:
-            "Diqqət: DayDay ERP-dəki VÖEN ({erpVoen}) portaldakı VÖEN-lə ({portalVoen}) uyğun gəlmir. Zəhmət olmasa şirkəti plugin-də və ya portalda dəyişin.",
-          fillButton: "DayDay-dən doldur",
-          fillButtonInvoice: "e-qaiməni DayDay-dən doldur",
+            "Diqqət: ERA Finance-dəki VÖEN ({erpVoen}) portaldakı VÖEN-lə ({portalVoen}) uyğun gəlmir. Zəhmət olmasa şirkəti plugin-də və ya portalda dəyişin.",
+          fillButton: "ERA-dən doldur",
+          fillButtonInvoice: "e-qaiməni ERA-dən doldur",
           selectEmployee: "İşçi",
           selectInvoice: "Qaimə",
           awaitSignHint: "Portaldakı «İmzala» düyməsini özünüz basın — genişləndirmə sizin əvəzinizə imzalamır.",
@@ -117,9 +117,9 @@ export const extensionResources = {
           bulkCancel: "Ləğv et",
           stepCaptureBgd: "Addım 2: BGD-ni ERP-yə tutmaq",
           captureBgdHint:
-            "e-customs-da BGD kartını açın və düyməni basın — DayDay-da qaralama yaradılacaq (təkrar nömrədə sətir əlavə olunmur).",
+            "e-customs-da BGD kartını açın və düyməni basın — ERA-da qaralama yaradılacaq (təkrar nömrədə sətir əlavə olunmur).",
           captureToErp: "ERP-yə tut",
-          captureOk: "BGD DayDay ERP-yə göndərildi (yeni tab).",
+          captureOk: "BGD ERA Finance-yə göndərildi (yeni tab).",
           captureDeduped: "Bu BGD artıq ERP-də var — dublikat yaradılmadı.",
           captureUnexpected: "API-dən gözlənilməz cavab.",
           captureItemsPreview: "Mövqelər (önizləmə)",
@@ -130,7 +130,7 @@ export const extensionResources = {
         },
         auth: {
           magicInProgress: "ERP-ə qoşulur…",
-          needLogin: "Brauzerdə DayDay ERP-yə daxil olun, sonra genişləndirməni yenidən açın.",
+          needLogin: "Brauzerdə ERA Finance-yə daxil olun, sonra genişləndirməni yenidən açın.",
           error: "Avtorizasiya xətası",
         },
       },

@@ -1,5 +1,5 @@
 import { ForbiddenException } from "@nestjs/common";
-import type { UserRole } from "@dayday/database";
+import type { UserRole } from "@erafinance/database";
 import type { AuthUser } from "./types/auth-user";
 
 /**

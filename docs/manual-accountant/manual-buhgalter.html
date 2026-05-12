@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>DayDay ERP — руководство бухгалтера</title>
+  <title>ERA Finance — руководство бухгалтера</title>
   <style>
 
 :root {
@@ -206,7 +206,7 @@ a:hover { text-decoration: underline; }
   <a class="skip-link" href="#oglavlenie">К оглавлению</a>
   <header class="doc-header">
     <div class="doc-header-inner">
-      <h1><a href="#top" style="color:inherit">DayDay ERP — руководство бухгалтера</a></h1>
+      <h1><a href="#top" style="color:inherit">ERA Finance — руководство бухгалтера</a></h1>
       <span class="doc-header-meta">HTML · оглавление со ссылками</span>
     </div>
   </header>
@@ -238,7 +238,7 @@ a:hover { text-decoration: underline; }
 </aside>
 
     <article class="doc-main">
-<h1 id="top">Руководство пользователя DayDay ERP для бухгалтера</h1>
+<h1 id="top">Руководство пользователя ERA Finance для бухгалтера</h1>
 <p>Версия документа соответствует продуктовым требованиям (<a href="../../PRD.md">PRD.md</a>, §4) и техническому заданию (<a href="../../TZ.md">TZ.md</a>). Ниже описан <strong>фактический интерфейс</strong> веб-приложения <code>apps/web</code> и то, <strong>как система считает и проводит</strong> ключевые операции.</p>
 <blockquote>
 <p><strong>Иллюстрации</strong> в каталоге <code>images/</code> — эталонные макеты интерфейса. Их можно заменить скриншотами вашего стенда (см. <a href="./README.md">README.md</a>).</p>
@@ -303,7 +303,7 @@ a:hover { text-decoration: underline; }
 <hr />
 <p><a id="s2"></a></p>
 <h2>2. Главная страница и переключатели</h2>
-<p><img alt="Главная страница и виджеты дашборда" src="./images/dayday-dashboard.png" /></p>
+<p><img alt="Главная страница и виджеты дашборда" src="./images/era-dashboard.png" /></p>
 <h3>2.1. Что показывает дашборд</h3>
 <p>После входа открывается <strong>«Главная»</strong> (<code>/</code>). Для авторизованного пользователя подгружаются виджеты (данные с API дашборда):</p>
 <ul>
@@ -330,7 +330,7 @@ a:hover { text-decoration: underline; }
 <hr />
 <p><a id="s3"></a></p>
 <h2>3. Продажи: счета, контрагенты, номенклатура</h2>
-<p><img alt="Список счетов" src="./images/dayday-invoices.png" /></p>
+<p><img alt="Список счетов" src="./images/era-invoices.png" /></p>
 <h3>3.1. Контрагенты (<code>/counterparties</code>)</h3>
 <p><strong>Задача:</strong> единый справочник клиентов и поставщиков.</p>
 <p><strong>Фишки:</strong></p>
@@ -360,7 +360,7 @@ a:hover { text-decoration: underline; }
 <hr />
 <p><a id="s4"></a></p>
 <h2>4. Банк и выписки</h2>
-<p><img alt="Банк: выписки и сопоставление" src="./images/dayday-banking.png" /></p>
+<p><img alt="Банк: выписки и сопоставление" src="./images/era-banking.png" /></p>
 <p>Раздел <strong>«Банк»</strong> (<code>/banking</code>).</p>
 <h3>4.1. Задачи модуля</h3>
 <ul>
@@ -384,7 +384,7 @@ a:hover { text-decoration: underline; }
 <hr />
 <p><a id="s6"></a></p>
 <h2>6. Персонал: сотрудники, структура, зарплата</h2>
-<p><img alt="Зарплата: расчётные периоды" src="./images/dayday-payroll.png" /></p>
+<p><img alt="Зарплата: расчётные периоды" src="./images/era-payroll.png" /></p>
 <h3>6.1. Сотрудники (<code>/employees</code>)</h3>
 <p>Кадровые карточки: ФИО, <strong>ФИН</strong>, договор, связь с <strong>должностью</strong> и подразделением (при включённой оргструктуре). Создание карточки может проверять <strong>штатные лимиты</strong> (quota / staffing).</p>
 <h3>6.2. Структура (<code>/hr/structure</code>)</h3>
@@ -437,7 +437,7 @@ a:hover { text-decoration: underline; }
 <hr />
 <p><a id="s9"></a></p>
 <h2>9. Отчётность: ОСВ, P&amp;L, закрытие периода</h2>
-<p><img alt="ОСВ и P&amp;L" src="./images/dayday-reporting.png" /></p>
+<p><img alt="ОСВ и P&amp;L" src="./images/era-reporting.png" /></p>
 <p>Страница <strong><code>/reporting</code></strong>.</p>
 <h3>9.1. Оборотно-сальдовая ведомость (ОСВ)</h3>
 <ul>

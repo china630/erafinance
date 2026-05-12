@@ -1,5 +1,5 @@
 {
-  "name": "@dayday/web",
+  "name": "@erafinance/web",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -10,9 +10,9 @@
     "start": "next start -p 3000 -H 0.0.0.0"
   },
   "dependencies": {
-    "@dayday/api-contracts": "*",
-    "@dayday/i18n": "*",
-    "@dayday/ui": "*",
+    "@erafinance/api-contracts": "*",
+    "@erafinance/i18n": "*",
+    "@erafinance/ui": "*",
     "@radix-ui/react-popover": "^1.1.15",
     "@sentry/nextjs": "^10.48.0",
     "date-fns": "^4.1.0",

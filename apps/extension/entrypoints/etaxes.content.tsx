@@ -9,7 +9,7 @@ export default defineContentScript({
   runAt: "document_idle",
   async main(_ctx) {
     const host = document.createElement("div");
-    host.id = "dayday-assistant-host";
+    host.id = "erafinance-assistant-host";
     host.style.position = "fixed";
     host.style.right = "16px";
     host.style.bottom = "16px";

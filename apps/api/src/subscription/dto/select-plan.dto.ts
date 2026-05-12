@@ -1,4 +1,4 @@
-import { SubscriptionTier } from "@dayday/database";
+import { SubscriptionTier } from "@erafinance/database";
 import { IsEnum } from "class-validator";
 
 export class SelectPlanDto {

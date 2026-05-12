@@ -115,33 +115,33 @@
 .overflow-y-auto,
 .overflow-x-auto,
 .overflow-auto,
-.dayday-sidebar-scroll {
+.erafinance-sidebar-scroll {
   scrollbar-width: thin;
   scrollbar-color: #c5ccd4 transparent;
 }
 .overflow-y-auto::-webkit-scrollbar,
 .overflow-x-auto::-webkit-scrollbar,
 .overflow-auto::-webkit-scrollbar,
-.dayday-sidebar-scroll::-webkit-scrollbar {
+.erafinance-sidebar-scroll::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 .overflow-y-auto::-webkit-scrollbar-track,
 .overflow-x-auto::-webkit-scrollbar-track,
 .overflow-auto::-webkit-scrollbar-track,
-.dayday-sidebar-scroll::-webkit-scrollbar-track {
+.erafinance-sidebar-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
 .overflow-y-auto::-webkit-scrollbar-thumb,
 .overflow-x-auto::-webkit-scrollbar-thumb,
 .overflow-auto::-webkit-scrollbar-thumb,
-.dayday-sidebar-scroll::-webkit-scrollbar-thumb {
+.erafinance-sidebar-scroll::-webkit-scrollbar-thumb {
   background: #c5ccd4;
   border-radius: 3px;
 }
 .overflow-y-auto::-webkit-scrollbar-thumb:hover,
 .overflow-x-auto::-webkit-scrollbar-thumb:hover,
 .overflow-auto::-webkit-scrollbar-thumb:hover,
-.dayday-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+.erafinance-sidebar-scroll::-webkit-scrollbar-thumb:hover {
   background: #a8b0b8;
 }

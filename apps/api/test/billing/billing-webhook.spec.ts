@@ -1,7 +1,7 @@
 import {
   BillingStatus,
   SubscriptionInvoiceStatus,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PaymentProviderService } from "../../src/billing/payment-provider.service";
 
 describe("PaymentProviderService webhook auto-resume", () => {

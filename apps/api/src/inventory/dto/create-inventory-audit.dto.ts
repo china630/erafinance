@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { InventoryAuditStatus } from "@dayday/database";
+import { InventoryAuditStatus } from "@erafinance/database";
 import {
   IsDateString,
   IsEnum,

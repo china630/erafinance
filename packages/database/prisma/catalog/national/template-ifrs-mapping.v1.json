@@ -21,7 +21,7 @@
   ],
   "meta": {
     "note": "IDENTITY means: if no override exists, nasCode maps to the same ifrsCode (=nasCode). Store only overrides to keep file maintainable.",
-    "source": "DayDay ERP template package"
+    "source": "ERA Finance template package"
   }
 }
 

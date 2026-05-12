@@ -2,7 +2,7 @@ import {
   BadRequestException,
   Injectable,
 } from "@nestjs/common";
-import { SubscriptionTier } from "@dayday/database";
+import { SubscriptionTier } from "@erafinance/database";
 import { AccessControlService } from "../access/access-control.service";
 import { PricingService } from "../admin/pricing.service";
 import { PrismaService } from "../prisma/prisma.service";

@@ -15,6 +15,6 @@ mkdir -p "${BACKUP_DIR}"
 echo "[backup-db] Creating backup: ${BACKUP_FILE}"
 
 docker compose -f "${COMPOSE_FILE}" exec -T db \
-  pg_dump -U "${POSTGRES_USER:-dayday}" "${POSTGRES_DB:-dayday}" > "${BACKUP_FILE}"
+  pg_dump -U "${POSTGRES_USER:-erafinance}" "${POSTGRES_DB:-erafinance}" > "${BACKUP_FILE}"
 
 echo "[backup-db] Backup completed"

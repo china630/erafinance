@@ -4,7 +4,7 @@ import {
   BankStatementLineType,
   Decimal,
   type Prisma,
-} from "@dayday/database";
+} from "@erafinance/database";
 
 type Tx = Prisma.TransactionClient;
 

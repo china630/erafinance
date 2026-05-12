@@ -4,7 +4,7 @@ import {
   Injectable,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import type { UserRole } from "@dayday/database";
+import type { UserRole } from "@erafinance/database";
 import { ROLES_KEY } from "../decorators/roles.decorator";
 import type { AuthUser } from "../types/auth-user";
 import type { RequestWithAuditEngagement } from "../../common/request-with-audit-engagement";

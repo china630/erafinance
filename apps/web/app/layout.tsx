@@ -9,7 +9,7 @@ import { ExtensionBridge } from "../components/extension-bridge";
 
 /** SSR fallback; locale-specific title/description are applied in `SeoHeadSync` (Providers). */
 export const metadata: Metadata = {
-  title: "DayDay ERP",
+  title: "ERA Finance",
   description: "SaaS-учёт для бизнеса в Азербайджане / Azərbaycan üçün SaaS uçot",
 };
 export default async function RootLayout({
@@ -19,8 +19,8 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const token = cookieStore.get("dayday_access_token")?.value;
-  const pathname = headerStore.get("x-dayday-pathname") ?? "";
+  const token = cookieStore.get("erafinance_access_token")?.value;
+  const pathname = headerStore.get("x-erafinance-pathname") ?? "";
   const portalPath = pathname.startsWith("/portal");
   const publicPath =
     pathname === "/login" ||

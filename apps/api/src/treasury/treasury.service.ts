@@ -4,7 +4,7 @@ import {
   InvoiceStatus,
   LedgerType,
   Prisma,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 
 const DEFAULT_CASH_FLOW_ITEMS: { code: string; name: string }[] = [

@@ -11,7 +11,7 @@ import {
   OrganizationKind,
   pickAccountDisplayName,
   Prisma,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateAccountMappingDto } from "./dto/create-account-mapping.dto";
 import type { CreateBankAccountDto } from "./dto/create-bank-account.dto";

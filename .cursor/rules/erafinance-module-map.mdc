@@ -1,5 +1,5 @@
 ---
-description: DayDay ERP — карта модулей (якорь API ↔ Web ↔ Prisma); для @ и навигации по репо
+description: ERA Finance — карта модулей (якорь API ↔ Web ↔ Prisma); для @ и навигации по репо
 globs:
   - apps/api/**
   - apps/web/**
@@ -53,7 +53,7 @@ alwaysApply: false
 | Доступ и роли (`access`) | `access/` | `settings/team/` | ACL, без отдельного раздела «access» на web |
 | Ранний доступ / painted door (`early-access`) | `early-access/` | сайдбар «Отраслевые решения», модалка; Super-Admin → waitlist | Валидация спроса по вертикалям (PRD §5.0.1); не entitlement |
 | Подписка и квоты (`subscription`, `quota`) | `subscription/` + `quota/` | `settings/subscription/`, `admin/billing/` | |
-| **DayDay Assistant** (browser extension RPA) | — | — | `apps/extension/` (WXT, MV3); Magic Auth + коннекторы порталов (`apps/extension/src/connectors/emas/**`, `apps/extension/src/connectors/etaxes/**`, `apps/extension/src/connectors/customs/**`); см. **TZ §13.6**, **TZ §20** |
+| **ERA Finance Assistant** (browser extension RPA) | — | — | `apps/extension/` (WXT, MV3); Magic Auth + коннекторы порталов (`apps/extension/src/connectors/emas/**`, `apps/extension/src/connectors/etaxes/**`, `apps/extension/src/connectors/customs/**`); см. **TZ §13.6**, **TZ §20** |
 
 ### Audit Hub — внешний аудитор (guest session)
 
@@ -73,8 +73,8 @@ alwaysApply: false
 
 | Пакет | Путь | Назначение |
 |-------|------|------------|
-| `@dayday/api-contracts` | `packages/api-contracts/` | Zod-схемы общих DTO (auth snapshot, subscription, HR prefill для расширения). |
-| `@dayday/i18n` | `packages/i18n/` | `resources` (веб) + `extensionResources` (`extension.*`); импорт в `apps/web/lib/i18n/resources.ts`. |
+| `@erafinance/api-contracts` | `packages/api-contracts/` | Zod-схемы общих DTO (auth snapshot, subscription, HR prefill для расширения). |
+| `@erafinance/i18n` | `packages/i18n/` | `resources` (веб) + `extensionResources` (`extension.*`); импорт в `apps/web/lib/i18n/resources.ts`. |
 
 ## Инфраструктура и поперечные слои (в основном только API)
 

@@ -1,5 +1,5 @@
 ---
-description: DayDay ERP — UI/UX по корневому DESIGN.md (страницы, модалки, web)
+description: ERA Finance — UI/UX по корневому DESIGN.md (страницы, модалки, web)
 globs:
   - apps/web/**/*.tsx
   - apps/web/**/*.ts
@@ -15,4 +15,4 @@ alwaysApply: false
 2. Соблюдай **палитру, радиусы, отступы, типографику** из `DESIGN.md`.
 3. Если запрос пользователя **противоречит** `DESIGN.md` — **не подменяй** дизайн молча: следуй `DESIGN.md` или задай уточняющий вопрос.
 
-Это дополняет секцию UI в `dayday-agent-roles.mdc`; при работе в `apps/web` это правило должно **вспоминать** про дизайн-систему.
+Это дополняет секцию UI в `erafinance-agent-roles.mdc`; при работе в `apps/web` это правило должно **вспоминать** про дизайн-систему.

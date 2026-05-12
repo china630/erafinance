@@ -1,4 +1,4 @@
-import { Decimal, InvoiceStatus, LedgerType, pickAccountDisplayName } from "@dayday/database";
+import { Decimal, InvoiceStatus, LedgerType, pickAccountDisplayName } from "@erafinance/database";
 import type { PrismaService } from "../prisma/prisma.service";
 import { RECEIVABLE_ACCOUNT_CODE, REVENUE_ACCOUNT_CODE } from "../ledger.constants";
 import { endOfUtcDay } from "./reporting-period.util";

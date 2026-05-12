@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException } from "@nestjs/common";
-import { ApprovalDocumentType, UserRole } from "@dayday/database";
-import { Decimal } from "@dayday/database";
+import { ApprovalDocumentType, UserRole } from "@erafinance/database";
+import { Decimal } from "@erafinance/database";
 import { ApprovalsService } from "./approvals.service";
 
 describe("ApprovalsService", () => {

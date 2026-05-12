@@ -9,7 +9,7 @@ import { uiLangRuAz } from "./ui-lang";
 // Defensive: old builds could store "AZ"/"RU" in localStorage.
 // i18next `cleanCode` helps, but we also normalize persisted value to avoid surprises.
 try {
-  const k = "dayday_i18n_lang";
+  const k = "erafinance_i18n_lang";
   const v = localStorage.getItem(k);
   if (v) {
     const norm = v.trim().toLowerCase();
@@ -36,12 +36,12 @@ void i18n
     detection: {
       order: ["localStorage", "navigator"],
       caches: ["localStorage"],
-      lookupLocalStorage: "dayday_i18n_lang",
+      lookupLocalStorage: "erafinance_i18n_lang",
     },
   });
 
 const SUPPORTED = new Set(["ru", "az"]);
-const LANG_STORAGE_KEY = "dayday_i18n_lang";
+const LANG_STORAGE_KEY = "erafinance_i18n_lang";
 
 function normalizeLanguageCode(lng: string | undefined | null): "ru" | "az" | null {
   if (!lng) return null;

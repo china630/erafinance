@@ -1,6 +1,6 @@
 import { Logger } from "@nestjs/common";
-import { Prisma } from "@dayday/database";
-import { InvoiceStatus, LedgerType } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
+import { InvoiceStatus, LedgerType } from "@erafinance/database";
 import { AccountingService } from "../../src/accounting/accounting.service";
 import { NettingService } from "../../src/accounting/netting.service";
 import {

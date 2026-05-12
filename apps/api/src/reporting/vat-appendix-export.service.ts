@@ -39,7 +39,7 @@ export class VatAppendixExportService {
     }));
 
     const wb = new ExcelJS.Workbook();
-    wb.creator = "DayDay ERP";
+    wb.creator = "ERA Finance";
     wb.created = new Date();
 
     const salesSheet = wb.addWorksheet("Satış_ƏDV", {

@@ -1,5 +1,5 @@
 {
-  "name": "@dayday/api-contracts",
+  "name": "@erafinance/api-contracts",
   "version": "0.0.1",
   "private": true,
   "main": "src/index.ts",

@@ -5,7 +5,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        dayday: {
+        erafinance: {
           surface: "#EBEDF0",
           ink: "#1a1a1a",
           accent: "#2563eb",

@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { IsEnum, IsOptional, IsString, MinLength } from "class-validator";
-import { OverheadDriverType } from "@dayday/database";
+import { OverheadDriverType } from "@erafinance/database";
 
 export class UpdateOverheadDriverDto {
   @ApiPropertyOptional()

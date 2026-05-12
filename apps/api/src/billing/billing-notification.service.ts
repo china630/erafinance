@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { NotificationSeverity, UserRole } from "@dayday/database";
+import { NotificationSeverity, UserRole } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 
 const DEMO_FINISHED_ACTION = "BILLING_DEMO_PERIOD_FINISHED_1ST";
@@ -31,7 +31,7 @@ export class BillingNotificationService {
     if (exists) return;
 
     const message =
-      "Скоро будет выставлен ежемесячный счёт за платные модули DayDay ERP.";
+      "Скоро будет выставлен ежемесячный счёт за платные модули ERA Finance.";
     await this.writeBillingNotification({
       organizationId,
       entityId,

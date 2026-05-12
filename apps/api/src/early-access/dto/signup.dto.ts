@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { EarlyAccessModuleKey } from "@dayday/database";
+import { EarlyAccessModuleKey } from "@erafinance/database";
 import { IsEnum, IsIn, IsOptional, IsString, MaxLength } from "class-validator";
 
 /** Industry slug stored with signup (painted-door context; not Organization.industry). */

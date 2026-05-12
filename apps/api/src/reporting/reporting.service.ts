@@ -11,7 +11,7 @@ import {
   pickAccountDisplayName,
   Prisma,
   SignedDocumentKind,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { DepreciationService } from "../fixed-assets/depreciation.service";
 import { PrismaService } from "../prisma/prisma.service";
 import {

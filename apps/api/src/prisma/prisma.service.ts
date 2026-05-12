@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { PrismaClient } from "@dayday/database";
+import { PrismaClient } from "@erafinance/database";
 import { prismaSoftDeleteExtension } from "./prisma-soft-delete.extension";
 import { prismaTenantExtension } from "./prisma-tenant.extension";
 import { prismaPiiReadFallbackExtension } from "./prisma-pii-read-fallback.extension";

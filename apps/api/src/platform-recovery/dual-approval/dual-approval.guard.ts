@@ -6,7 +6,7 @@ import {
   Injectable,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { DualApprovalStatus } from "@dayday/database";
+import { DualApprovalStatus } from "@erafinance/database";
 import type { AuthUser } from "../../auth/types/auth-user";
 import { PrismaService } from "../../prisma/prisma.service";
 import { REQUIRES_DUAL_APPROVAL_PURPOSE_KEY } from "./dual-approval.constants";

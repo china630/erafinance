@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { LedgerType, Prisma } from "@dayday/database";
+import { LedgerType, Prisma } from "@erafinance/database";
 
 type Decimal = Prisma.Decimal;
 

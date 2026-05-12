@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { SubscriptionTier } from "@dayday/database";
+import { SubscriptionTier } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import type { TierQuotas } from "../constants/quotas";
 import { TIER_QUOTAS } from "../constants/quotas";

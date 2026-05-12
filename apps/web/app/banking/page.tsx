@@ -36,7 +36,7 @@ import {
   TABLE_ROW_ICON_BTN_CLASS,
 } from "../../lib/design-system";
 import { Button } from "../../components/ui/button";
-import { Dialog, DialogContent, DialogHeader } from "@dayday/ui";
+import { Dialog, DialogContent, DialogHeader } from "@erafinance/ui";
 import { ledgerQueryParam, useLedger } from "../../lib/ledger-context";
 import { useRequireAuth } from "../../lib/use-require-auth";
 import { SubscriptionPaywall } from "../../components/subscription-paywall";

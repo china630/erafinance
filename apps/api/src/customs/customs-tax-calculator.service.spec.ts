@@ -1,4 +1,4 @@
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { CustomsTaxCalculatorService } from "./customs-tax-calculator.service";
 
 describe("CustomsTaxCalculatorService", () => {

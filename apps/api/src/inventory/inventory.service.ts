@@ -10,7 +10,7 @@ import {
   StockMovementReason,
   StockMovementType,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { assertMayPostManualJournal } from "../auth/policies/invoice-finance.policy";
 import { AccessControlService } from "../access/access-control.service";
 import { getClosedPeriodKeys, monthKeyUtc } from "../reporting/reporting-period.util";

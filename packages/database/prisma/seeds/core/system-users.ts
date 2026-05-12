@@ -2,8 +2,8 @@ import bcrypt from "bcrypt";
 import type { SeedContext } from "../_engine/upsert";
 
 const TECH_USERS = [
-  "system+integrations@dayday.local",
-  "system+automation@dayday.local",
+  "system+integrations@erafinance.local",
+  "system+automation@erafinance.local",
 ] as const;
 
 export async function seedSystemUsers(ctx: SeedContext): Promise<void> {

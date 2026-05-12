@@ -19,7 +19,7 @@ import {
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
 } from "../../../lib/design-system";
-import { Popover, PopoverContent, PopoverTrigger } from "@dayday/ui";
+import { Popover, PopoverContent, PopoverTrigger } from "@erafinance/ui";
 
 type ProjectionPoint = {
   date: string;

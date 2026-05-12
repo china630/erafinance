@@ -1,34 +1,34 @@
 # Тома данных на диске D (см. DOCKER_DATA_ROOT в .env) — не используем named volumes на диске C.
-# Создайте каталоги один раз: см. D:\DockerData\dayday_erp\README.txt
+# Создайте каталоги один раз: см. D:\DockerData\erafinance_erp\README.txt
 # Postgres 16 + Redis 7 (см. docs/deploy/README.md). Первый init Postgres: docker-init + опционально SQL из migrations — не смешивайте с `prisma migrate deploy` на том же томе без baseline.
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: dayday-postgres
+    container_name: erafinance-postgres
     environment:
-      POSTGRES_USER: dayday
-      POSTGRES_PASSWORD: dayday
-      POSTGRES_DB: dayday
+      POSTGRES_USER: erafinance
+      POSTGRES_PASSWORD: erafinance
+      POSTGRES_DB: erafinance
     ports:
       - "5432:5432"
     volumes:
-      - ${DOCKER_DATA_ROOT:-D:/DockerData/dayday_erp}/postgres:/var/lib/postgresql/data
-      - ./packages/database/prisma/migrations:/dayday-prisma-migrations:ro
+      - ${DOCKER_DATA_ROOT:-D:/DockerData/erafinance_erp}/postgres:/var/lib/postgresql/data
+      - ./packages/database/prisma/migrations:/erafinance-prisma-migrations:ro
       - ./packages/database/prisma/docker-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dayday -d dayday"]
+      test: ["CMD-SHELL", "pg_isready -U erafinance -d erafinance"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: dayday-redis
+    container_name: erafinance-redis
     ports:
       - "6379:6379"
     volumes:
-      - ${DOCKER_DATA_ROOT:-D:/DockerData/dayday_erp}/redis:/data
+      - ${DOCKER_DATA_ROOT:-D:/DockerData/erafinance_erp}/redis:/data
     command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]

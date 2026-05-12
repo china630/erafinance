@@ -2,7 +2,7 @@ import {
   BillingStatus,
   PaymentOrderStatus,
   SubscriptionInvoiceStatus,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { BillingPlatformService } from "../../src/billing/billing-platform.service";
 
 describe("BillingPlatformService.recordPaidOrderInvoice", () => {

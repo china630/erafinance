@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { EntityCommentKind } from "@dayday/database";
+import { EntityCommentKind } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditHubBackdatingService } from "./audit-hub-backdating.service";
 

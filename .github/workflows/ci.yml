@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      DATABASE_URL: postgresql://dayday:dayday@127.0.0.1:5432/dayday?schema=public
+      DATABASE_URL: postgresql://erafinance:erafinance@127.0.0.1:5432/erafinance?schema=public
       REDIS_URL: redis://127.0.0.1:6379
       JWT_SECRET: ci-jwt-secret
       JWT_REFRESH_SECRET: ci-jwt-refresh-secret
@@ -31,11 +31,11 @@ jobs:
         ports:
           - 5432:5432
         env:
-          POSTGRES_USER: dayday
-          POSTGRES_PASSWORD: dayday
-          POSTGRES_DB: dayday
+          POSTGRES_USER: erafinance
+          POSTGRES_PASSWORD: erafinance
+          POSTGRES_DB: erafinance
         options: >-
-          --health-cmd "pg_isready -U dayday -d dayday"
+          --health-cmd "pg_isready -U erafinance -d erafinance"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -50,10 +50,10 @@ jobs:
       - name: Prisma migrate (deploy)
         run: npm run db:migrate:deploy
       - name: ESLint API
-        run: npm run lint -w @dayday/api
+        run: npm run lint -w @erafinance/api
       - name: Unit tests (API src only)
-        run: npm run test -w @dayday/api -- --testPathPattern=src/
+        run: npm run test -w @erafinance/api -- --testPathPattern=src/
       - name: Integration tests (API test/, exclude e2e)
-        run: npm run test:integration -w @dayday/api
+        run: npm run test:integration -w @erafinance/api
       - name: Monorepo build
         run: npm run build

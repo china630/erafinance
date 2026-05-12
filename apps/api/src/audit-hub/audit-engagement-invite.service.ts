@@ -7,7 +7,7 @@ import {
 import {
   AuditEngagementInviteStatus,
   UserRole,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { createHash, randomBytes } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { SubscriptionAccessService } from "../subscription/subscription-access.service";

@@ -1,5 +1,5 @@
 import { ForbiddenException } from "@nestjs/common";
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { getTenantContext } from "./tenant-context";
 import { isRecoveryBypassTenantFilter } from "./recovery-context";
 

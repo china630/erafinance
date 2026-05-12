@@ -3,7 +3,7 @@ import {
   Decimal,
   StockMovementReason,
   StockMovementType,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { AccountingService } from "../../src/accounting/accounting.service";
 import { ManufacturingService } from "../../src/manufacturing/manufacturing.service";
 import { PrismaService } from "../../src/prisma/prisma.service";

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { EmployeeKind } from "@dayday/database";
+import { EmployeeKind } from "@erafinance/database";
 import { Type } from "class-transformer";
 import {
   IsDateString,

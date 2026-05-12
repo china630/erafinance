@@ -1,5 +1,5 @@
 {
-  "source": "tests/e2e-from-tests-pdf.cases.json (DayDay ERP)",
+  "source": "tests/e2e-from-tests-pdf.cases.json (ERA Finance)",
   "examples": [
     { "id": "E01", "pdfRef": "A1", "title": "Регистрация организации и пользователя" },
     { "id": "E02", "pdfRef": "B1", "title": "Контрагент с email" },

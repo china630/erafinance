@@ -10,7 +10,7 @@ import {
 import { MSG } from "../shared/messages";
 
 const ERP_TAB_MATCH =
-  /https:\/\/erp\.dayday\.az\/.*|http:\/\/localhost:3000\/.*|http:\/\/127\.0\.0\.1:3000\/.*/;
+  /https:\/\/erp\.example\.com\/.*|http:\/\/localhost:3000\/.*|http:\/\/127\.0\.0\.1:3000\/.*/;
 
 async function silentRefreshFromErpOrigin(): Promise<boolean> {
   const origin = (await getErpOrigin()) ?? erpOriginDefault();

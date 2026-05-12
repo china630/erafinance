@@ -27,7 +27,7 @@ import { PageHeader } from "../../components/layout/page-header";
 import { CompanyCard, type CompanyCardItem } from "../../components/companies/company-card";
 import { Button } from "../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../../components/ui/select";
-import { Dialog, DialogContent, DialogHeader } from "@dayday/ui";
+import { Dialog, DialogContent, DialogHeader } from "@erafinance/ui";
 import { X } from "lucide-react";
 
 type OrganizationsTree = {

@@ -1,4 +1,4 @@
-import { Prisma } from "@dayday/database";
+import { Prisma } from "@erafinance/database";
 import { OpeningBalancesService } from "../../src/migration/opening-balances.service";
 import type { PrismaService } from "../../src/prisma/prisma.service";
 import type { AccountingService, PostTransactionLine } from "../../src/accounting/accounting.service";

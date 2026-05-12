@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { SubscriptionTier } from "@dayday/database";
+import { SubscriptionTier } from "@erafinance/database";
 import { resolveOrganizationUuid } from "../common/organization-id.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { SystemConfigService } from "../system-config/system-config.service";

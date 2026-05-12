@@ -1,5 +1,5 @@
 import { ForbiddenException } from "@nestjs/common";
-import { InvoiceStatus, UserRole } from "@dayday/database";
+import { InvoiceStatus, UserRole } from "@erafinance/database";
 
 /**
  * RBAC v5.8: роль USER не может изменять инвойсы в статусе PAID

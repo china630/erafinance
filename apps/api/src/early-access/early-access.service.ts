@@ -10,7 +10,7 @@ import {
   EarlyAccessModuleKey,
   NotificationSeverity,
   Prisma,
-} from "@dayday/database";
+} from "@erafinance/database";
 import type { Request } from "express";
 import { MailService } from "../mail/mail.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -242,7 +242,7 @@ export class EarlyAccessService {
       where: { isSuperAdmin: true },
       select: { id: true, email: true },
     });
-    const subject = `DayDay ERP — early access threshold ${threshold} (${moduleKey})`;
+    const subject = `ERA Finance — early access threshold ${threshold} (${moduleKey})`;
     const text = `Industry module ${moduleKey} reached ${count} organization signups (threshold ${threshold}).\nReview: Super Admin → Industry waitlist.`;
 
     for (const a of admins) {

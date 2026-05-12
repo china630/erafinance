@@ -1,5 +1,5 @@
 import { CounterpartiesController } from "../../src/counterparties/counterparties.controller";
-import { CounterpartyLegalForm, CounterpartyRole } from "@dayday/database";
+import { CounterpartyLegalForm, CounterpartyRole } from "@erafinance/database";
 
 describe("CounterpartiesController degraded mode", () => {
   it("creates counterparty manually and writes audit event when e-taxes path fails", async () => {

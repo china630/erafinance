@@ -5,7 +5,7 @@ import { PlugZap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSubscription } from "../lib/subscription-context";
 
-const DISMISS_KEY = "dayday:extension-install-banner-dismissed-at";
+const DISMISS_KEY = "erafinance:extension-install-banner-dismissed-at";
 const DISMISS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 function installUrl(): string {

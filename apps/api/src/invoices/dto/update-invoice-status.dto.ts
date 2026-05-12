@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { InvoiceStatus } from "@dayday/database";
+import { InvoiceStatus } from "@erafinance/database";
 import { IsEnum } from "class-validator";
 
 export class UpdateInvoiceStatusDto {

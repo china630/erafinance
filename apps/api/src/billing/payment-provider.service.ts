@@ -11,7 +11,7 @@ import {
   Prisma,
   SubscriptionInvoiceStatus,
   SubscriptionTier,
-} from "@dayday/database";
+} from "@erafinance/database";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { BillingService } from "./billing.service";

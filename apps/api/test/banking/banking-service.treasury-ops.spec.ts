@@ -1,4 +1,4 @@
-import { Decimal } from "@dayday/database";
+import { Decimal } from "@erafinance/database";
 import { BankingService } from "../../src/banking/banking.service";
 
 describe("BankingService treasury operations", () => {

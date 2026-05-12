@@ -1,7 +1,7 @@
 -- Платформенный супер-админ (JWT isSuperAdmin; /api/admin).
 -- Этот файл НЕ перезаписывается `npm run db:dump-to-prod` / docker-init:export.
 -- Bcrypt ниже — пароль 12345678; после первого входа смените. Обновить только хеш в репозитории:
---   npm run docker-init:super-admin-hash -w @dayday/database
+--   npm run docker-init:super-admin-hash -w @erafinance/database
 --
 -- При повторном накате на существующего пользователя пароль НЕ меняем (только флаг super-admin).
 

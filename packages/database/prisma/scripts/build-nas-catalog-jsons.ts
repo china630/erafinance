@@ -1,6 +1,6 @@
 /**
  * One-off / CI helper: writes prisma/catalog/national/chart-of-accounts-{commercial|budget|ngo}.json
- * from DayDay commercial TS source + parsed docs/NAS-GOV.md and docs/NAS-NGO.md.
+ * from ERA commercial TS source + parsed docs/NAS-GOV.md and docs/NAS-NGO.md.
  *
  * Run from repo root: npx tsx packages/database/prisma/scripts/build-nas-catalog-jsons.ts
  */

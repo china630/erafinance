@@ -4,7 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { DualApprovalStatus } from "@dayday/database";
+import { DualApprovalStatus } from "@erafinance/database";
 import { MailService } from "../../mail/mail.service";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -61,7 +61,7 @@ export class DualApprovalService {
       where: { isSuperAdmin: true, id: { not: requesterId } },
       select: { email: true },
     });
-    const subject = `DayDay ERP — dual approval required (${purpose})`;
+    const subject = `ERA Finance — dual approval required (${purpose})`;
     const text = `A dual-approval request was created.\nRequest ID: ${requestId}\nPurpose: ${purpose}\nApprove via POST /api/admin/platform/dual-approval/${requestId}/approve`;
     for (const a of admins) {
       if (!a.email) continue;

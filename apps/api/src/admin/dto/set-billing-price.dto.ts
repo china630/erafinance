@@ -1,5 +1,5 @@
 import { IsEnum, IsNumber, Min } from "class-validator";
-import { SubscriptionTier } from "@dayday/database";
+import { SubscriptionTier } from "@erafinance/database";
 
 export class SetBillingPriceDto {
   @IsEnum(SubscriptionTier)

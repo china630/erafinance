@@ -19,18 +19,18 @@ const BTN_STYLE = [
 ].join(";");
 
 /**
- * Injects a "DayDay Capture" button into the portal action bar (when selector matches).
+ * Injects a "ERA Capture" button into the portal action bar (when selector matches).
  */
 export function mountCustomsCaptureInjection(): () => void {
   const tryInject = () => {
     const bars = document.querySelectorAll(CUSTOMS_SELECTORS.portalActionBar);
     bars.forEach((bar) => {
-      if (bar.querySelector("[data-dayday-injected-capture]")) return;
+      if (bar.querySelector("[data-erafinance-injected-capture]")) return;
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.setAttribute("data-dayday-injected-capture", "1");
-      btn.setAttribute("aria-label", "DayDay Capture");
-      btn.textContent = "DayDay Capture";
+      btn.setAttribute("data-erafinance-injected-capture", "1");
+      btn.setAttribute("aria-label", "ERA Capture");
+      btn.textContent = "ERA Capture";
       btn.style.cssText = BTN_STYLE;
       btn.addEventListener("click", () => {
         void (async () => {
@@ -50,7 +50,7 @@ export function mountCustomsCaptureInjection(): () => void {
               btn.disabled = false;
             }, 2500);
           } catch (e) {
-            btn.textContent = prev ?? "DayDay Capture";
+            btn.textContent = prev ?? "ERA Capture";
             btn.disabled = false;
             window.alert(e instanceof Error ? e.message : String(e));
           }
@@ -68,6 +68,6 @@ export function mountCustomsCaptureInjection(): () => void {
 
   return () => {
     observer.disconnect();
-    document.querySelectorAll("[data-dayday-injected-capture]").forEach((el) => el.remove());
+    document.querySelectorAll("[data-erafinance-injected-capture]").forEach((el) => el.remove());
   };
 }

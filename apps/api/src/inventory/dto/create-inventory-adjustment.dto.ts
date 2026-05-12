@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { InventoryAdjustmentDocType } from "@dayday/database";
+import { InventoryAdjustmentDocType } from "@erafinance/database";
 import { Type } from "class-transformer";
 import {
   ArrayMinSize,

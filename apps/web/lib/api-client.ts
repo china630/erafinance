@@ -38,13 +38,13 @@ async function emitApiErrorToast(res: Response): Promise<void> {
     const text = await res.clone().text();
     const message = parseApiErrorMessage(text) || `HTTP ${res.status}`;
     window.dispatchEvent(
-      new CustomEvent("dayday:api-error", {
+      new CustomEvent("erafinance:api-error", {
         detail: { status: res.status, message },
       }),
     );
   } catch {
     window.dispatchEvent(
-      new CustomEvent("dayday:api-error", {
+      new CustomEvent("erafinance:api-error", {
         detail: { status: res.status, message: `HTTP ${res.status}` },
       }),
     );
@@ -86,7 +86,7 @@ export function apiFetch(path: string, init: RequestInit = {}): Promise<Response
         ) {
           skipApiErrorToast = true;
           window.dispatchEvent(
-            new CustomEvent("dayday:subscription-read-only", {
+            new CustomEvent("erafinance:subscription-read-only", {
               detail: data,
             }),
           );
@@ -115,7 +115,7 @@ export function apiFetch(path: string, init: RequestInit = {}): Promise<Response
         ) {
           skipApiErrorToast = true;
           window.dispatchEvent(
-            new CustomEvent("dayday:quota-upgrade", { detail: data }),
+            new CustomEvent("erafinance:quota-upgrade", { detail: data }),
           );
         }
       } catch {

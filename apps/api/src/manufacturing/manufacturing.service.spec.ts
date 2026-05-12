@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import { Decimal } from "@dayday/database";
+import { Decimal } from "@erafinance/database";
 import { ManufacturingService } from "./manufacturing.service";
 
 describe("ManufacturingService.computeAvailableOutput", () => {

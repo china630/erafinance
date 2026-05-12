@@ -261,9 +261,9 @@ export default function InvoicesPage() {
       setUpsellOpen(true);
       return;
     }
-    window.localStorage.setItem("daydayAssistantBulkFlow", "eqaime");
-    window.localStorage.setItem("daydayAssistantBulkIds", JSON.stringify(selectedIds));
-    alert("Bulk payload prepared for DayDay Assistant");
+    window.localStorage.setItem("erafinanceAssistantBulkFlow", "eqaime");
+    window.localStorage.setItem("erafinanceAssistantBulkIds", JSON.stringify(selectedIds));
+    alert("Bulk payload prepared for ERA Finance Assistant");
   }
 
   if (!ready) {

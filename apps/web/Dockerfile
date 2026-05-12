@@ -1,4 +1,4 @@
-# Monorepo-aware production image: @dayday/web (workspace install satisfies lockfile).
+# Monorepo-aware production image: @erafinance/web (workspace install satisfies lockfile).
 # Build from repository root: docker build -f apps/web/Dockerfile .
 # NEXT_PUBLIC_API_URL is baked into the client bundle at build time when used in client code.
 
@@ -14,7 +14,7 @@ COPY packages/database/package.json packages/database/
 COPY packages/database packages/database
 COPY apps/web apps/web
 
-# @dayday/database postinstall runs `prisma generate`; Prisma 7 loads prisma.config.ts
+# @erafinance/database postinstall runs `prisma generate`; Prisma 7 loads prisma.config.ts
 # which calls `env("DATABASE_URL")`. `.env` is excluded from the build context (.dockerignore).
 # This placeholder is only for config resolution during generate (no DB connection).
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
@@ -22,7 +22,7 @@ ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
 RUN npm ci
 
 # Один слой перед `next build`: все ARG → ENV, чтобы Next/Sentry webpack видели переменные
-# в процессе `npm run build -w @dayday/web` (инлайн NEXT_PUBLIC_* в клиентский бандл).
+# в процессе `npm run build -w @erafinance/web` (инлайн NEXT_PUBLIC_* в клиентский бандл).
 ARG NEXT_PUBLIC_API_URL=http://api:4000
 ARG NEXT_PUBLIC_SENTRY_DSN
 ARG SENTRY_AUTH_TOKEN
@@ -47,7 +47,7 @@ RUN set -eux; \
     echo "web build: Sentry source maps upload DISABLED by default (set SENTRY_UPLOAD_SOURCEMAPS=1 to enable)"; \
     unset SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT_WEB || true; \
   fi; \
-  npm run build -w @dayday/web
+  npm run build -w @erafinance/web
 
 RUN npm prune --omit=dev
 
@@ -65,4 +65,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start", "-w", "@dayday/web"]
+CMD ["npm", "run", "start", "-w", "@erafinance/web"]

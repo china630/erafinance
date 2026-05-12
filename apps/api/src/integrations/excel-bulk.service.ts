@@ -1,10 +1,10 @@
 import { Injectable, BadRequestException } from "@nestjs/common";
-import { CustomsDeclarationStatus, Prisma } from "@dayday/database";
+import { CustomsDeclarationStatus, Prisma } from "@erafinance/database";
 import ExcelJS from "exceljs";
 import {
   CustomsDeclarationPrefillSchema,
   type CustomsDeclarationPrefill,
-} from "@dayday/api-contracts";
+} from "@erafinance/api-contracts";
 import { PrismaService } from "../prisma/prisma.service";
 import { decryptText } from "../security/pii-crypto.util";
 import { IntegrationSyncRunService } from "./integration-sync-run.service";

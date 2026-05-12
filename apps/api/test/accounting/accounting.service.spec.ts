@@ -1,5 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
-import { LedgerType } from "@dayday/database";
+import { LedgerType } from "@erafinance/database";
 import { AccountingService } from "../../src/accounting/accounting.service";
 import type { IfrsAutoMappingService } from "../../src/accounting/ifrs-auto-mapping.service";
 import type { PrismaService } from "../../src/prisma/prisma.service";

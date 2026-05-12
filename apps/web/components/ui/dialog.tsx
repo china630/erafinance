@@ -3,5 +3,5 @@ export {
   DialogContent,
   DialogFooter,
   DialogHeader,
-} from "@dayday/ui";
+} from "@erafinance/ui";
 
