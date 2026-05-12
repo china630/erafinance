@@ -63,7 +63,7 @@
     "db:wipe-tenant": "npx tsx packages/database/prisma/scripts/ops/platform/wipe-tenant-data.ts",
     "db:seed:tivi": "npm run db:seed:tivi -w @dayday/database",
     "db:prod-init": "npm run db:migrate:deploy && npm run db:seed && npm run db:sync-i18n:prune -w @dayday/database && npm run db:prod-init -w @dayday/database",
-    "db:deploy": "npm run db:migrate:deploy -w @dayday/database && npm run db:sync-i18n:prune -w @dayday/database",
+    "db:deploy": "dotenv -e .env -o -- npm run db:migrate:deploy -w @dayday/database && dotenv -e .env -o -- npm run db:sync-i18n:prune -w @dayday/database",
     "db:apply-template:ifrs": "npm run db:apply-template:ifrs -w @dayday/database",
     "docker-init:export": "npm run docker-init:export -w @dayday/database",
     "docker-init:super-admin-hash": "npm run docker-init:super-admin-hash -w @dayday/database",

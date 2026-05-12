@@ -1,8 +1,8 @@
 ﻿# DayDay ERP — развёртывание в production (Ubuntu 24.04 + Docker Compose)
 
 Цель: поднять стек из `docker-compose.prod.yml`:
-- Postgres (`db`)
-- Redis (`redis`)
+- Postgres **16** (`db`)
+- Redis **7** (`redis`)
 - NestJS API (`api`)
 - Next.js Web (`web`)
 

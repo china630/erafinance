@@ -5,11 +5,15 @@ Single source of truth for cross-cutting release tasks. **Stage A (Foundations)*
 ## Runtime & ORM (status: aligned with repo)
 
 - [x] **Node.js 22.x** — `package.json#engines.node`, Dockerfiles, GitHub Actions `node-version: 22`.
+- [x] **Postgres 16.x** — `docker-compose.yml` / `docker-compose.prod.yml` images (`postgres:16-alpine`).
+- [x] **Redis 7.x** — compose images (`redis:7-alpine`).
 - [x] **Prisma 7.x** — `packages/database` (`prisma`, `@prisma/client`, `@prisma/adapter-pg`), `prisma.config.ts`, driver adapter per [deploy.md](./deploy.md).
 - [x] **Replace legacy `package.json#prisma` config** — superseded by `prisma.config.ts` in `@dayday/database`.
 
 ## Before each production deploy
 
+- [ ] Database backup taken (see `scripts/backup-db.sh` and `DR_RUNBOOK.md`).
+- [ ] If this is a **new** production database (greenfield), apply migrations once: `npm run db:migrate:deploy` against an **empty** Postgres database (single squashed migration in `packages/database/prisma/migrations`). Do not mount raw `migration.sql` into `docker-entrypoint-initdb.d` in parallel with Prisma (see `docker-compose.prod.yml` comments).
 - [ ] `npm run db:migrate:deploy` (or `npm run db:deploy` if i18n prune is part of release) on target DB.
 - [ ] `npm run build` on the release commit (includes `i18n:audit`).
 - [ ] If `packages/i18n` changed: `npm run i18n:catalog` and commit `apps/api/src/admin/i18n-default-catalog-data.json`.

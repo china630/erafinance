@@ -1,5 +1,6 @@
 # Тома данных на диске D (см. DOCKER_DATA_ROOT в .env) — не используем named volumes на диске C.
 # Создайте каталоги один раз: см. D:\DockerData\dayday_erp\README.txt
+# Postgres 16 + Redis 7 (см. docs/deploy/README.md). Первый init Postgres: docker-init + опционально SQL из migrations — не смешивайте с `prisma migrate deploy` на том же томе без baseline.
 
 services:
   postgres:

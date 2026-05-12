@@ -3,8 +3,8 @@
 Russian version: [deploy.ru.md](./deploy.ru.md).
 
 Goal: bring up the stack from `docker-compose.prod.yml`:
-- Postgres (`db`)
-- Redis (`redis`)
+- Postgres **16** (`db`)
+- Redis **7** (`redis`)
 - NestJS API (`api`)
 - Next.js Web (`web`)
 

@@ -1,26 +1,26 @@
 # Материалы для мануала бухгалтера
 
 - Основной документ: [manual-buhgalter.md](./manual-buhgalter.md).
-- **PDF:** [manual-buhgalter.pdf](./manual-buhgalter.pdf) — собирается скриптом `md_to_pdf.py` (см. ниже).
-- **HTML:** [manual-buhgalter.html](./manual-buhgalter.html) — один файл со стилями, боковым оглавлением и ссылками; сборка: `python md_to_html.py`.
+- **PDF:** [manual-buhgalter.pdf](./manual-buhgalter.pdf) — сборка из корня репозитория: `python tools/md_to_pdf.py docs/manual-accountant/manual-buhgalter.md -o docs/manual-accountant/manual-buhgalter.pdf` (см. ниже).
+- **HTML:** [manual-buhgalter.html](./manual-buhgalter.html) — один файл со стилями, боковым оглавлением и ссылками; сборка из корня репозитория: `python tools/md_to_html.py docs/manual-accountant/manual-buhgalter.md -o docs/manual-accountant/manual-buhgalter.html`.
 - Иллюстрации лежат в каталоге `images/` (сгенерированные эталонные картинки и/или ваши реальные скриншоты).
 
 ## Сборка PDF
 
 ```bash
-cd docs/manual-accountant
-python -m pip install -r requirements-pdf.txt
-python md_to_pdf.py
+cd "path/to/dayday_erp"
+python -m pip install -r docs/manual-accountant/requirements-pdf.txt
+python tools/md_to_pdf.py docs/manual-accountant/manual-buhgalter.md -o docs/manual-accountant/manual-buhgalter.pdf
 ```
 
-На Windows при отсутствии Arial в нестандартной ОС можно задать путь к TTF: переменная окружения `DAYDAY_PDF_FONT`.
+PDF собирается через **headless Chrome / Edge** (тот же движок, что у браузера): нормальные **таблицы**, шрифты и оглавление со ссылками. Нужен установленный **Google Chrome** или **Microsoft Edge** (на Windows обычно уже есть Edge). Явный путь к браузеру: переменная **`DAYDAY_CHROME_BIN`** или флаг **`--browser "C:\...\msedge.exe"`**. Если браузера нет (типично CI/Linux без Chromium), установите **`pip install weasyprint`** и запускайте с **`--engine weasyprint`**.
 
 ## Сборка HTML
 
 ```bash
-cd docs/manual-accountant
+cd "path/to/dayday_erp"
 python -m pip install markdown
-python md_to_html.py
+python tools/md_to_html.py docs/manual-accountant/manual-buhgalter.md -o docs/manual-accountant/manual-buhgalter.html
 ```
 
 Откройте `manual-buhgalter.html` в браузере из этой же папки, чтобы подгрузились картинки из `images/`.

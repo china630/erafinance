@@ -30,7 +30,11 @@ docker compose -f "${COMPOSE_FILE}" up -d --build
 
 echo "[deploy-prod-db-migrate] Apply Prisma migrations"
 docker compose -f "${COMPOSE_FILE}" exec -T api \
-  sh -lc "cd /app && npm run db:migrate:deploy"
+  sh -lc "cd /app && npm run db:migrate:deploy -w @dayday/database"
+
+echo "[deploy-prod-db-migrate] Sync i18n overrides from resources.ts (prune stale keys)"
+docker compose -f "${COMPOSE_FILE}" exec -T api \
+  sh -lc "cd /app && npm run db:sync-i18n:prune -w @dayday/database"
 
 echo "[deploy-prod-db-migrate] Prod-init schema fixups (idempotent DDL)"
 docker compose -f "${COMPOSE_FILE}" exec -T api \

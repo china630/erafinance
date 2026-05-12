@@ -6,8 +6,8 @@ This directory is the single entry point for deployment and recovery runbooks.
 
 | Compose file | When to use |
 |--------------|-------------|
-| [`docker-compose.yml`](../../docker-compose.yml) | Local Windows/Linux dev: Postgres + Redis with data under `DOCKER_DATA_ROOT` (see repo root `.env.example`). |
-| [`docker-compose.prod.yml`](../../docker-compose.prod.yml) | Production-like stack: **Postgres**, **Redis** (AOF + `maxmemory` + `noeviction`), **API**, **Web**. Includes **json-file log rotation** and **container healthchecks** (`/api/health`, web root). |
+| [`docker-compose.yml`](../../docker-compose.yml) | Local Windows/Linux dev: **Postgres 16** + **Redis 7** with data under `DOCKER_DATA_ROOT` (see repo root `.env.example`). Mounts `prisma/migrations` + `prisma/docker-init` into Postgres **first init only** — do not combine with `prisma migrate deploy` on the same volume without understanding the double-apply risk; prefer a fresh volume or host-only migrations. |
+| [`docker-compose.prod.yml`](../../docker-compose.prod.yml) | Production-like stack: **Postgres 16**, **Redis 7** (AOF + `maxmemory` + `noeviction`), **API** (Node 22), **Web** (Node 22). **Does not** mount migrations into `docker-entrypoint-initdb.d` (migrations run via API: `npm run db:migrate:deploy`). Includes **json-file log rotation** and **container healthchecks** (`/api/health`, web root). |
 | [`docs/deploy/monitoring/docker-compose.monitoring.yml`](./monitoring/docker-compose.monitoring.yml) | **Optional** Prometheus + Grafana override (see [`monitoring/README.md`](./monitoring/README.md)). |
 
 Build images **from the repository root**:
@@ -17,7 +17,15 @@ docker build -f apps/api/Dockerfile .
 docker build -f apps/web/Dockerfile .
 ```
 
+**Prisma migrations:** the repo ships a **single squashed** migration ([`packages/database/prisma/migrations/20260520120000_squashed_schema`](../../packages/database/prisma/migrations/20260520120000_squashed_schema/migration.sql)). Fresh environments: empty database, then `npm run db:migrate:deploy` (or `npm run db:deploy` to include i18n prune). If your **local** Postgres still contains objects from the **old** migration chain, drop/recreate the database (or use a new DB name) before deploy — otherwise the first apply will fail with “already exists”.
+
 Runtime secrets: copy `env.production.example` → `.env` next to `docker-compose.prod.yml`. Images do **not** embed `.env` (`.dockerignore`); Compose mounts `env_file` at runtime only.
+
+**Stack versions (repo-wide):** Node.js **22**, Postgres **16-alpine**, Redis **7-alpine**, Prisma **7** (`packages/database/prisma.config.ts`, driver adapter). CI: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
+
+## Local Windows helpers (not in git)
+
+If you keep `*.bat` in the repo root (e.g. `START-ERP.bat`), verify each script: `cd /d` to the monorepo root (path may contain spaces), call `npm run dev` / `dev:api` / `dev:web` from [root `package.json`](../../package.json), free ports **3000** / **4000** before start (`npm run stop:next` / `stop:api`), and load the root `.env` (see [`.cursor/rules/dayday-local-dev.mdc`](../../.cursor/rules/dayday-local-dev.mdc)).
 
 ## Quick Scenario Map
 
