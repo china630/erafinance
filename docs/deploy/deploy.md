@@ -22,6 +22,7 @@ This guide is aligned with:
 - You understand `NEXT_PUBLIC_*` variables are embedded into the client bundle at build time.
 - Only required external ports are open (typically 80/443); do not publicly expose Postgres/Redis.
 - After **every** release with frontend code changes, do not skip i18n DB sync (section 7.3), otherwise `GET /api/public/translations` and i18n cache may diverge from bundled `resources.ts`.
+- If **production** is a **greenfield wipe** (drop DB / empty volume, no data to keep), follow **section 7.0.1 (A)** — no baselining; then migrate + i18n + `db:prod-init` as usual.
 
 ---
 
@@ -188,42 +189,63 @@ sudo rm -f /var/www/html/maintenance.enable
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### 7.0.1 RC1: squashed migrations and existing databases
+### 7.0.1 Single squashed migration and database strategies
 
-Repository now has **one** baseline migration. Migration folder name (fixed for deploy): `20260505120000_squashed_init`.
+The repo ships **one** Prisma Migrate folder: **`20260520120000_squashed_schema`**. Choose the path that matches your server.
 
-**New empty DB:** regular `prisma migrate deploy` (or `npm run db:migrate:deploy` in API container) is enough.
+#### A) Production greenfield: wipe the database and install from scratch (explicitly supported)
 
-**Existing DB** where schema was created by old migration history that is no longer present in repo:
-do **not** run the big squashed SQL directly; that causes errors like "relation already exists" and risk of data loss if someone attempts `migrate reset`.
+If you **accept total loss of business data** on that Postgres instance (first go-live, staging rebuild, or deliberate cutover with no carry-over), you do **not** need baselining or `migrate resolve`. After the database is **empty** (no application tables), a normal deploy applies the full schema.
 
-Safe order:
+1. Enable maintenance mode (section 7.0).
+2. Stop traffic to the DB, then **drop the application database** (or remove the Postgres data volume / provision a new empty instance). Recreate an empty database with the same `POSTGRES_DB` name and credentials as in `.env` / `DATABASE_URL`.
+3. Bring Postgres (and Redis) up, then run from the `api` container as in sections 7.1–7.2, for example:
 
-1. Create Postgres backup.
-2. In Postgres, clear only migration tracking table (no business data there):
+```bash
+docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
+docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune
+docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
+```
+
+4. Disable maintenance mode.
+
+**Irreversible:** without a backup restore, dropped data is gone. Do **not** use this path on a production server that must keep existing tenants or ledger history.
+
+#### B) Brand-new empty database (first install, never had app schema)
+
+Same as the end state of (A): run `npm run db:migrate:deploy` in `api` (or `prisma migrate deploy` with correct `DATABASE_URL`). Prisma applies `migration.sql` and fills `_prisma_migrations`.
+
+#### C) Existing database with schema from an old migration history (must keep data)
+
+Do **not** run `migrate deploy` blindly against an already-populated schema from removed migration folders; you get errors like "relation already exists". Prefer backup, then either **(A)** if you can wipe, or baseline:
+
+1. Create a Postgres backup.
+2. Clear only the migration ledger (no business tables):
 
 ```sql
 DELETE FROM "_prisma_migrations";
 ```
 
-3. In `packages/database` with valid `DATABASE_URL`, mark squashed migration as already applied without running SQL:
+3. Mark the squashed migration as already applied **without** executing its SQL (schema must already match what the app expects):
 
 ```bash
-npx prisma migrate resolve --applied 20260505120000_squashed_init
+npx prisma migrate resolve --applied 20260520120000_squashed_schema
 ```
 
-4. Then run standard migration deploy:
+4. Then run:
 
 ```bash
 npx prisma migrate deploy
 ```
 
-In Docker Compose this is usually done inside `api` container:
+Inside Docker Compose (from repo root):
 
 ```bash
-docker compose -f docker-compose.prod.yml exec api npx prisma migrate resolve --applied 20260505120000_squashed_init
+docker compose -f docker-compose.prod.yml exec api npx prisma migrate resolve --applied 20260520120000_squashed_schema
 docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
 ```
+
+**Developer note:** the checked-in `migration.sql` is produced with Prisma 7, for example `npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script` from `packages/database`. See Prisma docs: *Baselining* / *drift*.
 
 ### 7.1 Migrations (required)
 

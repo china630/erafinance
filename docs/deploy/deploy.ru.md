@@ -20,6 +20,7 @@
 - Вы понимаете, что `NEXT_PUBLIC_*` переменные **вшиваются в клиентский бандл на этапе build**.
 - На сервере открыт только нужный внешний порт (обычно 80/443); Postgres/Redis наружу не публикуем.
 - После **каждого** деплоя с новым кодом фронта: не забыть шаг **синхронизации переводов в БД** (§7.3) — иначе **`GET /api/public/translations`** и кэш i18n могут расходиться с бандлом **`resources.ts`** (на клиенте язык UI — только **ru** / **az**, при неопределённом коде — **az**; см. PRD §7.6.1, TZ §17).
+- Если **прод** — **greenfield со сносом БД** (пустая база / новый том, данных переносить не нужно), используйте **п. 7.0.1 (A)** — без baseline/`migrate resolve`; далее миграции + i18n + `db:prod-init` как обычно.
 
 ---
 
@@ -185,43 +186,63 @@ sudo rm -f /var/www/html/maintenance.enable
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### 7.0.1. RC1: схлопнутые миграции (squash) и существующие базы
+### 7.0.1. Одна squashed-миграция и сценарии базы
 
-В репозитории остаётся **одна** стартовая миграция Prisma Migrate. **Имя папки миграции (зафиксировать для деплоя):** `20260505120000_squashed_init`.
+В репозитории **одна** папка Prisma Migrate: **`20260520120000_squashed_schema`**. Выберите сценарий по вашему стенду.
 
-**Новая пустая база:** достаточно обычного `prisma migrate deploy` (или `npm run db:migrate:deploy` в образе API) — Prisma применит `migration.sql` и заполнит `_prisma_migrations`.
+#### A) Прод: снос БД и установка с нуля (осознанно, без переноса данных)
 
-**Существующая база** (local / staging / production), где схема уже создана **старыми** миграциями, а в репозитории больше нет их папок: **нельзя** сразу запускать `migrate deploy` по одному большому `migration.sql` — получите ошибки вида «relation already exists» и риск потери данных при попытках «починить» через `prisma migrate reset`.
+Если на целевом Postgres **допустимо полное удаление бизнес-данных** (первый выход в прод без миграции со старой схемы, пересборка staging, жёсткий cutover), **baseline не нужен** и **`migrate resolve` не нужен**. Нужна **пустая** база приложения (нет таблиц/enum из старого деплоя), затем обычный порядок из п. 7.1–7.2.
 
-Официальный безопасный порядок для таких серверов:
+1. Включите maintenance mode (п. 7.0).
+2. Остановите обращения к БД, затем **удалите базу приложения** (или том Postgres в Docker / новый пустой инстанс). Создайте **пустую** базу с тем же именем `POSTGRES_DB` и учётными данными, что в `.env` / `DATABASE_URL`.
+3. Поднимите `db` и `redis`, затем из контейнера `api`, как в п. 7.1–7.2, например:
 
-1. Сделайте **резервную копию** Postgres.
-2. В Postgres выполните очистку **только** служебной таблицы учёта миграций (в ней нет бизнес-данных):
+```bash
+docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
+docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune
+docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
+```
+
+4. Снимите maintenance mode.
+
+**Без отката:** без бэкапа восстановить удалённые данные нельзя. Не применяйте этот путь к продакшену, где нужно сохранить организации, проводки и т.д.
+
+#### B) Новая пустая база (первый запуск, схемы ещё не было)
+
+Это конечное состояние после п. A: достаточно `npm run db:migrate:deploy` в `api` (или `prisma migrate deploy` с корректным `DATABASE_URL`) — Prisma применит `migration.sql` и заполнит `_prisma_migrations`.
+
+#### C) Существующая база со схемой от старых миграций (данные сохраняем)
+
+**Нельзя** просто запустить `migrate deploy` поверх уже созданной схемы из удалённой истории миграций — будут ошибки вида «relation already exists». Либо переходите на п. **A** (со сносом), либо baseline:
+
+1. Резервная копия Postgres.
+2. Очистка **только** служебной таблицы миграций:
 
 ```sql
 DELETE FROM "_prisma_migrations";
 ```
 
-3. В каталоге `packages/database` с корректным `DATABASE_URL` пометьте squashed-миграцию как уже применённую **без выполнения SQL**:
+3. Пометить squashed-миграцию как применённую **без выполнения SQL** (схема уже должна соответствовать ожиданиям приложения):
 
 ```bash
-npx prisma migrate resolve --applied 20260505120000_squashed_init
+npx prisma migrate resolve --applied 20260520120000_squashed_schema
 ```
 
-4. Затем выполните стандартный деплой миграций:
+4. Затем:
 
 ```bash
 npx prisma migrate deploy
 ```
 
-В Docker Compose (как в п. 7.1) шаги 3–4 обычно выполняют внутри контейнера `api`, откуда доступен `DATABASE_URL`, например:
+В Docker Compose из корня репозитория:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec api npx prisma migrate resolve --applied 20260505120000_squashed_init
+docker compose -f docker-compose.prod.yml exec api npx prisma migrate resolve --applied 20260520120000_squashed_schema
 docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
 ```
 
-**Примечание для разработчиков:** после удаления истории миграций команда `npx prisma migrate dev --name squashed_init --create-only` на **непустой** локальной БД часто завершается сообщением о drift и предложением `migrate reset`. Для RC1 итоговый `migration.sql` сформирован командой `npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script` (Prisma 7; см. раздел *Baselining* в документации Prisma Migrate). Результат в репозитории — папка **`20260505120000_squashed_init`**.
+**Для разработчиков:** актуальный `migration.sql` в репозитории собирается, например, командой Prisma 7 `npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script` из каталога `packages/database` (см. документацию Prisma Migrate: *Baselining*, *drift*). Папка в репо: **`20260520120000_squashed_schema`**.
 
 ### 7.1. Миграции (обязательно)
 
