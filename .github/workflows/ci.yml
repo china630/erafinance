@@ -9,7 +9,7 @@ on:
 jobs:
   build-and-lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       DATABASE_URL: postgresql://dayday:dayday@127.0.0.1:5432/dayday?schema=public
       REDIS_URL: redis://127.0.0.1:6379
@@ -53,5 +53,7 @@ jobs:
         run: npm run lint -w @dayday/api
       - name: Unit tests (API src only)
         run: npm run test -w @dayday/api -- --testPathPattern=src/
+      - name: Integration tests (API test/, exclude e2e)
+        run: npm run test:integration -w @dayday/api
       - name: Monorepo build
         run: npm run build
