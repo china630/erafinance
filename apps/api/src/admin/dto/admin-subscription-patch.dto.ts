@@ -35,4 +35,8 @@ export class AdminSubscriptionPatchDto {
   @IsArray()
   @IsString({ each: true })
   activeModules?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  isTrial?: boolean;
 }

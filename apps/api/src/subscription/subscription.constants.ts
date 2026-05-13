@@ -5,9 +5,8 @@
 export const REQUIRES_MODULE_KEY = "subscription:requiresModule" as const;
 
 /**
- * Демо-период новой организации: до конца **UTC** календарного месяца регистрации
- * (`computeNewOrganizationDemoPeriodEndsAt` в `subscription-demo-period.util.ts`).
- * Ранее: фиксированные 14 дней — удалено.
+ * Trial period for new organizations: **Trial-пакет** (`PricingBundle.isTrialDefault`)
+ * + `computeTrialExpiresAtUtc` in `trial-package.util.ts` (fallback **90** calendar days).
  */
 
 /**

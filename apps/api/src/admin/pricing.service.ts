@@ -1,5 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { seedPricingModuleIfEmpty } from "@erafinance/database";
+import {
+  seedPricingBundleDefaultsIfEmpty,
+  seedPricingModuleIfEmpty,
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { SystemConfigService } from "../system-config/system-config.service";
 
@@ -40,6 +43,7 @@ export class PricingService {
     modules: ConstructorModuleRow[];
   }> {
     await this.ensurePricingModulesFromDatabase();
+    await seedPricingBundleDefaultsIfEmpty(this.prisma);
     const [basePrice, rows] = await Promise.all([
       this.systemConfig.getFoundationMonthlyAzn(),
       this.prisma.pricingModule.findMany({ orderBy: { sortOrder: "asc" } }),

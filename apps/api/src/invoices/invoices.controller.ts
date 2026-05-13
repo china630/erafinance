@@ -20,6 +20,7 @@ import { requireOrgRole } from "../auth/require-org-role";
 import type { AuthUser } from "../auth/types/auth-user";
 import { CheckQuota } from "../common/decorators/check-quota.decorator";
 import { QuotaGuard } from "../common/guards/quota.guard";
+import { VoenIntegrityGuard } from "../common/guards/voen-integrity.guard";
 import { OrganizationId } from "../common/org-id.decorator";
 import { QuotaResource } from "../quota/quota-resource";
 import { RequiresModule } from "../subscription/requires-module.decorator";
@@ -104,7 +105,7 @@ export class InvoicesController {
   }
 
   @Post("bulk-prefill")
-  @UseGuards(SubscriptionGuard, RolesGuard)
+  @UseGuards(SubscriptionGuard, VoenIntegrityGuard, RolesGuard)
   @RequiresModule(ModuleEntitlement.TAX_PRO)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
   @ApiOperation({ summary: "Bulk DTO list for extension e-qaimə prefill" })
@@ -113,7 +114,7 @@ export class InvoicesController {
   }
 
   @Post("bulk-sync-result")
-  @UseGuards(SubscriptionGuard, RolesGuard)
+  @UseGuards(SubscriptionGuard, VoenIntegrityGuard, RolesGuard)
   @RequiresModule(ModuleEntitlement.TAX_PRO)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
   @ApiOperation({ summary: "Persist bulk sync results for invoices (DVX)" })

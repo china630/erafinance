@@ -40,9 +40,11 @@ import { ProductsModule } from "./products/products.module";
 import { StorageModule } from "./storage/storage.module";
 import { TaxModule } from "./tax/tax.module";
 import { BillingModule } from "./billing/billing.module";
+import { ReferralsModule } from "./referrals/referrals.module";
 import { AdminModule } from "./admin/admin.module";
 import { OrganizationsModule } from "./organizations/organizations.module";
 import { TenantContextInterceptor } from "./prisma/tenant-context.interceptor";
+import { VoenIntegrityGuard } from "./common/guards/voen-integrity.guard";
 import { TreasuryModule } from "./treasury/treasury.module";
 import { ReportsModule } from "./reports/reports.module";
 import { NotificationModule } from "./notifications/notification.module";
@@ -71,6 +73,7 @@ const apiEnvFiles = apiEnvFilePaths();
     PrismaModule,
     SubscriptionModule,
     BillingModule,
+    ReferralsModule,
     QuotaModule,
     StorageModule,
     AccountingModule,
@@ -107,6 +110,7 @@ const apiEnvFiles = apiEnvFilePaths();
   ],
   controllers: [AppController],
   providers: [
+    VoenIntegrityGuard,
     {
       provide: APP_FILTER,
       useClass: SentryGlobalFilter,

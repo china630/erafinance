@@ -2,7 +2,7 @@
  * Parse normalized AZ customs act markdown (4-column pipe tables) into JSON for import.
  * Skips: strikethrough (~~) rows, XİF MN header rows, rows without a numeric HS in col0.
  * Usage: node parse-az-customs-act-md.mjs [--input path] [--output path]
- * Defaults: --input docs/tmp/az-customs-act.md (from monorepo root) --output docs/tmp/parsed-az-customs-tariff.json
+ * Defaults: --input docs/tmp/az-customs-act.md (from monorepo root) --output packages/database/prisma/catalog/trade/customs-tariff-rates.json
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -18,7 +18,7 @@ function argValue(name, def) {
 }
 
 const inputPath = resolve(repoRoot, argValue("--input", "docs/tmp/az-customs-act.md"));
-const outputPath = resolve(repoRoot, argValue("--output", "docs/tmp/parsed-az-customs-tariff.json"));
+const outputPath = resolve(repoRoot, argValue("--output", "packages/database/prisma/catalog/trade/customs-tariff-rates.json"));
 
 function splitPipeRow(line) {
   const t = line.trim();

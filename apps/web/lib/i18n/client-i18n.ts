@@ -24,6 +24,14 @@ void i18n
   .use(initReactI18next)
   .init({
     resources,
+    /**
+     * Without `bindI18nStore`, `addResourceBundle` (DB translation overrides) does not trigger
+     * `useTranslation` re-renders — only `languageChanged` does by default. Then some labels stay
+     * as raw keys until unrelated state updates (e.g. email input / autofill).
+     */
+    react: {
+      bindI18nStore: "added updated",
+    },
     /** Если код языка не распознан — только `az` (см. `ensureSupportedLanguage`). */
     fallbackLng: "az",
     supportedLngs: ["ru", "az"],

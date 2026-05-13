@@ -25,7 +25,9 @@ import type {
   CreatePricingBundleDto,
   UpdatePricingBundleDto,
 } from "./dto/pricing-bundle.dto";
+import type { PatchPricingBundleTrialConfigDto } from "./dto/pricing-bundle-trial-config.dto";
 import type { PatchFoundationDto } from "./dto/patch-foundation.dto";
+import type { PatchOcrJobsPerOrgMonthDto } from "./dto/patch-ocr-jobs-per-org-month.dto";
 import type { PatchPricingModulePriceDto } from "./dto/patch-pricing-module-price.dto";
 import type { PatchQuotaUnitPricingDto } from "./dto/patch-quota-unit-pricing.dto";
 import type { PatchYearlyDiscountDto } from "./dto/patch-yearly-discount.dto";
@@ -240,6 +242,9 @@ export class AdminService {
     if (dto.activeModules !== undefined) {
       data.activeModules = dto.activeModules;
     }
+    if (dto.isTrial !== undefined) {
+      data.isTrial = dto.isTrial;
+    }
 
     if (existing.subscription) {
       if (Object.keys(data).length === 0) {
@@ -314,15 +319,17 @@ export class AdminService {
       quotas[t] = await this.systemConfig.getTierQuotas(t);
     }
     const constructorData = await this.pricing.getConstructorData();
-    const [yearlyDiscountPercent, quotaPricing, pricingBundles] =
+    const [yearlyDiscountPercent, quotaPricing, pricingBundles, ocrJobsPerOrgMonth] =
       await Promise.all([
         this.systemConfig.getYearlyDiscountPercent(),
         this.systemConfig.getQuotaUnitPricing(),
         this.prisma.pricingBundle.findMany({ orderBy: { updatedAt: "desc" } }),
+        this.systemConfig.getOcrJobsPerOrgMonthLimit(),
       ]);
     return {
       prices,
       quotas,
+      ocrJobsPerOrgMonth,
       foundationMonthlyAzn: constructorData.basePrice,
       yearlyDiscountPercent,
       quotaPricing,
@@ -371,9 +378,14 @@ export class AdminService {
     return { ok: true, quotaPricing };
   }
 
-  async patchPricingModulePrice(id: string, dto: PatchPricingModulePriceDto) {
+  async patchPricingModulePrice(idOrKey: string, dto: PatchPricingModulePriceDto) {
+    const raw = idOrKey.trim();
+    const looksLikeUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        raw,
+      );
     const row = await this.prisma.pricingModule.update({
-      where: { id },
+      where: looksLikeUuid ? { id: raw } : { key: raw },
       data: { pricePerMonth: dto.pricePerMonth },
     });
     return serializePricingModule(row);
@@ -415,6 +427,38 @@ export class AdminService {
     return serializePricingBundle(row);
   }
 
+  async patchPricingBundleTrialConfig(
+    id: string,
+    dto: PatchPricingBundleTrialConfigDto,
+  ) {
+    if (dto.isTrialDefault === true) {
+      await this.prisma.pricingBundle.updateMany({
+        where: { id: { not: id }, isTrialDefault: true },
+        data: { isTrialDefault: false },
+      });
+    }
+    const data: Prisma.PricingBundleUpdateInput = {};
+    if (dto.isTrialDefault !== undefined) {
+      data.isTrialDefault = dto.isTrialDefault;
+    }
+    if (dto.trialDurationDays !== undefined) {
+      data.trialDurationDays =
+        dto.trialDurationDays === null ? null : dto.trialDurationDays;
+    }
+    if (dto.trialQuotas !== undefined) {
+      data.trialQuotas =
+        dto.trialQuotas === null ? Prisma.DbNull : (dto.trialQuotas as Prisma.InputJsonValue);
+    }
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException("Nothing to update");
+    }
+    const row = await this.prisma.pricingBundle.update({
+      where: { id },
+      data,
+    });
+    return serializePricingBundle(row);
+  }
+
   async deletePricingBundle(id: string) {
     await this.prisma.pricingBundle.delete({ where: { id } });
     return { ok: true };
@@ -425,13 +469,16 @@ export class AdminService {
     return { ok: true, tier: dto.tier, amountAzn: dto.amountAzn };
   }
 
+  async patchOcrJobsPerOrgMonth(dto: PatchOcrJobsPerOrgMonthDto) {
+    await this.systemConfig.setOcrJobsPerOrgMonthLimit(dto.limit);
+    const ocrJobsPerOrgMonth =
+      await this.systemConfig.getOcrJobsPerOrgMonthLimit();
+    return { ok: true as const, ocrJobsPerOrgMonth };
+  }
+
   async setTierQuotas(dto: SetTierQuotasDto) {
     const current = await this.systemConfig.getTierQuotas(dto.tier);
     const merged: TierQuotas = {
-      maxOrganizations:
-        dto.quotas.maxOrganizations !== undefined
-          ? dto.quotas.maxOrganizations
-          : current.maxOrganizations,
       maxEmployees:
         dto.quotas.maxEmployees !== undefined
           ? dto.quotas.maxEmployees
@@ -782,6 +829,9 @@ function serializePricingBundle(b: {
   name: string;
   discountPercent: unknown;
   moduleKeys: unknown;
+  isTrialDefault?: boolean;
+  trialDurationDays?: number | null;
+  trialQuotas?: unknown;
 }) {
   const keys = b.moduleKeys;
   return {
@@ -789,5 +839,11 @@ function serializePricingBundle(b: {
     name: b.name,
     discountPercent: Number(b.discountPercent),
     moduleKeys: Array.isArray(keys) ? keys.map(String) : [],
+    isTrialDefault: Boolean(b.isTrialDefault),
+    trialDurationDays: b.trialDurationDays ?? null,
+    trialQuotas:
+      b.trialQuotas != null && typeof b.trialQuotas === "object"
+        ? (b.trialQuotas as Record<string, unknown>)
+        : null,
   };
 }

@@ -141,10 +141,6 @@ export class SystemConfigService {
     if (raw && typeof raw === "object" && !Array.isArray(raw)) {
       const o = raw as Record<string, unknown>;
       return {
-        maxOrganizations:
-          o.maxOrganizations !== undefined
-            ? toNullableNum(o.maxOrganizations)
-            : base.maxOrganizations,
         maxEmployees:
           o.maxEmployees !== undefined ? toNullableNum(o.maxEmployees) : base.maxEmployees,
         maxInvoicesPerMonth:
@@ -232,6 +228,11 @@ export class SystemConfigService {
     const raw = await this.getJson(OCR_JOBS_PER_ORG_MONTH_KEY);
     const n = toPositiveNum(raw, 200);
     return Math.max(1, Math.floor(n));
+  }
+
+  async setOcrJobsPerOrgMonthLimit(limit: number): Promise<void> {
+    const n = Math.max(1, Math.min(1_000_000, Math.floor(limit)));
+    await this.setJson(OCR_JOBS_PER_ORG_MONTH_KEY, n);
   }
 
   /**
@@ -460,7 +461,6 @@ export class SystemConfigService {
         }
         const o = value as Record<string, unknown>;
         const q: TierQuotas = {
-          maxOrganizations: toNullableNum(o.maxOrganizations),
           maxEmployees: toNullableNum(o.maxEmployees),
           maxInvoicesPerMonth: toNullableNum(o.maxInvoicesPerMonth),
           maxStorageGb: toNullableNum(o.maxStorageGb),

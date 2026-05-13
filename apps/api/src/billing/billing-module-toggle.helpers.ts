@@ -105,6 +105,9 @@ export function hasConstructorModulesInCustomConfig(
   customConfig: unknown,
 ): boolean {
   if (customConfig == null || typeof customConfig !== "object") return false;
-  const m = (customConfig as { modules?: unknown }).modules;
+  const o = customConfig as { modules?: unknown; trialPackageId?: unknown };
+  // Trial orgs use `customConfig.modules` but owners may toggle marketplace modules (TZ §14.3).
+  if (o.trialPackageId != null) return false;
+  const m = o.modules;
   return Array.isArray(m) && m.length > 0;
 }

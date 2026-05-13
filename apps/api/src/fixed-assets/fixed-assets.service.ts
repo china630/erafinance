@@ -4,7 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma } from "@erafinance/database";
+import {
+  FixedAssetDepreciationMethod,
+  Prisma,
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateFixedAssetDto } from "./dto/create-fixed-asset.dto";
 import { UpdateFixedAssetDto } from "./dto/update-fixed-asset.dto";
@@ -48,6 +51,17 @@ export class FixedAssetsService {
     if (salvage.gte(initial)) {
       throw new ConflictException("salvageValue must be less than purchasePrice");
     }
+    const depreciationMethod =
+      dto.depreciationMethod ?? FixedAssetDepreciationMethod.STRAIGHT_LINE;
+    const totalExpectedUnits =
+      dto.totalExpectedUnits != null ? new Decimal(dto.totalExpectedUnits) : null;
+    const decliningBalanceRate =
+      dto.decliningBalanceRate != null ? new Decimal(dto.decliningBalanceRate) : null;
+    this.assertDepreciationFieldConsistency({
+      depreciationMethod,
+      totalExpectedUnits,
+      decliningBalanceRate,
+    });
     try {
       return await this.prisma.fixedAsset.create({
         data: {
@@ -59,6 +73,9 @@ export class FixedAssetsService {
           usefulLifeMonths: dto.usefulLifeMonths,
           salvageValue: salvage,
           status: dto.status,
+          depreciationMethod,
+          totalExpectedUnits: totalExpectedUnits ?? undefined,
+          decliningBalanceRate: decliningBalanceRate ?? undefined,
         },
       });
     } catch (e) {
@@ -70,7 +87,7 @@ export class FixedAssetsService {
   }
 
   async update(organizationId: string, id: string, dto: UpdateFixedAssetDto) {
-    await this.getOne(organizationId, id);
+    const existing = await this.getOne(organizationId, id);
     const data: Record<string, unknown> = {};
     if (dto.name != null) data.name = dto.name.trim();
     if (dto.inventoryNumber != null) data.inventoryNumber = dto.inventoryNumber.trim();
@@ -83,6 +100,43 @@ export class FixedAssetsService {
     if (dto.usefulLifeMonths != null) data.usefulLifeMonths = dto.usefulLifeMonths;
     if (dto.salvageValue != null) data.salvageValue = new Decimal(dto.salvageValue);
     if (dto.status != null) data.status = dto.status;
+    if (dto.depreciationMethod != null) data.depreciationMethod = dto.depreciationMethod;
+    if (dto.totalExpectedUnits != null) {
+      data.totalExpectedUnits = new Decimal(dto.totalExpectedUnits);
+    }
+    if (dto.decliningBalanceRate != null) {
+      data.decliningBalanceRate = new Decimal(dto.decliningBalanceRate);
+    }
+
+    const mergedMethod =
+      dto.depreciationMethod ?? existing.depreciationMethod;
+    const mergedTotal =
+      dto.totalExpectedUnits != null
+        ? new Decimal(dto.totalExpectedUnits)
+        : existing.totalExpectedUnits;
+    const mergedDeclining =
+      dto.decliningBalanceRate != null
+        ? new Decimal(dto.decliningBalanceRate)
+        : existing.decliningBalanceRate;
+
+    this.assertDepreciationFieldConsistency({
+      depreciationMethod: mergedMethod,
+      totalExpectedUnits: mergedTotal,
+      decliningBalanceRate: mergedDeclining,
+    });
+
+    const nextPurchase =
+      purchasePriceRaw != null
+        ? new Decimal(purchasePriceRaw)
+        : new Decimal(existing.purchasePrice);
+    const nextSalvage =
+      dto.salvageValue != null
+        ? new Decimal(dto.salvageValue)
+        : new Decimal(existing.salvageValue);
+    if (nextSalvage.gte(nextPurchase)) {
+      throw new ConflictException("salvageValue must be less than purchasePrice");
+    }
+
     try {
       return await this.prisma.fixedAsset.update({
         where: { id },
@@ -126,5 +180,40 @@ export class FixedAssetsService {
         period.month,
       ),
     );
+  }
+
+  async recordUsage(organizationId: string, assetId: string, periodUnits: number) {
+    return this.prisma.$transaction((tx) =>
+      this.depreciation.recordUnitsOfProductionUsage(
+        tx,
+        organizationId,
+        assetId,
+        periodUnits,
+      ),
+    );
+  }
+
+  private assertDepreciationFieldConsistency(params: {
+    depreciationMethod: FixedAssetDepreciationMethod;
+    totalExpectedUnits: Prisma.Decimal | null;
+    decliningBalanceRate: Prisma.Decimal | null;
+  }): void {
+    if (params.depreciationMethod === FixedAssetDepreciationMethod.UNITS_OF_PRODUCTION) {
+      if (!params.totalExpectedUnits || params.totalExpectedUnits.lte(0)) {
+        throw new BadRequestException(
+          "totalExpectedUnits is required and must be positive for UNITS_OF_PRODUCTION",
+        );
+      }
+    }
+    if (params.depreciationMethod === FixedAssetDepreciationMethod.REDUCING_BALANCE) {
+      if (!params.decliningBalanceRate || params.decliningBalanceRate.lte(0)) {
+        throw new BadRequestException(
+          "decliningBalanceRate is required and must be positive for REDUCING_BALANCE",
+        );
+      }
+      if (params.decliningBalanceRate.gt(1)) {
+        throw new BadRequestException("decliningBalanceRate must be at most 1");
+      }
+    }
   }
 }

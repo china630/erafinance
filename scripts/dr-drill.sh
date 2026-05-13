@@ -14,7 +14,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKUP_DIR="${BACKUP_DIR:-${REPO_ROOT}/backups/db}"
 HOST_PORT="${DR_DRILL_PORT:-55432}"
-CONTAINER="dayday-dr-drill-$$"
+CONTAINER="erafinance-dr-drill-$$"
 
 BASELINE_ARGS=()
 for a in "$@"; do
@@ -42,22 +42,22 @@ trap cleanup EXIT
 docker run -d --name "${CONTAINER}" \
   -e POSTGRES_USER=drill \
   -e POSTGRES_PASSWORD=drillpass \
-  -e POSTGRES_DB=dayday_drill \
+  -e POSTGRES_DB=erafinance_drill \
   -p "${HOST_PORT}:5432" \
   postgres:16-alpine >/dev/null
 
 echo "[dr-drill] Waiting for Postgres..."
 for i in $(seq 1 30); do
-  if docker exec "${CONTAINER}" pg_isready -U drill -d dayday_drill >/dev/null 2>&1; then
+  if docker exec "${CONTAINER}" pg_isready -U drill -d erafinance_drill >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
 
 echo "[dr-drill] Restoring dump..."
-gunzip -c "${LATEST}" | docker exec -i "${CONTAINER}" psql -U drill -d dayday_drill -v ON_ERROR_STOP=1 >/dev/null
+gunzip -c "${LATEST}" | docker exec -i "${CONTAINER}" psql -U drill -d erafinance_drill -v ON_ERROR_STOP=1 >/dev/null
 
-export DATABASE_URL="postgresql://drill:drillpass@127.0.0.1:${HOST_PORT}/dayday_drill"
+export DATABASE_URL="postgresql://drill:drillpass@127.0.0.1:${HOST_PORT}/erafinance_drill"
 cd "${REPO_ROOT}"
 echo "[dr-drill] Validating counts (DATABASE_URL -> drill container)..."
 npx tsx scripts/dr-drill-validate.ts "${BASELINE_ARGS[@]}"

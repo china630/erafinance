@@ -3,7 +3,7 @@ const config = {
   project: {
     link: 'https://example.com'
   },
-  docsRepositoryBase: 'https://github.com/dayday-erp/dayday_erp/tree/main/apps/docs',
+  docsRepositoryBase: 'https://github.com/erafinance/erafinance/tree/main/apps/docs',
   footer: {
     text: `ERA Finance Help Center ${new Date().getFullYear()}`
   },

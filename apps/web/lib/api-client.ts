@@ -51,6 +51,16 @@ async function emitApiErrorToast(res: Response): Promise<void> {
   }
 }
 
+/** Same event as {@link emitApiErrorToast} for failures without a `Response` (e.g. network). */
+export function emitClientApiError(status: number, message: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("erafinance:api-error", {
+      detail: { status, message },
+    }),
+  );
+}
+
 export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   if (typeof window !== "undefined") {
@@ -66,12 +76,35 @@ export function apiFetch(path: string, init: RequestInit = {}): Promise<Response
     headers,
     credentials: "include",
   }).then(async (res) => {
+    const method = (init.method ?? "GET").toUpperCase();
+    const pathOnly = (() => {
+      try {
+        if (path.startsWith("http")) {
+          return new URL(path).pathname;
+        }
+        return (path.split("?")[0] ?? path).trim();
+      } catch {
+        return path;
+      }
+    })();
+    const normalizedPath = pathOnly.replace(/\/+$/, "") || pathOnly;
+    const isAuthLoginPost =
+      method === "POST" &&
+      (normalizedPath === "/api/auth/login" || normalizedPath.endsWith("/api/auth/login"));
+
     if (res.status === 401 && typeof window !== "undefined") {
-      // Token may be stale or signed with a different JWT secret.
-      sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-      sessionStorage.removeItem(USER_KEY);
-      sessionStorage.removeItem(ORGS_KEY);
-      window.location.replace("/login");
+      if (isAuthLoginPost) {
+        // Wrong password / invalid credentials — do not redirect (user is already on /login).
+        // Clear stale session keys so the next attempt does not send a bad Bearer token.
+        sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+        sessionStorage.removeItem(USER_KEY);
+        sessionStorage.removeItem(ORGS_KEY);
+      } else if (headers.has("Authorization")) {
+        sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+        sessionStorage.removeItem(USER_KEY);
+        sessionStorage.removeItem(ORGS_KEY);
+        window.location.replace("/login");
+      }
     }
     let skipApiErrorToast = false;
     if (res.status === 403 && typeof window !== "undefined") {
@@ -122,14 +155,13 @@ export function apiFetch(path: string, init: RequestInit = {}): Promise<Response
         /* ignore */
       }
     }
-    const method = (init.method ?? "GET").toUpperCase();
     const isRead = method === "GET" || method === "HEAD";
     if (
       typeof window !== "undefined" &&
       res.status >= 400 &&
-      res.status !== 401 &&
       !skipApiErrorToast &&
-      !isRead
+      !isRead &&
+      (res.status !== 401 || isAuthLoginPost)
     ) {
       void emitApiErrorToast(res);
     }

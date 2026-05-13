@@ -74,7 +74,6 @@ export const SOFT_DELETE_DELETED_AT_MODELS = new Set<string>([
   "InvoiceItem",
   "CustomsDeclaration",
   "TaxDeclarationExport",
-  "CashOrder",
   "AdvanceReport",
   "OrganizationBankAccount",
 ]);

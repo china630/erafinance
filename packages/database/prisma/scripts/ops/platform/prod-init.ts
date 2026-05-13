@@ -1,17 +1,11 @@
 import { closePrismaPool, createPrismaClient } from "../../../prisma-client";
-import bcrypt from "bcrypt";
 import { executePlatformRawUnsafe } from "./platform-raw-sql";
 import { loadTemplateIfrsMappingPackage } from "../../../lib/chart/template-ifrs";
+import {
+  upsertPlatformSuperAdmins,
+} from "../../../lib/platform/upsert-platform-super-admins";
 
 const prisma = createPrismaClient();
-
-const SUPER_ADMINS = [
-  "inaram84@gmail.com",
-  "shirinov.chingiz@gmail.com",
-] as const;
-
-const DEFAULT_PASSWORD = "12345678";
-const BCRYPT_ROUNDS = 10;
 
 async function upsertSystemConfigDefaults() {
   const rows: Array<{ key: string; value: unknown }> = [
@@ -122,29 +116,8 @@ async function ensureMdmGlobalCounterpartiesSchema() {
 }
 
 async function upsertSuperAdmins() {
-  const hash = await bcrypt.hash(DEFAULT_PASSWORD, BCRYPT_ROUNDS);
-  for (const emailRaw of SUPER_ADMINS) {
-    const email = emailRaw.toLowerCase().trim();
-    await prisma.user.upsert({
-      where: { email },
-      create: {
-        email,
-        passwordHash: hash,
-        firstName: null,
-        lastName: null,
-        fullName: null,
-        avatarUrl: null,
-        isSuperAdmin: true,
-      },
-      update: {
-        passwordHash: hash,
-        isSuperAdmin: true,
-      },
-    });
-  }
-  process.stdout.write(
-    `[prod-init] users: upserted super-admins (${SUPER_ADMINS.length})\n`,
-  );
+  await upsertPlatformSuperAdmins(prisma, "reset_password");
+  process.stdout.write(`[prod-init] users: upserted platform super-admins\n`);
 }
 
 async function ensureCriticalSchemaFixups() {
@@ -167,7 +140,7 @@ async function ensureCriticalSchemaFixups() {
 
 /**
  * Нормализованная инвентаризация (описи + строки). Если миграции не применились полностью,
- * Prisma падает на GET /api/inventory/audits. См. prisma/migration-inventory-audit-lines.sql.
+ * Prisma падает на GET /api/inventory/audits. Источник DDL — squashed migration; здесь идемпотентная подстраховка.
  */
 async function ensureInventoryAuditSchema() {
   // Важно: ADD COLUMN и ADD CONSTRAINT не держать в одном DO — при ошибке FK откатится и колонка пропадёт.

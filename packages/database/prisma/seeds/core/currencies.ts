@@ -1,5 +1,5 @@
 import type { SeedContext } from "../_engine/upsert";
-import { upsertByCode } from "../_engine/upsert";
+import { ensurePlatformCurrenciesSeeded } from "../../lib/core/ensure-currencies-seed";
 import { CURRENCIES } from "./currencies.data";
 
 export async function seedCurrencies(ctx: SeedContext): Promise<void> {
@@ -7,10 +7,5 @@ export async function seedCurrencies(ctx: SeedContext): Promise<void> {
     console.info(`[seed:core] currencies dry-run rows=${CURRENCIES.length}`);
     return;
   }
-  await upsertByCode(
-    ctx.prisma.currency,
-    CURRENCIES,
-    (r) => ({ ...r, isActive: true }),
-    (r) => ({ ...r, isActive: true }),
-  );
+  await ensurePlatformCurrenciesSeeded(ctx.prisma);
 }

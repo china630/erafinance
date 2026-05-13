@@ -1,4 +1,5 @@
 import type { SeedContext } from "../_engine/upsert";
+import { seedPricingBundleDefaultsIfEmpty } from "../../lib/core/pricing-bundle-seed";
 import { seedPricingModuleIfEmpty } from "../../lib/core/pricing-module-seed";
 import { seedCurrencies } from "./currencies";
 import { seedPermissions } from "./rbac/permissions";
@@ -9,16 +10,19 @@ import { seedActivityTypes } from "./activity-types";
 import { seedNotificationTypes } from "./notification-types";
 import { seedAuditCategories } from "./audit-categories";
 import { seedSystemProductTemplates } from "./system-product-templates";
+import { seedPlatformSuperAdmins } from "./platform-super-admins";
 
 export async function seedCore(ctx: SeedContext): Promise<void> {
   if (!ctx.dryRun) {
     await seedPricingModuleIfEmpty(ctx.prisma);
+    await seedPricingBundleDefaultsIfEmpty(ctx.prisma);
   }
   await seedCurrencies(ctx);
   await seedPermissions(ctx);
   await seedRoles(ctx);
   await seedRolePermissions(ctx);
   await seedSystemUsers(ctx);
+  await seedPlatformSuperAdmins(ctx);
   await seedActivityTypes(ctx);
   await seedNotificationTypes(ctx);
   await seedAuditCategories(ctx);

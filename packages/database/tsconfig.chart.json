@@ -13,6 +13,8 @@
   "include": [
     "prisma/lib/chart/chart-seed.ts",
     "prisma/lib/core/pricing-module-seed.ts",
+    "prisma/lib/core/pricing-bundle-seed.ts",
+    "prisma/lib/core/ensure-currencies-seed.ts",
     "prisma/lib/org/legal-form-kind.mapper.ts"
   ]
 }

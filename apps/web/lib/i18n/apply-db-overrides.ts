@@ -256,6 +256,7 @@ export async function applyTranslationOverrides(
     throw e;
   }
   if (!res.ok) return;
+  if (signal?.aborted) return;
   let data: { overrides?: Record<string, string> } | null;
   try {
     data = (await safeJson(res)) as { overrides?: Record<string, string> } | null;
@@ -266,9 +267,11 @@ export async function applyTranslationOverrides(
     throw e;
   }
   if (!data) return;
+  if (signal?.aborted) return;
   const flat = processTranslationOverridesFlat(data.overrides ?? {});
   if (Object.keys(flat).length === 0) return;
   const nested = flatOverridesToNested(flat);
+  if (signal?.aborted) return;
   /**
    * `loc` зафиксирован в начале функции от `i18n.language`, поэтому после await ответ кладётся
    * в тот же язык, для которого был запрос (а не в «текущий resolved» после гонки).

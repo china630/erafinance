@@ -20,10 +20,12 @@ import { PaymentProviderService } from "./payment-provider.service";
 import { PashaBankPaymentProvider } from "./providers/pasha-bank-payment.provider";
 
 import { DrakarisModule } from "../integrations/payment-providers/drakaris/drakaris.module";
+import { ReferralsModule } from "../referrals/referrals.module";
 
 @Module({
   imports: [
     PrismaModule,
+    ReferralsModule,
     SystemConfigModule,
     AccessControlModule,
     AdminModule,

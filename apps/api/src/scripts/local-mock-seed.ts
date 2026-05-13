@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import * as bcrypt from "bcrypt";
+import { config as loadDotenv } from "dotenv";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
@@ -17,12 +18,14 @@ import {
   Prisma,
   UserRole,
   provisionNasAccountsForOrganization,
+  ensurePlatformCurrenciesSeeded,
 } from "@erafinance/database";
 import { AccountingService } from "../accounting/accounting.service";
 import { IfrsAutoMappingService } from "../accounting/ifrs-auto-mapping.service";
 import { apiEnvFilePaths } from "../load-env-paths";
 import { PrismaModule } from "../prisma/prisma.module";
 import { PrismaService } from "../prisma/prisma.service";
+import { DEFAULT_TRIAL_MODULE_SLUGS } from "../subscription/trial-package.util";
 import {
   blindIndex,
   decryptText,
@@ -32,8 +35,37 @@ import {
 } from "../security/pii-crypto.util";
 
 const Decimal = Prisma.Decimal;
+
+/** Deterministic PRNG so showcase cash (101) cannot go negative purely from `Math.random()` variance. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a += 0x6d2b79f5;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function voenSeedDigits(voen: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < voen.length; i += 1) {
+    h ^= voen.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Local **showcase** seed: **TiVi Media MMC** + **TiVi Sport MMC** (cash, bank flows, HR, invoices).
+ * Run from repo root: `npm run seed:local -w @erafinance/api` or `npm run db:seed:showcase` (after Prisma demo stub).
+ * Not the same as Prisma `db:seed:demo` stub MMC (`packages/database/prisma/seeds/demo/demo-organizations.ts`).
+ */
 const OWNER_EMAIL = "shirinov.chingiz@gmail.com";
 
+/** Minimal Nest context for this script. `useFactory` wires `AccountingService` explicitly: `tsx`
+ * does not emit the same decorator metadata as `nest build`, so constructor DI can leave `IfrsAutoMappingService` undefined. */
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -45,9 +77,124 @@ const OWNER_EMAIL = "shirinov.chingiz@gmail.com";
     }),
     PrismaModule,
   ],
-  providers: [IfrsAutoMappingService, AccountingService],
+  providers: [
+    IfrsAutoMappingService,
+    {
+      provide: AccountingService,
+      useFactory: (prisma: PrismaService, ifrs: IfrsAutoMappingService) =>
+        new AccountingService(prisma, ifrs),
+      inject: [PrismaService, IfrsAutoMappingService],
+    },
+  ],
 })
 class LocalMockSeedModule {}
+
+/**
+ * PrismaService reads `process.env.DATABASE_URL` in its constructor. Nest `ConfigModule` may apply
+ * `.env` files after that unless env is loaded first — load the same paths as the API (root, then
+ * `apps/api/.env` overriding) before bootstrapping Nest.
+ */
+function loadMonorepoEnvBeforeNest(): void {
+  const paths = apiEnvFilePaths();
+  if (paths.length === 0) {
+    loadDotenv({ path: ".env", override: true });
+    return;
+  }
+  for (const p of paths) {
+    loadDotenv({ path: p, override: true });
+  }
+}
+
+/** Ensures one `PricingBundle` with `isTrialDefault` for local `register` / showcase orgs. */
+async function ensureDefaultTrialPricingBundle(prisma: PrismaService): Promise<void> {
+  const SEED_NAME = "Local showcase default trial";
+  await prisma.pricingBundle.updateMany({ data: { isTrialDefault: false } });
+  const moduleKeys = [...DEFAULT_TRIAL_MODULE_SLUGS] as unknown as Prisma.InputJsonValue;
+  const existing = await prisma.pricingBundle.findFirst({
+    where: { name: SEED_NAME },
+  });
+  if (!existing) {
+    await prisma.pricingBundle.create({
+      data: {
+        name: SEED_NAME,
+        discountPercent: new Prisma.Decimal(0),
+        moduleKeys,
+        isTrialDefault: true,
+        trialDurationDays: 90,
+      },
+    });
+    return;
+  }
+  await prisma.pricingBundle.update({
+    where: { id: existing.id },
+    data: {
+      isTrialDefault: true,
+      trialDurationDays: 90,
+      moduleKeys,
+    },
+  });
+}
+
+function maskDatabaseUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.password) u.password = "***";
+    return u.toString();
+  } catch {
+    return "(could not parse DATABASE_URL)";
+  }
+}
+
+async function assertPublicUsersTable(prisma: PrismaService): Promise<void> {
+  const rows = await prisma.$queryRaw<Array<{ db: string; users_exists: boolean }>>`
+    SELECT
+      current_database()::text AS db,
+      EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'users'
+      ) AS users_exists
+  `;
+  const row = rows[0];
+  if (row?.users_exists) return;
+
+  const url = process.env.DATABASE_URL;
+  let historyHint = "";
+  try {
+    const hist = await prisma.$queryRaw<
+      Array<{ migration_name: string | null; finished_at: Date | null; rolled_back_at: Date | null }>
+    >`
+      SELECT migration_name, finished_at, rolled_back_at
+      FROM public."_prisma_migrations"
+      WHERE migration_name = '20260520120000_squashed_schema'
+      LIMIT 1
+    `;
+    const h = hist[0];
+    if (!h) {
+      historyHint =
+        'No row for migration "20260520120000_squashed_schema" in public._prisma_migrations — run `npm run db:migrate` from the repo root.';
+    } else {
+      historyHint = [
+        `Prisma history: migration_name=${h.migration_name}, finished_at=${h.finished_at != null ? "set" : "null"}, rolled_back_at=${h.rolled_back_at != null ? "set" : "null"}.`,
+        "The row in _prisma_migrations does not match an actual schema (common after resolve --applied / --rolled-back or Docker init drift).",
+        "Repair (repo root): `npm run db:migrate:clear-squash-row` then `npm run db:migrate` (deletes only that history row, then applies migration.sql).",
+        "If `npm run db:migrate` fails with \"type UserLocale already exists\", leftover DDL does not match migration history (common after manual resolve/clear). Local dev: `npm run db:migrate:reset-public-dev` then `npm run db:migrate`. Or delete the Postgres host data directory and `docker compose up -d` again.",
+      ].join("\n");
+    }
+  } catch {
+    historyHint = "Could not read public._prisma_migrations (unexpected for a normal ERP database).";
+  }
+
+  throw new Error(
+    [
+      "public.users is missing — the connected database has no application tables yet.",
+      `current_database() = "${row?.db ?? "unknown"}"`,
+      url ? `DATABASE_URL = ${maskDatabaseUrl(url)}` : "DATABASE_URL is unset",
+      "",
+      historyHint,
+    ].join("\n"),
+  );
+}
 
 type OrgSeedConfig = {
   name: string;
@@ -82,7 +229,7 @@ async function createOrGetOwner(prisma: PrismaService) {
   });
   if (existing) return existing;
 
-  const passwordHash = await bcrypt.hash("DaydayLocal#2026", 10);
+  const passwordHash = await bcrypt.hash("12345678", 10);
   return prisma.user.create({
     data: {
       email: OWNER_EMAIL,
@@ -301,13 +448,14 @@ async function recreateOrganization(
       }
       return nextKxo(date);
     };
-    const randomInt = (min: number, max: number) =>
-      Math.floor(Math.random() * (max - min + 1)) + min;
-    const randomAmount = (min: number, max: number, step = 50) =>
-      randomInt(min / step, max / step) * step;
     const monthStartDates: Date[] = [];
     const now = new Date();
     const targetYear = now.getUTCFullYear();
+    const rng = mulberry32(voenSeedDigits(config.taxId) ^ Math.imul(targetYear, 0x9e3779b1));
+    const randomInt = (min: number, max: number) =>
+      Math.floor(rng() * (max - min + 1)) + min;
+    const randomAmount = (min: number, max: number, step = 50) =>
+      randomInt(min / step, max / step) * step;
     for (let month = 0; month < 5; month += 1) {
       monthStartDates.push(new Date(Date.UTC(targetYear, month, 1)));
     }
@@ -514,7 +662,7 @@ async function recreateOrganization(
               : "Facebook Ad Placement",
             amount,
             issueDate: randomDateInMonth(monthStart, 2, 25),
-            paid: Math.random() < 0.7,
+            paid: rng() < 0.7,
           });
         }
 
@@ -598,8 +746,8 @@ async function recreateOrganization(
         description: "Charter capital contribution (bank + cash)",
         isFinal: true,
         lines: [
-          { accountCode: "221", debit: "25000", credit: 0 },
-          { accountCode: "101", debit: "25000", credit: 0 },
+          { accountCode: "221", debit: "23000", credit: 0 },
+          { accountCode: "101", debit: "27000", credit: 0 },
           { accountCode: "301", debit: 0, credit: "50000" },
         ],
       });
@@ -652,7 +800,7 @@ async function recreateOrganization(
             productName,
             amount,
             issueDate: randomDateInMonth(monthStart, 2, 24),
-            paid: Math.random() < 0.75,
+            paid: rng() < 0.75,
           });
         }
 
@@ -729,12 +877,17 @@ async function recreateOrganization(
 }
 
 async function bootstrap() {
+  loadMonorepoEnvBeforeNest();
   const app = await NestFactory.createApplicationContext(LocalMockSeedModule, {
     logger: ["error", "warn", "log"],
   });
   try {
     const prisma = app.get(PrismaService);
     const accounting = app.get(AccountingService);
+
+    await assertPublicUsersTable(prisma);
+    await ensurePlatformCurrenciesSeeded(prisma);
+    await ensureDefaultTrialPricingBundle(prisma);
 
     const owner = await createOrGetOwner(prisma);
     const sixMonthsAgo = new Date();

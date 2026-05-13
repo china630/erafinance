@@ -211,7 +211,7 @@ def build_pdf_html_document(
 def _write_temp_html(md_dir: Path, html_doc: str) -> Path:
     fd, path = tempfile.mkstemp(
         suffix=".html",
-        prefix=".dayday-pdf-",
+        prefix=".erafinance-pdf-",
         dir=str(md_dir.resolve()),
     )
     try:

@@ -45,6 +45,11 @@ export type SubscriptionSnapshot = {
       maxGb: number | null;
       atLimit: boolean;
     };
+    /** Prepaid outbound WhatsApp (Business API) — remaining sends (PRD §6.8). */
+    whatsappOutbound: {
+      balance: number;
+      atLimit: boolean;
+    };
   };
   expiresAt: string | null;
   isTrial: boolean;
@@ -56,6 +61,27 @@ export type SubscriptionSnapshot = {
 };
 
 const CACHE_KEY = "erafinance_subscription_cache_v1";
+
+function coerceSubscriptionSnapshot(
+  s: SubscriptionSnapshot | null,
+): SubscriptionSnapshot | null {
+  if (!s) return null;
+  const w = s.quotas.whatsappOutbound;
+  if (
+    w &&
+    typeof w.balance === "number" &&
+    typeof w.atLimit === "boolean"
+  ) {
+    return s;
+  }
+  return {
+    ...s,
+    quotas: {
+      ...s.quotas,
+      whatsappOutbound: { balance: 0, atLimit: true },
+    },
+  };
+}
 
 /** Dev / support: full module access on the client when API returns 403 for subscription. */
 const FRONTEND_SUBSCRIPTION_BYPASS_EMAILS = new Set([
@@ -91,6 +117,7 @@ function enterpriseBypassSnapshot(): SubscriptionSnapshot {
       employees: { current: 0, max: null, atLimit: false },
       invoicesThisMonth: { current: 0, max: null, atLimit: false },
       storage: { currentBytes: "0", maxGb: null, atLimit: false },
+      whatsappOutbound: { balance: 1_000_000, atLimit: false },
     },
     expiresAt: null,
     isTrial: false,
@@ -275,7 +302,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }, [authReady, token, organizationId, refetch]);
 
   const effectiveSnapshot = useMemo(() => {
-    const base = snapshot ?? snapshotStale;
+    const base = coerceSubscriptionSnapshot(snapshot ?? snapshotStale);
     const email = user?.email?.trim().toLowerCase();
     if (email && FRONTEND_SUBSCRIPTION_BYPASS_EMAILS.has(email)) {
       return enterpriseBypassSnapshot();

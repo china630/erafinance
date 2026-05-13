@@ -16,6 +16,11 @@ import {
 } from "../../lib/design-system";
 import { Button } from "../ui/button";
 
+type DepreciationMethod =
+  | "STRAIGHT_LINE"
+  | "REDUCING_BALANCE"
+  | "UNITS_OF_PRODUCTION";
+
 function decToInput(v: unknown): string {
   if (v == null) return "";
   if (typeof v === "object" && v !== null && "toString" in v) {
@@ -44,6 +49,11 @@ export function FixedAssetModal({
   const [purchasePrice, setPurchasePrice] = useState("");
   const [life, setLife] = useState("60");
   const [salvage, setSalvage] = useState("0");
+  const [depreciationMethod, setDepreciationMethod] =
+    useState<DepreciationMethod>("STRAIGHT_LINE");
+  const [totalExpectedUnits, setTotalExpectedUnits] = useState("");
+  const [decliningBalanceRate, setDecliningBalanceRate] = useState("");
+  const [usageUnits, setUsageUnits] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -57,6 +67,10 @@ export function FixedAssetModal({
       setPurchasePrice("");
       setLife("60");
       setSalvage("0");
+      setDepreciationMethod("STRAIGHT_LINE");
+      setTotalExpectedUnits("");
+      setDecliningBalanceRate("");
+      setUsageUnits("");
       setLoading(false);
       return;
     }
@@ -76,6 +90,9 @@ export function FixedAssetModal({
         purchasePrice: unknown;
         usefulLifeMonths: number;
         salvageValue: unknown;
+        depreciationMethod?: DepreciationMethod;
+        totalExpectedUnits?: unknown;
+        decliningBalanceRate?: unknown;
       };
       if (cancelled) return;
       setName(row.name);
@@ -84,12 +101,33 @@ export function FixedAssetModal({
       setPurchasePrice(decToInput(row.purchasePrice));
       setLife(String(row.usefulLifeMonths));
       setSalvage(decToInput(row.salvageValue));
+      setDepreciationMethod(row.depreciationMethod ?? "STRAIGHT_LINE");
+      setTotalExpectedUnits(decToInput(row.totalExpectedUnits));
+      setDecliningBalanceRate(decToInput(row.decliningBalanceRate));
+      setUsageUnits("");
       setLoading(false);
     });
     return () => {
       cancelled = true;
     };
   }, [open, mode, assetId, t]);
+
+  function buildDepreciationPayload() {
+    const base: Record<string, unknown> = {
+      depreciationMethod,
+    };
+    if (depreciationMethod === "UNITS_OF_PRODUCTION") {
+      const te = Number(totalExpectedUnits);
+      if (!Number.isFinite(te) || te <= 0) return null;
+      base.totalExpectedUnits = te;
+    }
+    if (depreciationMethod === "REDUCING_BALANCE") {
+      const r = Number(decliningBalanceRate);
+      if (!Number.isFinite(r) || r <= 0 || r > 1) return null;
+      base.decliningBalanceRate = r;
+    }
+    return base;
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -108,6 +146,11 @@ export function FixedAssetModal({
       toast.error(t("common.fillRequired"));
       return;
     }
+    const depPayload = buildDepreciationPayload();
+    if (!depPayload) {
+      toast.error(t("common.fillRequired"));
+      return;
+    }
     setBusy(true);
     try {
       if (mode === "create") {
@@ -121,6 +164,7 @@ export function FixedAssetModal({
             purchasePrice: pp,
             usefulLifeMonths: lifeN,
             salvageValue: Number(salvage || 0),
+            ...depPayload,
           }),
         });
         if (!res.ok) {
@@ -143,6 +187,7 @@ export function FixedAssetModal({
           purchasePrice: pp,
           usefulLifeMonths: lifeN,
           salvageValue: Number(salvage || 0),
+          ...depPayload,
         }),
       });
       if (!res.ok) {
@@ -152,6 +197,35 @@ export function FixedAssetModal({
       toast.success(t("common.save"));
       onSaved();
       onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitUsage() {
+    if (!assetId || busy) return;
+    const u = Number(usageUnits);
+    if (!Number.isFinite(u) || u <= 0) {
+      toast.error(t("common.fillRequired"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiFetch(
+        `/api/fixed-assets/${encodeURIComponent(assetId)}/record-usage`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ periodUnits: u }),
+        },
+      );
+      if (!res.ok) {
+        toast.error(t("common.saveErr"), { description: await res.text() });
+        return;
+      }
+      toast.success(t("common.save"));
+      setUsageUnits("");
+      onSaved();
     } finally {
       setBusy(false);
     }
@@ -231,6 +305,80 @@ export function FixedAssetModal({
                   className={`mt-1 block w-full ${MODAL_INPUT_NUMERIC_CLASS}`}
                 />
               </label>
+              <label className={MODAL_FIELD_LABEL_CLASS}>
+                {t("fixedAssets.depreciationMethod")}
+                <select
+                  value={depreciationMethod}
+                  onChange={(e) =>
+                    setDepreciationMethod(e.target.value as DepreciationMethod)
+                  }
+                  className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
+                >
+                  <option value="STRAIGHT_LINE">
+                    {t("fixedAssets.method.STRAIGHT_LINE")}
+                  </option>
+                  <option value="REDUCING_BALANCE">
+                    {t("fixedAssets.method.REDUCING_BALANCE")}
+                  </option>
+                  <option value="UNITS_OF_PRODUCTION">
+                    {t("fixedAssets.method.UNITS_OF_PRODUCTION")}
+                  </option>
+                </select>
+              </label>
+              {depreciationMethod === "REDUCING_BALANCE" ? (
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("fixedAssets.decliningBalanceRate")}
+                  <input
+                    type="number"
+                    step="0.0001"
+                    min={0.0001}
+                    max={1}
+                    value={decliningBalanceRate}
+                    onChange={(e) => setDecliningBalanceRate(e.target.value)}
+                    className={`mt-1 block w-full ${MODAL_INPUT_NUMERIC_CLASS}`}
+                  />
+                </label>
+              ) : null}
+              {depreciationMethod === "UNITS_OF_PRODUCTION" ? (
+                <label className={MODAL_FIELD_LABEL_CLASS}>
+                  {t("fixedAssets.totalExpectedUnits")}
+                  <input
+                    type="number"
+                    step="0.0001"
+                    min={0.0001}
+                    value={totalExpectedUnits}
+                    onChange={(e) => setTotalExpectedUnits(e.target.value)}
+                    className={`mt-1 block w-full ${MODAL_INPUT_NUMERIC_CLASS}`}
+                  />
+                </label>
+              ) : null}
+              {mode === "edit" && depreciationMethod === "UNITS_OF_PRODUCTION" && assetId ? (
+                <div className="rounded-lg border border-[#D5DADF] bg-[#F8F9FA] p-3 space-y-2">
+                  <div className="text-sm font-semibold text-[#34495E]">
+                    {t("fixedAssets.recordUsageTitle")}
+                  </div>
+                  <label className={MODAL_FIELD_LABEL_CLASS}>
+                    {t("fixedAssets.periodUnits")}
+                    <input
+                      type="number"
+                      step="0.0001"
+                      min={0.0001}
+                      value={usageUnits}
+                      onChange={(e) => setUsageUnits(e.target.value)}
+                      className={`mt-1 block w-full ${MODAL_INPUT_NUMERIC_CLASS}`}
+                    />
+                  </label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={MODAL_FOOTER_BUTTON_CLASS}
+                    disabled={busy}
+                    onClick={() => void submitUsage()}
+                  >
+                    {t("fixedAssets.recordUsageSubmit")}
+                  </Button>
+                </div>
+              ) : null}
             </form>
           )}
         </div>
@@ -244,7 +392,7 @@ export function FixedAssetModal({
               onClick={onClose}
               disabled={busy}
             >
-              {t("common.cancel")}
+              {t("common.close")}
             </Button>
             <Button
               type="submit"

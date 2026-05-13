@@ -5,6 +5,8 @@ import { Prisma, PrismaClient } from "@prisma/client";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+const CATALOG_PATH = join(__dirname, "..", "prisma", "catalog", "trade", "customs-tariff-rates.json");
+
 type SeedRow = {
   hsCode: string;
   description: string;
@@ -15,8 +17,7 @@ type SeedRow = {
 
 async function main() {
   const prisma = new PrismaClient();
-  const path = join(__dirname, "..", "data", "customs-tariff-seed.json");
-  const rows = JSON.parse(readFileSync(path, "utf-8")) as SeedRow[];
+  const rows = JSON.parse(readFileSync(CATALOG_PATH, "utf-8")) as SeedRow[];
   const effectiveFrom = new Date("2000-01-01T00:00:00.000Z");
   try {
     for (const r of rows) {
@@ -43,7 +44,7 @@ async function main() {
         },
       });
     }
-    console.log(`customs_tariff_rates seeded/updated: ${rows.length} rows`);
+    console.log(`customs_tariff_rates from ${CATALOG_PATH}: ${rows.length} rows`);
   } finally {
     await prisma.$disconnect();
   }

@@ -40,4 +40,15 @@ export class CreateOrgDto {
   @IsOptional()
   @IsUUID()
   holdingId?: string;
+
+  @ApiPropertyOptional({
+    description: "Referral partner code (from /register?ref=)",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  @Matches(/^[A-Za-z0-9_-]+$/, {
+    message: "referralCode must be alphanumeric",
+  })
+  referralCode?: string;
 }

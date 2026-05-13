@@ -454,6 +454,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!ready || !token || !user) return;
     if (user.organizationId) return;
     if (pathname === "/companies" || pathname.startsWith("/companies/")) return;
+    if (pathname.startsWith("/partner")) return;
     if (user.isSuperAdmin && pathname.startsWith("/super-admin")) return;
     router.replace("/companies");
   }, [ready, token, user, pathname, router]);
@@ -567,6 +568,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [partnerNavVisible, setPartnerNavVisible] = useState(false);
+
+  useEffect(() => {
+    if (!token) {
+      setPartnerNavVisible(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const res = await apiFetch("/api/partner/dashboard");
+      if (!cancelled) setPartnerNavVisible(res.ok);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (window.localStorage.getItem("erafinance_sidebar_collapsed") === "1") {
@@ -689,6 +706,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         canViewHoldingReports={canViewHoldingReports}
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebarCollapsed={() => setSidebarCollapsed((v) => !v)}
+        partnerNavVisible={partnerNavVisible}
       />
 
       <div

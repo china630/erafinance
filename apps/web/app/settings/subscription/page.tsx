@@ -568,6 +568,17 @@ export default function SubscriptionSettingsPage() {
           )}
           max={effectiveSnapshot.quotas.storage?.maxGb ?? null}
         />
+        <div className="space-y-1 pt-1 border-t border-[#EBEDF0]">
+          <div className="flex justify-between text-[13px] text-[#34495E]">
+            <span>{t("subscriptionSettings.quotaWhatsappOutbound")}</span>
+            <span className="font-medium tabular-nums text-[#34495E]">
+              {effectiveSnapshot.quotas.whatsappOutbound.balance}
+            </span>
+          </div>
+          <p className="text-[12px] text-[#7F8C8D] leading-snug m-0">
+            {t("subscriptionSettings.quotaWhatsappOutboundHint")}
+          </p>
+        </div>
       </section>
 
       {canAccessBilling(user?.role ?? undefined) && (

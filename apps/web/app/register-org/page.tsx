@@ -17,10 +17,30 @@ import {
   counterpartyLegalFormI18nKey,
 } from "../../lib/counterparty-legal-form";
 
+const REFERRAL_STORAGE_KEY = "era.referral";
+const REFERRAL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function readStoredReferralCode(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(REFERRAL_STORAGE_KEY);
+    if (!raw) return null;
+    const j = JSON.parse(raw) as { code?: string; exp?: number };
+    if (!j.code || typeof j.exp !== "number" || j.exp < Date.now()) {
+      window.localStorage.removeItem(REFERRAL_STORAGE_KEY);
+      return null;
+    }
+    return j.code;
+  } catch {
+    return null;
+  }
+}
+
 export default function RegisterOrgPage() {
   const { t } = useTranslation();
   const { login, token, ready, user } = useAuth();
   const router = useRouter();
+  const [referralCode, setReferralCode] = useState<string | null>(null);
   const [organizationName, setOrganizationName] = useState("");
   const [taxId, setTaxId] = useState("");
   const [adminFirstName, setAdminFirstName] = useState("");
@@ -40,6 +60,21 @@ export default function RegisterOrgPage() {
     router.replace("/");
   }, [ready, token, user, router]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const fromUrl = sp.get("ref")?.trim();
+    if (fromUrl) {
+      window.localStorage.setItem(
+        REFERRAL_STORAGE_KEY,
+        JSON.stringify({ code: fromUrl, exp: Date.now() + REFERRAL_TTL_MS }),
+      );
+      setReferralCode(fromUrl);
+      return;
+    }
+    setReferralCode(readStoredReferralCode());
+  }, []);
+
   if (ready && token) return null;
 
   async function onSubmit(e: FormEvent) {
@@ -58,6 +93,7 @@ export default function RegisterOrgPage() {
           adminEmail,
           adminPassword,
           legalForm,
+          ...(referralCode ? { referralCode } : {}),
         }),
       });
       if (!res.ok) {
@@ -91,6 +127,11 @@ export default function RegisterOrgPage() {
           <LanguageSwitcher />
         </div>
         <h1 className="text-2xl font-semibold text-gray-900 mb-6">{t("auth.registerOrgTitle")}</h1>
+        {referralCode ? (
+          <p className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+            {t("register.referral.applied", { code: referralCode })}
+          </p>
+        ) : null}
         <form onSubmit={(e) => void onSubmit(e)} className="grid gap-4">
           <label className="block text-sm font-medium text-gray-700">
             {t("auth.orgName")}

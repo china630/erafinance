@@ -104,6 +104,32 @@ export default function CompaniesPage() {
     return m;
   }, [organizations]);
 
+  const holdingSections = useMemo(
+    () =>
+      (tree?.holdings ?? []).map((h) => ({
+        id: h.holdingId,
+        name: h.holdingName,
+        organizations: h.organizations.map((o) => ({
+          ...o,
+          role: orgRoleById.get(o.id) ?? "",
+          holdingId: h.holdingId,
+          isCurrent: o.id === user?.organizationId,
+        })),
+      })),
+    [tree, orgRoleById, user?.organizationId],
+  );
+
+  const freeOrganizations = useMemo(
+    () =>
+      (tree?.freeOrganizations ?? []).map((o) => ({
+        ...o,
+        role: orgRoleById.get(o.id) ?? "",
+        holdingId: null,
+        isCurrent: o.id === user?.organizationId,
+      })),
+    [tree, orgRoleById, user?.organizationId],
+  );
+
   const roleVariant = useCallback(
     (role: string): "neutral" | "owner" | "admin" | "accountant" | "user" => {
       if (role === "OWNER") return "owner";
@@ -187,32 +213,6 @@ export default function CompaniesPage() {
       // toast is global; keep page minimal
     }
   }
-
-  const holdingSections = useMemo(
-    () =>
-      (tree?.holdings ?? []).map((h) => ({
-        id: h.holdingId,
-        name: h.holdingName,
-        organizations: h.organizations.map((o) => ({
-          ...o,
-          role: orgRoleById.get(o.id) ?? "",
-          holdingId: h.holdingId,
-          isCurrent: o.id === user?.organizationId,
-        })),
-      })),
-    [tree, orgRoleById, user?.organizationId],
-  );
-
-  const freeOrganizations = useMemo(
-    () =>
-      (tree?.freeOrganizations ?? []).map((o) => ({
-        ...o,
-        role: orgRoleById.get(o.id) ?? "",
-        holdingId: null,
-        isCurrent: o.id === user?.organizationId,
-      })),
-    [tree, orgRoleById, user?.organizationId],
-  );
 
   async function openCompanySettings(org: CompanyCardItem) {
     if (org.id !== user?.organizationId) {

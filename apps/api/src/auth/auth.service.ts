@@ -25,13 +25,13 @@ import * as bcrypt from "bcrypt";
 import type { Response } from "express";
 import { OrgStructureService } from "../hr/org-structure.service";
 import { OrganizationsService } from "../organizations/organizations.service";
-import { QuotaService } from "../quota/quota.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { DEFAULT_NEW_ORGANIZATION_ACTIVE_MODULES } from "../subscription/subscription.constants";
-import { computeNewOrganizationDemoPeriodEndsAt } from "../subscription/subscription-demo-period.util";
+import { resolveNewOrganizationTrialSubscription } from "../subscription/trial-package.util";
 import { MailService } from "../mail/mail.service";
 import { PiiCryptoService } from "../security/pii-crypto.service";
 import { GlobalCompanyDirectoryService } from "../global-directory/global-company-directory.service";
+import { ReferralsService } from "../referrals/referrals.service";
 import {
   decodeOrganizationTaxId,
   decryptText,
@@ -84,10 +84,10 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly organizations: OrganizationsService,
     private readonly orgStructure: OrgStructureService,
-    private readonly quota: QuotaService,
     private readonly mail: MailService,
     private readonly piiCrypto: PiiCryptoService,
     private readonly directory: GlobalCompanyDirectoryService,
+    private readonly referrals: ReferralsService,
   ) {}
 
   private inviteTokenSecret(): string {
@@ -308,15 +308,20 @@ export class AuthService {
             },
           },
         });
-        const demoExpiresAt = computeNewOrganizationDemoPeriodEndsAt(new Date());
+        const trial = await resolveNewOrganizationTrialSubscription(tx, o.createdAt);
+        await tx.organization.update({
+          where: { id: o.id },
+          data: { activeModules: trial.activeModules },
+        });
 
         await tx.organizationSubscription.create({
           data: {
             organizationId: o.id,
             tier: SubscriptionTier.BUSINESS,
-            activeModules: [...DEFAULT_NEW_ORGANIZATION_ACTIVE_MODULES],
+            activeModules: trial.activeModules,
             isTrial: true,
-            expiresAt: demoExpiresAt,
+            expiresAt: trial.expiresAt,
+            customConfig: trial.customConfig,
           },
         });
         const u = await tx.user.create({
@@ -336,6 +341,11 @@ export class AuthService {
           },
         });
         await this.organizations.provisionChartOfAccountsFromTemplate(tx, o.id, kind);
+        await this.referrals.attachReferralOnSignupTx(tx, {
+          organizationId: o.id,
+          organizationCreatedAt: o.createdAt,
+          referralCode: dto.referralCode,
+        });
         return { org: o, userId: u.id };
       });
       org = created.org;
@@ -405,8 +415,6 @@ export class AuthService {
       throw new ConflictException("VÖEN already registered");
     }
 
-    await this.quota.assertOrganizationsPerUserMembershipLimit(userId);
-
     if (dto.holdingId) {
       const holding = await this.prisma.holding.findFirst({
         where: { id: dto.holdingId, ownerId: userId },
@@ -437,15 +445,20 @@ export class AuthService {
             ...(dto.holdingId && { holdingId: dto.holdingId }),
           },
         });
-        const demoExpiresAt = computeNewOrganizationDemoPeriodEndsAt(new Date());
+        const trial = await resolveNewOrganizationTrialSubscription(tx, o.createdAt);
+        await tx.organization.update({
+          where: { id: o.id },
+          data: { activeModules: trial.activeModules },
+        });
 
         await tx.organizationSubscription.create({
           data: {
             organizationId: o.id,
             tier: SubscriptionTier.BUSINESS,
-            activeModules: [...DEFAULT_NEW_ORGANIZATION_ACTIVE_MODULES],
+            activeModules: trial.activeModules,
             isTrial: true,
-            expiresAt: demoExpiresAt,
+            expiresAt: trial.expiresAt,
+            customConfig: trial.customConfig,
           },
         });
         await tx.organizationMembership.create({
@@ -456,6 +469,11 @@ export class AuthService {
           },
         });
         await this.organizations.provisionChartOfAccountsFromTemplate(tx, o.id, kind);
+        await this.referrals.attachReferralOnSignupTx(tx, {
+          organizationId: o.id,
+          organizationCreatedAt: o.createdAt,
+          referralCode: dto.referralCode,
+        });
         return { org: o };
       });
       org = created.org;

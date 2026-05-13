@@ -55,10 +55,20 @@ export function normalizeChartAccountSeedRow(raw: Record<string, unknown>): Char
 
 /**
  * Path to `prisma/catalog/national/chart-of-accounts-{commercial|budget|ngo}.json`.
+ * Works when this module is loaded from compiled `dist/lib/chart/` or from source `prisma/lib/chart/`.
  */
 export function chartOfAccountsJsonPath(kind: OrganizationKind): string {
   const slug = kind.toLowerCase();
-  return join(__dirname, "..", "..", "catalog", "national", `chart-of-accounts-${slug}.json`);
+  return join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "prisma",
+    "catalog",
+    "national",
+    `chart-of-accounts-${slug}.json`,
+  );
 }
 
 /**

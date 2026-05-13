@@ -11,6 +11,7 @@ import { BillingPlatformService } from "./billing-platform.service";
 import { BillingNotificationService } from "./billing-notification.service";
 import { OrganizationModuleService } from "./organization-module.service";
 import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
+import { ReferralsService } from "../referrals/referrals.service";
 
 const Decimal = Prisma.Decimal;
 
@@ -49,6 +50,7 @@ export class BillingMonthlyService {
     private readonly billingPlatform: BillingPlatformService,
     private readonly billingNotifications: BillingNotificationService,
     private readonly orgModules: OrganizationModuleService,
+    private readonly referrals: ReferralsService,
   ) {}
 
   /**
@@ -84,7 +86,7 @@ export class BillingMonthlyService {
               isTrial: true,
               expiresAt: { lt: now },
             },
-            data: { isTrial: false },
+            data: { isTrial: false, customConfig: Prisma.DbNull },
           });
           if (updated.count > 0) {
             transitionedFromDemoOrgIds.add(sub.organizationId);
@@ -166,7 +168,7 @@ export class BillingMonthlyService {
             new Decimal(0),
           );
 
-          await this.prisma.subscriptionInvoice.create({
+          const subscriptionInvoice = await this.prisma.subscriptionInvoice.create({
             data: {
               userId: ownerUserId,
               amount: totalDec,
@@ -184,6 +186,16 @@ export class BillingMonthlyService {
               },
             },
           });
+          try {
+            await this.referrals.accrueCommissionsForSubscriptionInvoice(
+              subscriptionInvoice.id,
+              billingPeriod,
+            );
+          } catch (e) {
+            this.logger.error(
+              `Referral commission accrual failed for invoice ${subscriptionInvoice.id}: ${e}`,
+            );
+          }
           await this.prisma.organization.updateMany({
             where: {
               id: { in: billedOrgIds },

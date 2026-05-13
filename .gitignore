@@ -5,6 +5,7 @@ dist
 **/node_modules
 .env
 .env.local
+docker/stack.local.env
 *.log
 *.tsbuildinfo
 coverage
@@ -23,3 +24,7 @@ docs/tmp/parsed-az-customs-tariff.json
 tools/__pycache__/
 tools/_*.pdf
 tools/_*.html
+
+# Local Docker / WXT dev artifacts (do not commit)
+redis-data/
+apps/extension/.output/

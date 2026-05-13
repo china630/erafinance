@@ -189,6 +189,12 @@
 - Retry-политика должна использовать **Exponential Backoff** для transient-сбоев (`429/5xx` и сетевые ошибки) с ограничением числа попыток.
 - Integration Health API `GET /api/integrations/health` (Owner-only) обязан отдавать по провайдеру: `lastSync`, `latencyMs`, `currentStatus`, `providerSuccessRate`, `cacheHitRate`; UI-маршрут `/admin/integrations/health` остаётся скрытым из стандартной навигации.
 
+#### 1.6.1. AI Portal Monitoring (PLANNED, v-next)
+
+**Статус:** только roadmap.
+
+**Идея:** после аутентификации через **ASAN İmza** на порталах **e-taxes**, **ƏMAS**, **DGX** выполнять **периодический снимок DOM/layout** и сравнение (например через **Gemini**) для раннего обнаружения изменений вёрстки, влияющих на RPA/браузерное расширение. Реализация вне текущего обязательного скоупа API; см. [PRD.md](./PRD.md) §7.6.3.
+
 ---
 
 ## 2. Модуль 1: Identity & Access Management (IAM) & Multi-tenancy
@@ -200,6 +206,7 @@
 ### Модель тенанта
 
 - **1 tenant = 1 юрлицо (один VÖEN).** Пользователь с несколькими компаниями состоит в нескольких организациях (связь **many-to-many** через membership).
+- **Premium / RPA entrypoints** (`tax_pro`, `trade_pro` и др. по матрице продукта): перед запуском сценариев, завязанных на VÖEN и внешние порталы, API **обязан** убедиться, что у организации заполнен **`taxIdBlindIndex`** (уникальный guard на БД) и нет рассинхрона; при нарушении — **403** + аудит (`VoenIntegrityGuard` / аналог).
 - В сущности **Organization** сразу завести поле **`subscriptionPlan`**; лимиты тарифов в MVP **не хардкодить** (детализация подписок — §14).
 
 ### 2.1. Рефакторинг на Many-to-Many (схема и auth)
@@ -1369,12 +1376,15 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 - **Prisma model (`FixedAsset`):**
   - `organizationId`, `name`, `inventoryNumber`, `purchaseDate` (`commissioning_date`), `purchasePrice` (`initial_cost`),
   - `salvageValue`, `usefulLifeMonths`,
-  - `depreciationMethod` (`STRAIGHT_LINE`), `status` (`ACTIVE` | `DISPOSED`),
+  - `depreciationMethod` (**`STRAIGHT_LINE` \| `REDUCING_BALANCE` \| `UNITS_OF_PRODUCTION`**), `status` (`ACTIVE` | `DISPOSED`),
+  - опционально `decliningBalanceRate` (годовая доля для **REDUCING_BALANCE**), `totalExpectedUnits` / `unitsProducedTotal` (для **UNITS_OF_PRODUCTION**),
   - кумулятивное поле `bookedDepreciation`.
 - **Depreciation engine (`runMonthlyDepreciation`)**
   - вход: `organizationId`, `year`, `month`;
-  - выборка только `ACTIVE` и `depreciationMethod=STRAIGHT_LINE`;
-  - формула: `(purchasePrice - salvageValue) / usefulLifeMonths` с ограничением по остатку;
+  - выборка `ACTIVE` по выбранному `depreciationMethod`;
+  - **STRAIGHT_LINE:** `(purchasePrice - salvageValue) / usefulLifeMonths` с ограничением по остатку;
+  - **REDUCING_BALANCE:** от **остаточной балансовой** стоимости × (`decliningBalanceRate`/12), floor до `salvageValue`;
+  - **UNITS_OF_PRODUCTION:** начисление за месяц пропорционально **выработке за период** / `totalExpectedUnits` (выработка вводится отдельной мутацией до/в рамках закрытия месяца);
   - проводка периода: **Дт 713 — Кт 112**;
   - пообъектная фиксация в `FixedAssetDepreciationMonth` + инкремент `bookedDepreciation`.
 - **Идемпотентность:** уникальный ключ (`fixedAssetId`, `year`, `month`) + проверка существующих начислений перед вставкой.
@@ -1777,13 +1787,15 @@ enum SubscriptionTier {
 }
 ```
 
+**Смысл в продукте (v10.0+, согласовано с PRD §7.1):** три значения — это **единственные именованные тарифы по квотам** («quota tier»). Они задают **включённые потолки** лимитов до докупки единицами (`billing.quota_unit_pricing_v1`). Отдельного параллельного списка «тарифов для квот» нет. Дополнительно: при **`tier === ENTERPRISE`** действует правило **полного модульного доступа** без перечисления slug (см. ниже).
+
 **Модель `OrganizationSubscription` (1:1 с `Organization`)**
 
 | Поле | Тип | Описание |
 |------|-----|----------|
 | `id` | UUID / cuid | PK |
 | `organizationId` | String | `@unique` |
-| `tier` | `SubscriptionTier` | Текущий тариф / пресет (совместимость, демо) |
+| `tier` | `SubscriptionTier` | **Тариф квот:** STARTER / BUSINESS / ENTERPRISE — сидовые потолки квот (см. §14.5); не цена «коробки» продукта |
 | `expiresAt` | DateTime? | Конец оплаченного периода |
 | `activeModules` | Массив slug | Устаревший/параллельный реестр подключённых модулей (например `production`, `ifrs`) |
 | `customConfig` | JSON? | **v8.1 — конструктор тарифа** (см. ниже) |
@@ -1814,32 +1826,32 @@ enum SubscriptionTier {
 |------|------------|
 | `modules` | Массив **slug** купленных модулей. Если массив **непустой**, **гейтинг v2.0** в первую очередь проверяет принадлежность slug этому списку (с алиасами: `production` → manufacturing, `ifrs` ↔ `ifrs_mapping`, `kassa` → доступ к кассе как к части banking). |
 | `preset` | Имя шаблона (для поддержки и Super-Admin), не обязателен для API. |
-| `quotas` | Переопределения лимитов конструктора (слайдеры); при отсутствии — используются квоты по `tier` / `SystemConfig`. |
+| `quotas` | Переопределения итоговых лимитов поверх **`tier`** (и trial-override); при отсутствии полей — эффективные лимиты из **`tier`** + политика Foundation |
 
 **Правило `tier: ENTERPRISE`:** доступ ко **всем** модулям **без** перечисления `modules` (полный доступ по умолчанию).
 
-**Миграция:** обратимая; для существующих организаций — `customConfig` может быть `null` (работает legacy-логика по `tier` + `activeModules`).
+**Миграция:** обратимая; для существующих организаций — `customConfig` может быть `null` (эффективные лимиты и модули определяются по **`tier`**, `activeModules` и правилам доступа ниже).
 
 ### 14.2. API: `@RequiresModule` и Guard
 
-- Декоратор `@RequiresModule(moduleSlug)` + **SubscriptionGuard**: после auth загрузка подписки; проверка модуля: **1)** при `tier === ENTERPRISE` — разрешено; **2)** при непустом `customConfig.modules` — slug в списке (с алиасами); **3)** иначе legacy: `activeModules` + tier (как ранее).
+- Декоратор `@RequiresModule(moduleSlug)` + **SubscriptionGuard**: после auth загрузка подписки; проверка модуля: **1)** при `tier === ENTERPRISE` — разрешено; **2)** при непустом `customConfig.modules` — slug в списке (с алиасами); **3)** иначе — `activeModules` + `tier` (fallback для старых данных).
 - Ответ при отсутствии модуля: HTTP **403** с телом, например `code: "MODULE_NOT_ENTITLED"`, поле `module`. (Смысл «нужна оплата» — через этот код в UI; стандарт **402** в отрасли редок; зафиксирован **403 + machine-readable code**.)
 
-**Эндпоинт `GET /api/subscription/me`:** возвращает `customConfig`, `modules` (объект флагов для UI), `activeModules`, `tier`, квоты.
+**Эндпоинт `GET /api/subscription/me`:** возвращает `customConfig`, `modules` (объект флагов для UI), `activeModules`, `tier`, `isTrial`, `expiresAt`, `billingStatus`, агрегированный объект **`quotas`**: снимки **сотрудников / инвойсов за UTC-месяц / хранилища**, и **`whatsappOutbound`** (`balance` — `Organization.whatsappOutboundMessagesBalance`, `atLimit`).
 
 - **Add-on `audit_hub`:** платный модуль **Audit Hub**; ключ **`pricing_modules.key = audit_hub`**, включается через **`POST /api/billing/toggle-module`** и **`OrganizationSubscription.activeModules`** (патч `audit_hub` в **`SubscriptionAccessService.updateModuleAddons`**); фронтенд: флаг **`modules.auditHub`**; Web **`/audit-hub`**.
 
 ### 14.3. Демо (релиз продукта 4.1)
 
-При создании организации: `OrganizationSubscription` с `isTrial: true`, `tier: BUSINESS`, `expiresAt` = последний момент текущего UTC-календарного месяца (`23:59:59.999Z`).
+При создании организации: `OrganizationSubscription` с `isTrial: true`, **`tier: BUSINESS`** (тариф квот по умолчанию для триала), **`expiresAt`** = конец периода, заданного **Trial-пакетом** (`PricingBundle` с `isTrialDefault=true`: поля `trialDurationDays` — по умолчанию **90** календарных дней от `Organization.createdAt`, `moduleKeys` — whitelist бесплатных модулей на триале, `trialQuotas` — JSON override квот). В `OrganizationSubscription.customConfig` сохраняются `trialPackageId` и копия квот для enforcement.
 
 **Баннер на дашборде** при активном демо (`isTrial === true`, срок не истёк): тексты AZ/RU из PRD; ссылка на `/settings/subscription` или аналог — **на все дни** trial, не только при остатке ≤ 5 дней.
 
-**Шапка приложения:** рядом с названием компании — **тариф**, **квоты** (инвойсы за месяц, сотрудники), переход к подписке (см. PRD §7.3.1).
+**Шапка приложения:** рядом с названием компании — **тариф квот (tier)** и **фактические квоты** (инвойсы за месяц, сотрудники), переход к подписке (см. PRD §7.3.1).
 
 **Главная страница:** курсы ЦБА; блок **закрытия месяца** показывается только если `GET /api/reporting/close-period-prompt` возвращает незакрытый **прошедший** UTC-месяц (самый ранний из долга); блок размещается **над** курсами; отдельная страница не обязательна. Краткие **P&L / баланс / ДДС (упрощ.)** — `GET /api/reporting/dashboard-mini` (текущий UTC-месяц, см. PRD §7.3.1).
 
-**После истечения demo:** организация переводится в post-paid (`isTrial=false`) без автоматического READ_ONLY; ограничения применяются только через billing enforcement (`SOFT_BLOCK`/`HARD_BLOCK`) при наличии неоплаченного счёта после cron-цикла.
+**После истечения demo:** организация переводится в post-paid (`isTrial=false`) без автоматического READ_ONLY; ограничения применяются только через billing enforcement (`SOFT_BLOCK`/`HARD_BLOCK`) при наличии неоплаченного счёта после cron-цикла. Модули, не оплаченные после trial, **снимаются** с whitelist (gating по `activeModules` / toggle-module).
 
 ### 14.4. Feature gating в UI (Next.js)
 
@@ -1849,11 +1861,17 @@ enum SubscriptionTier {
 
 ### 14.5. Квоты
 
-- Конфиг: например `apps/api/src/constants/quotas.ts` — для каждого `SubscriptionTier` лимиты (`maxEmployees`, `maxInvoicesPerMonth`, …). Числа — политика продукта; в ТЗ закреплён **механизм**.
-- **Согласование с PRD §7.1 / §7.12.3 (v10.0):** база Foundation включает **1 пользователя** на организацию; расширение — **платные пакеты** (сотрудники, диск, лимит исходящих инвойсов продаж); значения пакетов — `billing.quota_unit_pricing_v1` / `customConfig.quotas`.
-- **WhatsApp Business API (roadmap):** внутренние **пакеты исходящих сообщений** и блокировка при нулевом балансе — **[PRD.md](./PRD.md) §6.8** / **§7.12.3**; учёт расхода и UI **Settings → Subscription** — при реализации (тот же класс предсказуемых отказов, что и квоты: без «тихого» списания).
-- Перед `create` в сервисах — проверка счётчиков организации vs tier / квот конструктора.
-- Превышение: **`QuotaExceededException`**, HTTP **402 Payment Required** с `code: "QUOTA_EXCEEDED"` и полями `quota`, `limit`, `current` (vs **403** для «нет модуля» / READ_ONLY).
+- **Тариф квот:** `OrganizationSubscription.tier` ∈ {`STARTER`, `BUSINESS`, `ENTERPRISE`} — базовые потолки до **`customConfig.quotas`**, **`trialQuotas`** (trial) и докупки по **`billing.quota_unit_pricing_v1`**. В **`SystemConfig`** для каждого тира хранится JSON **`billing.quotas.<TIER>`** только с полями **`maxEmployees`**, **`maxInvoicesPerMonth`**, **`maxStorageGb`** (значение **`null`** = безлимит по оси). Поля **`maxOrganizations`** и любые лимиты «сколько организаций у одного пользователя» **не используются**.
+- **Дефолты и merge:** `apps/api/src/constants/quotas.ts` + `SystemConfigService.getTierQuotas` / `setTierQuotas`; trial-merge в **`QuotaService.mergeTrialQuotasInto`** (подмножество ключей tier-квот).
+- **Foundation:** один сидовый пользователь на организацию (PRD §7.1); дополнительные пользователи — через квоты и докупку.
+- **Оси enforcement (код):**
+  - сотрудники — `maxEmployees` (guard `QuotaResource.USERS` → фактически штат);
+  - инвойсы за **UTC-календарный месяц** — `maxInvoicesPerMonth`;
+  - объектное хранилище — `maxStorageGb` + `Organization.storageUsedBytes` (частично вне `QuotaGuard`, см. §14.8.7);
+  - **OCR** — лимит записей **`OcrJob`** на орг/месяц из **`quota.ocr_jobs_per_org_month_v1`**; при **`tier === ENTERPRISE`** проверка **пропускается**;
+  - **WhatsApp outbound** — предоплаченный остаток **`Organization.whatsappOutboundMessagesBalance`**, проверка перед отправкой через **`QuotaService.assertWhatsappOutboundMessagesRemaining`** (см. PRD §6.8).
+- Перед `create` в сервисах — проверка счётчиков организации vs эффективные лимиты.
+- Превышение: **`QuotaExceededException`**, HTTP **402 Payment Required** с `code: "QUOTA_EXCEEDED"` и полями `quota`, `limit`, `current` (см. §14.8.7; vs **403** для «нет модуля» / READ_ONLY).
 
 ### 14.6. Billing Engine (v8.8 — Dynamic Billing Constructor; ориентиры v10.0 Hybrid LEGO)
 
@@ -1882,6 +1900,7 @@ enum SubscriptionTier {
 | `billing.foundation_monthly_azn` | Базовая цена Foundation (AZN/мес.) |
 | `billing.yearly_discount_percent` | Скидка при оплате за год (по умолчанию 20) |
 | `billing.quota_unit_pricing_v1` | JSON: размер блока сотрудников, цена за блок, размер пакета документов, цена за пакет |
+| `billing.price.STARTER` / `BUSINESS` / `ENTERPRISE` | **Не** источник правды по выручке для новых клиентов; опционально в API для совместимости/миграций (PRD §7.1). Месячное начисление — Foundation + модули + overlimit квот. |
 
 **Расчёт (ориентир для UI и будущего checkout):**
 
@@ -1892,7 +1911,7 @@ enum SubscriptionTier {
 - **Скидка пакета:** итог после выбора модулей умножается на \((1 - \text{bundleDiscount}/100)\), если применён именованный пакет.
 - **Годовая скидка:** при периоде «год» к месячному эквиваленту применяется \((1 - \text{yearlyDiscount}/100)\) к сумме за 12 месяцев (или эквивалентная логика в одной строке — зафиксировать в коде биллинга).
 
-**API (Super-Admin):** `GET /admin/config/billing` возвращает legacy `prices`/`quotas`, а также `foundationMonthlyAzn`, `yearlyDiscountPercent`, `quotaPricing`, `pricingModules[]`, `pricingBundles[]`. Обновление: `PATCH` foundation, yearly-discount, quota-pricing; `PATCH /admin/pricing-modules/:id`; CRUD `/admin/pricing-bundles`.
+**API (Super-Admin):** `GET /admin/config/billing` возвращает в т.ч. **опциональные** исторические `prices` (`billing.price.*`), `quotas`/`quotaPricing`, `foundationMonthlyAzn`, `yearlyDiscountPercent`, `pricingModules[]`, `pricingBundles[]`. Обновление: `PATCH` foundation, yearly-discount, quota-pricing; `PATCH /admin/pricing-modules/:id`; CRUD `/admin/pricing-bundles`.
 
 ### 14.7. Emergency Access Override (v8.9)
 
@@ -1914,6 +1933,7 @@ enum SubscriptionTier {
 | **ownerId** | FK `organizations.owner_id → users.id` — владелец для **агрегированного счёта** и **Change Owner**; при корректных данных совпадает с пользователем, у которого в этой org роль **OWNER**. |
 | **Счёт платформы** | Таблицы **`billing_invoices`** / **`billing_invoice_items`** (Prisma: `BillingInvoice`, `BillingInvoiceItem`), не `invoices` |
 | **Единый месячный счёт** | Один документ `billing_invoices` на `ownerUserId` за период, с строками по **нескольким** `organizationId` (PRD §7.12.4). |
+| **Тариф квот (`tier`)** | Поле `OrganizationSubscription.tier` ∈ {`STARTER`, `BUSINESS`, `ENTERPRISE`} — **включённые потолки квот**; не дублируется другими маркетинговыми именами. См. PRD §7.1; механизм лимитов — **§14.5** ниже. |
 
 #### 14.8.2. Расширение таблицы `organizations`
 
@@ -1923,6 +1943,7 @@ enum SubscriptionTier {
 | `billingStatus` | Enum | `ACTIVE` \| `SOFT_BLOCK` \| `HARD_BLOCK`; технический статус post-paid жизненного цикла задолженности |
 | `status` | Enum (целевой) | `ACTIVE` \| `TRIAL` \| `SUSPENDED` — жизненный цикл доступа к org (согласовано с `OrganizationSubscription.isTrial` / `isBlocked`) |
 | `drakarisClientId` | `String?` `@unique` | Внешний идентификатор клиента в провайдере **Drakaris/yığım** (см. **§14.8.14**); используется для резолва организации по `GET /v1/client/{id}` без раскрытия внутреннего UUID. Может совпадать с VÖEN или быть назначен при подключении к yığım. Колонка добавлена миграцией `20260510140000_add_user_locale_phone_drakaris_org`. |
+| `whatsappOutboundMessagesBalance` | `Int` @default(0) | Остаток **предоплаченных** успешных исходящих отправок **WhatsApp Business API** по организации (PRD §6.8); отображение в **`GET /api/subscription/me`** → `quotas.whatsappOutbound`. |
 
 **Миграция:** для существующих строк `ownerId` заполняется из первого пользователя с ролью `OWNER` в `OrganizationMembership` (скрипт бэкапа перед миграцией обязателен).
 
@@ -2014,7 +2035,9 @@ enum SubscriptionTier {
 
 #### 14.8.7. QuotaGuard и перехват на фронте
 
-**Декоратор `@CheckQuota(resource)`** (Nest): метаданные для ресурса (`USERS`, `INVOICES_PER_MONTH`, `STORAGE` — квота хранилища дополняется проверками в сервисах загрузки файлов / PDF). Guard вызывает **`QuotaService`** до мутации; при превышении — **`QuotaExceededException` → HTTP 402** с телом `QUOTA_EXCEEDED`.
+**Декоратор `@CheckQuota(resource)`** (Nest): метаданные для ресурса (`USERS` → фактически лимит **сотрудников**, `INVOICES_PER_MONTH`, `STORAGE` — квота хранилища дополняется проверками в сервисах загрузки файлов / PDF). Guard вызывает **`QuotaService`** до мутации; при превышении — **`QuotaExceededException` → HTTP 402** с телом `QUOTA_EXCEEDED`.
+
+**Поле `quota` в теле ошибки** (тип **`QuotaKind`** в коде): `maxEmployees` \| `maxInvoicesPerMonth` \| `maxStorageGb` \| `maxOcrJobsPerMonth` \| `whatsappOutboundMessages`.
 
 **Фронтенд:** глобальный перехват в `apiFetch` для `402` + `code === "QUOTA_EXCEEDED"` — событие **`erafinance:quota-upgrade`** и отображение модалки апгрейда (тот же UX-паттерн, что и `SUBSCRIPTION_READ_ONLY`).
 
@@ -2086,6 +2109,21 @@ enum SubscriptionTier {
 
 ---
 
+### 14.9. Referral & Partner Program
+
+**Модели (Prisma):** `Partner` (код, `displayName`, `ownerUserId?`, `isCorporate`, `fixedRatePercent?`), `Referral` (`partnerId`, `organizationId` @unique, `signupAt`, `windowEndsAt` = signupAt + 12 months, `isActive`, `source`), `ReferralCommission` (помесячное начисление, `status` ACCRUED/PAID/CANCELLED, уникальность по `(referralId, periodYear, periodMonth)`).
+
+**Правила комиссии:** tier-лесенка **10% / 15% / 20%** по количеству активных привлечённых организаций партнёра; `fixedRatePercent` у **Corporate partner** переопределяет tier.
+
+**REST (канон):**
+- Публичная регистрация: `POST /api/auth/register` принимает опциональный `referralCode`; при валидном коде создаётся строка `Referral` в той же транзакции, что и `Organization`.
+- Партнёр: `GET /api/partner/dashboard` (JWT, роль **PARTNER** в membership **или** привязка `Partner.ownerUserId`).
+- Super-Admin: `GET|POST|PATCH /api/admin/referrals/partners`, `GET /api/admin/referrals/partners/:id/qr.png` (PNG QR на URL регистрации с `?ref=`).
+
+**BullMQ:** очередь **`referral-monthly`** с `repeat.pattern: "0 5 1 * *"` (UTC 05:00 1-го числа, после основного биллинга в 00:00) — деактивация `Referral.isActive` для `windowEndsAt < now`; начисление комиссий — из `BillingMonthlyService` после формирования платформенных счетов (см. код).
+
+---
+
 ### Критерии приёмки v4.0 (сводно)
 
 1. `SubscriptionTier` и `OrganizationSubscription` 1:1; миграция без потери данных.
@@ -2093,7 +2131,7 @@ enum SubscriptionTier {
 3. UI скрывает меню и показывает paywall при прямом заходе без права.
 4. Создание сотрудника/инвойса блокируется при превышении квоты с предсказуемым кодом.
 5. Лимиты централизованы в `quotas.ts`, без «магических чисел» в сервисах.
-6. Демо: регистрация → trial BUSINESS до конца текущего UTC-месяца; баннер на дашборде показывает дату окончания demo и отдельный текст первого post-paid месяца; счёт за входной месяц не создаётся.
+6. Демо: регистрация → trial BUSINESS с **Trial-пакетом** (по умолчанию **90 дней** UTC от `organizations.created_at`); баннер на дашборде; после окончания — `isTrial=false` и post-paid gating без вечного READ_ONLY «без оплаты».
 
 ### Зависимости и риски v4
 
@@ -2142,7 +2180,7 @@ enum SubscriptionTier {
 | GET | `/admin/audit-logs` | Глобальный просмотр `AuditLog` с фильтром по `organizationId`. |
 | POST | `/admin/impersonate/:userId` | Выдача токенов от имени пользователя (поддержка). |
 
-**Биллинг:** `GET /billing/plans` и поле `tier` в `POST /billing/checkout` — цены из `SystemConfig`, не из констант.
+**Биллинг:** `GET /billing/plans` и поле `tier` в `POST /billing/checkout` — **не** смешивать с «коробочной» ценой: `tier` выбирает **тариф квот**; денежные суммы строк счёта — из Foundation, каталога модулей и `quota_unit_pricing` (значения в `SystemConfig` / снимках, не из захардкоженных констант в коде).
 
 ### 15.2. Tarif Konstruktoru (конструктор тарифов, v8.1+; UI v8.8)
 
@@ -2150,12 +2188,13 @@ enum SubscriptionTier {
 
 | Элемент | Описание |
 |---------|----------|
-| **Прайс-лист** | Вкладка **«Прайс-лист» / Qiymət siyahısı**: секция **Foundation** (базовая цена), таблица **модулей** из `PricingModules` (цена/мес.), секция **квот** — единицы расширения (`billing.quota_unit_pricing_v1`) и **годовая скидка** (%). |
+| **Прайс-лист** | Вкладка **«Прайс-лист» / Qiymət siyahısı**: секция **Foundation** (базовая цена), таблица **модулей** из `PricingModules` (цена/мес.), секция **докупки квот** — единицы расширения (`billing.quota_unit_pricing_v1`) и **годовая скидка** (%). **Тарифы квот** (STARTER / BUSINESS / ENTERPRISE) — в коде и подписке (`tier`), не отдельная таблица имён. |
+| **Квоты (подвкладка)** | Вкладка **«Квоты»** в разделе подписки Super-Admin: **отдельное** сохранение **Foundation** (`PATCH /admin/config/billing/foundation`); карточка **глобальных лимитов** — **legacy `billing.price.*`**, **`quota.ocr_jobs_per_org_month_v1`**, **`billing.quota_unit_pricing_v1`**, **`billing.yearly_discount_percent`** (см. `PATCH`-маршруты §15.1); блок **«квоты по tier»** — для каждого `SubscriptionTier` только **`maxEmployees`**, **`maxInvoicesPerMonth`**, **`maxStorageGb`** (`PATCH /admin/config/billing/quotas`); в UI **пустое поле** сериализуется как **`null`** (безлимит). |
 | **Paket yaradıcısı** | Вкладка **«Paket yaradıcısı»**: выбор модулей **переключателями (switch)**, имя пакета, **скидка пакета** (%), **предпросмотр** для клиента (месяц / год с учётом годовой скидки); сохранение в `PricingBundles`. |
 | **Стиль** | Карточки: `CARD_CONTAINER_CLASS`, палитра **#34495E** / **#2980B9** (см. DESIGN.md). |
-| **Связь с БД** | Модули и пакеты — таблицы **`pricing_modules`**, **`pricing_bundles`**; база, квоты и годовая скидка — `SystemConfig`. Подписка организации — по-прежнему `OrganizationSubscription.customConfig` + `tier`. |
+| **Связь с БД** | Модули и пакеты — таблицы **`pricing_modules`**, **`pricing_bundles`**; Foundation, единицы докупки квот и годовая скидка — `SystemConfig`. Подписка организации — `OrganizationSubscription.customConfig` + **`tier` (тариф квот)**. |
 
-Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются в API для совместимости; основной UX v8.8 — конструктор, не три карточки тиров.
+Ключи **`billing.price.*`**, если присутствуют, **не** задают продуктовую цену для новых клиентов (PRD §7.1); основной UX — конструктор (Foundation + модули + overlimit), а не «три карточки коробок».
 
 ---
 
@@ -2177,7 +2216,7 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 
 ### Квоты и продукт
 
-- Явная проверка **лимита числа организаций на пользователя** (`maxOrganizations` по эффективному тиру) при создании новой организации уже существующим пользователем.
+- Лимиты по тиру (**`TierQuotas`**: сотрудники, инвойсы в месяц, хранилище) и глобальные настройки (OCR/мес., unit pricing) редактируются в **Super-Admin → Подписка → Квоты**; отдельного лимита «число организаций на пользователя» **нет** (удалён как продуктово избыточный).
 
 ### 16.1. Soft Delete (архивация сущностей)
 
@@ -2358,6 +2397,7 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 | **2026.05.10** | Текущая | Billing Enforcement: Soft block (Export ban) and Hard block (Read-only) with automated 6th-day cron. |
 | **2026.05.11** | Текущая | Reporting Optimization: Composite indexes and closed-period financial snapshots for heavy reports. |
 | **2026.05.12** | Текущая | DevOps & Monitoring: Automated pg_dump backups, DR Runbook, Audit cron, and Bank API Circuit Breaker. |
+| **2026.05.13** | Текущая | **§14 / §15.2:** `SubscriptionTier` = единственные **тарифы квот**; `billing.price.*` опционально, вне продуктового UX для новых клиентов; согласование с PRD §7.1 / §7.12. |
 | **2026.05.14** | Текущая | SRE & QA (Platform/M8): Automated payment reconciliation webhook (auto-resume to ACTIVE) and external alerting for audit chain breaches. |
 | **2026.05.15** | Текущая | SRE & QA (M2/M5/M7): Banking failover stress-tests and 10k+ report performance optimization. |
 | **2026.05.16** | Архив | QA & SRE (M1/M6): Invite security edge-cases and Hire-gate concurrency protection. |
@@ -2378,7 +2418,8 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 | **2026.05.31** | Текущая | Отражена поэтапная стратегия интеграции с DVX (включая Chrome RPA) и зафиксирована архитектура единого браузерного расширения с проверкой подписки на уровне выбранной организации (Multi-tenant RPA Gating). |
 | **2026.05.32** | Текущая | **NAS по виду организации:** единый **`OrganizationKind`** (`COMMERCIAL` / `BUDGET` / `NGO`), колонки **`organizations.kind`**, **`template_accounts.kind`**, **`chart_of_accounts_entries.kind`**; три JSON-каталога; онбординг и super-admin chart-template с **`kind`**; §18 и таблица API §0 обновлены. |
 | **2026.06.04** | Текущая | **Profile / Billing providers / FA monthly:** добавлены §**2.2** (`/api/users/me`, `User.phone`, `User.locale = AZ \| RU`, смена пароля с `INVALID_CURRENT_PASSWORD`), §**14.8.2** (`Organization.drakarisClientId @unique`), §**14.8.14** (Drakaris/yığım — Basic Auth, REST `/api/integrations/drakaris/v1/...`, `DrakarisStatus` 200/401/402/404/405/406/407/408, идемпотентность по `transaction-id` → `PaymentOrder.idempotencyKey`, env `DRAKARIS_*`), §**12.5** (BullMQ-воркер `monthly-depreciation`, cron `0 1 1 * *`, env `FIXED_ASSETS_MONTHLY_DISABLED`); миграция `20260510140000_add_user_locale_phone_drakaris_org`. Ссылка из PRD §4.1 / §5.D / §7.12.4. |
-| **2026.06.05** | Текущая | **§20.2 HS / AZ customs tariff curation:** платформенное версионирование `customs_tariff_rates` по `(hs_code, effective_from)`, dedupe на дату в `loadActiveRates`, парсер акта MD → JSON (`packages/database/scripts/parse-az-customs-act-md.mjs`), импорт JSON (`import-customs-tariff-from-json.ts`), шаблон CSV и маппинг кодов ЕИ закона → продукт (`customs-tariff-import.template.csv`, `customs-law-uom-mapping.json`); см. PRD §7.6.2. |
+| **2026.06.05** | Текущая | **§20.2 HS / AZ customs tariff curation:** платформенное версионирование `customs_tariff_rates` по `(hs_code, effective_from)`, dedupe на дату в `loadActiveRates`, парсер акта MD → `prisma/catalog/trade/customs-tariff-rates.json` (`parse-az-customs-act-md.mjs`), импорт JSON (`import-customs-tariff-from-json.ts`), шаблон CSV и маппинг кодов ЕИ в `prisma/catalog/trade/`; см. PRD §7.6.2. |
+| **2026.06.06** | Текущая | **§14.5 / §14.8.2 / §14.8.7 / §15.2:** квоты без **`maxOrganizations`**; колонка **`whatsapp_outbound_messages_balance`**, **`GET /api/subscription/me`** → `quotas.whatsappOutbound`; перечень **`QuotaKind`**; вкладка Super-Admin **«Квоты»** (Foundation, глобальные лимиты, tier JSON с `null`); синхронизация с PRD §7.6 / §7.12. |
 
 ### Принцип ведения истории (дальше)
 
@@ -2459,11 +2500,11 @@ Legacy-цены тиров (`billing.price.STARTER` и т.д.) остаются 
 
 | Артефакт | Назначение |
 |----------|------------|
-| `packages/database/data/customs-tariff-import.template.csv` | Шаблон ручного / полуавтоматического CSV для импорта |
-| `packages/database/data/customs-law-uom-mapping.json` | Соответствие кодов ЕИ из приложения закона (`796`, `166`, …) кодам **`units_of_measure.code`** (`pcs`, `kg`, …) |
+| `packages/database/prisma/catalog/trade/customs-tariff-import.template.csv` | Шаблон ручного / полуавтоматического CSV для импорта |
+| `packages/database/prisma/catalog/trade/customs-law-uom-mapping.json` | Соответствие кодов ЕИ из приложения закона (`796`, `166`, …) кодам **`units_of_measure.code`** (`pcs`, `kg`, …) |
 | `packages/database/scripts/parse-az-customs-act-md.mjs` | Парсинг нормализованного MD акта → JSON строк тарифа |
 | `packages/database/scripts/import-customs-tariff-from-json.ts` | Батч-upsert JSON → `customs_tariff_rates` с валидацией |
-| `docs/tmp/` (вывод парсера) | Промежуточный JSON (`parsed-az-customs-tariff.json`) — не коммитить большие дампы без необходимости |
+| `packages/database/prisma/catalog/trade/customs-tariff-rates.json` | Канон таможенных ставок для trade-слоя сида; парсер MD по умолчанию перезаписывает этот файл |
 
 **Парсер MD:** пропускает строки с ~~зачёркиванием~~, строки заголовков таблиц (`XİF MN`), строки без числового HS в первой колонке (иерархические заголовки). Колонка тарифа: для адвалорной ставки извлекается первое число процента; смешанные форматы («USD / ед.») получают **`dutyRatePercent: 0`** при сохранении сырого текста в **`notes`**.
 

@@ -1,4 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import {
   FixedAssetDepreciationMethod,
   FixedAssetStatus,
@@ -28,10 +32,8 @@ export class DepreciationService {
   }
 
   /**
-   * Начисление линейной амортизации за указанный месяц (до блокировки периода).
-   * Одна проводка Дт 713 / Кт 112 на сумму по всем ОС.
-   * Multi-GAAP: IFRS-тени создаёт AccountingService.translateToIFRS для 721 и 112,
-   * если у всех задействованных NAS-счетов есть AccountMapping (как для зарплаты и склада).
+   * Monthly depreciation for STRAIGHT_LINE and REDUCING_BALANCE.
+   * UNITS_OF_PRODUCTION is applied via {@link recordUnitsOfProductionUsage}.
    */
   async applyForClosedMonth(
     tx: Prisma.TransactionClient,
@@ -46,7 +48,12 @@ export class DepreciationService {
       where: {
         organizationId,
         status: FixedAssetStatus.ACTIVE,
-        depreciationMethod: FixedAssetDepreciationMethod.STRAIGHT_LINE,
+        depreciationMethod: {
+          in: [
+            FixedAssetDepreciationMethod.STRAIGHT_LINE,
+            FixedAssetDepreciationMethod.REDUCING_BALANCE,
+          ],
+        },
       },
     });
 
@@ -75,13 +82,21 @@ export class DepreciationService {
       const remaining = maxDep.sub(booked);
       if (remaining.lte(0)) continue;
 
-      const life = new Decimal(a.usefulLifeMonths);
-      const monthly = roundMoney2(maxDep.div(life));
-      let amount = monthly;
-      if (amount.gt(remaining)) {
-        amount = roundMoney2(remaining);
+      let amount: Prisma.Decimal | null = null;
+      if (a.depreciationMethod === FixedAssetDepreciationMethod.STRAIGHT_LINE) {
+        const life = new Decimal(a.usefulLifeMonths);
+        const monthly = roundMoney2(maxDep.div(life));
+        amount = monthly;
+        if (amount.gt(remaining)) {
+          amount = roundMoney2(remaining);
+        }
+      } else if (
+        a.depreciationMethod === FixedAssetDepreciationMethod.REDUCING_BALANCE
+      ) {
+        amount = this.computeReducingBalanceMonthlyAmount(a, remaining);
       }
-      if (amount.lte(0)) continue;
+
+      if (!amount || amount.lte(0)) continue;
 
       rows.push({ assetId: a.id, amount });
     }
@@ -141,5 +156,124 @@ export class DepreciationService {
       totalAmount: roundMoney2(total).toString(),
       assetsCount: rows.length,
     };
+  }
+
+  private computeReducingBalanceMonthlyAmount(
+    a: {
+      purchasePrice: Prisma.Decimal;
+      bookedDepreciation: Prisma.Decimal;
+      salvageValue: Prisma.Decimal;
+      decliningBalanceRate: Prisma.Decimal | null;
+    },
+    remainingDepreciable: Prisma.Decimal,
+  ): Prisma.Decimal | null {
+    const rateRaw = a.decliningBalanceRate;
+    if (rateRaw == null) return null;
+    const rAnnual = new Decimal(rateRaw);
+    if (rAnnual.lte(0)) return null;
+
+    const nbv = new Decimal(a.purchasePrice).sub(a.bookedDepreciation);
+    const salvage = new Decimal(a.salvageValue);
+    if (nbv.lte(salvage)) return null;
+
+    let monthly = roundMoney2(nbv.mul(rAnnual).div(12));
+    const capToSalvage = roundMoney2(nbv.sub(salvage));
+    if (monthly.gt(capToSalvage)) {
+      monthly = capToSalvage;
+    }
+    if (monthly.gt(remainingDepreciable)) {
+      monthly = roundMoney2(remainingDepreciable);
+    }
+    if (monthly.lte(0)) return null;
+    return monthly;
+  }
+
+  /**
+   * Record production units and post depreciation for UNITS_OF_PRODUCTION (immediate journal).
+   */
+  async recordUnitsOfProductionUsage(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    assetId: string,
+    periodUnits: number,
+  ): Promise<{ transactionId: string; amount: string }> {
+    const a = await tx.fixedAsset.findFirst({
+      where: { id: assetId, organizationId },
+    });
+    if (!a) {
+      throw new NotFoundException("Fixed asset not found");
+    }
+    if (a.depreciationMethod !== FixedAssetDepreciationMethod.UNITS_OF_PRODUCTION) {
+      throw new BadRequestException({
+        code: "DEPRECIATION_METHOD_NOT_UOP",
+        message: "Record usage is only for UNITS_OF_PRODUCTION assets",
+      });
+    }
+    if (!a.totalExpectedUnits || new Decimal(a.totalExpectedUnits).lte(0)) {
+      throw new BadRequestException({
+        code: "TOTAL_EXPECTED_UNITS_REQUIRED",
+        message: "totalExpectedUnits must be set and positive",
+      });
+    }
+
+    const pu = new Decimal(periodUnits);
+    if (pu.lte(0)) {
+      throw new BadRequestException("periodUnits must be positive");
+    }
+
+    const maxDep = new Decimal(a.purchasePrice).sub(a.salvageValue);
+    if (maxDep.lte(0)) {
+      throw new BadRequestException("Nothing to depreciate (purchasePrice <= salvage)");
+    }
+
+    const booked = new Decimal(a.bookedDepreciation);
+    const remaining = maxDep.sub(booked);
+    if (remaining.lte(0)) {
+      throw new BadRequestException("Asset is already fully depreciated");
+    }
+
+    const rawAmount = maxDep.mul(pu).div(a.totalExpectedUnits);
+    let amount = roundMoney2(rawAmount);
+    if (amount.gt(remaining)) {
+      amount = roundMoney2(remaining);
+    }
+    if (amount.lte(0)) {
+      throw new BadRequestException("Computed depreciation amount is zero");
+    }
+
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth() + 1;
+    const { end } = monthRangeUtc(y, m);
+
+    const { transactionId } = await this.accounting.postJournalInTransaction(tx, {
+      organizationId,
+      date: end,
+      reference: `DEPR-UOP-${y}-${String(m).padStart(2, "0")}-${assetId.slice(0, 8)}`,
+      description: `Амортизация ОС (выработка) ${a.name}`,
+      isFinal: true,
+      lines: [
+        {
+          accountCode: DEPRECIATION_EXPENSE_ACCOUNT_CODE,
+          debit: amount.toString(),
+          credit: "0",
+        },
+        {
+          accountCode: ACCUMULATED_DEPRECIATION_ACCOUNT_CODE,
+          debit: "0",
+          credit: amount.toString(),
+        },
+      ],
+    });
+
+    await tx.fixedAsset.update({
+      where: { id: assetId },
+      data: {
+        bookedDepreciation: { increment: amount },
+        unitsProducedTotal: { increment: pu },
+      },
+    });
+
+    return { transactionId, amount: amount.toString() };
   }
 }

@@ -11,8 +11,10 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/database/package.json packages/database/
+COPY packages/api-contracts/package.json packages/api-contracts/
 
 COPY packages/database packages/database
+COPY packages/api-contracts packages/api-contracts
 COPY apps/api apps/api
 # Used by `npm run db:sync-i18n` / `db:prod-init` (packages/database → apps/web path).
 COPY apps/web/lib/i18n/resources.ts apps/web/lib/i18n/resources.ts
@@ -23,7 +25,7 @@ ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
 
 RUN npm ci
 
-RUN npm run build -w @erafinance/database && npm run build -w @erafinance/api
+RUN npm run build -w @erafinance/api-contracts && npm run build -w @erafinance/database && npm run build -w @erafinance/api
 
 RUN npm prune --omit=dev
 

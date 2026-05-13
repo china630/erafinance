@@ -1,21 +1,38 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { SubscriptionTier } from "@erafinance/database";
 import { resolveOrganizationUuid } from "../common/organization-id.util";
+import type { TierQuotas } from "../constants/quotas";
 import { PrismaService } from "../prisma/prisma.service";
 import { SystemConfigService } from "../system-config/system-config.service";
 import { QuotaExceededException } from "./quota-exceeded.exception";
 
-const TIER_RANK: Record<SubscriptionTier, number> = {
-  [SubscriptionTier.STARTER]: 0,
-  [SubscriptionTier.BUSINESS]: 1,
-  [SubscriptionTier.ENTERPRISE]: 2,
-};
-
-function pickHighestTier(tiers: SubscriptionTier[]): SubscriptionTier {
-  if (tiers.length === 0) return SubscriptionTier.STARTER;
-  return tiers.reduce((best, t) =>
-    TIER_RANK[t] > TIER_RANK[best] ? t : best,
-  );
+function mergeTrialQuotasInto(
+  base: TierQuotas,
+  sub: {
+    isTrial: boolean;
+    expiresAt: Date | null;
+    customConfig: unknown;
+  } | null,
+): TierQuotas {
+  if (!sub?.isTrial || !sub.expiresAt) return base;
+  if (sub.expiresAt.getTime() < Date.now()) return base;
+  if (sub.customConfig == null || typeof sub.customConfig !== "object") {
+    return base;
+  }
+  const tq = (sub.customConfig as { trialQuotas?: unknown }).trialQuotas;
+  if (tq == null || typeof tq !== "object") return base;
+  const o = tq as Record<string, unknown>;
+  const out: TierQuotas = { ...base };
+  for (const key of [
+    "maxEmployees",
+    "maxInvoicesPerMonth",
+    "maxStorageGb",
+  ] as const) {
+    const v = o[key];
+    if (v === null) out[key] = null;
+    else if (typeof v === "number" && Number.isFinite(v)) out[key] = v;
+  }
+  return out;
 }
 
 function utcMonthBoundsUtc(now = new Date()): { from: Date; to: Date } {
@@ -60,13 +77,25 @@ export class QuotaService {
     return this.systemConfig.getTierQuotas(tier);
   }
 
+  private async quotasForOrganization(orgId: string | null): Promise<TierQuotas> {
+    if (!orgId) {
+      return this.systemConfig.getTierQuotas(SubscriptionTier.STARTER);
+    }
+    const sub = await this.prisma.organizationSubscription.findUnique({
+      where: { organizationId: orgId },
+      select: { tier: true, isTrial: true, expiresAt: true, customConfig: true },
+    });
+    const tier = sub?.tier ?? SubscriptionTier.STARTER;
+    const base = await this.quotasForTier(tier);
+    return mergeTrialQuotasInto(base, sub);
+  }
+
   async assertEmployeeQuota(organizationId: string): Promise<void> {
     const orgId = resolveOrganizationUuid(organizationId);
     if (!orgId) {
       return;
     }
-    const tier = await this.getTier(organizationId);
-    const { maxEmployees } = await this.quotasForTier(tier);
+    const { maxEmployees } = await this.quotasForOrganization(orgId);
     if (maxEmployees == null) return;
 
     const current = await this.prisma.employee.count({
@@ -74,38 +103,6 @@ export class QuotaService {
     });
     if (current >= maxEmployees) {
       throw new QuotaExceededException("maxEmployees", maxEmployees, current);
-    }
-  }
-
-  /**
-   * Лимит числа организаций на пользователя по эффективному тиру (максимальный тир среди членств).
-   */
-  async assertOrganizationsPerUserMembershipLimit(
-    userId: string,
-  ): Promise<void> {
-    const memberships = await this.prisma.organizationMembership.findMany({
-      where: { userId },
-      select: {
-        organization: {
-          select: { subscription: { select: { tier: true } } },
-        },
-      },
-    });
-    const current = memberships.length;
-    /** Нет строки subscription (миграции / lazy create) — не считать «пустой» тир как STARTER (maxOrganizations=1). */
-    const tiers = memberships.map((m) => {
-      const t = m.organization.subscription?.tier;
-      return t ?? SubscriptionTier.BUSINESS;
-    });
-    const effectiveTier = pickHighestTier(tiers);
-    const { maxOrganizations } = await this.quotasForTier(effectiveTier);
-    if (maxOrganizations == null) return;
-    if (current >= maxOrganizations) {
-      throw new QuotaExceededException(
-        "maxOrganizations",
-        maxOrganizations,
-        current,
-      );
     }
   }
 
@@ -120,8 +117,7 @@ export class QuotaService {
     if (additionalBytes <= 0) {
       return;
     }
-    const tier = await this.getTier(organizationId);
-    const { maxStorageGb } = await this.quotasForTier(tier);
+    const { maxStorageGb } = await this.quotasForOrganization(orgId);
     if (maxStorageGb == null) {
       return;
     }
@@ -158,8 +154,7 @@ export class QuotaService {
     if (!orgId) {
       return;
     }
-    const tier = await this.getTier(organizationId);
-    const { maxInvoicesPerMonth } = await this.quotasForTier(tier);
+    const { maxInvoicesPerMonth } = await this.quotasForOrganization(orgId);
     if (maxInvoicesPerMonth == null) return;
 
     const { from, to } = utcMonthBoundsUtc();
@@ -189,22 +184,15 @@ export class QuotaService {
       return { current: 0, max: null, atLimit: false };
     }
 
-    let tier: SubscriptionTier = SubscriptionTier.STARTER;
+    let maxEmployees: number | null = null;
     try {
-      const sub = await this.prisma.organizationSubscription.findUnique({
-        where: { organizationId: orgId },
-        select: { tier: true },
-      });
-      if (sub?.tier != null) {
-        tier = sub.tier;
-      }
+      const q = await this.quotasForOrganization(orgId);
+      maxEmployees = q.maxEmployees;
     } catch (e) {
       this.logger.warn(
-        `getEmployeeQuotaSnapshot: subscription findUnique failed for ${orgId}: ${e instanceof Error ? e.message : String(e)}`,
+        `getEmployeeQuotaSnapshot: quotas failed for ${orgId}: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
-
-    const { maxEmployees } = await this.quotasForTier(tier);
     let current = 0;
     try {
       current = await this.prisma.employee.count({
@@ -230,22 +218,15 @@ export class QuotaService {
       return { current: 0, max: null, atLimit: false };
     }
 
-    let tier: SubscriptionTier = SubscriptionTier.STARTER;
+    let maxInvoicesPerMonth: number | null = null;
     try {
-      const sub = await this.prisma.organizationSubscription.findUnique({
-        where: { organizationId: orgId },
-        select: { tier: true },
-      });
-      if (sub?.tier != null) {
-        tier = sub.tier;
-      }
+      const q = await this.quotasForOrganization(orgId);
+      maxInvoicesPerMonth = q.maxInvoicesPerMonth;
     } catch (e) {
       this.logger.warn(
-        `getInvoiceMonthlyQuotaSnapshot: subscription findUnique failed for ${orgId}: ${e instanceof Error ? e.message : String(e)}`,
+        `getInvoiceMonthlyQuotaSnapshot: quotas failed for ${orgId}: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
-
-    const { maxInvoicesPerMonth } = await this.quotasForTier(tier);
     const { from, to } = utcMonthBoundsUtc();
     let current = 0;
     try {
@@ -274,21 +255,15 @@ export class QuotaService {
     if (!orgId) {
       return { currentBytes: "0", maxGb: null, atLimit: false };
     }
-    let tier: SubscriptionTier = SubscriptionTier.STARTER;
+    let maxStorageGb: number | null = null;
     try {
-      const sub = await this.prisma.organizationSubscription.findUnique({
-        where: { organizationId: orgId },
-        select: { tier: true },
-      });
-      if (sub?.tier != null) {
-        tier = sub.tier;
-      }
+      const q = await this.quotasForOrganization(orgId);
+      maxStorageGb = q.maxStorageGb;
     } catch (e) {
       this.logger.warn(
-        `getStorageQuotaSnapshot: subscription findUnique failed for ${orgId}: ${e instanceof Error ? e.message : String(e)}`,
+        `getStorageQuotaSnapshot: quotas failed for ${orgId}: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
-    const { maxStorageGb } = await this.quotasForTier(tier);
     const org = await this.prisma.organization.findFirst({
       where: { id: orgId, isDeleted: false },
       select: { storageUsedBytes: true },
@@ -327,6 +302,43 @@ export class QuotaService {
     });
     if (current >= limit) {
       throw new QuotaExceededException("maxOcrJobsPerMonth", limit, current);
+    }
+  }
+
+  /**
+   * Remaining prepaid outbound WhatsApp sends (organization balance, PRD §6.8).
+   */
+  async getWhatsappOutboundMessagesSnapshot(organizationId: string): Promise<{
+    balance: number;
+    atLimit: boolean;
+  }> {
+    const orgId = resolveOrganizationUuid(organizationId);
+    if (!orgId) {
+      return { balance: 0, atLimit: true };
+    }
+    const org = await this.prisma.organization.findFirst({
+      where: { id: orgId, isDeleted: false },
+      select: { whatsappOutboundMessagesBalance: true },
+    });
+    const balance = org?.whatsappOutboundMessagesBalance ?? 0;
+    return { balance, atLimit: balance <= 0 };
+  }
+
+  /**
+   * Call before enqueueing a billable WhatsApp send; decrements are done by the sender after success.
+   */
+  async assertWhatsappOutboundMessagesRemaining(
+    organizationId: string,
+  ): Promise<void> {
+    const orgId = resolveOrganizationUuid(organizationId);
+    if (!orgId) {
+      return;
+    }
+    const { balance } = await this.getWhatsappOutboundMessagesSnapshot(
+      organizationId,
+    );
+    if (balance <= 0) {
+      throw new QuotaExceededException("whatsappOutboundMessages", 1, 0);
     }
   }
 }

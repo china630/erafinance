@@ -71,7 +71,7 @@
 | Цель | Смысл |
 |------|--------|
 | **Облачный сервис** | Платная подписка, разграничение доступа к модулям, лимиты на уровне организации |
-| **Конструктор тарифов (v8.1+)** | **Фундамент (Core)** — бесплатный или минимальный набор (главная книга, контакты); **Add-ons** — платные модули (Banking Pro, Manufacturing, HR Full, Fixed Assets и др.) с индивидуальной ценой; **Quotas** — слайдеры лимитов (сотрудники, инвойсы, облако); **период оплаты** — скидка **20%** при годовой оплате. Устаревшая маркетинговая схема «три жёстких тарифа» заменяется гибкой сборкой плана (tier остаётся в БД для совместимости и аналитики). |
+| **Конструктор тарифов (v8.1+)** | **Foundation (база)** — цена за организацию и сидовый пользователь; **модули** — платные надстройки из каталога и/или **пакеты модулей** со скидкой %; **квоты** — **тариф квот** (`SubscriptionTier`: STARTER / BUSINESS / ENTERPRISE) задаёт **включённые потолки**; сверх них — **докупка единицами** (`billing.quota_unit_pricing_v1`); **период оплаты** — скидка **20%** при годовой оплате. Отдельного второго набора имён «тарифов» для квот нет — только эти три значения `tier`. |
 
 ---
 
@@ -546,8 +546,10 @@ If `ProjectedBalance` drops below zero on a date, UI marks it as **cash-gap risk
 
 ### 5.D. Fixed Assets v2: реестр ОС и амортизация
 
-- [x] **COMPLETED — Реестр ОС:** сущность `FixedAsset` с полями `organizationId`, `name`, `inventoryNumber`, `purchaseDate`, `purchasePrice`, `salvageValue`, `usefulLifeMonths`, `depreciationMethod=STRAIGHT_LINE`, `status=ACTIVE|DISPOSED`.
+- [x] **COMPLETED — Реестр ОС:** сущность `FixedAsset` с полями `organizationId`, `name`, `inventoryNumber`, `purchaseDate`, `purchasePrice`, `salvageValue`, `usefulLifeMonths`, `depreciationMethod` (**`STRAIGHT_LINE`**, **`REDUCING_BALANCE`**, **`UNITS_OF_PRODUCTION`**), опционально `decliningBalanceRate` (доля в год для уменьшаемого остатка), `totalExpectedUnits` / `unitsProducedTotal` (для метода по объёму выработки), `status=ACTIVE|DISPOSED`.
 - [x] **COMPLETED —** линейный движок амортизации: месячная сумма = `(purchasePrice - salvageValue) / usefulLifeMonths`; начисление только по активным объектам.
+- [ ] **REDUCING_BALANCE:** месячное начисление от **остаточной стоимости** с коэффициентом из `decliningBalanceRate` (годовая ставка / 12), с ограничением до `salvageValue`.
+- [ ] **UNITS_OF_PRODUCTION:** периодное начисление пропорционально **фактической выработке за период** / `totalExpectedUnits` (ввод выработки через UI/API); кумулятивный контроль через `bookedDepreciation` и `FixedAssetDepreciationMonth`.
 - [x] **COMPLETED —** автопроводка за месяц **Дт 713 — Кт 112** и строки по объектам.
 - [x] **COMPLETED —** идемпотентность по `fixedAssetId + year + month`.
 - [x] **COMPLETED —** UI `/fixed-assets` (реестр, book value, запуск амортизации).
@@ -717,7 +719,7 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 **Business value:** **Automatic outbound delivery** from the ERP UI of **sales invoices**, **reconciliation statements**, **payment links**, and **accounts-receivable reminders** to counterparties (or internal approvers where policy allows) over **WhatsApp**, using the **official WhatsApp Business Platform** (no consumer-automation workarounds).
 
-**Monetization — internal message packages (add-on / upsell):** The capability is sold as **prepaid message bundles** (organization-scoped **quota** of successful template/session sends). Purchasing top-ups, showing **remaining balance**, and surfacing upsell when low are **first-class** subscription UX — aligned with **§7.12.3** and **Settings → Subscription** (Owner-only billing surface per §7.12.1).
+**Monetization — internal message packages (add-on / upsell):** The capability is sold as **prepaid message bundles** (organization-scoped **quota** of successful template/session sends). **`Organization.whatsappOutboundMessagesBalance`** (integer, default 0) holds the **remaining sends** per org; **`GET /api/subscription/me`** exposes **`quotas.whatsappOutbound`** (`balance`, `atLimit`) for **Settings → Subscription** (Owner). **`402` / `QUOTA_EXCEEDED` / `whatsappOutboundMessages`** applies when a send is attempted with zero balance (same UX family as other quotas, TZ §14.8.7). **Purchasing top-ups** remains product backlog until checkout is wired; **Super-Admin** does not edit per-org balance in MVP (seed/support/SQL until a PATCH exists).
 
 **Architecture requirements (future scope):**
 
@@ -732,21 +734,24 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 ### 7.1. Модель подписки: Конструктор тарифов (v8.1, расширение v8.8) и **Hybrid LEGO (v10.0)**
 
-**Отказ от жёстких тиров как основной сюжет:** маркетинговые «три коробки» (Starter / Business / Enterprise) не задают продукт; источник правды по ценам — **конструктор** в БД (см. v8.8). Поле **tier** в `OrganizationSubscription` сохраняется для демо, миграций и аналитики; **ENTERPRISE** по-прежнему означает **полный доступ ко всем модулям** без перечисления slug.
+**Тарифы квот (`tier`):** единственные именованные **тарифы** в смысле лимитов — это значения **`SubscriptionTier`**: **STARTER**, **BUSINESS**, **ENTERPRISE**. Они задают **включённые потолки квот** по умолчанию для организации (см. `quotas.ts` / TZ §14.5), до применения **`customConfig.quotas`**, trial-override и **докупки единицами**. Дублирующих маркетинговых названий для квот **нет**. Отдельно: **`ENTERPRISE`** сохраняет продуктовое правило **полного доступа ко всем модулям** без перечисления slug (детали — [TZ.md](./TZ.md) §14.1–14.2).
 
-**Сводка v10.0 (согласована с §7.12):** тарификация **по каждой организации (VÖEN)** — база + модули-надстройки + платные квоты; **единый месячный счёт платформы** на владельца по всем его организациям — см. §7.12.4. Имена и цены модулей ниже — **ориентир для каталога `PricingModules`**, не константы в коде.
+**Источник правды по деньгам за модули и базу** — **конструктор в БД** (`PricingModules`, Foundation, `billing.quota_unit_pricing_v1`, пакеты модулей); **`tier` не несёт отдельной «коробочной» цены продукта** для новых клиентов.
+
+**Сводка v10.0 (согласована с §7.12):** тарификация **по каждой организации (VÖEN)** — **Foundation** + **модули** (поштучно и/или bundle %) + **перерасход квот** по единичным ценам; **единый месячный счёт платформы** на владельца — §7.12.4. Имена и цены модулей в таблице ниже — **ориентир для каталога `PricingModules`**, не константы в коде.
 
 | Слой | Описание |
 |------|----------|
 | **Foundation (база платформы)** | Ежемесячная **базовая цена за активную организацию** (ориентир **29 AZN/мес.**) — доступ к **базовому учёту** (Ledger, CRM, дашборд) и **1 пользователь** (сид) в рамках этой организации; задаётся в Super-Admin (`SystemConfig`, ключ `billing.foundation_monthly_azn`). Дополнительные пользователи — через **квоты** (§7.12.3). |
+| **Quota tier (`tier`)** | **STARTER / BUSINESS / ENTERPRISE** — **тариф включённых квот** (потолки по осям: сотрудники, инвойсы, диск и т.д.); хранится в **`OrganizationSubscription.tier`**. Смена тарифа квот — смена сидовых лимитов (и аналитика по сегменту); **модульный доступ** по-прежнему из **`customConfig.modules`** / **`organization_modules`**, кроме правила **`ENTERPRISE`** (все модули). |
 | **Module Marketplace (LEGO)** | Модули включаются **по организации** независимо; цена в месяц — в **`PricingModules`**. Ориентир цен (AZN/мес., v10.0): **Kassa Pro 15**, **Banking Pro 19**, **Warehouse 25**, **Manufacturing 39**, **HR 19**, **IFRS 29** (ключи slug — как в каталоге, например `kassa_pro`, `banking_pro`, …). |
-| **Quota Management** | Расширение лимитов (сотрудники, объём документов/инвойсов) — **цена за единицу надбавки**: например стоимость **за блок из 10 дополнительных сотрудников** и за **пакет документов**; значения в `SystemConfig` (`billing.quota_unit_pricing_v1`) и в подписке клиента (`customConfig.quotas`). |
-| **Пакеты (bundles)** | Именованные наборы модулей с **скидкой пакета** (%) — таблица **`PricingBundles`**, настройка в Super-Admin (**Paket yaradıcısı**); для клиента показывается **предпросмотр** месячной и годовой суммы. |
+| **Quota scaling (докупка)** | Расширение **сверх** потолков тарифа квот (+ overrides): **цена за единицу надбавки** — блок сотрудников, пакет документов и т.п.; `SystemConfig` **`billing.quota_unit_pricing_v1`**, фактические купленные надбавки — в **`customConfig.quotas`** (см. §7.12.3). |
+| **Пакеты (bundles)** | Именованные наборы **модулей** с **скидкой пакета** (%) — таблица **`PricingBundles`**, Super-Admin (**Paket yaradıcısı**); для клиента — **предпросмотр** суммы. |
 | **Период оплаты** | При оплате **за год** — **автоматическая скидка** (по умолчанию **20%**) к итогу; процент хранится в `SystemConfig` (`billing.yearly_discount_percent`). |
 
-**Формула итога (биллинг):** `Total = BasePrice + Σ(выбранные модули) + (доп. квоты × цена единицы)`; затем применяется **скидка пакета** (если выбран bundle), затем при годовом периоде — **годовая скидка**. Детали схемы — [TZ.md](./TZ.md) §14.
+**Формула итога (биллинг):** `Total = BasePrice + Σ(выбранные модули) + (доп. квоты × цена единицы)`; затем применяется **скидка пакета модулей** (если выбран bundle), затем при годовом периоде — **годовая скидка**. Детали схемы — [TZ.md](./TZ.md) §14.
 
-**Ориентир устаревших пакетов (маркетинг / миграция):** Starter / Business / Enterprise остаются **legacy-пресетами** в `SystemConfig` (`billing.price.*`) для совместимости; новые продажи ориентируются на конструктор и каталог `PricingModules`.
+**Ключи `billing.price.*` (исторический артефакт):** для **новых** клиентов и продуктового UX **не используются** как цена «коробки»; месячное начисление строится из **Foundation + модули + overlimit квот** (§7.12.2). Поля в `SystemConfig` могут оставаться в API только ради **обратной совместимости** старых интеграций или миграций — не как источник правды по выручке.
 
 ### 7.2. Продуктовые механизмы
 
@@ -759,17 +764,18 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 | Аспект | Поведение |
 |--------|-----------|
-| Активация | При регистрации организации — `OrganizationSubscription` с `isTrial: true`, тариф **BUSINESS** |
-| Срок | `expiresAt` = сейчас + **14 календарных дней** (таймзона: зафиксировать: UTC или локаль организации) |
-| Уведомление | На дашборде **на все дни** активного демо (пока не истёк срок) — плашка (AZ/RU) с переходом к оплате |
-| После демо | Данные **не удаляются**; режим **READ_ONLY** до оплаты |
+| Активация | При регистрации организации — `OrganizationSubscription` с `isTrial: true`, **тариф квот** **`tier = BUSINESS`** (включённые лимиты по умолчанию для триала; модули — из Trial-пакета, см. ниже) |
+| Срок | `expiresAt` = **конец N-го календарного дня** после `Organization.createdAt`, где **N** и набор включённых модулей/квот задаются **Trial-пакетом** (`PricingBundle` с `isTrialDefault`, поля `trialDurationDays`, `moduleKeys`, `trialQuotas`); по умолчанию **90 календарных дней** (3 месяца), расчёт в **UTC**. |
+| Trial-пакет | Super-Admin настраивает **какие модули бесплатны** на триале; модули **вне пакета** — платные по обычным правилам gating. **RPA/Assistant** (контуры `tax_pro`, `trade_pro`) **не** входят в бесплатный trial-пакет по умолчанию; при покупке этих модулей **во время триала** срок триала **не сокращается** — активируется только оплаченный модуль. |
+| Уведомление | На дашборде **на все дни** активного демо (пока не истёк срок) — плашка (AZ/RU) с переходом к оплате / настройке модулей |
+| После демо | Данные **не удаляются**; `isTrial` снимается (месячный job + переход на post-paid); ограничения доступа — через **billing** (`SOFT_BLOCK` / `HARD_BLOCK`), а не глобальный READ_ONLY «навсегда» без оплаты (см. §7.12) |
 
 ### 7.3.1. Главная страница (дашборд организации)
 
 | Элемент | Поведение |
 |---------|-----------|
 | **Подзаголовок** | Техно-стек на главной **не показывается** (фокус на продукте). |
-| **Шапка** | Рядом с названием компании: **тариф**, **квоты** (инвойсы за месяц, сотрудники), ссылка на подписку. |
+| **Шапка** | Рядом с названием компании: **тариф квот (tier)** и **фактические квоты** (инвойсы за месяц, сотрудники), ссылка на подписку. |
 | **Курсы ЦБА** | Блок курсов валют к AZN. |
 | **Закрытие месяца** | Блок **только если** есть **незакрытый прошедший** календарный UTC-месяц (самый ранний из «долга» по `settings.reporting.closedPeriods`); размещается **над** блоком курсов. Отдельная страница под закрытие **не обязательна**. |
 | **Краткие отчёты** | Упрощённые **P&L** (чистая прибыль за текущий UTC-месяц), **баланс** (сумма активов и сумма обязательств+капитала по типам счетов на дату), **ДДС (упрощ.)** — нетто по счетам 101+221 за текущий месяц; полные отчёты — в модуле Reporting. |
@@ -783,8 +789,8 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 - Превышение лимита → предсказуемая блокировка или upsell без потери данных.
 - Владелец видит подписку и может продлить без поддержки (MVP).
 - End-to-end тестовый платёж на staging.
-- Демо: до конца календарного месяца регистрации (UTC), плашка на дашборде на весь входной месяц.
-- 1-го числа после входного месяца счёт за бесплатный месяц **не** выставляется; отправляется уведомление о старте платного периода.
+- Демо: **Trial-пакет** (см. §7.3): по умолчанию **3 календарных месяца** от даты создания организации (`Organization.createdAt`, UTC); плашка на дашборде на весь период trial.
+- По окончании trial: месячный биллинговый цикл переводит организацию на **post-paid** (`isTrial=false`); уведомление владельцу о необходимости включить/оплатить нужные модули; счёт за **прошедший** платный период — по правилам §7.12.5.
 - Первый post-paid счёт выставляется 1-го числа следующего месяца за полный прошедший платный месяц.
 
 ### 7.5. Вне объёма v4
@@ -798,7 +804,7 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 | Направление | Описание |
 |-------------|----------|
 | **Управление организациями** | Просмотр всех зарегистрированных компаний, статуса подписки и лимитов. |
-| **Управление тарифами и ценами** | **Прайс-лист v8.8:** базовая цена Foundation, каталог модулей (`PricingModules`), цены квот и годовая скидка; **Paket yaradıcısı** — пакеты со скидкой и предпросмотром для клиента (см. §7.1). Legacy-цены тиров — в `SystemConfig`. |
+| **Управление тарифами и ценами** | **Super-Admin → Подписка:** вкладка **«Прайс-лист»** — Foundation, каталог **`PricingModules`**, докупка квот (`billing.quota_unit_pricing_v1`), годовая скидка; **«Квоты»** — отдельное сохранение **Foundation**; сохранение **legacy `billing.price.*`**, лимита **OCR** на орг/UTC-месяц (`quota.ocr_jobs_per_org_month_v1`), unit pricing и годовой скидки; **квоты по каждому `SubscriptionTier`** в `SystemConfig` (`maxEmployees`, `maxInvoicesPerMonth`, `maxStorageGb` только; в UI пустое поле = **безлимит** / `null`). **«Paket yaradıcısı»** — пакеты **модулей** (§7.1). Лимита «сколько организаций может вести один пользователь» **нет**. |
 | **Управление локализацией (i18n)** | Редактор строк **основного UI** на **RU** и **AZ** (плоские ключи); переопределения в БД перекрывают `resources.ts` на клиенте после нормализующего merge (§7.6.1). Поля **`name_az` / `name_ru` / `name_en`** у счетов и шаблонов — отдельный контур (API `locale`), не третий язык i18next. |
 | **Глобальный аудит** | Доступ ко всем логам всех организаций для расследования критических инцидентов. |
 | **Системный мониторинг** | Статус очередей BullMQ (фоновые задачи), состояние Redis и почтового сервера (по мере внедрения). |
@@ -827,6 +833,14 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 **Чеклист релиза расширения ERA Finance Assistant (Staging/Prod):** [docs/deploy/EXTENSION_MVP_DEPLOY.md](./docs/deploy/EXTENSION_MVP_DEPLOY.md).
 
 **Центр деплой-документации (сценарии + порядок для on-call):** [docs/deploy/README.md](./docs/deploy/README.md).
+
+#### 7.6.3. AI Portal Monitoring (PLANNED, v-next)
+
+**Статус:** только roadmap, без обязательной реализации в текущем релизе.
+
+**Цель:** после входа через **ASAN İmza** периодически проверять **изменения вёрстки/структуры DOM** государственных порталов (**e-taxes**, **ƏMAS**, **DGX**) с помощью **Gemini** (или эквивалентного layout-diff), чтобы своевременно обнаруживать поломки RPA/расширения и инициировать обновление коннекторов.
+
+**Связь:** см. §4.4.2 (AI-OCR / импорт), §7.6 (системный мониторинг очередей); детали контрактов — будущее обновление [TZ.md](./TZ.md) §1.6.1.
 
 ### 7.7. Платформа (v5.6): гарантированная изоляция тенантов (Data Safety)
 
@@ -920,7 +934,7 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 #### 7.12.2. Юнит тарификации — Hybrid LEGO (по организации)
 
-- **1 биллинг-юнит = 1 организация (1 VÖEN).** Фиксированных «коробочных» планов нет: набор модулей и квот задаётся **независимо для каждой** организации.
+- **1 биллинг-юнит = 1 организация (1 VÖEN).** Нет продаваемой «коробки всё-в-одном» за фиксированную цену тира: **база + модули** считаются из конструктора; **включённые потолки квот** — из **`tier`** (тариф квот) с учётом overrides; **докупка** — по §7.12.3.
 - **Формула месячной оценки по организации (вход в `EstimatedNextPayment` и строки счёта):**
 
 \[
@@ -930,19 +944,21 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
   - **BasePrice** — за организацию (ориентир **29 AZN/мес.**; факт — `SystemConfig` / `basePriceSnapshot`); включает **базовый учёт** и **1 пользователя** в рамках этой организации (§7.1).
   - **Active modules** — сумма цен включённых модулей из каталога; ориентиры цен — §7.1 (таблица Module Marketplace).
   - **Overlimit quotas** — доплата за превышение включённых лимитов (§7.12.3).
+  - **Оценка для владельца (`GET /billing/summary` и аналоги):** при **`tier === ENTERPRISE`** в помесячную **оценку** входят **все** позиции каталога **`PricingModules`** (как полный набор модулей в деньгах); **`POST /api/billing/toggle-module`** для такой организации **не применяется** (код `ENTERPRISE_ALL_MODULES` — Enterprise уже включает все модули по гейтингу).
 
 Каталог **`PricingModules`** — источник правды по ценам модулей; **`basePriceSnapshot`** на организации фиксирует базу на дату.
 
-#### 7.12.3. Квоты (Scaling) — платные пакеты расширения
+#### 7.12.3. Квоты (Scaling) — тариф квот + платные единицы расширения
 
-База Foundation даёт **одного пользователя** на организацию; остальное — **масштабирование** через платные пакеты (лимиты и цены — в `SystemConfig`, ключ `billing.quota_unit_pricing_v1`, и в `customConfig.quotas`).
+**Включённые лимиты** берутся из **`OrganizationSubscription.tier`** (STARTER / BUSINESS / ENTERPRISE), затем применяются **`customConfig.quotas`** и (на триале) **`trialQuotas`** из дефолтного Trial-bundle. База Foundation даёт **одного пользователя** на организацию; **сверх** включённого — **масштабирование** платными единицами (цены — `SystemConfig` **`billing.quota_unit_pricing_v1`**, учёт купленного — **`customConfig.quotas`** / сервис квот). **Отдельного лимита** на число организаций, в которых может состоять один пользователь (**`maxOrganizations`**), **нет** — коммерция и квоты считаются **по организации (VÖEN)**.
 
 | Ось | Описание |
 |-----|----------|
-| **Пользователи / сотрудники** | Дополнительные места (например блоки по **10** человек за **15 AZN** — ориентир) сверх включённого в базу **1** сида. |
-| **Диск** | Ориентир: **1 GB** в базе; сверх — пакеты (например **5 AZN / 5 GB**). |
-| **Инвойсы продаж (`maxInvoicesPerMonth`)** | Ориентир базы **100/мес.**; сверх — пакеты (например **500** шт., цена из конфига). |
-| **WhatsApp — исходящие сообщения (roadmap)** | Внутренние **пакеты** успешных отправок через **WhatsApp Business API** (add-on); покупка, остаток, блок при нуле — **Settings → Subscription**; продуктовая рамка — **§6.8**. |
+| **Пользователи / сотрудники** | Лимит по тиру + докупка блоками (например блоки по **10** человек — ориентир) сверх сидового места из Foundation. |
+| **Диск (object storage)** | Лимит по тиру (**`maxStorageGb`**); сверх — пакеты по цене из конфига. |
+| **Инвойсы за UTC-месяц (`maxInvoicesPerMonth`)** | Лимит по тиру; сверх — пакеты (например **500** шт., цена из `quota_unit_pricing_v1`). |
+| **OCR (Trade Pro)** | Лимит **созданий `OcrJob`** на организацию за **UTC-календарный месяц** из **`quota.ocr_jobs_per_org_month_v1`**; для **`tier === ENTERPRISE`** проверка **не** применяется (безлимит по политике кода). |
+| **WhatsApp — исходящие (предоплата)** | Остаток успешных отправок: колонка **`organizations.whatsapp_outbound_messages_balance`**, снимок в **`GET /api/subscription/me`** → **`quotas.whatsappOutbound`**; при нуле — блок отправки и **`402`** с кодом квоты (см. §6.8); **докупка пакетов** — по мере внедрения checkout. |
 
 Превышение не должно приводить к «тихому» списанию: блок / upsell / явное согласие на докупку (§7.2).
 
@@ -952,7 +968,7 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 | Правило | Описание |
 |--------|-----------|
-| **Создание** | Кнопки и формы **создания** новых записей, которые увеличивают потребление квоты, **блокируются** или показывают **модальное окно** с предложением **апгрейда тарифа** / докупки пакета. |
+| **Создание** | Кнопки и формы **создания** новых записей, которые увеличивают потребление квоты, **блокируются** или показывают **модальное окно** с предложением **смены тарифа квот (tier)** и/или **докупки единиц** расширения. |
 | **Чтение** | Просмотр (**Read-only**) данных, отчёты и навигация по уже созданным объектам **сохраняются** (кроме режима READ_ONLY по подписке — §7.3). |
 | **API** | Мутации, нарушающие квоту, возвращают **HTTP 402 Payment Required** с машиночитаемым кодом (см. [TZ.md](./TZ.md) §14.8.7); фронтенд перехватывает ответ и показывает **UpgradePlanModal** (или эквивалент). |
 
@@ -1004,6 +1020,20 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 | **ENTERPRISE** | Базовый **Recovery Pack** включён: soft-delete широкого охвата, S3 Object Lock для критичных префиксов, Super-Admin security UI, dispute pipeline с dual approval + email step-up, снимки и откат по снимку (MVP). |
 | **STARTER / BUSINESS** | Тот же базовый контур платформы; **расширенный retention** снимков / evidence и **point-in-time replay** (R5.2) — опциональный модуль **`recovery_pro`** (коммерческая опция, см. биллинг). |
 | **Доказательность** | PDF-сертификат передачи, хэши в `AuditLog`, уведомления incumbent (email + in-app + SMS-очередь). |
+
+### 7.14. Referral & Partner Program
+
+**Цель:** привлечение новых организаций через **онлайн-реферальные ссылки** и **офлайн QR** (лендинг регистрации с `?ref=`), с прозрачным учётом комиссий платформы.
+
+| Подпункт | Поведение |
+|----------|-----------|
+| **7.14.1 Tiers** | Ставка комиссии партнёра от суммы **оплаченных** платформенных счетов реферала: **10%** при **<10** активных привлечённых организаций (lifetime), **15%** при **<50**, **20%** при **≥50** (пороги считаются по числу организаций с успешной привязкой к партнёру). |
+| **7.14.2 12-месячное окно** | Начисления комиссии только за платежи, произведённые в течение **12 календарных месяцев** с даты **`Organization.createdAt`** привлечённого тенанта; после окна флаг **`isActive`** у связи реферала снимается (автоматизация: BullMQ job 1-го числа месяца). |
+| **7.14.3 Corporate partners** | Для корпоративных партнёров Super-Admin задаёт **фиксированную ставку** (`fixedRatePercent`), переопределяющую tier-лесенку. |
+| **7.14.4 Online + offline** | Партнёр получает **постоянную ссылку** `…/register?ref=<code>` и **QR PNG** с той же ссылкой; регистрация без параметра `ref` **не** атрибутируется партнёру. |
+| **7.14.5 Кабинеты** | **Super-Admin:** CRUD партнёров, ставки, выгрузка QR, отчёт по начисленным комиссиям. **`/partner`:** self-service для пользователя с ролью **PARTNER** (код, ссылка, статистика, ожидаемые комиссии). |
+
+Технические контракты API и Prisma — [TZ.md](./TZ.md) §14.9.
 
 ---
 
@@ -1254,7 +1284,7 @@ ERA Finance **не навязывает** обязательную синхро�
 | **2026.05.07** | Текущая | **Roadmap 95+ (Billing Pivot):** Transitioned to Post-Paid model, zero-friction module activation, and 1st-of-month invoice generation. |
 | **2026.05.08** | Текущая | **Billing Refinement:** Free first month logic, end-of-month pending deactivation, and 25th-day reminders. |
 | **2026.05.12** | Текущая | **DevOps & Monitoring:** Automated pg_dump backups, DR Runbook, Audit cron, and Bank API Circuit Breaker. |
-| **2026.05.13** | Текущая | **PRD Final Sync:** Full alignment with implemented 95–100% scope (Period Close Checklist, Hash Chain immutability, Netting UX, Outbound Banking E2E, Hire-Gate, WMS-light/byproducts, Post-paid Grace Period, and DR requirements). |
+| **2026.05.13** | Текущая | **PRD Final Sync + billing taxonomy:** полное выравнивание с реализованным 95–100% scope (Period Close Checklist, Hash Chain immutability, Netting UX, Outbound Banking E2E, Hire-Gate, WMS-light/byproducts, Post-paid Grace Period, DR requirements). **`SubscriptionTier`** зафиксирован как **единственный набор тарифов квот** (PRD §7.1, TZ §14); legacy `billing.price.*` — вне продуктового UX для новых клиентов. |
 | **2026.05.14** | Текущая | **SRE & QA (Platform/M8):** Automated payment reconciliation webhook (auto-resume to ACTIVE) and external alerting for audit chain breaches. |
 | **2026.05.15** | Текущая | **SRE & QA (M2/M5/M7):** Banking failover stress-tests and 10k+ report performance optimization. |
 | **2026.05.16** | Архив | **QA & SRE (M1/M6):** Invite security edge-cases and Hire-gate concurrency protection. |
@@ -1277,6 +1307,7 @@ ERA Finance **не навязывает** обязательную синхро�
 | **2026.06.03** | Текущая | **Phase 12.1:** Trade Pro Customs upgraded to full BGD capture (line items, sender/receiver VÖEN, HS-based GATT pre-calc, injected portal action button + widget, super-admin tariff rates) with detail review UI; техконтракт — [TZ.md](./TZ.md) §20.1. |
 | **2026.06.04** | Текущая | **Profile / Billing providers / FA monthly:** добавлены (a) self-service **«Профиль»** (`/settings/profile`), поля **`User.phone`** и **`User.locale`** (`UserLocale = AZ \| RU`), API **`GET/PATCH /api/users/me`** со сменой пароля; (b) второй провайдер оплаты подписки **Drakaris/yığım** (Basic Auth, REST `/api/integrations/drakaris/v1/...`, идемпотентность по `transaction-id` → `PaymentOrder.idempotencyKey`, `Organization.drakarisClientId`); (c) ежемесячный BullMQ-воркер начисления амортизации (`monthly-depreciation`, cron `0 1 1 * *`, env-выключатель `FIXED_ASSETS_MONTHLY_DISABLED`). Техконтракты — [TZ.md](./TZ.md) §2.2, §12.5, §14.8.2, §14.8.14. |
 | **2026.06.05** | Текущая | **Таможенные ставки AZ / HS:** курируемый справочник `CustomsTariffRate` (приложения к актам КМ, парсинг MD → JSON, импорт, версии по **`effective_from`**); **§7.6.2**; техконтракт — [TZ.md](./TZ.md) §20.2. |
+| **2026.06.06** | Текущая | **Квоты и биллинг (синхрон с кодом):** убран лимит **`maxOrganizations`**; оси квот и предоплата WhatsApp — **§7.12.3**; оценка **`ENTERPRISE`** по всем модулям каталога и запрет toggle — **§7.12.2**; Super-Admin **«Подписка → Квоты»** (Foundation, глобальные лимиты, tier-квоты с пустым = безлимит) — **§7.6**; детали полей и API — [TZ.md](./TZ.md) §14.5, §14.8.2, §15.2. |
 
 ### 14.1. Принцип ведения истории (дальше)
 

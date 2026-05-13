@@ -1,9 +1,10 @@
 /**
- * Печатает password_hash пользователя для подстановки в 02-super-admin-seed.sql.
+ * Prints `password_hash` for a user (optional ops/debug). Default seed uses bcrypt at runtime in
+ * `lib/platform/upsert-platform-super-admins.ts` — no committed SQL hash file.
  *
- * Из корня: dotenv -e .env -- npm run docker-init:super-admin-hash -w @erafinance/database
+ * From repo root: dotenv -e .env -- npm run docker-init:super-admin-hash -w @erafinance/database
  *
- * Переменная SUPER_ADMIN_EMAIL (по умолчанию shirinov.chingiz@gmail.com).
+ * Env: SUPER_ADMIN_EMAIL (default shirinov.chingiz@gmail.com).
  */
 import { closePrismaPool, createPrismaClient } from "../prisma-client";
 

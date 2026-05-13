@@ -20,6 +20,8 @@
     "build": "prisma generate && npm run build:chart",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
+    "db:migrate:clear-squash-row": "prisma db execute --file prisma/scripts/ops/delete-squashed-migration-row.sql",
+    "db:migrate:reset-public-dev": "prisma db execute --file prisma/scripts/ops/reset-public-schema-dev.sql",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:reset": "prisma migrate reset",

@@ -15,10 +15,12 @@ import { SuperAdminGuard } from "./guards/super-admin.guard";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 import { PiiCryptoService } from "../security/pii-crypto.service";
 import { GlobalCompanyDirectoryModule } from "../global-directory/global-company-directory.module";
+import { ReferralsModule } from "../referrals/referrals.module";
 
 @Module({
   imports: [
     PrismaModule,
+    ReferralsModule,
     GlobalCompanyDirectoryModule,
     forwardRef(() => OrganizationsModule),
     HrModule,

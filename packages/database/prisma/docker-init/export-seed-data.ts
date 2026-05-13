@@ -2,21 +2,18 @@
  * Полный слепок справочных таблиц для прода: INSERT ... ON CONFLICT (идемпотентно).
  *
  * Таблицы: translation_overrides (с фильтром односегментных ключей), system_config,
- * pricing_modules, pricing, pricing_bundles.
+ * pricing, pricing_bundles. (pricing_modules не выгружаются — см. prisma/lib/core/pricing-module-seed.ts + db:seed.)
  *
  * Пользователей (users) в дамп по умолчанию НЕ включаем — иначе при каждом экспорте в репозиторий
- * попадает password_hash из локальной БД и ломается предсказуемый сид. Супер-админа держите
- * вручную в 01-seed-data.sql или подставляйте хеш: npm run docker-init:super-admin-hash.
+ * попадает password_hash из локальной БД и ломается предсказуемый сид. Супер-админа сидит
+ * `prisma/seeds/core/platform-super-admins.ts`. Опционально: `npm run docker-init:super-admin-hash` — вывести `password_hash` из БД (отладка).
  * Принудительно выгрузить users из БД (осознанно): DOCKER_INIT_EXPORT_USERS=1
  *
- * Из корня монорепо (пишет packages/database/prisma/docker-init/01-seed-data.sql по умолчанию):
+ * Из корня монорепо (по умолчанию SQL в stdout; файл только если задан DOCKER_INIT_OUT):
  *   npm run db:dump-to-prod
  *   dotenv -e .env -- npm run docker-init:export -w @erafinance/database
  *
- * Только в stdout (без записи файла):
- *   DOCKER_INIT_OUT=- dotenv -e .env -- npm run docker-init:export -w @erafinance/database
- *
- * Явный путь:
+ * Записать в файл:
  *   DOCKER_INIT_OUT=prisma/docker-init/custom.sql dotenv -e .env -- npm run docker-init:export -w @erafinance/database
  */
 import { writeFileSync } from "node:fs";
@@ -61,7 +58,7 @@ function sqlNullableString(v: string | null | undefined): string {
 async function buildSql(): Promise<string> {
   const parts: string[] = [];
   parts.push(`-- ERA Finance: экспорт справочных данных (export-seed-data.ts), Postgres 16
--- Порядок: translation_overrides, system_config, pricing_modules, pricing, pricing_bundles.
+-- Порядок: translation_overrides, system_config, pricing, pricing_bundles. (pricing_modules — prisma/lib/core/pricing-module-seed.ts + db:seed)
 -- users не экспортируются (см. комментарий в export-seed-data.ts), кроме DOCKER_INIT_EXPORT_USERS=1.
 -- Односегментные ключи i18n вне белого списка не попадают в дамп.
 --
@@ -128,30 +125,9 @@ ON CONFLICT ("key") DO UPDATE SET
     parts.push(`-- (нет строк в БД)\n`);
   }
 
-  parts.push(`\n-- pricing_modules\n`);
-  const pm = await prisma.pricingModule.findMany({ orderBy: { sortOrder: "asc" } });
-  if (pm.length > 0) {
-    parts.push(
-      `INSERT INTO "pricing_modules" ("id", "key", "name", "price_per_month", "sort_order", "created_at", "updated_at")\nVALUES\n`,
-    );
-    parts.push(
-      pm
-        .map(
-          (r) =>
-            `  ('${r.id}'::uuid, '${escLiteral(r.key)}', '${escLiteral(r.name)}', ${r.pricePerMonth.toString()}, ${r.sortOrder}, '${ts(r.createdAt)}'::timestamptz, '${ts(r.updatedAt)}'::timestamptz)`,
-        )
-        .join(",\n"),
-    );
-    parts.push(`
-ON CONFLICT ("key") DO UPDATE SET
-  "name" = EXCLUDED."name",
-  "price_per_month" = EXCLUDED."price_per_month",
-  "sort_order" = EXCLUDED."sort_order",
-  "updated_at" = EXCLUDED."updated_at";
-`);
-  } else {
-    parts.push(`-- (нет строк в БД)\n`);
-  }
+  parts.push(
+    `\n-- pricing_modules: omitted — canonical defaults in prisma/lib/core/pricing-module-seed.ts (prisma db seed / seedPricingModuleIfEmpty).\n`,
+  );
 
   parts.push(`\n-- pricing\n`);
   const pr = await prisma.pricing.findMany({ orderBy: { sortOrder: "asc" } });
@@ -246,7 +222,7 @@ ON CONFLICT ("email") DO UPDATE SET
     }
   } else {
     parts.push(
-      `\n-- users: не выгружаются (фиксированный сид — prisma/docker-init/02-super-admin-seed.sql)\n`,
+      `\n-- users: не выгружаются (сид — prisma/seeds/core/platform-super-admins.ts)\n`,
     );
   }
 
@@ -259,7 +235,7 @@ COMMIT;
 function resolveOutputPath(): string | null {
   const explicit = process.env.DOCKER_INIT_OUT;
   if (explicit === undefined) {
-    return resolve(process.cwd(), "prisma/docker-init/01-seed-data.sql");
+    return null;
   }
   const t = explicit.trim();
   if (t === "" || t === "-") return null;
@@ -273,6 +249,11 @@ async function main(): Promise<void> {
     writeFileSync(out, sql, "utf8");
     process.stdout.write(`Wrote ${out}\n`);
   } else {
+    if (process.env.DOCKER_INIT_OUT === undefined) {
+      process.stderr.write(
+        "[export-seed-data] SQL goes to stdout. Set DOCKER_INIT_OUT=relative/path.sql to write a file.\n",
+      );
+    }
     process.stdout.write(sql);
   }
 }

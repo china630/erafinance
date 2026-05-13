@@ -3,9 +3,9 @@ import { HttpException, HttpStatus } from "@nestjs/common";
 export type QuotaKind =
   | "maxEmployees"
   | "maxInvoicesPerMonth"
-  | "maxOrganizations"
   | "maxStorageGb"
-  | "maxOcrJobsPerMonth";
+  | "maxOcrJobsPerMonth"
+  | "whatsappOutboundMessages";
 
 export type QuotaExceededBody = {
   /** HTTP 402 — см. PRD §7.12.3.1 / TZ §14.8.7 */
@@ -33,11 +33,6 @@ function messages(
         az: `Bu ay üçün hesab-faktura limiti dolub (${current}/${limit}). Növbəti ay və ya daha yüksək tarif.`,
         ru: `Достигнут лимит инвойсов за текущий месяц (${current}/${limit}). Дождитесь следующего месяца или смените тариф.`,
       };
-    case "maxOrganizations":
-      return {
-        az: `Təşkilat limiti dolub (${current}/${limit}). Daha yüksək tarifə keçin.`,
-        ru: `Достигнут лимит организаций по тарифу (${current}/${limit}). Перейдите на более высокий тариф.`,
-      };
     case "maxStorageGb":
       return {
         az: `Yaddaş limiti dolub (~${current} GB / ${limit} GB). Daha yüksək tarifə keçin.`,
@@ -47,6 +42,11 @@ function messages(
       return {
         az: `Bu ay üçün OCR sorğularının limiti dolub (${current}/${limit}). Növbəti ay və ya ENTERPRISE.`,
         ru: `Достигнут лимит OCR-запросов за текущий месяц (${current}/${limit}). Дождитесь следующего месяца или смените тариф.`,
+      };
+    case "whatsappOutboundMessages":
+      return {
+        az: "WhatsApp üçün öncədən ödənilmiş mesaj balansı bitib. Paket alın (Abunəlik).",
+        ru: "Закончился предоплаченный баланс исходящих сообщений WhatsApp. Купите пакет в разделе подписки.",
       };
     default:
       return {

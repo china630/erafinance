@@ -13,12 +13,6 @@ export class TierQuotasDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  maxOrganizations?: number | null;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
   maxEmployees?: number | null;
 
   @IsOptional()

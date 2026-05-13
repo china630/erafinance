@@ -56,4 +56,16 @@ export class RegisterOrgDto {
   @IsString()
   @MinLength(8)
   adminPassword!: string;
+
+  @ApiPropertyOptional({
+    description: "Referral partner code (from /register?ref=)",
+    example: "A1B2C3D4",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  @Matches(/^[A-Za-z0-9_-]+$/, {
+    message: "referralCode must be alphanumeric",
+  })
+  referralCode?: string;
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { apiBaseUrl, apiFetch } from "../../lib/api-client";
+import { apiBaseUrl, apiFetch, emitClientApiError } from "../../lib/api-client";
 import type { AuthUser, OrgSummary } from "../../lib/auth-context";
 import { useAuth } from "../../lib/auth-context";
 import { LINK_ACCENT_CLASS, PRIMARY_BUTTON_CLASS } from "../../lib/design-system";
@@ -47,7 +47,6 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recentEmails, setRecentEmails] = useState<string[]>([]);
 
@@ -72,7 +71,6 @@ export default function LoginPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
     setBusy(true);
     try {
       const res = await apiFetch("/api/auth/login", {
@@ -81,7 +79,6 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       if (!res.ok) {
-        setError(`${res.status}`);
         return;
       }
       const data = (await res.json()) as {
@@ -96,7 +93,10 @@ export default function LoginPage() {
         orgs.length === 0 ? "/companies" : orgs.length > 1 ? "/companies" : "/";
       window.location.assign(target);
     } catch {
-      setError(t("auth.apiUnreachable", { url: apiBaseUrl() }));
+      emitClientApiError(
+        503,
+        t("auth.apiUnreachable", { url: apiBaseUrl() }),
+      );
     } finally {
       setBusy(false);
     }
@@ -140,7 +140,6 @@ export default function LoginPage() {
               className="block w-full mt-1.5"
             />
           </label>
-          {error && <p className="text-red-600 text-sm">{error}</p>}
           <button type="submit" disabled={busy} className={`${PRIMARY_BUTTON_CLASS} w-full`}>
             {t("auth.submitLogin")}
           </button>

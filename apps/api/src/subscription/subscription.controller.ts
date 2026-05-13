@@ -31,15 +31,18 @@ export class SubscriptionController {
   async getMe(@OrganizationId() organizationId: string) {
     /** Сначала снимок подписки (lazy-create строки) — иначе квоты в parallel получают 404. */
     const snapshot = await this.access.getOrganizationSnapshot(organizationId);
-    const [employees, invoicesThisMonth, storage] = await Promise.all([
+    const [employees, invoicesThisMonth, storage, org] = await Promise.all([
       this.quota.getEmployeeQuotaSnapshot(organizationId),
       this.quota.getInvoiceMonthlyQuotaSnapshot(organizationId),
       this.quota.getStorageQuotaSnapshot(organizationId),
+      this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: {
+          billingStatus: true,
+          whatsappOutboundMessagesBalance: true,
+        },
+      }),
     ]);
-    const org = await this.prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { billingStatus: true },
-    });
     const expiresAt = snapshot.expiresAt;
     const now = Date.now();
     const readOnly =
@@ -53,6 +56,7 @@ export class SubscriptionController {
       }
     }
 
+    const waBalance = org?.whatsappOutboundMessagesBalance ?? 0;
     return {
       tier: snapshot.tier,
       activeModules: snapshot.activeModules,
@@ -63,7 +67,15 @@ export class SubscriptionController {
       billingStatus: org?.billingStatus ?? BillingStatus.ACTIVE,
       readOnly,
       trialDaysLeft,
-      quotas: { employees, invoicesThisMonth, storage },
+      quotas: {
+        employees,
+        invoicesThisMonth,
+        storage,
+        whatsappOutbound: {
+          balance: waBalance,
+          atLimit: waBalance <= 0,
+        },
+      },
     };
   }
 

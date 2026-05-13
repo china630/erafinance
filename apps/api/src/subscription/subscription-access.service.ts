@@ -67,6 +67,10 @@ export type SubscriptionCustomConfig = {
   kassaPro?: boolean;
   preset?: string;
   quotas?: Record<string, unknown>;
+  /** UUID `PricingBundle` or `"default"` for seeded trial without bundle row. */
+  trialPackageId?: string;
+  /** Trial-only quota overrides (subset of TierQuotas). */
+  trialQuotas?: Record<string, unknown>;
   [key: string]: unknown;
 };
 
@@ -324,7 +328,14 @@ export class SubscriptionAccessService {
       return;
     }
 
-    const customList = parseCustomModules(sub.customConfig);
+    const trialExpired =
+      Boolean(sub.isTrial) &&
+      sub.expiresAt != null &&
+      new Date().getTime() > sub.expiresAt.getTime();
+
+    const entitlementCustomConfig = trialExpired ? null : (sub.customConfig ?? null);
+
+    const customList = parseCustomModules(entitlementCustomConfig);
     if (customList && customList.length > 0) {
       if (isAllowedByConstructorModules(customList, moduleKey)) {
         return;
@@ -342,7 +353,7 @@ export class SubscriptionAccessService {
     const ent = computeEntitlements({
       tier: sub.tier,
       activeModules: normalizeActiveModules(sub.activeModules),
-      customConfig: sub.customConfig ?? null,
+      customConfig: entitlementCustomConfig,
     });
     let allowed = false;
     switch (moduleKey) {
@@ -444,6 +455,7 @@ export class SubscriptionAccessService {
           where: { organizationId: id },
           data: {
             isTrial: false,
+            customConfig: Prisma.DbNull,
           },
         });
         const refreshed = await this.prisma.organizationSubscription.findUnique({
@@ -561,9 +573,23 @@ export class SubscriptionAccessService {
     }
 
     const activeModules = Array.from(set);
+
+    const customList = parseCustomModules(sub.customConfig);
+    let customConfigData: Prisma.InputJsonValue | undefined;
+    if (customList && customList.length > 0) {
+      const raw =
+        sub.customConfig != null && typeof sub.customConfig === "object"
+          ? (sub.customConfig as Record<string, unknown>)
+          : {};
+      customConfigData = { ...raw, modules: activeModules } as Prisma.InputJsonValue;
+    }
+
     await db.organizationSubscription.update({
       where: { organizationId },
-      data: { activeModules },
+      data: {
+        activeModules,
+        ...(customConfigData !== undefined ? { customConfig: customConfigData } : {}),
+      },
     });
     await db.organization.update({
       where: { id: organizationId },

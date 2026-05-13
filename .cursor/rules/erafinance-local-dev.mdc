@@ -16,7 +16,9 @@ alwaysApply: true
 
 1. При необходимости создайте каталоги на **`D:\DockerData\erafinance_erp\`** (тома Docker, кэш npm и т.д.) — вручную или любым удобным способом.
 2. `npm run docker:up`.
-3. При необходимости: **`npm run db:migrate`** из корня — это **`prisma migrate deploy`** (подтянуть уже смерженные миграции, **без** вопросов в терминале). Чтобы **создать** новую миграцию из `schema.prisma`: **`npm run db:migrate:dev`** (интерактивно, как раньше `migrate dev`).
+3. **Первый раз** после пустого тома Postgres: из корня **`npm run db:bootstrap-local`** (`db:migrate` + **`db:seed`** — в т.ч. платформенные super-admin из TS — + **`db:sync-i18n`** из `resources.ts`). Дальше при новых миграциях достаточно **`npm run db:migrate`**; при смене строк в веб-ресурсах — **`npm run db:sync-i18n`** (или prune по правилам деплоя).
+4. При необходимости: **`npm run db:migrate`** из корня — это **`prisma migrate deploy`** (подтянуть уже смерженные миграции, **без** вопросов в терминале). Чтобы **создать** новую миграцию из `schema.prisma`: **`npm run db:migrate:dev`** (интерактивно, как раньше `migrate dev`).
+5. **TiVi Media / TiVi Sport** (касса, банк, сотрудники, «живой» сценарий) — это **`npm run seed:local -w @erafinance/api`**, не `db:seed:demo`. Каталоги + TiVi подряд: **`npm run db:seed:showcase`**.
 
 ### Prisma: «Drift detected» и культура миграций (без reset по умолчанию)
 
@@ -66,6 +68,7 @@ Next слушает **`0.0.0.0:3000`** — доступны и `localhost`, и `
 |---------|------------|
 | **`npm run dev`** | API + Web: Web ждёт порт **4000** (`wait-on`), при выходе одного процесса падает второй (`-k`). |
 | **`npm run dev:api`** | Только Nest (порт **4000**). |
+| **`npm run db:seed:showcase`** | После миграций: Prisma `db:seed:demo` + **TiVi** наполнение (`seed:local` в API) — локальный просмотр ERP с данными. |
 | **`npm run dev:web`** | Только Next (**3000**). |
 | **`npm run dev:web:clean`** | Очистка **`.next`**, затем Next (сначала останови Next, если EPERM). |
 | **`npm run restart:web`** | Только Next: `stop:next` + `dev:web:clean`. |

@@ -52,6 +52,7 @@ import {
   UserPlus,
   Users2,
   Wallet,
+  Handshake,
 } from "lucide-react";
 import type { AuthUser } from "../../lib/auth-context";
 import { useEarlyAccess } from "../early-access/early-access-context";
@@ -436,6 +437,7 @@ export function MainSidebar({
   canViewHoldingReports,
   sidebarCollapsed,
   onToggleSidebarCollapsed,
+  partnerNavVisible = false,
 }: {
   mobileNavOpen: boolean;
   /** Close mobile drawer after navigation */
@@ -452,6 +454,8 @@ export function MainSidebar({
   canViewHoldingReports: boolean;
   sidebarCollapsed: boolean;
   onToggleSidebarCollapsed: () => void;
+  /** Partner cabinet — shown when /api/partner/dashboard returns 200 */
+  partnerNavVisible?: boolean;
 }) {
   const pathname = usePathname();
   const { t } = useTranslation();
@@ -509,6 +513,15 @@ export function MainSidebar({
           icon={FileCheck2}
           onNavClick={onNavClick}
         />
+        {partnerNavVisible ? (
+          <SideNavItem
+            href="/partner"
+            label={t("partner.nav")}
+            isActive={pathname.startsWith("/partner")}
+            icon={Handshake}
+            onNavClick={onNavClick}
+          />
+        ) : null}
 
         <CollapsibleNavSection
           sectionKey="treasury"

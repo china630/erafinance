@@ -6,6 +6,7 @@ import { seedGeo } from "../geo";
 import { seedHr } from "../hr";
 import { seedNational } from "../national";
 import { seedTrade } from "../trade";
+import { seedDemoOrganizations } from "../demo/demo-organizations";
 
 export async function runSeedLayers(
   prisma: PrismaClient,
@@ -38,5 +39,11 @@ export async function runSeedLayers(
     const t0 = Date.now();
     await fn(ctx);
     console.info(`[seed] layer ${layer} done in ${Date.now() - t0}ms`);
+  }
+
+  if (process.env.SEED_DEMO_ORG === "1" && !options.dryRun && !options.skip.has("demo-org")) {
+    const t0 = Date.now();
+    await seedDemoOrganizations(ctx);
+    console.info(`[seed] demo-org layer done in ${Date.now() - t0}ms`);
   }
 }

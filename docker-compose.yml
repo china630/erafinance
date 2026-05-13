@@ -1,6 +1,9 @@
 # Тома данных на диске D (см. DOCKER_DATA_ROOT в .env) — не используем named volumes на диске C.
-# Создайте каталоги один раз: см. D:\DockerData\erafinance_erp\README.txt
-# Postgres 16 + Redis 7 (см. docs/deploy/README.md). Первый init Postgres: docker-init + опционально SQL из migrations — не смешивайте с `prisma migrate deploy` на том же томе без baseline.
+# Создайте каталоги один раз; шаблон README для D:\DockerData\erafinance_erp\ — docker/README-docker-data.txt
+# Postgres 16 + Redis 7 (see docs/deploy/README.md).
+# First init: only `docker-init/00-extensions.sql` runs inside Postgres (uuid-ossp). From the host once on an empty DB:
+#   npm run db:bootstrap-local   (= db:migrate + db:seed incl. platform super-admins + db:sync-i18n from resources.ts)
+# See docker/README-docker-data.txt.
 
 services:
   postgres:
@@ -14,8 +17,7 @@ services:
       - "5432:5432"
     volumes:
       - ${DOCKER_DATA_ROOT:-D:/DockerData/erafinance_erp}/postgres:/var/lib/postgresql/data
-      - ./packages/database/prisma/migrations:/erafinance-prisma-migrations:ro
-      - ./packages/database/prisma/docker-init:/docker-entrypoint-initdb.d:ro
+      - ./packages/database/prisma/docker-init/00-extensions.sql:/docker-entrypoint-initdb.d/00-extensions.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U erafinance -d erafinance"]
       interval: 5s

@@ -53,6 +53,8 @@ model Organization {
   /// *
   ///    * Bytes stored in object storage for this org (logos, PDFs); quota STORAGE (v23.0).
   storageUsedBytes             BigInt                        @default(0) @map("storage_used_bytes")
+  /// Prepaid successful outbound WhatsApp (Business API) sends remaining for this org (PRD §6.8).
+  whatsappOutboundMessagesBalance Int                         @default(0) @map("whatsapp_outbound_messages_balance")
   deletedAt                    DateTime?                     @map("deleted_at") @db.Timestamptz(6)
   holdingId                    String?                       @map("holding_id") @db.Uuid
   /// NAS plan / organization type: commercial, budget (government), or non-commercial (NGO).
@@ -118,6 +120,7 @@ model Organization {
   warehouses                   Warehouse[]
   warehouseBins                WarehouseBin[]
   notifications                Notification[]
+  referral                     Referral?
   ownershipDisputes            OwnershipDispute[]
   securityState                OrganizationSecurityState?
   dataSnapshots                OrganizationDataSnapshot[]
@@ -368,6 +371,7 @@ model SubscriptionInvoice {
   items          BillingInvoiceItem[]
   paymentOrder   PaymentOrder?             @relation(fields: [paymentOrderId], references: [id])
   user           User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referralCommissions ReferralCommission[]
 
   @@index([userId])
   @@index([userId, date])
@@ -553,7 +557,8 @@ model OrganizationSubscription {
   ///    * Принудительная блокировка доступа (супер-админ).
   isBlocked      Boolean          @default(false) @map("is_blocked")
   /// *
-  ///    * Конструктор тарифа (v8.1): JSON с полями `modules` (массив slug), опционально `preset`, `quotas`.
+  ///    * Конструктор тарифа (v8.1): JSON с полями `modules` (массив slug), опционально `preset`, `quotas`,
+  ///    * `trialPackageId` (UUID PricingBundle), `trialQuotas` (копия/override квот на время trial).
   ///    * При непустом `modules` гейтинг модулей в первую очередь по этому массиву (см. TZ §14).
   customConfig   Json?            @map("custom_config")
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -828,16 +833,85 @@ model PricingModule {
 }
 
 /// *
-///  * Именованный пакет модулей со скидкой (Paket Yaradıcısı).
+///  * Именованный пакет модулей со скидкой (Paket Yaradıcısı). Один bundle может быть помечен как **Trial-пакет** по умолчанию (`isTrialDefault`).
 model PricingBundle {
-  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  name            String
-  discountPercent Decimal  @default(0) @map("discount_percent") @db.Decimal(5, 2)
-  moduleKeys      Json     @map("module_keys")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name              String
+  discountPercent   Decimal  @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  moduleKeys        Json     @map("module_keys")
+  isTrialDefault    Boolean  @default(false) @map("is_trial_default")
+  trialDurationDays Int?     @map("trial_duration_days")
+  trialQuotas       Json?    @map("trial_quotas")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
+  @@index([isTrialDefault])
   @@map("pricing_bundles")
+}
+
+/// *
+///  * Реферальный партнёр (онлайн-ссылка + QR).
+model Partner {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code             String    @unique
+  displayName      String    @map("display_name")
+  ownerUserId      String?   @map("owner_user_id") @db.Uuid
+  isCorporate      Boolean   @default(false) @map("is_corporate")
+  fixedRatePercent Decimal?  @map("fixed_rate_percent") @db.Decimal(5, 2)
+  contactEmail     String?   @map("contact_email")
+  contactPhone     String?   @map("contact_phone")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  referrals        Referral[]
+  ownerUser        User?     @relation("PartnerOwnerUser", fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  @@map("partners")
+}
+
+/// *
+///  * Привязка организации к партнёру (одна организация — максимум одна активная привязка на уровне бизнес-правил).
+model Referral {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  partnerId      String   @map("partner_id") @db.Uuid
+  organizationId String   @unique @map("organization_id") @db.Uuid
+  signupAt       DateTime @default(now()) @map("signup_at")
+  windowEndsAt   DateTime @map("window_ends_at")
+  isActive       Boolean  @default(true) @map("is_active")
+  source         String?
+  partner        Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  commissions    ReferralCommission[]
+
+  @@index([partnerId])
+  @@index([windowEndsAt])
+  @@map("referrals")
+}
+
+/// *
+///  * Начисленная комиссия партнёра за период (после выставления платформенного счёта).
+model ReferralCommission {
+  id                     String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  referralId             String                   @map("referral_id") @db.Uuid
+  subscriptionInvoiceId  String?                  @map("subscription_invoice_id") @db.Uuid
+  amountAzn              Decimal                  @map("amount_azn") @db.Decimal(19, 4)
+  ratePercent            Decimal                  @map("rate_percent") @db.Decimal(5, 2)
+  periodMonth            Int                      @map("period_month")
+  periodYear             Int                      @map("period_year")
+  status                 ReferralCommissionStatus @default(ACCRUED)
+  paidAt                 DateTime?                @map("paid_at")
+  createdAt              DateTime                 @default(now()) @map("created_at")
+  referral               Referral                 @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  subscriptionInvoice    SubscriptionInvoice?     @relation(fields: [subscriptionInvoiceId], references: [id], onDelete: SetNull)
+
+  @@unique([referralId, periodYear, periodMonth])
+  @@index([subscriptionInvoiceId])
+  @@map("referral_commissions")
+}
+
+enum ReferralCommissionStatus {
+  ACCRUED
+  PAID
+  CANCELLED
 }
 
 /// *
@@ -1341,6 +1415,7 @@ model User {
   auditEngagementsCreated         AuditEngagement[]          @relation("AuditEngagementCreator")
   auditEngagementInvitesSent      AuditEngagementInvite[]    @relation("AuditEngagementInviteInviter")
   auditEngagementInvitesAccepted  AuditEngagementInvite[]    @relation("AuditEngagementInviteAcceptor")
+  ownedPartners                   Partner[]                  @relation("PartnerOwnerUser")
 
   @@index([defaultWarehouseId])
   @@map("users")
@@ -2241,21 +2316,24 @@ model ProductRecipeByproduct {
 }
 
 /// *
-///  * Основное средство (линейная амортизация).
+///  * Основное средство; методы амортизации — см. `FixedAssetDepreciationMethod`.
 model FixedAsset {
-  id                 String                        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId     String                        @map("organization_id") @db.Uuid
-  name               String
-  inventoryNumber    String                        @map("inventory_number")
-  purchaseDate       DateTime                      @map("commissioning_date") @db.Date
-  purchasePrice      Decimal                       @map("initial_cost") @db.Decimal(19, 4)
-  usefulLifeMonths   Int                           @map("useful_life_months")
-  salvageValue       Decimal                       @default(0) @map("salvage_value") @db.Decimal(19, 4)
-  depreciationMethod FixedAssetDepreciationMethod  @default(STRAIGHT_LINE) @map("depreciation_method")
-  status             FixedAssetStatus              @default(ACTIVE)
+  id                   String                       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId       String                       @map("organization_id") @db.Uuid
+  name                 String
+  inventoryNumber      String                       @map("inventory_number")
+  purchaseDate         DateTime                     @map("commissioning_date") @db.Date
+  purchasePrice        Decimal                      @map("initial_cost") @db.Decimal(19, 4)
+  usefulLifeMonths     Int                          @map("useful_life_months")
+  salvageValue         Decimal                      @default(0) @map("salvage_value") @db.Decimal(19, 4)
+  depreciationMethod   FixedAssetDepreciationMethod @default(STRAIGHT_LINE) @map("depreciation_method")
+  status               FixedAssetStatus             @default(ACTIVE)
+  totalExpectedUnits   Decimal?                     @map("total_expected_units") @db.Decimal(19, 4)
+  unitsProducedTotal   Decimal                      @default(0) @map("units_produced_total") @db.Decimal(19, 4)
+  decliningBalanceRate Decimal?                     @map("declining_balance_rate") @db.Decimal(5, 4)
   /// *
   ///    * Уже начисленная амортизация (сумма проведённых месяцев)
-  bookedDepreciation Decimal                       @default(0) @map("booked_depreciation") @db.Decimal(19, 4)
+  bookedDepreciation   Decimal                      @default(0) @map("booked_depreciation") @db.Decimal(19, 4)
   createdAt          DateTime                      @default(now()) @map("created_at")
   updatedAt          DateTime                      @updatedAt @map("updated_at")
   depreciationMonths FixedAssetDepreciationMonth[]
@@ -3136,6 +3214,7 @@ enum UserRole {
   HR_MANAGER
   DEPARTMENT_HEAD
   DIRECTOR
+  PARTNER
 }
 
 enum PermissionCategory {
@@ -3421,6 +3500,8 @@ enum InviteStatus {
 
 enum FixedAssetDepreciationMethod {
   STRAIGHT_LINE
+  REDUCING_BALANCE
+  UNITS_OF_PRODUCTION
 }
 
 enum FixedAssetStatus {

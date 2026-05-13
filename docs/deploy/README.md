@@ -6,7 +6,7 @@ This directory is the single entry point for deployment and recovery runbooks.
 
 | Compose file | When to use |
 |--------------|-------------|
-| [`docker-compose.yml`](../../docker-compose.yml) | Local Windows/Linux dev: **Postgres 16** + **Redis 7** with data under `DOCKER_DATA_ROOT` (see repo root `.env.example`). Mounts `prisma/migrations` + `prisma/docker-init` into Postgres **first init only** — do not combine with `prisma migrate deploy` on the same volume without understanding the double-apply risk; prefer a fresh volume or host-only migrations. |
+| [`docker-compose.yml`](../../docker-compose.yml) | Local Windows/Linux dev: **Postgres 16** + **Redis 7** under `DOCKER_DATA_ROOT` (see repo root `.env.example`). First Postgres init mounts only `prisma/docker-init/00-extensions.sql` (uuid-ossp). One-shot local DB fill: **`npm run db:bootstrap-local`** (`migrate` + `db:seed` + `db:sync-i18n`). See [`docker/README-docker-data.txt`](../../docker/README-docker-data.txt). |
 | [`docker-compose.prod.yml`](../../docker-compose.prod.yml) | Production-like stack: **Postgres 16**, **Redis 7** (AOF + `maxmemory` + `noeviction`), **API** (Node 22), **Web** (Node 22). **Does not** mount migrations into `docker-entrypoint-initdb.d` (migrations run via API: `npm run db:migrate:deploy`). Includes **json-file log rotation** and **container healthchecks** (`/api/health`, web root). |
 | [`docs/deploy/monitoring/docker-compose.monitoring.yml`](./monitoring/docker-compose.monitoring.yml) | **Optional** Prometheus + Grafana override (see [`monitoring/README.md`](./monitoring/README.md)). |
 
@@ -16,6 +16,8 @@ Build images **from the repository root**:
 docker build -f apps/api/Dockerfile .
 docker build -f apps/web/Dockerfile .
 ```
+
+Docker-related assets (host data README template, placeholder Dockerfile for discovery): [`docker/`](../../docker/).
 
 **Prisma migrations:** the repo ships a **single squashed** migration ([`packages/database/prisma/migrations/20260520120000_squashed_schema`](../../packages/database/prisma/migrations/20260520120000_squashed_schema/migration.sql)). Fresh environments: empty database, then `npm run db:migrate:deploy` (or `npm run db:deploy` to include i18n prune). If your **local** Postgres still contains objects from the **old** migration chain, drop/recreate the database (or use a new DB name) before deploy — otherwise the first apply will fail with “already exists”.
 

@@ -31,8 +31,10 @@ import {
   CreatePricingBundleDto,
   UpdatePricingBundleDto,
 } from "./dto/pricing-bundle.dto";
+import { PatchPricingBundleTrialConfigDto } from "./dto/pricing-bundle-trial-config.dto";
 import { PatchFoundationDto } from "./dto/patch-foundation.dto";
 import { PatchPricingModulePriceDto } from "./dto/patch-pricing-module-price.dto";
+import { PatchOcrJobsPerOrgMonthDto } from "./dto/patch-ocr-jobs-per-org-month.dto";
 import { PatchQuotaUnitPricingDto } from "./dto/patch-quota-unit-pricing.dto";
 import { PatchYearlyDiscountDto } from "./dto/patch-yearly-discount.dto";
 import { SetBillingPriceDto } from "./dto/set-billing-price.dto";
@@ -151,6 +153,14 @@ export class AdminController {
     return this.admin.patchQuotaUnitPricing(dto);
   }
 
+  @Patch("config/billing/ocr-jobs-per-org-month")
+  @ApiOperation({
+    summary: "Лимит OCR-задач на организацию за UTC-месяц (trade_pro)",
+  })
+  patchOcrJobsPerOrgMonth(@Body() dto: PatchOcrJobsPerOrgMonthDto) {
+    return this.admin.patchOcrJobsPerOrgMonth(dto);
+  }
+
   @Post("config/billing/seed-pricing")
   @ApiOperation({
     summary:
@@ -160,13 +170,16 @@ export class AdminController {
     return this.admin.seedPricingCatalogDefaults();
   }
 
-  @Patch("pricing-modules/:id")
-  @ApiOperation({ summary: "Обновить цену модуля в каталоге" })
+  @Patch("pricing-modules/:idOrKey")
+  @ApiOperation({
+    summary:
+      "Обновить цену модуля в каталоге (id = UUID или key = slug, например tax_pro)",
+  })
   patchPricingModule(
-    @Param("id", ParseUUIDPipe) id: string,
+    @Param("idOrKey") idOrKey: string,
     @Body() dto: PatchPricingModulePriceDto,
   ) {
-    return this.admin.patchPricingModulePrice(id, dto);
+    return this.admin.patchPricingModulePrice(idOrKey, dto);
   }
 
   @Post("pricing-bundles")
@@ -182,6 +195,15 @@ export class AdminController {
     @Body() dto: UpdatePricingBundleDto,
   ) {
     return this.admin.updatePricingBundle(id, dto);
+  }
+
+  @Patch("pricing-bundles/:id/trial-config")
+  @ApiOperation({ summary: "Trial package flags and quota overrides for a bundle" })
+  patchPricingBundleTrialConfig(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: PatchPricingBundleTrialConfigDto,
+  ) {
+    return this.admin.patchPricingBundleTrialConfig(id, dto);
   }
 
   @Delete("pricing-bundles/:id")

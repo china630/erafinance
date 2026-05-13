@@ -10,8 +10,14 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/database/package.json packages/database/
+COPY packages/api-contracts/package.json packages/api-contracts/
+COPY packages/i18n/package.json packages/i18n/
+COPY packages/ui/package.json packages/ui/
 
 COPY packages/database packages/database
+COPY packages/api-contracts packages/api-contracts
+COPY packages/i18n packages/i18n
+COPY packages/ui packages/ui
 COPY apps/web apps/web
 
 # @erafinance/database postinstall runs `prisma generate`; Prisma 7 loads prisma.config.ts
@@ -47,7 +53,7 @@ RUN set -eux; \
     echo "web build: Sentry source maps upload DISABLED by default (set SENTRY_UPLOAD_SOURCEMAPS=1 to enable)"; \
     unset SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT_WEB || true; \
   fi; \
-  npm run build -w @erafinance/web
+  npm run build -w @erafinance/api-contracts && npm run build -w @erafinance/web
 
 RUN npm prune --omit=dev
 
