@@ -35,6 +35,9 @@ export default function HelpPage() {
           <Link href="/login" className={`${PRIMARY_BUTTON_CLASS} text-center no-underline`}>
             {t("help.backLogin")}
           </Link>
+          <Link href="/pricing" className={`${SECONDARY_BUTTON_CLASS} text-center no-underline`}>
+            {t("pricingPage.title")}
+          </Link>
           {docs ? (
             <a
               href={docs}

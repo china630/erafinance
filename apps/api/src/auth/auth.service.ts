@@ -700,6 +700,7 @@ export class AuthService {
     return {
       id: user.id,
       email: user.email,
+      emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
       firstName: names.firstName,
       lastName: names.lastName,
       phone: user.phone ?? null,
@@ -712,6 +713,17 @@ export class AuthService {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
     });
+
+    if (
+      user.emailVerifiedAt != null &&
+      dto.email != null &&
+      dto.email.trim().toLowerCase() !== user.email.toLowerCase()
+    ) {
+      throw new ConflictException({
+        code: "EMAIL_VERIFIED_LOCKED",
+        message: "Verified email cannot be changed via self-service",
+      });
+    }
 
     if (dto.email != null && dto.email.trim().toLowerCase() !== user.email.toLowerCase()) {
       const emailNorm = dto.email.trim().toLowerCase();
@@ -793,6 +805,7 @@ export class AuthService {
     return {
       id: updated.id,
       email: updated.email,
+      emailVerifiedAt: updated.emailVerifiedAt?.toISOString() ?? null,
       firstName: names.firstName,
       lastName: names.lastName,
       phone: updated.phone ?? null,

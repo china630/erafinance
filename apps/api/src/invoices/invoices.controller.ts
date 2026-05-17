@@ -1,10 +1,13 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -20,7 +23,7 @@ import { requireOrgRole } from "../auth/require-org-role";
 import type { AuthUser } from "../auth/types/auth-user";
 import { CheckQuota } from "../common/decorators/check-quota.decorator";
 import { QuotaGuard } from "../common/guards/quota.guard";
-import { VoenIntegrityGuard } from "../common/guards/voen-integrity.guard";
+import { VoenIntegrityGuard } from "../auth/guards/voen-integrity.guard";
 import { OrganizationId } from "../common/org-id.decorator";
 import { QuotaResource } from "../quota/quota-resource";
 import { RequiresModule } from "../subscription/requires-module.decorator";
@@ -43,8 +46,12 @@ export class InvoicesController {
 
   @Get()
   @ApiOperation({ summary: "Список инвойсов организации" })
-  list(@OrganizationId() orgId: string) {
-    return this.invoices.list(orgId);
+  list(
+    @OrganizationId() orgId: string,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query("pageSize", new DefaultValuePipe(25), ParseIntPipe) pageSize: number,
+  ) {
+    return this.invoices.list(orgId, { page, pageSize });
   }
 
   @Post(":id/payments")

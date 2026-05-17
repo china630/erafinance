@@ -16,6 +16,7 @@ import {
   DATA_TABLE_TH_RIGHT_CLASS,
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
+  MODAL_INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from "../../../lib/design-system";
 import { EmptyState } from "../../../components/empty-state";
@@ -138,60 +139,53 @@ export default function HoldingConsolidatedReportingPage() {
           defaultValue:
             "Чистая прибыль по каждой организации холдинга за период и итоги по валютам.",
         })}
-      />
-
-      <div className={`${CARD_CONTAINER_CLASS} space-y-4 p-4`}>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-[13px]">
-            <span className="text-[#7F8C8D]">
-              {t("holdingReport.holding", { defaultValue: "Холдинг" })}
-            </span>
-            <select
-              className="rounded border border-[#E0E6ED] px-2 py-1.5 text-[13px] min-w-[200px]"
-              value={holdingId}
-              onChange={(e) => setHoldingId(e.target.value)}
-              disabled={loadingList}
-            >
-              {holdings.length === 0 && (
-                <option value="">{t("holdingReport.noHoldings", { defaultValue: "Нет холдингов" })}</option>
-              )}
-              {holdings.map((h) => (
-                <option key={h.id} value={h.id}>
-                  {h.name} ({h.organizations?.length ?? 0})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-[13px]">
-            <span className="text-[#7F8C8D]">{t("reporting.from", { defaultValue: "С" })}</span>
-            <input
-              type="date"
-              className="rounded border border-[#E0E6ED] px-2 py-1.5 text-[13px]"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[13px]">
-            <span className="text-[#7F8C8D]">{t("reporting.to", { defaultValue: "По" })}</span>
-            <input
-              type="date"
-              className="rounded border border-[#E0E6ED] px-2 py-1.5 text-[13px]"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
-          </label>
+        leading={
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
+              <span className="text-[13px] font-normal text-[#7F8C8D]">
+                {t("holdingReport.holding", { defaultValue: "Холдинг" })}
+              </span>
+              <select
+                className={`${MODAL_INPUT_CLASS} min-w-[200px]`}
+                value={holdingId}
+                onChange={(e) => setHoldingId(e.target.value)}
+                disabled={loadingList}
+              >
+                {holdings.length === 0 && (
+                  <option value="">{t("holdingReport.noHoldings", { defaultValue: "Нет холдингов" })}</option>
+                )}
+                {holdings.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name} ({h.organizations?.length ?? 0})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
+              <span className="text-[13px] font-normal text-[#7F8C8D]">
+                {t("reporting.from", { defaultValue: "С" })}
+              </span>
+              <input type="date" className={MODAL_INPUT_CLASS} value={from} onChange={(e) => setFrom(e.target.value)} />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
+              <span className="text-[13px] font-normal text-[#7F8C8D]">
+                {t("reporting.to", { defaultValue: "По" })}
+              </span>
+              <input type="date" className={MODAL_INPUT_CLASS} value={to} onChange={(e) => setTo(e.target.value)} />
+            </label>
+          </div>
+        }
+        actions={
           <button
             type="button"
             className={PRIMARY_BUTTON_CLASS}
             disabled={!holdingId || loadingReport}
             onClick={() => void loadReport()}
           >
-            {loadingReport
-              ? t("common.loading")
-              : t("holdingReport.load", { defaultValue: "Показать" })}
+            {loadingReport ? t("common.loading") : t("holdingReport.load", { defaultValue: "Показать" })}
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
 

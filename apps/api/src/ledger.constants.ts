@@ -29,10 +29,16 @@ export const COGS_ACCOUNT_CODE = "701";
 export const ACCUMULATED_DEPRECIATION_ACCOUNT_CODE = "112";
 /** Готовая продукция (выпуск из компонентов). */
 export const FINISHED_GOODS_ACCOUNT_CODE = "204";
+
+/** Work-in-progress (manufacturing orders). */
+export const WIP_MANUFACTURING_ACCOUNT_CODE = "203";
 export const DEPRECIATION_EXPENSE_ACCOUNT_CODE = "713";
 
 /** Прочие операционные расходы (быстрая запись из UI). */
 export const MISC_OPERATING_EXPENSE_ACCOUNT_CODE = "731";
+
+/** Default credit account for manufacturing overhead pools (indirect expense hint). */
+export const MANUFACTURING_OVERHEAD_CREDIT_ACCOUNT_CODE = "741";
 
 /** Прочие операционные доходы (излишки инвентаризации и др.). */
 export const INVENTORY_SURPLUS_INCOME_ACCOUNT_CODE = "631";

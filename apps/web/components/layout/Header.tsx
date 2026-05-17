@@ -19,6 +19,7 @@ export function MainHeader({
   notificationsBell,
   orgSwitcher,
   onLogout,
+  riskIndicator,
 }: {
   onToggleMobileNav: () => void;
   mobileNavOpen: boolean;
@@ -30,6 +31,7 @@ export function MainHeader({
   notificationsBell?: React.ReactNode;
   orgSwitcher: React.ReactNode;
   onLogout: () => void | Promise<void>;
+  riskIndicator?: React.ReactNode;
 }) {
   const { t } = useTranslation();
 
@@ -51,6 +53,7 @@ export function MainHeader({
           {ledgerToggle}
           {ready && token ? quickActionsDropdown : null}
           <LanguageSwitcher />
+          {ready && token ? riskIndicator : null}
         </div>
 
         <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">

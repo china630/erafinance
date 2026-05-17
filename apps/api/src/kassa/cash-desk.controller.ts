@@ -54,6 +54,8 @@ export class CashDeskController {
     @OrganizationId() organizationId: string,
     @Query("dateFrom") dateFrom?: string,
     @Query("dateTo") dateTo?: string,
+    @Query("page") pageStr?: string,
+    @Query("pageSize") pageSizeStr?: string,
   ) {
     const from = dateFrom?.trim();
     const to = dateTo?.trim();
@@ -62,9 +64,14 @@ export class CashDeskController {
       to &&
       /^\d{4}-\d{2}-\d{2}$/.test(from) &&
       /^\d{4}-\d{2}-\d{2}$/.test(to);
+    const page = Math.max(1, Math.trunc(Number(pageStr) || 1));
+    const pageSizeRaw = Math.trunc(Number(pageSizeStr) || 25);
+    const pageSize = Math.min(200, Math.max(1, pageSizeRaw));
     return this.cash.listOrders(
       organizationId,
-      valid ? { dateFrom: from, dateTo: to } : undefined,
+      valid
+        ? { dateFrom: from, dateTo: to, page, pageSize }
+        : { page, pageSize },
     );
   }
 

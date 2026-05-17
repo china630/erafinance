@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import {
   AdvanceReportStatus,
@@ -35,6 +36,7 @@ import { ReportingService } from "../reporting/reporting.service";
 import { decodeOrganizationTaxId, decryptText } from "../security/pii-crypto.util";
 import { TreasuryService } from "../treasury/treasury.service";
 import { ApprovalsService } from "../approvals/approvals.service";
+import { CouncilTriggerService } from "../compliance/council/council-trigger.service";
 
 type Tx = Prisma.TransactionClient;
 
@@ -63,6 +65,7 @@ export class CashOrderService {
     private readonly reporting: ReportingService,
     private readonly treasury: TreasuryService,
     private readonly approvals: ApprovalsService,
+    @Optional() private readonly councilTriggers?: CouncilTriggerService,
   ) {}
 
   async nextOrderNumberTx(
@@ -188,7 +191,7 @@ export class CashOrderService {
 
   listOrders(
     organizationId: string,
-    opts?: { dateFrom?: string; dateTo?: string },
+    opts?: { dateFrom?: string; dateTo?: string; page?: number; pageSize?: number },
   ) {
     const from = opts?.dateFrom?.trim();
     const to = opts?.dateTo?.trim();
@@ -204,19 +207,29 @@ export class CashOrderService {
             },
           }
         : {};
-    return this.prisma.cashOrder.findMany({
-      where: { organizationId, ...dateRange },
-      orderBy: [{ date: "desc" }, { orderNumber: "desc" }],
-      include: {
-        counterparty: { select: { id: true, nameCipher: true, taxIdCipher: true } },
-        employee: {
-          select: { id: true, firstName: true, lastName: true, finCode: true },
-        },
-        cashFlowItem: { select: { id: true, code: true, name: true } },
-        cashDesk: { select: { id: true, name: true } },
+    const where = { organizationId, ...dateRange };
+    const page = Math.max(1, Math.trunc(opts?.page ?? 1));
+    const pageSize = Math.min(200, Math.max(1, Math.trunc(opts?.pageSize ?? 25)));
+    const skip = (page - 1) * pageSize;
+    const include = {
+      counterparty: { select: { id: true, nameCipher: true, taxIdCipher: true } },
+      employee: {
+        select: { id: true, firstName: true, lastName: true, finCode: true },
       },
-    }).then((rows) =>
-      rows.map((row) => ({
+      cashFlowItem: { select: { id: true, code: true, name: true } },
+      cashDesk: { select: { id: true, name: true } },
+    };
+    return Promise.all([
+      this.prisma.cashOrder.findMany({
+        where,
+        orderBy: [{ date: "desc" }, { orderNumber: "desc" }],
+        skip,
+        take: pageSize,
+        include,
+      }),
+      this.prisma.cashOrder.count({ where }),
+    ]).then(([rows, total]) => ({
+      items: rows.map((row) => ({
         ...row,
         counterparty: row.counterparty
           ? {
@@ -230,7 +243,10 @@ export class CashOrderService {
             }
           : null,
       })),
-    );
+      total,
+      page,
+      pageSize,
+    }));
   }
 
   async createDraftPko(
@@ -502,13 +518,15 @@ export class CashOrderService {
     }
     await this.approvals.assertCashOrderMayPost(organizationId, orderId);
     if (order.skipJournalPosting) {
-      return this.prisma.cashOrder.update({
+      const posted = await this.prisma.cashOrder.update({
         where: { id: order.id },
         data: {
           status: CashOrderStatus.POSTED,
           postedTransactionId: order.linkedTransactionId ?? undefined,
         },
       });
+      this.maybeTriggerCouncilForCashOrder(organizationId, posted);
+      return posted;
     }
     if (!order.cashFlowItemId) {
       throw new BadRequestException("cashFlowItemId required (DDS)");
@@ -548,7 +566,7 @@ export class CashOrderService {
       withholdingTaxAmount: wht.gt(0) ? wht : null,
     });
 
-    return this.prisma.$transaction(async (tx) => {
+    const posted = await this.prisma.$transaction(async (tx) => {
       let lines: Array<{ accountCode: string; debit: string; credit: string }>;
       if (order.kind === CashOrderKind.KMO) {
         lines = [
@@ -588,6 +606,35 @@ export class CashOrderService {
         },
       });
       return tx.cashOrder.findUniqueOrThrow({ where: { id: order.id } });
+    });
+    this.maybeTriggerCouncilForCashOrder(organizationId, posted);
+    return posted;
+  }
+
+  private maybeTriggerCouncilForCashOrder(
+    organizationId: string,
+    order: {
+      id: string;
+      kind: CashOrderKind;
+      status: CashOrderStatus;
+      currency: string;
+      amount: Decimal;
+      orderNumber: string;
+      sourceInvoiceId: string | null;
+      sourceInvoicePaymentId: string | null;
+    },
+  ): void {
+    if (!this.councilTriggers) return;
+    if (order.kind !== CashOrderKind.KMO) return;
+    if (order.status !== CashOrderStatus.POSTED) return;
+    if (order.sourceInvoiceId || order.sourceInvoicePaymentId) return;
+    void this.councilTriggers.maybeTriggerHighValueTransaction({
+      organizationId,
+      entityType: "CASH_ORDER",
+      entityId: order.id,
+      label: `CashOrder:${order.orderNumber}`,
+      amountAzn: Number(order.amount),
+      currency: order.currency,
     });
   }
 

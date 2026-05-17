@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
 import { useAuth } from "../../../lib/auth-context";
@@ -111,10 +111,17 @@ export default function IfrsMappingRulesPage() {
     <div className="space-y-6 max-w-4xl">
       <PageHeader
         title={t("mapping.rulesTitle", { defaultValue: "IFRS Mapping Rules" })}
-        subtitle={t("mapping.rulesSubtitle", {
-          defaultValue:
-            "Define NAS account code to IFRS account code rules for automatic IFRS mirror entries.",
-        })}
+        subtitle={
+          <Fragment>
+            <p className="m-0 text-sm text-slate-600">
+              {t("mapping.rulesSubtitle", {
+                defaultValue:
+                  "Define NAS account code to IFRS account code rules for automatic IFRS mirror entries.",
+              })}
+            </p>
+            <p className="m-0 mt-2 text-[12px] leading-snug text-[#7F8C8D]">{t("mapping.ifrsRulesContextHelp")}</p>
+          </Fragment>
+        }
       />
 
       {canEdit && (

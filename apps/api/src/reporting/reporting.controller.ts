@@ -25,6 +25,7 @@ import { Roles } from "../auth/decorators/roles.decorator";
 import { requireOrgRole } from "../auth/require-org-role";
 import type { AuthUser } from "../auth/types/auth-user";
 import { RolesGuard } from "../auth/guards/roles.guard";
+import { VoenIntegrityGuard } from "../auth/guards/voen-integrity.guard";
 import { OrganizationId } from "../common/org-id.decorator";
 import { parseLedgerTypeQuery } from "../common/ledger-type.util";
 import { FinanceService } from "../finance/finance.service";
@@ -412,6 +413,7 @@ export class ReportingController {
   }
 
   @Get("vat-appendix-xlsx")
+  @UseGuards(VoenIntegrityGuard)
   @ApiOperation({
     summary:
       "Excel: список продаж/покупок с НДС за квартал (e-taxes.gov.az, приложение к декларации)",
@@ -442,6 +444,7 @@ export class ReportingController {
   }
 
   @Get("etaxes-vat-declaration")
+  @UseGuards(VoenIntegrityGuard)
   @ApiOperation({
     summary:
       "JSON-пакет ƏDV əlavəsi (e-taxes.gov.az / BTP sahələri) və yoxlama nəticəsi",
@@ -463,7 +466,7 @@ export class ReportingController {
   }
 
   @Post("etaxes-vat-declaration/submit")
-  @UseGuards(RolesGuard)
+  @UseGuards(VoenIntegrityGuard, RolesGuard)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
   @ApiOperation({
     summary: "ƏDV paketini vergi şlüzünə göndər (E_TAXES_VAT_SUBMIT_URL)",
@@ -485,7 +488,7 @@ export class ReportingController {
   }
 
   @Get("tax-declarations")
-  @UseGuards(RolesGuard)
+  @UseGuards(VoenIntegrityGuard, RolesGuard)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
   @ApiOperation({
     summary: "List e-Taxes declaration exports with workflow statuses",
@@ -495,7 +498,7 @@ export class ReportingController {
   }
 
   @Post("tax-declarations/generate")
-  @UseGuards(RolesGuard)
+  @UseGuards(VoenIntegrityGuard, RolesGuard)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
   @ApiOperation({
     summary: "Generate declaration file for e-taxes (status: GENERATED)",
@@ -508,7 +511,7 @@ export class ReportingController {
   }
 
   @Get("tax-declarations/:id/download")
-  @UseGuards(RolesGuard)
+  @UseGuards(VoenIntegrityGuard, RolesGuard)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
   @ApiOperation({
     summary: "Download generated declaration file and mark as UPLOADED",
@@ -525,7 +528,7 @@ export class ReportingController {
   }
 
   @Post("tax-declarations/:id/receipt")
-  @UseGuards(RolesGuard)
+  @UseGuards(VoenIntegrityGuard, RolesGuard)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
   @ApiConsumes("multipart/form-data")
   @ApiBody({

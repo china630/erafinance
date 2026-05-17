@@ -7,6 +7,8 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -18,6 +20,8 @@ import { OrganizationId } from "../common/org-id.decorator";
 import { CreateFixedAssetDto } from "./dto/create-fixed-asset.dto";
 import { RunMonthlyDepreciationDto } from "./dto/run-monthly-depreciation.dto";
 import { RecordFixedAssetUsageDto } from "./dto/record-fixed-asset-usage.dto";
+import { UpsertFixedAssetMonthlyUsageDto } from "./dto/upsert-monthly-usage.dto";
+import { BulkFixedAssetMonthlyUsageDto } from "./dto/bulk-monthly-usage.dto";
 import { UpdateFixedAssetDto } from "./dto/update-fixed-asset.dto";
 import { FixedAssetsService } from "./fixed-assets.service";
 import { RequiresModule } from "../subscription/requires-module.decorator";
@@ -47,10 +51,43 @@ export class FixedAssetsController {
     return this.assets.create(organizationId, dto);
   }
 
+  @Get("usage/monthly")
+  @ApiOperation({ summary: "List UoP assets and logged monthly usage for a period" })
+  listMonthlyUsage(
+    @OrganizationId() organizationId: string,
+    @Query("year") year: string,
+    @Query("month") month: string,
+  ) {
+    return this.assets.listMonthlyUsage(
+      organizationId,
+      Number(year),
+      Number(month),
+    );
+  }
+
+  @Post("usage/monthly/bulk")
+  @ApiOperation({ summary: "Bulk upsert monthly production units (UoP) before depreciation close" })
+  bulkMonthlyUsage(
+    @OrganizationId() organizationId: string,
+    @Body() dto: BulkFixedAssetMonthlyUsageDto,
+  ) {
+    return this.assets.bulkUpsertMonthlyUsage(organizationId, dto);
+  }
+
+  @Put(":id/monthly-usage")
+  @ApiOperation({ summary: "Upsert monthly production units for one UoP asset" })
+  upsertMonthlyUsage(
+    @OrganizationId() organizationId: string,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: UpsertFixedAssetMonthlyUsageDto,
+  ) {
+    return this.assets.upsertMonthlyUsage(organizationId, id, dto);
+  }
+
   @Post("depreciation/run")
   @ApiOperation({
     summary:
-      "Запустить амортизацию за месяц (STRAIGHT_LINE / REDUCING_BALANCE; Дт 713 — Кт 112; идемпотентно). UNITS_OF_PRODUCTION — через record-usage.",
+      "Run monthly depreciation (SL/RB batch + UoP from monthly usage; Dr 713 / Cr 112)",
   })
   runMonthlyDepreciation(
     @OrganizationId() organizationId: string,

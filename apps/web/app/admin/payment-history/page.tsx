@@ -161,7 +161,7 @@ export default function PaymentHistoryPage() {
           title={t("subscriptionSettings.ownerOnlyTitle")}
           subtitle={t("subscriptionSettings.ownerOnlyBody")}
           actions={
-            <Link href="/" className={LINK_ACCENT_CLASS}>
+            <Link href="/home" className={LINK_ACCENT_CLASS}>
               {t("common.backHome")}
             </Link>
           }
@@ -175,20 +175,7 @@ export default function PaymentHistoryPage() {
       <PageHeader
         title={t("paymentHistory.title")}
         subtitle={
-          <>
-            <p className="text-[13px] text-[#7F8C8D]">{t("paymentHistory.subtitle")}</p>
-            <div className="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-[13px] items-center">
-              <Link href="/" className={LINK_ACCENT_CLASS}>
-                {t("nav.home")}
-              </Link>
-              <span className="text-[#D5DADF]">/</span>
-              <Link href="/admin/billing" className={LINK_ACCENT_CLASS}>
-                {t("nav.settingsSubscription")}
-              </Link>
-              <span className="text-[#D5DADF]">/</span>
-              <span className="text-[#34495E]">{t("paymentHistory.title")}</span>
-            </div>
-          </>
+          <p className="text-[13px] text-[#7F8C8D]">{t("paymentHistory.subtitle")}</p>
         }
       />
 

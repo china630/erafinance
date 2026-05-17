@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Building2, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,10 +25,11 @@ import {
   DATA_TABLE_TH_RIGHT_CLASS,
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
-  MODAL_INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
+  SECONDARY_BUTTON_CLASS,
   TABLE_ROW_ICON_BTN_CLASS,
 } from "../../lib/design-system";
+import { TOOLBAR_MONTH_INPUT_CLASS } from "../../lib/form-styles";
 
 type Fa = {
   id: string;
@@ -35,6 +37,10 @@ type Fa = {
   inventoryNumber: string;
   purchaseDate: string;
   status: "ACTIVE" | "DISPOSED";
+  depreciationMethod:
+    | "STRAIGHT_LINE"
+    | "REDUCING_BALANCE"
+    | "UNITS_OF_PRODUCTION";
   purchasePrice: unknown;
   usefulLifeMonths: number;
   salvageValue: unknown;
@@ -52,8 +58,10 @@ function FixedAssetsPageContent() {
   const [faModalOpen, setFaModalOpen] = useState(false);
   const [faModalMode, setFaModalMode] = useState<"create" | "edit">("create");
   const [faEditId, setFaEditId] = useState<string | null>(null);
-  const [depYear, setDepYear] = useState(String(new Date().getUTCFullYear()));
-  const [depMonth, setDepMonth] = useState(String(new Date().getUTCMonth() + 1));
+  const [depYearMonth, setDepYearMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  });
   const [runningDep, setRunningDep] = useState(false);
   const load = useCallback(async () => {
     if (!token) {
@@ -100,12 +108,19 @@ function FixedAssetsPageContent() {
     if (!token) return;
     setRunningDep(true);
     try {
+      const parts = depYearMonth.trim().split("-");
+      const year = Number(parts[0]);
+      const month = Number(parts[1]);
+      if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+        alert(t("common.fillRequired"));
+        return;
+      }
       const res = await apiFetch("/api/fixed-assets/depreciation/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          year: Number(depYear),
-          month: Number(depMonth),
+          year,
+          month,
         }),
       });
       if (!res.ok) {
@@ -141,24 +156,30 @@ function FixedAssetsPageContent() {
     <div className="space-y-8">
       <PageHeader
         title={t("fixedAssets.title")}
+        subtitle={
+          <p className="m-0 text-[13px] leading-snug text-[#7F8C8D]">
+            {t("fixedAssets.subtitleDepreciationPerAsset")}
+          </p>
+        }
+        leading={
+          <div className="flex h-8 flex-wrap items-center gap-2">
+            <span className="shrink-0 text-sm font-medium leading-none text-[#34495E]">
+              {t("fixedAssets.depreciationMonthLabel")}
+            </span>
+            <input
+              type="month"
+              value={depYearMonth}
+              onChange={(e) => setDepYearMonth(e.target.value)}
+              className={TOOLBAR_MONTH_INPUT_CLASS}
+              aria-label={t("fixedAssets.depreciationMonthLabel")}
+            />
+          </div>
+        }
         actions={
           <>
-            <input
-              type="number"
-              min={1900}
-              max={2100}
-              value={depYear}
-              onChange={(e) => setDepYear(e.target.value)}
-              className={`${MODAL_INPUT_CLASS} !w-24`}
-            />
-            <input
-              type="number"
-              min={1}
-              max={12}
-              value={depMonth}
-              onChange={(e) => setDepMonth(e.target.value)}
-              className={`${MODAL_INPUT_CLASS} !w-16`}
-            />
+            <Link href="/fixed-assets/usage" className={SECONDARY_BUTTON_CLASS}>
+              {t("fixedAssets.usageNav")}
+            </Link>
             <button
               type="button"
               onClick={() => void runDepreciation()}
@@ -276,7 +297,7 @@ function FixedAssetsPageContent() {
             ))}
           </div>
           <div className={`hidden md:block ${DATA_TABLE_VIEWPORT_CLASS}`}>
-            <table className={`${DATA_TABLE_CLASS} min-w-[640px]`}>
+            <table className={`${DATA_TABLE_CLASS} min-w-full`}>
               <thead>
                 <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
                   <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("fixedAssets.thName")}</th>
@@ -284,6 +305,9 @@ function FixedAssetsPageContent() {
                   <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("fixedAssets.commission")}</th>
                   <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("fixedAssets.initial")}</th>
                   <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("fixedAssets.life")}</th>
+                  <th className={DATA_TABLE_TH_LEFT_CLASS}>
+                    {t("fixedAssets.depreciationMethod")}
+                  </th>
                   <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("fixedAssets.thBooked")}</th>
                   <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("fixedAssets.bookValue")}</th>
                   <th className={`${DATA_TABLE_ACTIONS_TH_CLASS} ${hideDestructive ? "" : "min-w-[88px]"}`}>
@@ -301,6 +325,9 @@ function FixedAssetsPageContent() {
                     </td>
                     <td className={DATA_TABLE_TD_RIGHT_CLASS}>{formatMoneyAzn(r.purchasePrice)}</td>
                     <td className={DATA_TABLE_TD_RIGHT_CLASS}>{r.usefulLifeMonths}</td>
+                    <td className={DATA_TABLE_TD_CLASS}>
+                      {t(`fixedAssets.method.${r.depreciationMethod}`)}
+                    </td>
                     <td className={DATA_TABLE_TD_RIGHT_CLASS}>
                       {formatMoneyAzn(r.bookedDepreciation)}
                     </td>

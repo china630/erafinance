@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ERA Finance — модули и дорожная карта (PRD/TZ 2026.05.18)</title>
+  <title>ERA Finance — модули и дорожная карта (PRD/TZ 2026.06.19)</title>
   <style>
     :root {
       --bg: #f6f7f9;
@@ -26,7 +26,8 @@
       margin: 0;
       padding: 1.5rem;
     }
-    .wrap { max-width: 1200px; margin: 0 auto; }
+    .wrap { max-width: 1280px; margin: 0 auto; }
+    .tid { font-family: ui-monospace, monospace; font-size: 0.8rem; white-space: nowrap; }
     h1 { font-size: 1.5rem; margin: 0 0 0.5rem; color: #34495e; }
     .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.25rem; }
     .legend {
@@ -145,19 +146,22 @@
   <div class="wrap">
     <h1>Модули и функции ERA Finance <span style="font-weight:400;color:#5d6d7e;font-size:1rem">(финальная сводка PRD/TZ)</span></h1>
     <p class="meta">
-      Сводка по <strong>PRD.md</strong> и <strong>TZ.md</strong> (документная версия <strong>2026.05.18</strong>): горизонты <strong>v1</strong> (Opening Balances Wizard) и <strong>v2</strong> (PRD §5) зафиксированы как <strong>100% COMPLETED</strong>; далее — <strong>v3 / v4+</strong> и непрерывное усиление платформы.
+      Сводка по <strong>PRD.md</strong> и <strong>TZ.md</strong> (документная версия <strong>2026.06.19</strong>; <strong>Task ID</strong> — PRD §14.2–§14.2.1): горизонты <strong>v1</strong> (Opening Balances Wizard) и <strong>v2</strong> (PRD §5) — <strong>100% COMPLETED</strong>; <strong>v3</strong> (экосистема AZ) идёт по поэтапной стратегии (DVX/ƏMAS — фазы 1–3, ASAN/SİMA — следующая веха); <strong>v4+</strong> — Phase 11/12, публичный прайс, ERM, маркетинговый лендинг <code>/</code> + ERP-дашборд <code>/home</code>, trial <code>TRIAL_3_MONTHS</code> (§7.3); <strong>Phase 15</strong> (Zero-Knowledge / ASAN state escrow) — <strong>PLANNED</strong> (<code>FEAT-SEC-CRYPTO-001</code>, PRD §15).
       Оценка <strong>% готовности</strong> — инженерно-продуктовая относительно объёма, описанного в PRD/TZ для соответствующего горизонта; не аудит кода.
-      Платформа: контур сверки биллинга (<code>npm run platform:billing-reconcile</code>) и автоматизированный DR drill (<code>scripts/dr-drill.sh</code>, <code>platform:dr-validate</code>, TZ §14.8.12–14.8.13, <code>docs/DR_RUNBOOK.md</code> §8).
+      Платформа: контур сверки биллинга (<code>npm run platform:billing-reconcile</code>) и автоматизированный DR drill (<code>scripts/dr-drill.sh</code>, <code>platform:dr-validate</code>, TZ §14.8.12–14.8.13, <code>docs/DR_RUNBOOK.md</code> §8); ежемесячная амортизация ОС — BullMQ <code>monthly-depreciation</code> (PRD §5.D, TZ §12.5).
     </p>
 
     <section class="legend">
       <h2>Условные обозначения</h2>
       <ul>
-        <li><strong>Горизонт «Текущая»</strong> — ядро и расширения из PRD §4, §4.12–4.13 и TZ (M1–M9, платформа).</li>
+        <li><strong>Горизонт «Текущая»</strong> — ядро и расширения из PRD §4, §4.12–4.14 и TZ (M1–M10, платформа).</li>
         <li><strong>v1</strong> — PRD §4.1.3 Opening Balances Wizard (finance / HR / inventory) — <strong>[x] COMPLETED</strong>.</li>
-        <li><strong>v2</strong> — PRD §5 (конкурентный scope) — <strong>[x] 100% COMPLETED</strong> (AR/AP v2, e-Taxes v2, Multi-GAAP/IFRS, ОС, физическая инвентаризация и смежное в M9).</li>
-        <li><strong>v3</strong> — PRD §6 (экосистема AZ: e-gov, ЭЦП, Direct Banking).</li>
-        <li><strong>v4+</strong> — PRD §7+ (коммерция, биллинг, квоты; часть уже внедрена как MVP платформы).</li>
+        <li><strong>v2</strong> — PRD §5 (конкурентный scope) — <strong>[x] 100% COMPLETED</strong> (AR/AP v2, e-Taxes v2, Multi-GAAP/IFRS, ОС, физическая инвентаризация и смежное в M9); Generic SaaS Strengthening Waves 1–2 (PRD §5.E) — внедрены.</li>
+        <li><strong>v3</strong> — PRD §6 (экосистема AZ): Direct Banking топ-3 (Birbank/Pasha/ABB), IBAN deep-check, integration health/circuit breaker — реализовано; <strong>DVX</strong> и <strong>ƏMAS</strong> — поэтапная стратегия (Phase 1 файлы → Phase 2 RPA-расширение → Phase 3 B2B S2S, PRD §6.1.1 / §13.0); <strong>ASAN İmza / SİMA</strong>, <strong>WhatsApp Business API</strong> — следующие вехи (PRD §6.2, §6.8).</li>
+        <li><strong>v4+</strong> — PRD §7+ (коммерция, биллинг, квоты): Hybrid LEGO, post-paid, SOFT/HARD block, billing reconciliation, публичный прайс <code>/api/public/pricing</code> и <code>/pricing</code>, Super-Admin <code>/super-admin/billing/*</code> + редактор лендинга, Profile <code>/settings/profile</code>, Drakaris/yığım, Phase 11 (International Trade), Phase 12 (Customs <code>trade_pro</code>), Risk &amp; Compliance Pro (PRD §14 / TZ §22), Industry Solutions (PRD §5.0.1).</li>
+        <li><strong>Лендинг / trial</strong> — <code>MOD-LAND-001</code>: маркетинг <code>/</code>, <code>GET /api/public/landing-modules</code>, дашборд <code>/home</code>, trial <code>TRIAL_3_MONTHS</code> (PRD §7.3, §7.6.4; TZ §14.3, §15.3.2).</li>
+        <li><strong>Phase 15 (PLANNED)</strong> — <code>FEAT-SEC-CRYPTO-001</code>: envelope encryption DEK/KEK, multi-org accountant matrix, 3-tier recovery, ASAN/SİMA state escrow (PRD §15, TZ §23).</li>
+        <li><strong>Task ID</strong> — колонка и атрибут <code>data-task-id</code>; жёсткая связь с PRD §14.2–§14.2.1. В <strong>modules-roadmap-facts.html</strong> статус <strong>COMPLETED</strong> допустим только при <code>[x]</code> для того же ID в PRD.</li>
         <li><strong>Критичность для системы:</strong>
           <span class="c1">К1</span> — ядро (без этого продукт не выполняет роль ERP);
           <span class="c2">К2</span> — высокая (основной операционный контур);
@@ -170,23 +174,23 @@
     <section class="kpi-grid" aria-label="Сводные KPI по горизонтам">
       <article class="kpi-card">
         <div class="kpi-title">Core MVP / Текущая</div>
-        <div class="kpi-value">~98%</div>
-        <div class="kpi-note">M1–M9 и платформенное ядро по PRD §4 / TZ §2–§10; финальная синхронизация документов <strong>2026.05.18</strong> (Final QA Platform).</div>
+        <div class="kpi-value">~99%</div>
+        <div class="kpi-note">M1–M10 и платформенное ядро по PRD §4 / TZ §2–§10; v2026.06 — профиль <code>/settings/profile</code>, ERP-дашборд <code>/home</code> (корень <code>/</code> — лендинг), Audit Hub, банки через <code>/settings/bank-accounts</code>.</div>
       </article>
       <article class="kpi-card">
         <div class="kpi-title">Roadmap v2</div>
         <div class="kpi-value">100%</div>
-        <div class="kpi-note">PRD §5: блоки A–D, Fixed Assets v2, Bridge Sprint RBAC/Billing security — закрыто в спецификации и продукте.</div>
+        <div class="kpi-note">PRD §5: блоки A–D, Fixed Assets v2 + ежемесячный BullMQ <code>monthly-depreciation</code>, Bridge Sprint RBAC/Billing; Generic SaaS Strengthening — Activity Stream, Approval Workflow (MVP касса), Director, Prepaid, Cost Allocation, PSA mini.</div>
       </article>
       <article class="kpi-card">
         <div class="kpi-title">Roadmap v3</div>
-        <div class="kpi-value">~82%</div>
-        <div class="kpi-note">Экосистема AZ (PRD §6): B2G, Direct Banking топ-банки, IBAN deep-check, circuit breaker, health; ASAN/SİMA и часть e-gov — дальнейшие вехи §6.6–6.7.</div>
+        <div class="kpi-value">~85%</div>
+        <div class="kpi-note">Экосистема AZ (PRD §6): B2G + Direct Banking топ-3 (Birbank, Pasha, ABB), IBAN deep-check, circuit breaker, integrations health; <strong>DVX/ƏMAS — Phase 1 (файлы) + Phase 2 (RPA Chrome) активны</strong>, Phase 3 (B2B S2S) ждёт legal clearance; <strong>ASAN/SİMA</strong> и <strong>WhatsApp Business API</strong> — следующие вехи §6.2/§6.8.</div>
       </article>
       <article class="kpi-card">
         <div class="kpi-title">Roadmap v4+</div>
-        <div class="kpi-value">~96%</div>
-        <div class="kpi-note">Hybrid LEGO, post-paid, enforcement, webhooks auto-resume, <strong>billing reconciliation</strong> и <strong>автоматизированный DR drill</strong> (TZ §14.8.12–13, DR_RUNBOOK §8).</div>
+        <div class="kpi-value">~97%</div>
+        <div class="kpi-note">Hybrid LEGO, trial <code>TRIAL_3_MONTHS</code>, лендинг <code>/</code> + <code>landing-modules</code>, post-paid, billing reconcile, Super-Admin <code>/super-admin/billing/*</code>, <code>/pricing</code>, Phase 11–12, ERM (<code>/compliance</code>); Phase 15 crypto — <strong>PLANNED</strong>.</div>
       </article>
     </section>
 
@@ -212,170 +216,573 @@
         </select>
       </label>
       <label>
+        Priority (1–4)
+        <select id="roadmap-priority-filter">
+          <option value="all">Все</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </label>
+      <label>
+        Owner / team
+        <select id="roadmap-owner-filter">
+          <option value="all">Все</option>
+        </select>
+      </label>
+      <label>
         Поиск по строке
-        <input id="roadmap-text-filter" type="search" placeholder="Например: IFRS, e-Taxes, Manufacturing" />
+        <input id="roadmap-text-filter" type="search" placeholder="Task ID, IFRS, e-Taxes…" />
       </label>
     </div>
 
     <table id="roadmap-table">
       <thead>
         <tr>
+          <th>Task ID</th>
           <th>Модуль</th>
           <th>Ключевой фокус (по PRD/TZ)</th>
           <th>Горизонт</th>
-          <th>Статус (PRD/TZ)</th>
+          <th>Статус PRD</th>
           <th class="pct">% сейчас</th>
           <th class="target">Цель</th>
+          <th>Owner</th>
+          <th class="pct">P</th>
           <th>Опционально / непрерывное улучшение</th>
           <th class="crit">Критич.</th>
         </tr>
       </thead>
       <tbody id="roadmap-table-body">
-        <tr class="horizon-v1">
+        <tr class="horizon-v1" data-task-id="MOD-OB-001" data-req-status="COMPLETED" data-horizons="Текущая,v1" data-priority="2" data-owner="Core">
+          <td class="tid"><code>MOD-OB-001</code></td>
           <td class="mod">Opening Balances</td>
-          <td>Мастер начальных остатков: finance / HR / inventory, preview/post, шаблоны импорта (PRD §4.1.3, Migration)</td>
+          <td>Мастер начальных остатков: finance / HR / inventory, preview/post, шаблоны импорта, XLSX-генерация в браузере (PRD §4.1.3, Migration)</td>
           <td>Текущая / v1</td>
           <td class="status">[x] COMPLETED</td>
           <td class="pct">100</td>
           <td class="target">100</td>
-          <td class="tasks">— По PRD/TZ контур закрыт; при необходимости — расширение шаблонов импорта под отраслевые кейсы.</td>
+          <td>Core</td>
+          <td class="pct">2</td>
+          <td class="tasks">— Early Balance Guard, Optimistic Locking, HR-алиасы.</td>
           <td class="crit c2">К2</td>
         </tr>
-        <tr class="horizon-current">
+        <tr class="horizon-current" data-task-id="MOD-M1-001" data-req-status="COMPLETED" data-horizons="Текущая" data-priority="1" data-owner="Core">
+          <td class="tid"><code>MOD-M1-001</code></td>
           <td class="mod">M1 IAM</td>
-          <td>Onboarding, memberships, RBAC и policy guard на мутации</td>
+          <td>Onboarding, memberships, invite lifecycle, RBAC; <strong>Профиль</strong> <code>/settings/profile</code>, <code>GET/PATCH /api/users/me</code>; дашборд org — <code>/home</code> (§7.3.1)</td>
           <td>Текущая</td>
           <td class="status">[x] COMPLETED</td>
-          <td class="pct">98</td>
-          <td class="target">98+</td>
-          <td class="tasks">— Матрица invite и hire-gate покрыта тестами (PRD 2026.05.16–17); опционально — расширение нагрузочных сценариев.</td>
+          <td class="pct">99</td>
+          <td class="target">99+</td>
+          <td>Core</td>
+          <td class="pct">1</td>
+          <td class="tasks">— Нагрузочные сценарии invite (опционально).</td>
           <td class="crit c2">К2</td>
         </tr>
-        <tr class="horizon-current">
+        <tr class="horizon-current" data-task-id="MOD-M2-001" data-req-status="COMPLETED" data-horizons="Текущая,v2" data-priority="1" data-owner="Core">
+          <td class="tid"><code>MOD-M2-001</code></td>
           <td class="mod">M2 Ledger</td>
-          <td>Ledger core, CoA templates, netting и параллельные NAS/IFRS книги</td>
+          <td>Ledger core, CoA templates, Period Close, netting, NAS/IFRS; <code>/accounting/*</code></td>
           <td>Текущая / v2</td>
           <td class="status">[x] COMPLETED</td>
           <td class="pct">98</td>
           <td class="target">98+</td>
-          <td class="tasks">— Period close, NAS/IFRS, netting — в продукте; опционально — enterprise volume / SLO dashboards.</td>
+          <td>Core</td>
+          <td class="pct">1</td>
+          <td class="tasks">— SLO dashboards (опционально).</td>
           <td class="crit c3">К3</td>
         </tr>
-        <tr class="horizon-current">
+        <tr class="horizon-current" data-task-id="MOD-M3-001" data-req-status="COMPLETED" data-horizons="Текущая,v3" data-priority="2" data-owner="Core">
+          <td class="tid"><code>MOD-M3-001</code></td>
           <td class="mod">M3 CRM</td>
-          <td>Контрагенты, VÖEN/MDM, роли клиента/поставщика, связи с AR/AP</td>
+          <td>VÖEN/MDM, merge engine, <code>isVatPayer</code>, банковские счета 1:N</td>
           <td>Текущая / v3</td>
           <td class="status">[x] COMPLETED</td>
           <td class="pct">97</td>
           <td class="target">97+</td>
-          <td class="tasks">— Merge, VÖEN, integrity checks (PRD 2026.05.17); опционально — расширенные data-quality отчёты.</td>
+          <td>Core</td>
+          <td class="pct">2</td>
+          <td class="tasks">— Data-quality отчёты.</td>
           <td class="crit c4">К4</td>
         </tr>
-        <tr class="horizon-current">
+        <tr class="horizon-current" data-task-id="MOD-M4-001" data-req-status="COMPLETED" data-horizons="Текущая,v2,v4+" data-priority="2" data-owner="Core">
+          <td class="tid"><code>MOD-M4-001</code></td>
           <td class="mod">M4 Sales</td>
-          <td>Invoicing, VAT/multicurrency, partial allocations, AR Aging и публичный портал</td>
+          <td>Invoicing, AR/AP v2, Phase 11 intl. invoices, <code>/purchases</code></td>
+          <td>Текущая / v2 / v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">98</td>
+          <td class="target">98+</td>
+          <td>Core</td>
+          <td class="pct">2</td>
+          <td class="tasks">— OCR golden tests.</td>
+          <td class="crit c3">К3</td>
+        </tr>
+        <tr class="horizon-current" data-task-id="MOD-M5-001" data-req-status="COMPLETED" data-horizons="Текущая,v2,v3" data-priority="1" data-owner="Treasury">
+          <td class="tid"><code>MOD-M5-001</code></td>
+          <td class="mod">M5 Cash &amp; Treasury</td>
+          <td>Treasury, Kassa, direct banking топ-3, IBAN deep-check, outbound drafts</td>
+          <td>Текущая / v2 / v3</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">98</td>
+          <td class="target">98+</td>
+          <td>Treasury</td>
+          <td class="pct">1</td>
+          <td class="tasks">— SLA-метрики синка.</td>
+          <td class="crit c2">К2</td>
+        </tr>
+        <tr class="horizon-current" data-task-id="MOD-M6-001" data-req-status="COMPLETED" data-horizons="Текущая,v2" data-priority="2" data-owner="Core">
+          <td class="tid"><code>MOD-M6-001</code></td>
+          <td class="mod">M6 HR &amp; Payroll</td>
+          <td>Кадры, payroll, Hire-Gate, mass-approve, ABB XML gateway</td>
           <td>Текущая / v2</td>
           <td class="status">[x] COMPLETED</td>
           <td class="pct">97</td>
           <td class="target">97+</td>
-          <td class="tasks">— AR/AP v2, aging, multicurrency (PRD §5); опционально — доп. golden-тесты rounding.</td>
+          <td>Core</td>
+          <td class="pct">2</td>
+          <td class="tasks">— UX табеля.</td>
           <td class="crit c3">К3</td>
         </tr>
-        <tr class="horizon-current">
-          <td class="mod">M5 Cash</td>
-          <td>Treasury, bank statements, Kassa ордера, cash-flow items и direct banking адаптеры</td>
-          <td>Текущая / v3</td>
-          <td class="status">[x] COMPLETED</td>
-          <td class="pct">97</td>
-          <td class="target">97+</td>
-          <td class="tasks">— Outbound drafts, adapters, failover (PRD §6.3); опционально — soak-тесты и расширенные SLA-метрики.</td>
-          <td class="crit c2">К2</td>
-        </tr>
-        <tr class="horizon-current">
-          <td class="mod">M6 HR</td>
-          <td>Кадры, payroll, absences, RBAC hardening и проводки по `departmentId`</td>
-          <td>Текущая</td>
-          <td class="status">[x] COMPLETED</td>
-          <td class="pct">97</td>
-          <td class="target">97+</td>
-          <td class="tasks">— Payroll изоляция, dept cost, timesheet (PRD/TZ); опционально — расширенная аналитика approve.</td>
-          <td class="crit c3">К3</td>
-        </tr>
-        <tr class="horizon-current">
+        <tr class="horizon-current" data-task-id="MOD-M7-001" data-req-status="COMPLETED" data-horizons="Текущая,v2" data-priority="3" data-owner="Core">
+          <td class="tid"><code>MOD-M7-001</code></td>
           <td class="mod">M7 Reports</td>
-          <td>ОСВ/P&amp;L/Balance/CashFlow, e-Taxes workflow, dept filter и NAS/IFRS toggle</td>
+          <td>ОСВ/P&amp;L/CashFlow, e-Taxes, NAS/IFRS toggle, snapshots</td>
           <td>Текущая / v2</td>
           <td class="status">[x] COMPLETED</td>
           <td class="pct">98</td>
           <td class="target">98+</td>
-          <td class="tasks">— e-Taxes v2, IFRS views, snapshots (PRD §5–7); опционально — длинные периоды / export stress.</td>
+          <td>Core</td>
+          <td class="pct">3</td>
+          <td class="tasks">— Длинные периоды / stress export.</td>
           <td class="crit c3">К3</td>
         </tr>
-        <tr class="horizon-current">
+        <tr class="horizon-current" data-task-id="MOD-M8-001" data-req-status="COMPLETED" data-horizons="Текущая" data-priority="2" data-owner="Platform">
+          <td class="tid"><code>MOD-M8-001</code></td>
           <td class="mod">M8 Audit</td>
-          <td>Неизменяемый аудит, PII masking, интеграционная наблюдаемость и health</td>
+          <td>Hash chain, masking, Audit Hub, <code>/audit-invitations</code></td>
           <td>Текущая</td>
           <td class="status">[x] COMPLETED</td>
           <td class="pct">97</td>
           <td class="target">97+</td>
-          <td class="tasks">— Hash chain, masking, webhook alerts (PRD/TZ); опционально — расширенный incident runbook.</td>
+          <td>Platform</td>
+          <td class="pct">2</td>
+          <td class="tasks">— Incident runbook.</td>
           <td class="crit c2">К2</td>
         </tr>
-        <tr class="horizon-current">
+        <tr class="horizon-current" data-task-id="MOD-M9-001" data-req-status="COMPLETED" data-horizons="Текущая,v2" data-priority="3" data-owner="Core">
+          <td class="tid"><code>MOD-M9-001</code></td>
           <td class="mod">M9 Inventory</td>
-          <td>Склад, инвентаризация, AVCO/FIFO, manufacturing release и fixed assets</td>
+          <td>Склад, bins, <code>InventoryAudit</code> reconciliations, ордера</td>
           <td>Текущая / v2</td>
           <td class="status">[x] COMPLETED</td>
           <td class="pct">97</td>
           <td class="target">97+</td>
-          <td class="tasks">— Physical adjustments, FIFO/AVCO, manufacturing release (PRD §5.D / §4.10); опционально — stress по bin/BOM.</td>
+          <td>Core</td>
+          <td class="pct">3</td>
+          <td class="tasks">— Stress bin/BOM.</td>
           <td class="crit c4">К4</td>
         </tr>
-        <tr class="horizon-current">
-          <td class="mod">Платформа</td>
-          <td>Multi-tenant, BullMQ, billing Hybrid LEGO, post-paid, SOFT/HARD block, webhooks auto-resume, <strong>billing reconciliation</strong> (<code>platform:billing-reconcile</code>), <strong>DR drill</strong> (<code>scripts/dr-drill.sh</code>, <code>platform:dr-validate</code>)</td>
+        <tr class="horizon-current" data-task-id="MOD-M10-001" data-req-status="COMPLETED" data-horizons="Текущая,v2" data-priority="3" data-owner="Core">
+          <td class="tid"><code>MOD-M10-001</code></td>
+          <td class="mod">M10 Manufacturing</td>
+          <td>ProductRecipe, ManufacturingRelease, overhead, virtual stock</td>
+          <td>Текущая / v2</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">96</td>
+          <td class="target">97+</td>
+          <td>Core</td>
+          <td class="pct">3</td>
+          <td class="tasks">— Многоуровневые BOM.</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-current" data-task-id="MOD-MFG-WIP-001" data-req-status="COMPLETED" data-horizons="Текущая,v2,v4+" data-priority="3" data-owner="Core">
+          <td class="tid"><code>MOD-MFG-WIP-001</code></td>
+          <td class="mod">M10 — WIP / ManufacturingOrder</td>
+          <td>Очередь <code>ManufacturingOrder</code>, поэтапный WIP, погашение и проводки (PRD §14.2, TZ §10.2.0)</td>
+          <td>Текущая / v2</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">95</td>
+          <td class="target">97</td>
+          <td>Core</td>
+          <td class="pct">3</td>
+          <td class="tasks">— Многоуровневые BOM (опционально).</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-current" data-task-id="MOD-FA-001" data-req-status="COMPLETED" data-horizons="v2" data-priority="3" data-owner="Core">
+          <td class="tid"><code>MOD-FA-001</code></td>
+          <td class="mod">Fixed Assets v2</td>
+          <td>Реестр ОС, STRAIGHT_LINE + RB/UoP, BullMQ <code>monthly-depreciation</code> (PRD §5.D)</td>
+          <td>v2</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">98</td>
+          <td class="target">98+</td>
+          <td>Core</td>
+          <td class="pct">3</td>
+          <td class="tasks">— Golden tests амортизации.</td>
+          <td class="crit c3">К3</td>
+        </tr>
+        <tr class="horizon-v2" data-task-id="MOD-GS-001" data-req-status="COMPLETED" data-horizons="v2" data-priority="3" data-owner="Platform">
+          <td class="tid"><code>MOD-GS-001</code></td>
+          <td class="mod">Generic SaaS (Waves 1–2)</td>
+          <td>PRD §5.E: Activity Stream, Approval (касса), Director, РБП, КЗР, PSA mini</td>
+          <td>v2</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">95</td>
+          <td class="target">95+</td>
+          <td>Platform</td>
+          <td class="pct">3</td>
+          <td class="tasks">— Wave 3 roadmap only.</td>
+          <td class="crit c3">К3</td>
+        </tr>
+        <tr class="horizon-v3" data-task-id="MOD-V3-DB-001" data-req-status="COMPLETED" data-horizons="v3" data-priority="2" data-owner="Treasury">
+          <td class="tid"><code>MOD-V3-DB-001</code></td>
+          <td class="mod">v3 / Direct Banking</td>
+          <td>OAuth2, топ-3 банка, IBAN, circuit breaker, health API</td>
+          <td>v3</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">95</td>
+          <td class="target">95+</td>
+          <td>Treasury</td>
+          <td class="pct">2</td>
+          <td class="tasks">— Расширение списка банков.</td>
+          <td class="crit c2">К2</td>
+        </tr>
+        <tr class="horizon-v3" data-task-id="MOD-V3-DVX-001" data-req-status="PARTIAL" data-horizons="v3" data-priority="3" data-owner="Integrations">
+          <td class="tid"><code>MOD-V3-DVX-001</code></td>
+          <td class="mod">v3 / DVX (e-taxes)</td>
+          <td>Phase 1+2 в продукте; Phase 3 S2S — после clearance</td>
+          <td>v3</td>
+          <td class="status">[~] PARTIAL</td>
+          <td class="pct">60</td>
+          <td class="target">90</td>
+          <td>Integrations</td>
+          <td class="pct">3</td>
+          <td class="tasks">— Official API.</td>
+          <td class="crit c3">К3</td>
+        </tr>
+        <tr class="horizon-v3" data-task-id="MOD-V3-EMAS-001" data-req-status="PARTIAL" data-horizons="v3" data-priority="3" data-owner="Integrations">
+          <td class="tid"><code>MOD-V3-EMAS-001</code></td>
+          <td class="mod">v3 / ƏMAS (MLSA)</td>
+          <td>Phase 1–2; Phase 3 S2S DOST RIM</td>
+          <td>v3</td>
+          <td class="status">[~] PARTIAL</td>
+          <td class="pct">45</td>
+          <td class="target">85</td>
+          <td>Integrations</td>
+          <td class="pct">3</td>
+          <td class="tasks">— Контракт MLSA.</td>
+          <td class="crit c3">К3</td>
+        </tr>
+        <tr class="horizon-v3" data-task-id="MOD-V3-SIGN-001" data-req-status="PLANNED" data-horizons="v3" data-priority="4" data-owner="Integrations">
+          <td class="tid"><code>MOD-V3-SIGN-001</code></td>
+          <td class="mod">v3 / ASAN İmza, SİMA</td>
+          <td><code>LOCKED_BY_SIGNATURE</code> в модели/UI; провайдеры — следующая веха</td>
+          <td>v3</td>
+          <td class="status">[ ] PLANNED</td>
+          <td class="pct">25</td>
+          <td class="target">75</td>
+          <td>Integrations</td>
+          <td class="pct">4</td>
+          <td class="tasks">— Подключение провайдеров.</td>
+          <td class="crit c3">К3</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="MOD-V4-BIL-001" data-req-status="COMPLETED" data-horizons="Текущая,v4+" data-priority="1" data-owner="Platform">
+          <td class="tid"><code>MOD-V4-BIL-001</code></td>
+          <td class="mod">v4 / Billing &amp; Subscription</td>
+          <td>Hybrid LEGO, post-paid, blocks, reconciliation, Drakaris; trial <code>TRIAL_3_MONTHS</code> (+3 мес. Asia/Baku, без <code>tax_pro</code>/<code>trade_pro</code>/<code>compliance_pro</code>)</td>
+          <td>Текущая / v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">96</td>
+          <td class="target">97+</td>
+          <td>Platform</td>
+          <td class="pct">1</td>
+          <td class="tasks">— Каталог провайдеров.</td>
+          <td class="crit c2">К2</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="MOD-V4-SA-001" data-req-status="COMPLETED" data-horizons="v4+" data-priority="2" data-owner="Platform">
+          <td class="tid"><code>MOD-V4-SA-001</code></td>
+          <td class="mod">v4 / Super-Admin &amp; прайс</td>
+          <td><code>/super-admin/billing/*</code>, Data Hub, редактор <code>landing-modules</code>, <code>/api/public/pricing</code>, <code>/pricing</code></td>
+          <td>v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">96</td>
+          <td class="target">97+</td>
+          <td>Platform</td>
+          <td class="pct">2</td>
+          <td class="tasks">— i18n <code>landing.*</code>.</td>
+          <td class="crit c3">К3</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="MOD-LAND-001" data-req-status="COMPLETED" data-horizons="Текущая,v4+" data-priority="2" data-owner="Platform">
+          <td class="tid"><code>MOD-LAND-001</code></td>
+          <td class="mod">Marketing landing &amp; trial</td>
+          <td>Лендинг <code>/</code> (RSC AZ/RU), <code>GET /api/public/landing-modules</code>, ERP <code>/home</code>, <code>TRIAL_3_MONTHS</code> (PRD §7.3, §7.6.4)</td>
+          <td>Текущая / v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">95</td>
+          <td class="target">97</td>
+          <td>Platform</td>
+          <td class="pct">2</td>
+          <td class="tasks">— A/B Hero (опционально).</td>
+          <td class="crit c3">К3</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="MOD-V4-P11-001" data-req-status="COMPLETED" data-horizons="v4+" data-priority="2" data-owner="Integrations">
+          <td class="tid"><code>MOD-V4-P11-001</code></td>
+          <td class="mod">v4 / Phase 11 — Intl. Trade</td>
+          <td>Intl. invoices, Commercial Invoice PDF, AI-OCR <code>OcrJob</code>, customs declarations + GL</td>
+          <td>v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">92</td>
+          <td class="target">95</td>
+          <td>Integrations</td>
+          <td class="pct">2</td>
+          <td class="tasks">— OCR словарь.</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="MOD-V4-P12-001" data-req-status="COMPLETED" data-horizons="v4+" data-priority="2" data-owner="Integrations">
+          <td class="tid"><code>MOD-V4-P12-001</code></td>
+          <td class="mod">v4 / Phase 12 — Customs</td>
+          <td><code>trade_pro</code> Assistant BGD capture + Excel fallback, <code>CustomsTariffRate</code></td>
+          <td>v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">90</td>
+          <td class="target">95</td>
+          <td>Integrations</td>
+          <td class="pct">2</td>
+          <td class="tasks">— BGD edge cases.</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="MOD-ERM-001" data-req-status="COMPLETED" data-horizons="v4+" data-priority="2" data-owner="Data/Compliance">
+          <td class="tid"><code>MOD-ERM-001</code></td>
+          <td class="mod">ERM — дашборд</td>
+          <td><code>/compliance</code>, список PENDING, mitigation (PRD §14.1)</td>
+          <td>v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">92</td>
+          <td class="target">95</td>
+          <td>Data/Compliance</td>
+          <td class="pct">2</td>
+          <td class="tasks">— UX карточек риска.</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="MOD-ERM-002" data-req-status="COMPLETED" data-horizons="v4+" data-priority="2" data-owner="Data/Compliance">
+          <td class="tid"><code>MOD-ERM-002</code></td>
+          <td class="mod">ERM — RiskAudit</td>
+          <td>Модель + <code>/api/compliance/*</code>, <code>dedupeKey</code> (TZ §22)</td>
+          <td>v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">92</td>
+          <td class="target">95</td>
+          <td>Data/Compliance</td>
+          <td class="pct">2</td>
+          <td class="tasks">— Расширение metadata.</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="FEAT-ERM-TAX-001" data-req-status="COMPLETED" data-horizons="v4+" data-priority="2" data-owner="Data/Compliance">
+          <td class="tid"><code>FEAT-ERM-TAX-001</code></td>
+          <td class="mod">ERM — Tax Monitor</td>
+          <td>Порог 200k AZN YTD, сканер BullMQ</td>
+          <td>v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">90</td>
+          <td class="target">95</td>
+          <td>Data/Compliance</td>
+          <td class="pct">2</td>
+          <td class="tasks">— FX вне AZN (metadata).</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="FEAT-ERM-VOEN-001" data-req-status="COMPLETED" data-horizons="v4+" data-priority="3" data-owner="Data/Compliance">
+          <td class="tid"><code>FEAT-ERM-VOEN-001</code></td>
+          <td class="mod">ERM — VÖEN Guard</td>
+          <td>Контрагенты / формат VÖEN, rule-based</td>
+          <td>v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">90</td>
+          <td class="target">95</td>
+          <td>Data/Compliance</td>
+          <td class="pct">3</td>
+          <td class="tasks">— Внешний реестр (vNext).</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="FEAT-ERM-FRAUD-001" data-req-status="COMPLETED" data-horizons="v4+" data-priority="3" data-owner="Data/Compliance">
+          <td class="tid"><code>FEAT-ERM-FRAUD-001</code></td>
+          <td class="mod">ERM — Fraud Detector</td>
+          <td><code>AuditLog</code> + KXO паттерн 72h</td>
+          <td>v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">88</td>
+          <td class="target">95</td>
+          <td>Data/Compliance</td>
+          <td class="pct">3</td>
+          <td class="tasks">— ML/AI phase 2 (<code>FEAT-ERM-AI-001</code>).</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="FEAT-ERM-UX-001" data-req-status="COMPLETED" data-horizons="v4+" data-priority="3" data-owner="Data/Compliance">
+          <td class="tid"><code>FEAT-ERM-UX-001</code></td>
+          <td class="mod">ERM — индикатор шапки</td>
+          <td>Posture «светофор» по PENDING</td>
+          <td>v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">90</td>
+          <td class="target">95</td>
+          <td>Data/Compliance</td>
+          <td class="pct">3</td>
+          <td class="tasks">— Тонкая настройка порогов UI.</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="MOD-V4-IND-001" data-req-status="COMPLETED" data-horizons="v4+" data-priority="4" data-owner="GTM">
+          <td class="tid"><code>MOD-V4-IND-001</code></td>
+          <td class="mod">v4 / Industry Solutions</td>
+          <td>Painted door, waitlist <code>early_access_*</code>, entitlement shell (PRD §5.0.1)</td>
+          <td>v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">90</td>
+          <td class="target">95</td>
+          <td>GTM</td>
+          <td class="pct">4</td>
+          <td class="tasks">— Вертикальная глубина по отраслям.</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="MOD-V4-WA-001" data-req-status="PLANNED" data-horizons="v4+" data-priority="4" data-owner="Integrations">
+          <td class="tid"><code>MOD-V4-WA-001</code></td>
+          <td class="mod">v4 / WhatsApp Business API</td>
+          <td>Prepaid BSP, баланс в org + квота в subscription/me</td>
+          <td>v4+</td>
+          <td class="status">[ ] PLANNED</td>
+          <td class="pct">20</td>
+          <td class="target">90</td>
+          <td>Integrations</td>
+          <td class="pct">4</td>
+          <td class="tasks">— Checkout + opt-in.</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="MOD-PLT-DSP-001" data-req-status="PARTIAL" data-horizons="v4+" data-priority="2" data-owner="Platform">
+          <td class="tid"><code>MOD-PLT-DSP-001</code></td>
+          <td class="mod">Dispute &amp; Recovery</td>
+          <td>Step-up OTP, dual approval, snapshots, rollback MVP (PRD §7.13, TZ §21)</td>
+          <td>v4+</td>
+          <td class="status">[~] PARTIAL</td>
+          <td class="pct">70</td>
+          <td class="target">90</td>
+          <td>Platform</td>
+          <td class="pct">2</td>
+          <td class="tasks">— <code>recovery_pro</code> PITR.</td>
+          <td class="crit c3">К3</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="FEAT-INT-MON-001" data-req-status="PLANNED" data-horizons="v4+" data-priority="4" data-owner="Integrations">
+          <td class="tid"><code>FEAT-INT-MON-001</code></td>
+          <td class="mod">Assistant Monitoring (vNext)</td>
+          <td>AI-watcher DOM госпорталов — PRD §7.6.3, TZ §1.7.1</td>
+          <td>v4+</td>
+          <td class="status">[ ] PLANNED</td>
+          <td class="pct">5</td>
+          <td class="target">60</td>
+          <td>Integrations</td>
+          <td class="pct">4</td>
+          <td class="tasks">— Gemini/compare pipeline.</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-v4" data-task-id="FEAT-SEC-CRYPTO-001" data-req-status="PLANNED" data-horizons="v4+" data-priority="2" data-owner="Platform">
+          <td class="tid"><code>FEAT-SEC-CRYPTO-001</code></td>
+          <td class="mod">Phase 15 — Zero-Knowledge crypto</td>
+          <td>Envelope DEK/KEK, accountant multi-org matrix, 3-tier recovery, ASAN/SİMA state escrow (PRD §15, TZ §23)</td>
+          <td>v4+ / Phase 15</td>
+          <td class="status">[ ] PLANNED</td>
+          <td class="pct">5</td>
+          <td class="target">80</td>
+          <td>Platform</td>
+          <td class="pct">2</td>
+          <td class="tasks">— Client crypto module; Prisma ciphertext fields.</td>
+          <td class="crit c2">К2</td>
+        </tr>
+        <tr class="horizon-current" data-task-id="MOD-PLT-DR-001" data-req-status="COMPLETED" data-horizons="Текущая,v3,v4+" data-priority="2" data-owner="Platform">
+          <td class="tid"><code>MOD-PLT-DR-001</code></td>
+          <td class="mod">DR drill &amp; validate</td>
+          <td><code>dr-drill.sh</code>, <code>platform:dr-validate</code>, DR_RUNBOOK §8</td>
+          <td>Текущая / v3 / v4+</td>
+          <td class="status">[x] COMPLETED</td>
+          <td class="pct">95</td>
+          <td class="target">98</td>
+          <td>Platform</td>
+          <td class="pct">2</td>
+          <td class="tasks">— Календарь SRE.</td>
+          <td class="crit c4">К4</td>
+        </tr>
+        <tr class="horizon-current" data-task-id="MOD-PLT-OPS-001" data-req-status="COMPLETED" data-horizons="Текущая,v3,v4+" data-priority="2" data-owner="Platform">
+          <td class="tid"><code>MOD-PLT-OPS-001</code></td>
+          <td class="mod">Платформа (tenant / i18n / reconcile)</td>
+          <td>Prisma extensions, BullMQ tenant context, i18n три слоя, <code>platform:billing-reconcile</code></td>
           <td>Текущая / v3 / v4+</td>
           <td class="status">[x] COMPLETED</td>
           <td class="pct">97</td>
           <td class="target">97+</td>
-          <td class="tasks">— Контуры PRD §7.12 / TZ §14.8.12–13 и DR_RUNBOOK §8 зафиксированы; опционально — внешний CI/cron на <code>platform:billing-reconcile</code> и регламентный запуск DR по календарю SRE.</td>
+          <td>Platform</td>
+          <td class="pct">2</td>
+          <td class="tasks">— CI cron reconcile (опционально).</td>
           <td class="crit c4">К4</td>
         </tr>
-      </tbody>
+    </tbody>
     </table>
 
     <p class="note">
-      * Формат статуса: <code>[x] COMPLETED</code>, <code>[~] PARTIAL</code>, <code>[ ] PLANNED</code> (как в PRD). Ревизия документов <strong>2026.05.18</strong>: <em>Final QA (Platform): Billing reconciliation and automated DR validation. Horizons v1/v2 reached 100%.</em>
-      Включено: сверка активных модулей со строками платформенных счетов (anti-freerider), восстановление последнего <code>*.sql.gz</code> в throwaway Postgres + проверка counts (baseline опционально).
-      Нумерация модулей: <strong>PRD §4</strong>, <strong>TZ §2–§10</strong> (M1→§2 … M9→§10). При расхождении с кодом приоритет у актуальных PRD/TZ.
+      * Формат статуса: <code>[x] COMPLETED</code>, <code>[~] PARTIAL</code>, <code>[ ] PLANNED</code> (как в PRD). Ревизия документов <strong>2026.06.19</strong> (Task ID + Owner/Priority; PRD §14.2.1): <em>ERP-дашборд <code>/home</code>; маркетинг <code>/</code> + <code>MOD-LAND-001</code>; trial <code>TRIAL_3_MONTHS</code>; Phase 15 <code>FEAT-SEC-CRYPTO-001</code> — PLANNED.</em>
+      Ключевые свежие пакеты: <strong>2026.06.18</strong> — лендинг <code>/</code>, <code>/home</code>, <code>landing_module_marketing</code>, <code>GET /api/public/landing-modules</code>, trial <code>TRIAL_3_MONTHS</code>; <strong>2026.06.19</strong> — Phase 15 Zero-Knowledge / ASAN state escrow (scope в PRD §15, TZ §23); <strong>2026.06.15</strong> — Audit Hub в сайдбаре; <strong>2026.06.13–14</strong> — <code>/pricing</code>.
+      Нумерация модулей: <strong>PRD §4</strong>, <strong>TZ §2–§10</strong> (M1→§2 … M9→§10; <strong>M10 Manufacturing</strong> — отдельный веб-модуль, см. PRD §4.10A). При расхождении с кодом приоритет у актуальных PRD/TZ.
     </p>
   </div>
   <script>
     (function () {
       const horizon = document.getElementById("roadmap-horizon-filter");
       const status = document.getElementById("roadmap-status-filter");
+      const priority = document.getElementById("roadmap-priority-filter");
+      const owner = document.getElementById("roadmap-owner-filter");
       const text = document.getElementById("roadmap-text-filter");
       const tbody = document.getElementById("roadmap-table-body");
       if (!horizon || !status || !text || !tbody) return;
 
       const rows = Array.from(tbody.querySelectorAll("tr"));
+      if (priority && owner) {
+        const owners = new Set(rows.map((r) => r.dataset.owner).filter(Boolean));
+        owners.forEach((o) => {
+          const opt = document.createElement("option");
+          opt.value = o;
+          opt.textContent = o;
+          owner.appendChild(opt);
+        });
+      }
+
+      function horizonMatch(row, h) {
+        if (h === "all") return true;
+        const hay = (row.dataset.horizons || "").toLowerCase();
+        return hay.split(",").some((x) => x.trim() === h || hay.includes(h));
+      }
+
+      function reqFromRow(row) {
+        return String(row.dataset.reqStatus || "").toUpperCase();
+      }
+
       function applyFilters() {
         const h = String(horizon.value || "all").toLowerCase();
-        const s = String(status.value || "all").toLowerCase();
+        const st = String(status.value || "all").toUpperCase();
+        const p = String(priority && priority.value ? priority.value : "all");
+        const o = String(owner && owner.value ? owner.value : "all");
         const q = String(text.value || "").trim().toLowerCase();
         rows.forEach((row) => {
-          const cells = row.querySelectorAll("td");
-          const horizonText = (cells[2]?.textContent || "").toLowerCase();
-          const statusText = (cells[3]?.textContent || "").toLowerCase();
           const rowText = (row.textContent || "").toLowerCase();
-          const horizonOk = h === "all" ? true : horizonText.includes(h);
-          const statusOk = s === "all" ? true : statusText.includes(s);
+          const horizonOk = horizonMatch(row, h);
+          const rs = reqFromRow(row);
+          const statusOk = st === "ALL" ? true : rs === st;
+          const prioOk = p === "all" ? true : (row.dataset.priority || "") === p;
+          const ownerOk = o === "all" ? true : (row.dataset.owner || "") === o;
           const textOk = q.length === 0 ? true : rowText.includes(q);
-          row.style.display = horizonOk && statusOk && textOk ? "" : "none";
+          row.style.display = horizonOk && statusOk && prioOk && ownerOk && textOk ? "" : "none";
         });
       }
       horizon.addEventListener("change", applyFilters);
       status.addEventListener("change", applyFilters);
+      if (priority) priority.addEventListener("change", applyFilters);
+      if (owner) owner.addEventListener("change", applyFilters);
       text.addEventListener("input", applyFilters);
       applyFilters();
     })();

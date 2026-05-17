@@ -44,7 +44,7 @@ function BillingSuccessContent() {
           {t("billingSuccess.paymentError")}
         </h1>
         <Link
-          href="/admin/billing"
+          href="/settings/subscription"
           className="inline-flex items-center justify-center rounded-xl bg-action px-5 py-2.5 text-sm font-semibold text-white hover:bg-action-hover"
         >
           {t("billingSuccess.backSettings")}
@@ -77,13 +77,13 @@ function BillingSuccessContent() {
       )}
       <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
         <Link
-          href="/"
+          href="/home"
           className="inline-flex items-center justify-center rounded-xl bg-action px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-action-hover"
         >
           {t("billingSuccess.backWork")}
         </Link>
         <Link
-          href="/admin/billing"
+          href="/settings/subscription"
           className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
         >
           {t("billingSuccess.backSettings")}

@@ -177,7 +177,7 @@ export default function HrStructurePage() {
   if (!token) return null;
 
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="w-full max-w-none space-y-8">
       <PageHeader
         title={t("hrStructure.title")}
         subtitle={t("hrStructure.subtitle")}

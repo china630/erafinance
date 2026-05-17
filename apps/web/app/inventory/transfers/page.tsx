@@ -1,12 +1,17 @@
 "use client";
 
+import Link from "next/link";
+import { Truck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
+import { parsePaginatedList } from "../../../lib/paginated-list";
 import { formatMoneyAzn } from "../../../lib/format-money";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { subscribeListRefresh } from "../../../lib/list-refresh-bus";
 import { PageHeader } from "../../../components/layout/page-header";
+import { EmptyState } from "../../../components/empty-state";
+import { ListPaginationFooter } from "../../../components/list-pagination-footer";
 import { TransferModal } from "../../../components/inventory/modals";
 import {
   DATA_TABLE_CLASS,
@@ -17,6 +22,7 @@ import {
   DATA_TABLE_TH_RIGHT_CLASS,
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
+  LINK_ACCENT_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from "../../../lib/design-system";
 
@@ -50,6 +56,9 @@ export default function InventoryTransfersPage() {
   const { token, ready } = useRequireAuth();
   const [rows, setRows] = useState<Movement[]>([]);
   const [toByBatch, setToByBatch] = useState<Record<string, string>>({});
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -62,28 +71,38 @@ export default function InventoryTransfersPage() {
     setLoading(true);
     setError(null);
     try {
-      const qOut = new URLSearchParams({ take: "500", note: "TRANSFER_OUT" });
-      const qIn = new URLSearchParams({ take: "500", note: "TRANSFER_IN" });
+      const qOut = new URLSearchParams({
+        note: "TRANSFER_OUT",
+        page: String(page),
+        pageSize: String(pageSize),
+      });
+      const qIn = new URLSearchParams({ note: "TRANSFER_IN", page: "1", pageSize: "500" });
       const [outRes, inRes] = await Promise.all([
         apiFetch(`/api/inventory/movements?${qOut.toString()}`),
         apiFetch(`/api/inventory/movements?${qIn.toString()}`),
       ]);
       if (!outRes.ok) throw new Error(`movements ${outRes.status}`);
       if (!inRes.ok) throw new Error(`movements ${inRes.status}`);
-      const outs = (await outRes.json()) as Movement[];
-      const ins = (await inRes.json()) as Movement[];
+      const parsedOut = parsePaginatedList<Movement>(await outRes.json());
+      const parsedIn = parsePaginatedList<Movement>(await inRes.json());
       const toMap: Record<string, string> = {};
-      for (const m of ins) {
+      for (const m of parsedIn.items) {
         const bid = m.transferBatchId;
         if (bid) toMap[bid] = m.warehouse.name;
       }
       setToByBatch(toMap);
-      setRows(outs);
+      setRows(parsedOut.items);
+      setTotal(parsedOut.total);
     } catch (e) {
       setError(String(e));
     }
     setLoading(false);
-  }, [token]);
+  }, [token, page, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -108,6 +127,14 @@ export default function InventoryTransfersPage() {
     <div className="space-y-6">
       <PageHeader
         title={t("inventory.transfersPageTitle")}
+        subtitle={
+          <span className="inline leading-relaxed text-[#7F8C8D]">
+            {t("inventory.transfersPageSubtitle")}{" "}
+            <Link className={LINK_ACCENT_CLASS} href="/inventory/movements">
+              {t("inventory.goToMovements")}
+            </Link>
+          </span>
+        }
         actions={
           <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => setModalOpen(true)}>
             + {t("inventory.newTransferBtn")}
@@ -117,10 +144,8 @@ export default function InventoryTransfersPage() {
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       {loading && <p className="text-gray-600">{t("common.loading")}</p>}
-      {!loading && rows.length === 0 && !error && (
-        <p className="text-sm text-slate-600">{t("inventory.emptyMovementsHint")}</p>
-      )}
-      {!loading && rows.length > 0 && (
+      {!loading && (
+        <>
         <div className={DATA_TABLE_VIEWPORT_CLASS}>
           <table className={`${DATA_TABLE_CLASS} min-w-full`}>
             <thead>
@@ -135,7 +160,30 @@ export default function InventoryTransfersPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((m) => {
+              {rows.length === 0 ? (
+                <tr className={DATA_TABLE_TR_CLASS}>
+                  <td colSpan={7} className={`${DATA_TABLE_TD_CLASS} py-12 text-center`}>
+                    {!error ? (
+                      <EmptyState
+                        icon={
+                          <Truck
+                            className="mx-auto h-12 w-12 stroke-[1.5] text-[#7F8C8D]"
+                            aria-hidden
+                          />
+                        }
+                        title={t("inventory.emptyTransfersTitle")}
+                        description={t("inventory.emptyTransfersHint")}
+                        action={
+                          <Link className={LINK_ACCENT_CLASS} href="/inventory/movements">
+                            {t("inventory.goToMovements")}
+                          </Link>
+                        }
+                      />
+                    ) : null}
+                  </td>
+                </tr>
+              ) : (
+              rows.map((m) => {
                 const bid = m.transferBatchId ?? "—";
                 const toName = m.transferBatchId ? toByBatch[m.transferBatchId] ?? "—" : "—";
                 return (
@@ -154,10 +202,19 @@ export default function InventoryTransfersPage() {
                     </td>
                   </tr>
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>
+        <ListPaginationFooter
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+        </>
       )}
 
       <TransferModal open={modalOpen} onClose={() => setModalOpen(false)} />

@@ -1,12 +1,11 @@
 "use client";
 
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, X, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
 import { useSearchParams } from "next/navigation";
 import {
-  CARD_CONTAINER_CLASS,
   DATA_TABLE_ACTIONS_TD_CLASS,
   DATA_TABLE_ACTIONS_TH_CLASS,
   DATA_TABLE_CLASS,
@@ -18,13 +17,20 @@ import {
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
   INPUT_BORDERED_CLASS,
+  MODAL_CLOSE_BUTTON_CLASS,
+  MODAL_DIALOG_CONTENT_CLASS,
+  MODAL_FIELD_LABEL_CLASS,
+  MODAL_FOOTER_ACTIONS_CLASS,
+  MODAL_FOOTER_BUTTON_CLASS,
+  MODAL_INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
   SECONDARY_BUTTON_CLASS,
-  TABLE_ROW_ICON_BTN_CLASS,
 } from "../../../lib/design-system";
 import { useAuth } from "../../../lib/auth-context";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { PageHeader } from "../../../components/layout/page-header";
+import { Button } from "../../../components/ui/button";
+import { Badge } from "../../../components/ui/badge";
 
 type MemberRow = {
   userId: string;
@@ -54,6 +60,26 @@ type InviteRow = {
   invitedBy?: { id: string; email: string; fullName: string | null } | null;
 };
 
+function roleBadgeVariant(role: string): "owner" | "admin" | "accountant" | "user" {
+  switch (role) {
+    case "OWNER":
+      return "owner";
+    case "ADMIN":
+      return "admin";
+    case "ACCOUNTANT":
+      return "accountant";
+    default:
+      return "user";
+  }
+}
+
+function memberDisplayName(m: MemberRow): string {
+  const n = m.user.fullName?.trim();
+  if (n) return n;
+  const emailLocal = m.user.email?.split("@")[0] ?? "";
+  return emailLocal || "—";
+}
+
 const DEFAULT_TEAM_INVITE_ROLES = ["USER", "ACCOUNTANT", "DIRECTOR", "ADMIN"] as const;
 
 export default function TeamSettingsPage() {
@@ -74,6 +100,7 @@ export default function TeamSettingsPage() {
     ...DEFAULT_TEAM_INVITE_ROLES,
   ]);
   const [tab, setTab] = useState<"members" | "invites">("members");
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
   const canManage =
     user?.role === "OWNER" || user?.role === "ADMIN";
@@ -226,6 +253,7 @@ export default function TeamSettingsPage() {
       }
       setInviteEmail("");
       setInviteMsg(t("teamPage.inviteOk"));
+      setInviteModalOpen(false);
     } finally {
       setBusyId(null);
     }
@@ -263,68 +291,122 @@ export default function TeamSettingsPage() {
 
   return (
     <div className="space-y-10 max-w-3xl">
-      <PageHeader title={t("teamPage.title")} subtitle={t("teamPage.subtitle")} />
+      <PageHeader
+        title={t("teamPage.title")}
+        subtitle={t("teamPage.subtitle")}
+        actions={
+          canManage ? (
+            <Button
+              type="button"
+              variant="primary"
+              className="inline-flex items-center gap-2"
+              onClick={() => {
+                setInviteMsg(null);
+                setInviteModalOpen(true);
+              }}
+            >
+              <UserPlus className="h-4 w-4 shrink-0" aria-hidden />
+              {t("teamPage.inviteOpen")}
+            </Button>
+          ) : null
+        }
+      />
+
+      {inviteModalOpen && canManage ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`} role="dialog" aria-modal="true">
+            <header className="flex shrink-0 items-start justify-between gap-3">
+              <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
+                {t("teamPage.inviteTitle")}
+              </h3>
+              <Button
+                type="button"
+                variant="ghost"
+                className={MODAL_CLOSE_BUTTON_CLASS}
+                onClick={() => setInviteModalOpen(false)}
+                aria-label={t("common.close")}
+              >
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+              </Button>
+            </header>
+            <form
+              onSubmit={(e) => void sendInvite(e)}
+              className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto"
+            >
+              <label className={MODAL_FIELD_LABEL_CLASS}>
+                {t("teamPage.email")}
+                <input
+                  type="email"
+                  required
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
+                />
+              </label>
+              <label className={MODAL_FIELD_LABEL_CLASS}>
+                {t("teamPage.role")}
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                  className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
+                >
+                  {assignableRoles.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {inviteMsg ? <p className="text-[13px] text-[#7F8C8D]">{inviteMsg}</p> : null}
+              <div className={MODAL_FOOTER_ACTIONS_CLASS}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={MODAL_FOOTER_BUTTON_CLASS}
+                  onClick={() => setInviteModalOpen(false)}
+                  disabled={busyId === "invite"}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className={MODAL_FOOTER_BUTTON_CLASS}
+                  disabled={busyId === "invite"}
+                >
+                  {busyId === "invite" ? "…" : t("teamPage.inviteSubmit")}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       {loadErr && (
         <p className="text-red-600 text-sm">{loadErr}</p>
       )}
 
       {canManage && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-medium text-gray-900">{t("teamPage.inviteTitle")}</h2>
-          <form
-            onSubmit={(e) => void sendInvite(e)}
-            className={`flex flex-wrap items-end gap-3 ${CARD_CONTAINER_CLASS} p-4`}
-          >
-            <label className="text-[13px] font-medium text-[#34495E]">
-              Email
-              <input
-                type="email"
-                required
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                className={`block w-56 mt-1 ${INPUT_BORDERED_CLASS}`}
-              />
-            </label>
-            <label className="text-[13px] font-medium text-[#34495E]">
-              {t("teamPage.role")}
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value)}
-                className={`block mt-1 min-w-[10rem] ${INPUT_BORDERED_CLASS}`}
-              >
-                {assignableRoles.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="submit"
-              disabled={busyId === "invite"}
-              className={`${PRIMARY_BUTTON_CLASS} disabled:opacity-50`}
-            >
-              {t("teamPage.inviteSubmit")}
-            </button>
-            {inviteMsg && <p className="text-sm text-gray-700 w-full">{inviteMsg}</p>}
-          </form>
-        </section>
-      )}
-
-      {canManage && (
-        <div className="flex gap-2 border-b border-slate-200 pb-2">
+        <div className="flex flex-wrap gap-2 border-b border-[#D5DADF] pb-2">
           <button
             type="button"
             onClick={() => setTab("members")}
-            className={`${tab === "members" ? PRIMARY_BUTTON_CLASS : SECONDARY_BUTTON_CLASS}`}
+            className={`rounded-lg border px-3 py-1.5 text-[13px] font-medium transition ${
+              tab === "members"
+                ? "border-[#2980B9] bg-white text-[#34495E] shadow-sm"
+                : "border-transparent text-[#7F8C8D] hover:border-[#D5DADF]"
+            }`}
           >
             {t("teamPage.membersTitle")}
           </button>
           <button
             type="button"
             onClick={() => setTab("invites")}
-            className={`${tab === "invites" ? PRIMARY_BUTTON_CLASS : SECONDARY_BUTTON_CLASS}`}
+            className={`rounded-lg border px-3 py-1.5 text-[13px] font-medium transition ${
+              tab === "invites"
+                ? "border-[#2980B9] bg-white text-[#34495E] shadow-sm"
+                : "border-transparent text-[#7F8C8D] hover:border-[#D5DADF]"
+            }`}
           >
             {t("teamPage.invitesTab", { defaultValue: "Приглашения" })}
           </button>
@@ -377,8 +459,10 @@ export default function TeamSettingsPage() {
           <table className={`${DATA_TABLE_CLASS} min-w-full`}>
             <thead>
               <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
+                <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("teamPage.memberName")}</th>
                 <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("teamPage.email")}</th>
                 <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("teamPage.role")}</th>
+                <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("teamPage.status")}</th>
                 <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("teamPage.joined")}</th>
                 {canManage && (
                   <th className={DATA_TABLE_ACTIONS_TH_CLASS}>{t("teamPage.actions")}</th>
@@ -388,28 +472,40 @@ export default function TeamSettingsPage() {
             <tbody>
               {members.map((m) => (
                 <tr key={m.userId} className={DATA_TABLE_TR_CLASS}>
-                  <td className={DATA_TABLE_TD_CLASS}>{m.user.email}</td>
-                  <td className={DATA_TABLE_TD_CLASS}>{m.role}</td>
-                  <td className={DATA_TABLE_TD_RIGHT_CLASS}>
+                  <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`}>{memberDisplayName(m)}</td>
+                  <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`}>{m.user.email}</td>
+                  <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`}>
+                    <Badge variant={roleBadgeVariant(m.role)}>{m.role}</Badge>
+                  </td>
+                  <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`}>
+                    <Badge variant="success">{t("teamPage.statusActive")}</Badge>
+                  </td>
+                  <td className={`${DATA_TABLE_TD_RIGHT_CLASS} text-[13px]`}>
                     {new Date(m.joinedAt).toLocaleDateString()}
                   </td>
                   {canManage && (
-                    <td className={DATA_TABLE_ACTIONS_TD_CLASS}>
+                    <td className={`${DATA_TABLE_ACTIONS_TD_CLASS} text-[13px]`}>
                       {m.role !== "OWNER" && m.userId !== user?.id ? (
-                        <div className="flex items-center justify-end gap-1">
-                          <button
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <Button
                             type="button"
+                            variant="outline"
+                            className="inline-flex items-center gap-2 text-[13px] text-[#B71C1C] border-[#EF9A9A] hover:bg-[#FFEBEE]"
                             disabled={busyId === m.userId}
                             onClick={() => void removeMember(m.userId)}
-                            className={TABLE_ROW_ICON_BTN_CLASS}
-                            title={t("teamPage.remove")}
                           >
                             {busyId === m.userId ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-[#E74C3C]" aria-hidden />
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
+                                {t("common.loading")}
+                              </>
                             ) : (
-                              <Trash2 className="h-4 w-4 text-[#E74C3C]" aria-hidden />
+                              <>
+                                <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
+                                {t("teamPage.remove")}
+                              </>
                             )}
-                          </button>
+                          </Button>
                         </div>
                       ) : (
                         <span className="text-[#7F8C8D]">—</span>
@@ -446,14 +542,14 @@ export default function TeamSettingsPage() {
                       {inv.role} · {new Date(inv.createdAt).toLocaleString()}
                     </div>
                   </div>
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     disabled={busyId === inv.id}
                     onClick={() => void revokeInvite(inv.id)}
-                    className={`${SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
                   >
                     {t("teamPage.revokeInvite", { defaultValue: "Отозвать" })}
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>

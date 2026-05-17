@@ -1,10 +1,13 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -33,8 +36,12 @@ export class InventoryReconciliationController {
 
   @Get()
   @ApiOperation({ summary: "List inventory reconciliations (сличительные ведомости)" })
-  list(@OrganizationId() organizationId: string) {
-    return this.audits.findAll(organizationId);
+  list(
+    @OrganizationId() organizationId: string,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query("pageSize", new DefaultValuePipe(25), ParseIntPipe) pageSize: number,
+  ) {
+    return this.audits.findAll(organizationId, { page, pageSize });
   }
 
   @Get(":id")

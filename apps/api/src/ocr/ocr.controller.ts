@@ -12,7 +12,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import type { AuthUser } from "../auth/types/auth-user";
 import { OrganizationId } from "../common/org-id.decorator";
-import { VoenIntegrityGuard } from "../common/guards/voen-integrity.guard";
+import { VoenIntegrityGuard } from "../auth/guards/voen-integrity.guard";
 import { RequiresModule } from "../subscription/requires-module.decorator";
 import { SubscriptionGuard } from "../subscription/subscription.guard";
 import { ModuleEntitlement } from "../subscription/subscription.constants";

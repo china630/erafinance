@@ -27,9 +27,10 @@ import { notifyListRefresh } from "../../../lib/list-refresh-bus";
 import { useAuth } from "../../../lib/auth-context";
 import {
   DEFAULT_INVOICE_VAT_RATES,
+  VAT_LINE_UNSET,
   fetchInvoiceVatRatesFromApi,
   type InvoiceVatRateValue,
-  type VatRateFormString,
+  type VatRateFormChoice,
   formStringToVatRate,
   normalizeProductVatRate,
   vatPercentForMath,
@@ -42,6 +43,7 @@ import { CurrencySelect } from "../../ui/currency-select";
 import { DatePicker } from "../../ui/date-picker";
 import { NumericAmountInput } from "../../ui/numeric-amount-input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../../ui/select";
+import { InvoiceDocumentModalLayout } from "../../invoices/invoice-document-modal-layout";
 import { SalesModalFooter, SalesModalShell } from "./modal-shell";
 
 type Counterparty = { id: string; name: string; taxId: string };
@@ -58,7 +60,7 @@ type InvoiceGoodsLineForm = {
   productId: string;
   quantity: string;
   unitPrice: string;
-  vatRate: VatRateFormString;
+  vatRate: VatRateFormChoice;
 };
 
 type InvoiceServiceLineForm = {
@@ -66,7 +68,7 @@ type InvoiceServiceLineForm = {
   description: string;
   quantity: string;
   unitPrice: string;
-  vatRate: VatRateFormString;
+  vatRate: VatRateFormChoice;
 };
 
 type InvoiceFormValues = {
@@ -82,18 +84,19 @@ type InvoiceFormValues = {
 };
 
 function blankGoodsLine(): InvoiceGoodsLineForm {
-  return { productId: "", quantity: "0", unitPrice: "0", vatRate: "18" };
+  return { productId: "", quantity: "0", unitPrice: "0", vatRate: VAT_LINE_UNSET };
 }
 
 function blankServiceLine(): InvoiceServiceLineForm {
-  return { productId: "", description: "", quantity: "0", unitPrice: "0", vatRate: "18" };
+  return { productId: "", description: "", quantity: "0", unitPrice: "0", vatRate: VAT_LINE_UNSET };
 }
 
 function lineVatPercentFromForm(
-  vatRate: VatRateFormString | undefined,
+  vatRate: VatRateFormChoice | undefined,
   allowedRates: readonly number[],
 ): number {
-  const r = formStringToVatRate(String(vatRate ?? "18"), allowedRates) ?? 18;
+  const r = formStringToVatRate(String(vatRate ?? VAT_LINE_UNSET), allowedRates);
+  if (r === null) return 0;
   return vatPercentForMath(r);
 }
 
@@ -400,6 +403,7 @@ export function CreateInvoiceModal({
         const u = Number(String(row.unitPrice).replace(",", "."));
         if (!Number.isFinite(q) || q <= 0 || !Number.isFinite(u) || u < 0) continue;
         if (!row.productId) continue;
+        if (formStringToVatRate(String(row.vatRate), vatRateOptions) === null) continue;
         const vrPct = lineVatPercentFromForm(row.vatRate, vatRateOptions);
         const unitNet = u;
         const s = calculateInvoiceLineTotals(q, unitNet, vrPct);
@@ -415,6 +419,7 @@ export function CreateInvoiceModal({
       const u = Number(String(r.unitPrice).replace(",", "."));
       if (!Number.isFinite(q) || q <= 0 || !Number.isFinite(u) || u < 0) continue;
       if (!r.productId) continue;
+      if (formStringToVatRate(String(r.vatRate), vatRateOptions) === null) continue;
       const vrPct = lineVatPercentFromForm(r.vatRate, vatRateOptions);
       const unitNet = u;
       const s = calculateInvoiceLineTotals(q, unitNet, vrPct);
@@ -454,8 +459,8 @@ export function CreateInvoiceModal({
         toast.error(t("invoiceNew.selectBoth"));
         return false;
       }
-      const vr = Number(row.vatRate);
-      if (![-1, 0, 2, 8, 18].includes(vr)) {
+      const vrParsed = formStringToVatRate(String(row.vatRate), vatRateOptions);
+      if (vrParsed === null) {
         toast.error(t("invoiceNew.vatLineRequired"));
         return false;
       }
@@ -463,7 +468,7 @@ export function CreateInvoiceModal({
         productId: row.productId,
         quantity: q,
         unitPrice: u,
-        vatRate: vr,
+        vatRate: vrParsed,
         ...(desc?.trim() ? { description: desc.trim() } : {}),
       });
       return true;
@@ -542,7 +547,7 @@ export function CreateInvoiceModal({
       setValue(`goods.${index}.vatRate`, vatRateToFormString(normalizeProductVatRate(Number(p.vatRate))));
     } else {
       setValue(`goods.${index}.unitPrice`, "0");
-      setValue(`goods.${index}.vatRate`, "18");
+      setValue(`goods.${index}.vatRate`, VAT_LINE_UNSET);
     }
   }
 
@@ -563,7 +568,7 @@ export function CreateInvoiceModal({
       setValue(`services.${index}.description`, p.name);
     } else {
       setValue(`services.${index}.unitPrice`, "0");
-      setValue(`services.${index}.vatRate`, "18");
+      setValue(`services.${index}.vatRate`, VAT_LINE_UNSET);
       setValue(`services.${index}.description`, "");
     }
   }
@@ -572,7 +577,8 @@ export function CreateInvoiceModal({
     return (
       <section className="space-y-2">
         <h3 className="text-sm font-semibold text-[#34495E] m-0">{t("invoiceNew.blockGoods")}</h3>
-        <div className="overflow-x-auto rounded-2xl border border-[#D5DADF] bg-white shadow-sm">
+        <div className="rounded-lg border border-[#D5DADF] bg-[#F8F9FA] p-2">
+          <div className="max-h-[min(55vh,22rem)] overflow-x-auto overflow-y-auto">
           <table className={`${DATA_TABLE_CLASS} w-full table-fixed normal-case`}>
             <thead>
               <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
@@ -622,12 +628,15 @@ export function CreateInvoiceModal({
                     </td>
                     <td className={`${DATA_TABLE_TD_RIGHT_CLASS} w-[5.25rem] shrink-0 !py-1.5 !px-2`}>
                       <Select
-                        value={row?.vatRate ?? "18"}
-                        onValueChange={(v) => setValue(`goods.${idx}.vatRate`, v as VatRateFormString)}
+                        value={row?.vatRate ?? VAT_LINE_UNSET}
+                        onValueChange={(v) =>
+                          setValue(`goods.${idx}.vatRate`, v as VatRateFormChoice)
+                        }
                         className="box-border w-full max-w-full py-1.5 px-2 text-right"
                       >
                         <SelectTrigger className="" />
                         <SelectContent>
+                          <SelectItem value={VAT_LINE_UNSET}>{t("invoiceNew.vatRateLinePlaceholder")}</SelectItem>
                           {vatRateOptions.map((rate) => (
                             <SelectItem key={rate} value={String(rate)}>
                               {vatLineSelectLabel(rate, t)}
@@ -686,6 +695,7 @@ export function CreateInvoiceModal({
               })}
             </tbody>
           </table>
+          </div>
         </div>
         <Button type="button" variant="secondary" onClick={() => appendGoods(blankGoodsLine())}>
           <Plus className="h-4 w-4 shrink-0" aria-hidden />
@@ -699,7 +709,8 @@ export function CreateInvoiceModal({
     return (
       <section className="space-y-2">
         <h3 className="text-sm font-semibold text-[#34495E] m-0">{t("invoiceNew.blockServices")}</h3>
-        <div className="overflow-x-auto rounded-2xl border border-[#D5DADF] bg-white shadow-sm">
+        <div className="rounded-lg border border-[#D5DADF] bg-[#F8F9FA] p-2">
+          <div className="max-h-[min(55vh,22rem)] overflow-x-auto overflow-y-auto">
           <table className={`${DATA_TABLE_CLASS} w-full table-fixed normal-case`}>
             <thead>
               <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
@@ -763,12 +774,15 @@ export function CreateInvoiceModal({
                     </td>
                     <td className={`${DATA_TABLE_TD_RIGHT_CLASS} w-[5.25rem] shrink-0 !py-1.5 !px-2`}>
                       <Select
-                        value={row?.vatRate ?? "18"}
-                        onValueChange={(v) => setValue(`services.${idx}.vatRate`, v as VatRateFormString)}
+                        value={row?.vatRate ?? VAT_LINE_UNSET}
+                        onValueChange={(v) =>
+                          setValue(`services.${idx}.vatRate`, v as VatRateFormChoice)
+                        }
                         className="box-border w-full max-w-full py-1.5 px-2 text-right"
                       >
                         <SelectTrigger className="" />
                         <SelectContent>
+                          <SelectItem value={VAT_LINE_UNSET}>{t("invoiceNew.vatRateLinePlaceholder")}</SelectItem>
                           {vatRateOptions.map((rate) => (
                             <SelectItem key={rate} value={String(rate)}>
                               {vatLineSelectLabel(rate, t)}
@@ -827,6 +841,7 @@ export function CreateInvoiceModal({
               })}
             </tbody>
           </table>
+          </div>
         </div>
         <Button type="button" variant="secondary" onClick={() => appendService(blankServiceLine())}>
           <Plus className="h-4 w-4 shrink-0" aria-hidden />
@@ -848,9 +863,72 @@ export function CreateInvoiceModal({
     >
       <form
         id="create-invoice-form"
-        className="space-y-4"
+        className="flex min-h-0 flex-1 flex-col"
         onSubmit={(e) => void handleSubmit(onValid)(e)}
       >
+        <InvoiceDocumentModalLayout
+          footerActions={
+            <div className="space-y-2 rounded-lg border border-[#D5DADF] bg-[#F8F9FA] px-3 py-2">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                <Controller
+                  control={control}
+                  name="vatInclusive"
+                  render={({ field }) => (
+                    <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[#34495E]">
+                      <input
+                        type="checkbox"
+                        className={MODAL_CHECKBOX_CLASS}
+                        checked={field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                      />
+                      {t("invoiceNew.vatInclusive")}
+                    </label>
+                  )}
+                />
+                <Controller
+                  control={control}
+                  name="isInternational"
+                  render={({ field }) => (
+                    <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[#34495E]">
+                      <input
+                        type="checkbox"
+                        className={MODAL_CHECKBOX_CLASS}
+                        checked={field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                      />
+                      {t("trade.export.toggle")}
+                    </label>
+                  )}
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-[13px] text-[#34495E]">
+                <span>
+                  {t("invoiceNew.totalsNet")}:{" "}
+                  <strong className="tabular-nums">
+                    {watchedCurrency ? fmtDoc(vatTotals.net, watchedCurrency) : "—"}
+                  </strong>
+                </span>
+                <span>
+                  {t("invoiceNew.totalsVat")}:{" "}
+                  <strong className="tabular-nums">
+                    {watchedCurrency ? fmtDoc(vatTotals.vat, watchedCurrency) : "—"}
+                  </strong>
+                </span>
+                <span>
+                  {t("invoiceNew.totalsGross")}:{" "}
+                  <strong className="tabular-nums">
+                    {watchedCurrency ? fmtDoc(vatTotals.gross, watchedCurrency) : "—"}
+                  </strong>
+                </span>
+              </div>
+              {watchedCurrency && watchedCurrency !== "AZN" && grossAznHint != null && fxOk ? (
+                <p className="m-0 text-[12px] text-[#7F8C8D]">
+                  {t("invoiceNew.fxAznHint", { amount: grossAznHint.toFixed(2) })}
+                </p>
+              ) : null}
+            </div>
+          }
+        >
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <label className="block md:col-span-2">
             <span className={MODAL_FIELD_LABEL_CLASS}>{t("invoiceNew.counterparty")}</span>
@@ -959,64 +1037,7 @@ export function CreateInvoiceModal({
 
         {renderGoodsTable()}
         {renderServicesTable()}
-
-        <div className="space-y-3 rounded-lg border border-[#D5DADF] bg-[#F8F9FA] px-4 py-3">
-          <Controller
-            control={control}
-            name="vatInclusive"
-            render={({ field }) => (
-              <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[#34495E]">
-                <input
-                  type="checkbox"
-                  className={MODAL_CHECKBOX_CLASS}
-                  checked={field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                />
-                {t("invoiceNew.vatInclusive")}
-              </label>
-            )}
-          />
-          <Controller
-            control={control}
-            name="isInternational"
-            render={({ field }) => (
-              <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[#34495E]">
-                <input
-                  type="checkbox"
-                  className={MODAL_CHECKBOX_CLASS}
-                  checked={field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                />
-                {t("trade.export.toggle")}
-              </label>
-            )}
-          />
-          <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2 text-[13px] text-[#34495E]">
-            <span>
-              {t("invoiceNew.totalsNet")}:{" "}
-              <strong className="tabular-nums">
-                {watchedCurrency ? fmtDoc(vatTotals.net, watchedCurrency) : "—"}
-              </strong>
-            </span>
-            <span>
-              {t("invoiceNew.totalsVat")}:{" "}
-              <strong className="tabular-nums">
-                {watchedCurrency ? fmtDoc(vatTotals.vat, watchedCurrency) : "—"}
-              </strong>
-            </span>
-            <span>
-              {t("invoiceNew.totalsGross")}:{" "}
-              <strong className="tabular-nums">
-                {watchedCurrency ? fmtDoc(vatTotals.gross, watchedCurrency) : "—"}
-              </strong>
-            </span>
-          </div>
-          {watchedCurrency && watchedCurrency !== "AZN" && grossAznHint != null && fxOk ? (
-            <p className="m-0 text-[12px] text-[#7F8C8D]">
-              {t("invoiceNew.fxAznHint", { amount: grossAznHint.toFixed(2) })}
-            </p>
-          ) : null}
-        </div>
+        </InvoiceDocumentModalLayout>
       </form>
     </SalesModalShell>
   );

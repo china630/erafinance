@@ -1,4 +1,6 @@
 import type { SeedContext } from "../_engine/upsert";
+import { seedLandingModuleMarketing } from "../../lib/config/landing-modules-seed";
+import { seedTrial3MonthsBundle } from "../../lib/config/trial-bundle-seed";
 import { seedPricingBundleDefaultsIfEmpty } from "../../lib/core/pricing-bundle-seed";
 import { seedPricingModuleIfEmpty } from "../../lib/core/pricing-module-seed";
 import { seedCurrencies } from "./currencies";
@@ -16,6 +18,8 @@ export async function seedCore(ctx: SeedContext): Promise<void> {
   if (!ctx.dryRun) {
     await seedPricingModuleIfEmpty(ctx.prisma);
     await seedPricingBundleDefaultsIfEmpty(ctx.prisma);
+    await seedTrial3MonthsBundle(ctx.prisma);
+    await seedLandingModuleMarketing(ctx.prisma);
   }
   await seedCurrencies(ctx);
   await seedPermissions(ctx);

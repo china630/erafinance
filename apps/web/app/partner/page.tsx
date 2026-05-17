@@ -105,7 +105,6 @@ export default function PartnerDashboardPage() {
           <Button
             type="button"
             variant="outline"
-            size="sm"
             className={SECONDARY_BUTTON_CLASS}
             onClick={() => void load()}
           >

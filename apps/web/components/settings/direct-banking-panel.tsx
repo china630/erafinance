@@ -3,9 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { apiFetch } from "../../../lib/api-client";
-import type { SubscriptionSnapshot } from "../../../lib/subscription-context";
-import { MODAL_INPUT_CLASS, MODAL_INPUT_MONO_CLASS } from "../../../lib/design-system";
+import { apiFetch } from "../../lib/api-client";
+import type { SubscriptionSnapshot } from "../../lib/subscription-context";
+import {
+  CARD_CONTAINER_CLASS,
+  MODAL_INPUT_CLASS,
+  MODAL_INPUT_MONO_CLASS,
+  PRIMARY_BUTTON_CLASS,
+} from "../../lib/design-system";
 
 type DirectView = {
   syncMode: "mock" | "rest";
@@ -40,7 +45,7 @@ const emptyBankForm = (): BankForm => ({
   clear: false,
 });
 
-export function DirectBankingSection({
+export function DirectBankingPanel({
   snapshot,
 }: {
   snapshot: SubscriptionSnapshot;
@@ -150,89 +155,89 @@ export function DirectBankingSection({
   if (!snapshot.modules.bankingPro) return null;
 
   return (
-    <section id="direct-banking" className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 space-y-6">
+    <section
+      id="direct-banking"
+      className={`${CARD_CONTAINER_CLASS} space-y-6 p-6`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">
+          <h2 className="text-[15px] font-semibold text-[#34495E]">
             {t("subscriptionSettings.directBanking.title")}
           </h2>
-          <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+          <p className="mt-1 max-w-2xl text-[13px] leading-snug text-[#7F8C8D]">
             {t("subscriptionSettings.directBanking.subtitle")}
           </p>
         </div>
-        <Link
-          href="/banking"
-          className="text-sm font-medium text-action hover:text-primary"
-        >
+        <Link href="/banking" className="text-[13px] font-medium text-[#2980B9] hover:underline">
           {t("subscriptionSettings.directBanking.linkBanking")} →
         </Link>
       </div>
 
       {view?.syncActive && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-900">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-[13px] font-medium text-emerald-900">
           {t("subscriptionSettings.directBanking.syncActive")}
         </div>
       )}
 
       {!view?.credentialsEncryptionConfigured && (
-        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 m-0">
+        <p className="m-0 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
           {t("subscriptionSettings.directBanking.encryptionWarn")}
         </p>
       )}
 
       {readOnly && (
-        <p className="text-sm text-slate-600 m-0">
+        <p className="m-0 text-[13px] text-[#7F8C8D]">
           {t("subscriptionSettings.directBanking.disabledReadOnly")}
         </p>
       )}
 
       {err && (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2 m-0">
+        <p className="m-0 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-[13px] text-red-700">
           {err}
         </p>
       )}
       {msg && (
-        <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 m-0">
+        <p className="m-0 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-[13px] text-emerald-800">
           {msg}
         </p>
       )}
 
       {loading ? (
-        <p className="text-slate-600 text-sm">{t("common.loading")}</p>
+        <p className="text-[13px] text-[#7F8C8D]">{t("common.loading")}</p>
       ) : (
         <>
           <fieldset className="space-y-3" disabled={readOnly}>
-            <legend className="text-sm font-medium text-slate-800 mb-2">
+            <legend className="mb-2 text-[13px] font-semibold text-[#34495E]">
               {t("subscriptionSettings.directBanking.modeLabel")}
             </legend>
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex cursor-pointer items-center gap-2">
               <input
                 type="radio"
                 name="bankingSyncMode"
                 checked={syncMode === "mock"}
                 onChange={() => setSyncMode("mock")}
-                className="text-action"
+                className="rounded-lg border-[#D5DADF] text-[#2980B9]"
               />
-              <span className="text-sm text-slate-800">
+              <span className="text-[13px] text-[#34495E]">
                 {t("subscriptionSettings.directBanking.modeMock")}
               </span>
             </label>
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex cursor-pointer items-center gap-2">
               <input
                 type="radio"
                 name="bankingSyncMode"
                 checked={syncMode === "rest"}
                 onChange={() => setSyncMode("rest")}
-                className="text-action"
+                className="rounded-lg border-[#D5DADF] text-[#2980B9]"
               />
-              <span className="text-sm text-slate-800">
+              <span className="text-[13px] text-[#34495E]">
                 {t("subscriptionSettings.directBanking.modeRest")}
               </span>
             </label>
           </fieldset>
 
           {syncMode === "rest" && (
-            <div className="space-y-8 border-t border-slate-100 pt-6">
+            <div className="space-y-8 border-t border-[#D5DADF] pt-6">
               {BANK_KEYS.map((key) => {
                 const b = banks[key];
                 const hasToken = view
@@ -245,23 +250,22 @@ export function DirectBankingSection({
                 return (
                   <div key={key} className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-slate-900 m-0">
+                      <h3 className="m-0 text-[13px] font-semibold text-[#34495E]">
                         {t(BANK_LABEL_KEY[key])}
                       </h3>
-                      <label className="flex items-center gap-2 text-xs text-slate-600">
+                      <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[#7F8C8D]">
                         <input
                           type="checkbox"
                           checked={b.enabled}
-                          onChange={(e) =>
-                            setBank(key, "enabled", e.target.checked)
-                          }
+                          onChange={(e) => setBank(key, "enabled", e.target.checked)}
                           disabled={readOnly}
+                          className="rounded border-[#D5DADF]"
                         />
                         <span>{t("subscriptionSettings.directBanking.pollEnabled")}</span>
                       </label>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
                         {t("subscriptionSettings.directBanking.labelUrl")}
                       </label>
                       <input
@@ -274,11 +278,11 @@ export function DirectBankingSection({
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
                         {t("subscriptionSettings.directBanking.labelToken")}
                       </label>
                       {hasToken && !b.token && (
-                        <p className="text-xs text-slate-500 mb-1 m-0">
+                        <p className="m-0 mb-1 text-xs text-[#7F8C8D]">
                           {t("subscriptionSettings.directBanking.tokenSaved")}
                         </p>
                       )}
@@ -295,7 +299,7 @@ export function DirectBankingSection({
                         placeholder="••••••••"
                       />
                       {hasToken && (
-                        <label className="mt-2 flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                        <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-[#7F8C8D]">
                           <input
                             type="checkbox"
                             checked={b.clear}
@@ -304,6 +308,7 @@ export function DirectBankingSection({
                               if (e.target.checked) setBank(key, "token", "");
                             }}
                             disabled={readOnly}
+                            className="rounded border-[#D5DADF]"
                           />
                           {t("subscriptionSettings.directBanking.clearToken")}
                         </label>
@@ -319,7 +324,7 @@ export function DirectBankingSection({
             type="button"
             disabled={readOnly || saving}
             onClick={() => void save()}
-            className="rounded-xl bg-action px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-action-hover disabled:opacity-50"
+            className={PRIMARY_BUTTON_CLASS}
           >
             {saving
               ? t("subscriptionSettings.directBanking.saving")

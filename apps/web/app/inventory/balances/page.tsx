@@ -4,6 +4,7 @@ import { BarChart3 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
+import { parsePaginatedList } from "../../../lib/paginated-list";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { subscribeListRefresh } from "../../../lib/list-refresh-bus";
 import { PageHeader } from "../../../components/layout/page-header";
@@ -18,6 +19,7 @@ import {
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
   INPUT_BORDERED_CLASS,
+  MODAL_INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
   SECONDARY_BUTTON_CLASS,
 } from "../../../lib/design-system";
@@ -47,6 +49,9 @@ export default function InventoryBalancesReportPage() {
   const { token, ready } = useRequireAuth();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [rows, setRows] = useState<BalanceRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [filterWh, setFilterWh] = useState("");
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
@@ -68,7 +73,8 @@ export default function InventoryBalancesReportPage() {
     setError(null);
     try {
       const q = new URLSearchParams();
-      q.set("take", "4000");
+      q.set("page", String(page));
+      q.set("pageSize", String(pageSize));
       if (filterWh) q.set("warehouseId", filterWh);
       if (searchDebounced) q.set("search", searchDebounced);
       const [w, b] = await Promise.all([
@@ -78,12 +84,23 @@ export default function InventoryBalancesReportPage() {
       if (!w.ok) throw new Error(`warehouses ${w.status}`);
       if (!b.ok) throw new Error(`balances ${b.status}`);
       setWarehouses(await w.json());
-      setRows(await b.json());
+      const parsed = parsePaginatedList<BalanceRow>(await b.json());
+      setRows(parsed.items);
+      setTotal(parsed.total);
     } catch (e) {
       setError(String(e));
     }
     setLoading(false);
-  }, [filterWh, searchDebounced, token]);
+  }, [filterWh, searchDebounced, token, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterWh, searchDebounced]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -158,7 +175,7 @@ export default function InventoryBalancesReportPage() {
 
       {loading && <p className="text-[#7F8C8D] text-sm">{t("common.loading")}</p>}
 
-      {!loading && rows.length === 0 && !error && (
+      {!loading && total === 0 && !error && (
         <EmptyState
           icon={<BarChart3 className="h-12 w-12 mx-auto stroke-[1.5] text-[#7F8C8D]" aria-hidden />}
           title={t("inventory.balancesEmptyTitle")}
@@ -166,7 +183,8 @@ export default function InventoryBalancesReportPage() {
         />
       )}
 
-      {!loading && rows.length > 0 && (
+      {!loading && total > 0 && (
+        <>
         <div className={DATA_TABLE_VIEWPORT_CLASS}>
           <table className={`${DATA_TABLE_CLASS} min-w-[720px]`}>
             <thead>
@@ -198,6 +216,50 @@ export default function InventoryBalancesReportPage() {
             </tbody>
           </table>
         </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#EBEDF0] pt-3 text-[13px] text-[#34495E]">
+          <label className="flex items-center gap-2">
+            <span className="text-[#7F8C8D]">{t("common.paginationRowsPerPage")}</span>
+            <select
+              className={`${MODAL_INPUT_CLASS} !mt-0 h-9 min-w-[4.5rem]`}
+              value={String(pageSize)}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value) || 50);
+                setPage(1);
+              }}
+            >
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+          </label>
+          <span className="tabular-nums text-[#7F8C8D]">
+            {t("common.paginationPageOf", {
+              page: String(page),
+              pages: String(totalPages),
+              total: String(total),
+            })}
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className={SECONDARY_BUTTON_CLASS}
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              {t("common.paginationPrev")}
+            </button>
+            <button
+              type="button"
+              className={SECONDARY_BUTTON_CLASS}
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              {t("common.paginationNext")}
+            </button>
+          </div>
+        </div>
+        </>
       )}
     </div>
   );

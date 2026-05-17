@@ -127,6 +127,13 @@ Applies to **`role="dialog"`**, Radix **`Dialog`**, and full-viewport overlays t
 - **Borders:** horizontal **`border-b`** `#D5DADF` only — no vertical grid lines.
 - **Density:** `py-2 px-4` (compact).
 
+### Table footer — pagination
+
+- **Placement:** directly **below** the table viewport (same horizontal padding as the table container), **outside** the scrollable `<tbody>` region.
+- **Row height:** controls **`h-8`** (32px) to match compact toolbar buttons; vertical gap **`mt-2`** or **`mt-3`** from the table bottom border.
+- **Copy:** page indicator **`text-[12px] text-[#7F8C8D]`** (e.g. “Page X of Y” / localized equivalent); numeric page values may use **`font-mono`** for alignment with amounts elsewhere.
+- **Controls:** prev/next use the same **ghost / secondary** affordance as table toolbars (`rounded-lg`, **13px** label); rows-per-page selector matches **form** input height (`h-8`, bordered `#D5DADF`).
+
 ---
 
 ## Table actions & icons

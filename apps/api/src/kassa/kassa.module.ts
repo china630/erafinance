@@ -1,4 +1,5 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
+import { ComplianceModule } from "../compliance/compliance.module";
 import { AccountingModule } from "../accounting/accounting.module";
 import { ApprovalsModule } from "../approvals/approvals.module";
 import { PrismaModule } from "../prisma/prisma.module";
@@ -8,7 +9,14 @@ import { CashDeskController } from "./cash-desk.controller";
 import { CashOrderService } from "./cash-order.service";
 
 @Module({
-  imports: [PrismaModule, AccountingModule, ReportingModule, TreasuryModule, ApprovalsModule],
+  imports: [
+    PrismaModule,
+    AccountingModule,
+    ReportingModule,
+    TreasuryModule,
+    ApprovalsModule,
+    forwardRef(() => ComplianceModule),
+  ],
   controllers: [CashDeskController],
   providers: [CashOrderService],
   exports: [CashOrderService],

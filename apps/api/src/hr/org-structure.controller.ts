@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -68,9 +70,11 @@ export class OrgStructureController {
   @ApiOperation({ summary: "Штатные должности" })
   listJobPositions(
     @OrganizationId() organizationId: string,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query("pageSize", new DefaultValuePipe(25), ParseIntPipe) pageSize: number,
     @Query("departmentId") departmentId?: string,
   ) {
-    return this.org.listJobPositions(organizationId, departmentId);
+    return this.org.listJobPositions(organizationId, departmentId, { page, pageSize });
   }
 
   @Post("job-positions")

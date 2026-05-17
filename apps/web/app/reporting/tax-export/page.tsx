@@ -196,46 +196,51 @@ export default function TaxExportPage() {
   if (!token) return null;
 
   return (
-    <div className="space-y-8 max-w-5xl">
-      <PageHeader title={t("reporting.taxExportTitle")} subtitle={t("reporting.taxExportSubtitle")} />
+    <div className="w-full max-w-5xl space-y-8">
+      <PageHeader
+        title={t("reporting.taxExportTitle")}
+        subtitle={t("reporting.taxExportSubtitle")}
+        leading={
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
+              <span>{t("reporting.taxExportPeriod")}</span>
+              <input
+                type="month"
+                className={`${MODAL_INPUT_CLASS} !w-40`}
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
+              <span>{t("reporting.taxExportType")}</span>
+              <select
+                className={`${MODAL_INPUT_CLASS} !min-w-[14rem]`}
+                value={taxType}
+                onChange={(e) => setTaxType(e.target.value)}
+              >
+                <option value="SIMPLIFIED_TAX">Sadələşdirilmiş vergi / Simplified Tax</option>
+              </select>
+            </label>
+          </div>
+        }
+        actions={
+          <div className="flex flex-wrap items-end justify-end gap-2">
+            <button
+              type="button"
+              disabled={generating}
+              onClick={() => void generate()}
+              className={`${PRIMARY_BUTTON_CLASS} disabled:opacity-50`}
+            >
+              {generating ? "…" : t("reporting.taxExportGenerate")}
+            </button>
+            <button type="button" className={SECONDARY_BUTTON_CLASS} onClick={() => void load()}>
+              {loadingList ? "…" : t("common.refresh")}
+            </button>
+          </div>
+        }
+      />
 
       {err && <p className="text-red-600 text-sm">{err}</p>}
-
-      <section className="bg-white p-6 shadow-sm rounded-xl border border-slate-100 space-y-4">
-        <div className="flex flex-wrap gap-4 items-end">
-          <label className="block text-sm font-medium text-gray-700">
-            {t("reporting.taxExportPeriod")}
-            <input
-              type="month"
-              className={`mt-1 ${MODAL_INPUT_CLASS} !w-40`}
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-            />
-          </label>
-          <label className="block text-sm font-medium text-gray-700">
-            {t("reporting.taxExportType")}
-            <select
-              className={`mt-1 ${MODAL_INPUT_CLASS} !w-56`}
-              value={taxType}
-              onChange={(e) => setTaxType(e.target.value)}
-            >
-              <option value="SIMPLIFIED_TAX">Sadələşdirilmiş vergi / Simplified Tax</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            disabled={generating}
-            onClick={() => void generate()}
-            className={`${PRIMARY_BUTTON_CLASS} disabled:opacity-50`}
-          >
-            {generating ? "…" : t("reporting.taxExportGenerate")}
-          </button>
-          <button type="button" className={SECONDARY_BUTTON_CLASS} onClick={() => void load()}>
-            {loadingList ? "…" : t("common.refresh")}
-          </button>
-        </div>
-      </section>
-
       <section className="bg-white p-6 shadow-sm rounded-xl border border-slate-100">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           {t("reporting.taxExportWorkflowTitle")}

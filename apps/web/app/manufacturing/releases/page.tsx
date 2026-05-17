@@ -1,117 +1,89 @@
 "use client";
 
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
-import { inputFieldClass } from "../../../lib/form-classes";
+import { parsePaginatedList } from "../../../lib/paginated-list";
 import { useRequireAuth } from "../../../lib/use-require-auth";
+import { subscribeListRefresh } from "../../../lib/list-refresh-bus";
 import { PageHeader } from "../../../components/layout/page-header";
-import { SECONDARY_BUTTON_CLASS } from "../../../lib/design-system";
+import { EmptyState } from "../../../components/empty-state";
+import { ListPaginationFooter } from "../../../components/list-pagination-footer";
+import { ReleaseModal } from "../../../components/manufacturing/release-modal";
 import { SubscriptionPaywall } from "../../../components/subscription-paywall";
+import { Badge } from "../../../components/ui/badge";
+import {
+  DATA_TABLE_CLASS,
+  DATA_TABLE_HEAD_ROW_CLASS,
+  DATA_TABLE_TD_CLASS,
+  DATA_TABLE_TH_LEFT_CLASS,
+  DATA_TABLE_TH_RIGHT_CLASS,
+  DATA_TABLE_TR_CLASS,
+  DATA_TABLE_VIEWPORT_CLASS,
+  PRIMARY_BUTTON_CLASS,
+  SECONDARY_BUTTON_CLASS,
+} from "../../../lib/design-system";
+import { TOOLBAR_MONTH_INPUT_CLASS } from "../../../lib/form-styles";
+import { formatMoneyAzn } from "../../../lib/format-money";
 
-type Product = { id: string; name: string; sku: string };
-type Warehouse = { id: string; name: string };
-type Recipe = {
+type ReleaseRow = {
   id: string;
-  finishedProductId: string;
-  finishedProduct?: { id: string; name: string };
-};
-
-type AvailableOutput = {
-  recipeId: string;
-  finishedProductId: string;
+  documentDate: string;
+  quantity: string;
+  materialCost: string;
+  recipeName: string;
   finishedProductName: string;
-  warehouseId: string;
-  maxOutputUnits: string;
-  bottlenecks: Array<{
-    componentProductId: string;
-    componentName: string;
-    needPerFgUnit: string;
-    available: string;
-    maxFgFromLine: string;
-  }>;
+  warehouseName: string;
+  status: "COMPLETED";
 };
 
-const lbl = "block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5";
+function currentMonth(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
 
-function ManufacturingReleaseContent() {
+function ManufacturingReleasesContent() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-  const [relWh, setRelWh] = useState("");
-  const [recipeId, setRecipeId] = useState("");
-  const [relQty, setRelQty] = useState("1");
-  const [virtualOut, setVirtualOut] = useState<AvailableOutput | null>(null);
-  const [virtualErr, setVirtualErr] = useState<string | null>(null);
+  const [rows, setRows] = useState<ReleaseRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [period, setPeriod] = useState(currentMonth);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
-    setErr(null);
-    const [pr, wh] = await Promise.all([
-      apiFetch("/api/products"),
-      apiFetch("/api/inventory/warehouses"),
-    ]);
-    const rr = await apiFetch("/api/manufacturing/recipes");
-    if (!pr.ok || !wh.ok || !rr.ok) {
-      setErr(t("manufacturing.loadErr"));
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+      period,
+    });
+    const res = await apiFetch(`/api/manufacturing/releases?${params}`);
+    setLoading(false);
+    if (!res.ok) {
+      setError(t("manufacturing.loadErr"));
       return;
     }
-    const plist = (await pr.json()) as Product[];
-    const wlist = (await wh.json()) as Warehouse[];
-    const rlist = (await rr.json()) as Recipe[];
-    setProducts(plist);
-    setWarehouses(wlist);
-    setRecipes(rlist);
-    setRecipeId((prev) => prev || rlist[0]?.id || "");
-    setRelWh((prev) => prev || wlist[0]?.id || "");
-  }, [token, t]);
+    const data = parsePaginatedList<ReleaseRow>(await res.json());
+    setRows(data.items);
+    setTotal(data.total);
+  }, [token, page, pageSize, period, t]);
 
   useEffect(() => {
     if (!ready || !token) return;
     void load();
   }, [load, ready, token]);
 
-  const loadVirtualOutput = useCallback(async () => {
-    if (!token || !recipeId || !relWh) return;
-    setVirtualErr(null);
-    const res = await apiFetch(
-      `/api/manufacturing/recipes/${encodeURIComponent(recipeId)}/available-output?warehouseId=${encodeURIComponent(relWh)}`,
-    );
-    if (!res.ok) {
-      setVirtualOut(null);
-      setVirtualErr(t("manufacturing.availableOutputLoadErr"));
-      return;
-    }
-    setVirtualOut((await res.json()) as AvailableOutput);
-  }, [token, recipeId, relWh, t]);
-
   useEffect(() => {
-    if (!ready || !token || !recipeId || !relWh) return;
-    void loadVirtualOutput();
-  }, [loadVirtualOutput, ready, token, recipeId, relWh]);
-
-  async function release(e: React.FormEvent) {
-    e.preventDefault();
-    if (!token) return;
-    const res = await apiFetch("/api/manufacturing/release", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        warehouseId: relWh,
-        recipeId,
-        quantity: Number(relQty),
-      }),
-    });
-    if (!res.ok) {
-      alert(await res.text());
-      return;
-    }
-    alert(JSON.stringify(await res.json(), null, 2));
-  }
+    return subscribeListRefresh("manufacturing-releases", () => void load());
+  }, [load]);
 
   if (!ready) {
     return (
@@ -123,145 +95,99 @@ function ManufacturingReleaseContent() {
   if (!token) return null;
 
   return (
-    <div className="space-y-8 w-full max-w-3xl">
+    <div className="space-y-6">
       <PageHeader
-        title={t("manufacturing.releaseTitle")}
+        title={t("manufacturing.productionJournal")}
         actions={
-          <Link href="/manufacturing" className={SECONDARY_BUTTON_CLASS}>
-            ← {t("manufacturing.backHub")}
-          </Link>
-        }
-      />
-      {err && <p className="text-red-600 text-sm">{err}</p>}
-
-      {products.length > 0 && warehouses.length > 0 && (
-        <div className="md:hidden space-y-3">
-          <div>
-            <p className="text-sm font-semibold text-slate-800 mb-2">{t("manufacturing.mobileListWarehouses")}</p>
-            <div className="space-y-2">
-              {warehouses.map((w) => (
-                <div
-                  key={w.id}
-                  className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-sm text-sm font-medium text-gray-900"
-                >
-                  {w.name}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <section className="bg-white p-6 shadow-sm rounded-xl border border-slate-100 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-slate-800">{t("manufacturing.availableOutputTitle")}</h2>
-          <button
-            type="button"
-            onClick={() => void loadVirtualOutput()}
-            className="text-xs font-medium text-action hover:underline"
-          >
-            {t("manufacturing.availableOutputRefresh")}
-          </button>
-        </div>
-        {virtualErr && <p className="text-red-600 text-xs">{virtualErr}</p>}
-        {virtualOut && (
-          <div className="space-y-2 text-sm">
-            <p>
-              <span className="text-slate-500">{t("manufacturing.availableOutputMax")}:</span>{" "}
-              <span className="font-mono font-semibold text-slate-900">{virtualOut.maxOutputUnits}</span>{" "}
-              <span className="text-slate-600">({virtualOut.finishedProductName})</span>
-            </p>
-            <p className="text-xs text-slate-500">{t("manufacturing.availableOutputBottleneckHint")}</p>
-            <div className="overflow-x-auto rounded-lg border border-slate-100">
-              <table className="min-w-full text-xs">
-                <thead className="bg-slate-50 text-left text-slate-600">
-                  <tr>
-                    <th className="px-2 py-1.5">{t("manufacturing.availableOutputComponent")}</th>
-                    <th className="px-2 py-1.5 text-right">{t("manufacturing.availableOutputNeedPerUnit")}</th>
-                    <th className="px-2 py-1.5 text-right">{t("manufacturing.availableOutputAvailable")}</th>
-                    <th className="px-2 py-1.5 text-right">{t("manufacturing.availableOutputFromLine")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {virtualOut.bottlenecks.map((b) => (
-                    <tr key={b.componentProductId} className="border-t border-slate-100">
-                      <td className="px-2 py-1.5">{b.componentName}</td>
-                      <td className="px-2 py-1.5 text-right font-mono">{b.needPerFgUnit}</td>
-                      <td className="px-2 py-1.5 text-right font-mono">{b.available}</td>
-                      <td className="px-2 py-1.5 text-right font-mono">{b.maxFgFromLine}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/manufacturing" className={SECONDARY_BUTTON_CLASS}>
+              ← {t("manufacturing.backHub")}
+            </Link>
+            <input
+              type="month"
+              className={TOOLBAR_MONTH_INPUT_CLASS}
+              value={period}
+              onChange={(e) => {
+                setPeriod(e.target.value);
+                setPage(1);
+              }}
+            />
             <button
               type="button"
-              onClick={() => setRelQty(virtualOut.maxOutputUnits)}
-              className="text-xs font-medium text-action hover:underline"
+              className={PRIMARY_BUTTON_CLASS}
+              onClick={() => setModalOpen(true)}
             >
-              {t("manufacturing.availableOutputUseQty")}
+              <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+              {t("manufacturing.newRelease")}
             </button>
           </div>
-        )}
-      </section>
+        }
+      />
 
-      <section
-        id="manufacturing-release"
-        className="bg-white p-6 shadow-sm rounded-xl border border-slate-100 space-y-4 scroll-mt-24"
-      >
-        <form onSubmit={(e) => void release(e)} className="grid gap-3 sm:grid-cols-2">
-          <label className="block sm:col-span-2">
-            <span className={lbl}>{t("manufacturing.warehouse")}</span>
-            <select value={relWh} onChange={(e) => setRelWh(e.target.value)} className={inputFieldClass}>
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block sm:col-span-2">
-            <span className={lbl}>{t("manufacturing.finished")}</span>
-            <select
-              value={recipeId}
-              onChange={(e) => setRecipeId(e.target.value)}
-              className={inputFieldClass}
-            >
-              {recipes.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.finishedProduct?.name ??
-                    products.find((p) => p.id === r.finishedProductId)?.name ??
-                    r.finishedProductId}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className={lbl}>{t("manufacturing.qty")}</span>
-            <input
-              type="number"
-              step="0.0001"
-              min={0.0001}
-              value={relQty}
-              onChange={(e) => setRelQty(e.target.value)}
-              className={inputFieldClass}
-            />
-          </label>
-          <div className="flex items-end">
-            <button
-              type="submit"
-              className="bg-action text-white px-4 py-2 rounded-lg hover:bg-action-hover text-sm font-medium"
-            >
-              {t("manufacturing.releaseBtn")}
-            </button>
-          </div>
-        </form>
-      </section>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <div className={DATA_TABLE_VIEWPORT_CLASS}>
+        <table className={`${DATA_TABLE_CLASS} min-w-full`}>
+          <thead>
+            <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
+              <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("manufacturing.colDate")}</th>
+              <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("manufacturing.colRecipe")}</th>
+              <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("manufacturing.qty")}</th>
+              <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("manufacturing.materialCost")}</th>
+              <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("manufacturing.colStatus")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!loading && rows.length === 0 ? (
+              <tr>
+                <td colSpan={5}>
+                  <EmptyState title={t("manufacturing.noReleases")} compact />
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => (
+                <tr key={row.id} className={DATA_TABLE_TR_CLASS}>
+                  <td className={DATA_TABLE_TD_CLASS}>{row.documentDate.slice(0, 10)}</td>
+                  <td className={DATA_TABLE_TD_CLASS}>
+                    <div>{row.recipeName}</div>
+                    <div className="text-xs text-[#7F8C8D]">{row.finishedProductName}</div>
+                  </td>
+                  <td className={`${DATA_TABLE_TD_CLASS} text-right`}>{row.quantity}</td>
+                  <td className={`${DATA_TABLE_TD_CLASS} text-right`}>
+                    {formatMoneyAzn(row.materialCost)}
+                  </td>
+                  <td className={DATA_TABLE_TD_CLASS}>
+                    <Badge variant="success">{t("manufacturing.statusCompleted")}</Badge>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <ListPaginationFooter
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        loading={loading}
+        onPageChange={setPage}
+        onPageSizeChange={(ps) => {
+          setPageSize(ps);
+          setPage(1);
+        }}
+      />
+
+      <ReleaseModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onReleased={() => void load()}
+      />
     </div>
   );
 }
 
-export default function ManufacturingReleasePage() {
+export default function ManufacturingReleasesPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
   if (!ready) {
@@ -274,7 +200,7 @@ export default function ManufacturingReleasePage() {
   if (!token) return null;
   return (
     <SubscriptionPaywall module="manufacturing">
-      <ManufacturingReleaseContent />
+      <ManufacturingReleasesContent />
     </SubscriptionPaywall>
   );
 }

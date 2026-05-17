@@ -254,6 +254,7 @@ export function OrganizationBankAccountModal({
                 fetcher={fetchLedgerAccounts}
                 getOptionLabel={(item) => `${item.code} - ${item.displayName}`}
                 placeholder={t("bankAccountsRegistry.ledgerPlaceholder")}
+                portaled
               />
             </div>
             <label className={`${MODAL_FIELD_LABEL_CLASS} md:col-span-2`}>

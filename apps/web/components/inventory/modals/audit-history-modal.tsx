@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiFetch } from "../../../lib/api-client";
+import { parsePaginatedList } from "../../../lib/paginated-list";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { EmptyState } from "../../empty-state";
 import { InventoryModalFooter, InventoryModalShell } from "./modal-shell";
@@ -36,12 +37,13 @@ export function AuditHistoryModal({
     if (!token) return;
     setLoading(true);
     setError(null);
-    const res = await apiFetch("/api/inventory/audits");
+    const res = await apiFetch("/api/inventory/audits?page=1&pageSize=100");
     if (!res.ok) {
       setError(`${t("inventory.loadErr")}: ${res.status}`);
       setRows([]);
     } else {
-      setRows((await res.json()) as AuditRow[]);
+      const parsed = parsePaginatedList<AuditRow>(await res.json());
+      setRows(parsed.items);
     }
     setLoading(false);
   }, [token, t]);
@@ -54,7 +56,7 @@ export function AuditHistoryModal({
   async function onRefreshSave() {
     setBusy(true);
     setError(null);
-    const res = await apiFetch("/api/inventory/audits");
+    const res = await apiFetch("/api/inventory/audits?page=1&pageSize=100");
     setBusy(false);
     if (!res.ok) {
       const msg = `${t("inventory.loadErr")}: ${res.status}`;
@@ -62,7 +64,7 @@ export function AuditHistoryModal({
       toast.error(t("common.saveErr"), { description: msg });
       return;
     }
-    setRows((await res.json()) as AuditRow[]);
+    setRows(parsePaginatedList<AuditRow>(await res.json()).items);
     toast.success(t("common.save"));
     onClose();
   }

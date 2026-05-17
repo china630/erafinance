@@ -17,7 +17,6 @@ import { useRequireAuth } from "../../lib/use-require-auth";
 import { PageHeader } from "../../components/layout/page-header";
 import { EmptyState } from "../../components/empty-state";
 import {
-  CARD_CONTAINER_CLASS,
   DATA_TABLE_CLASS,
   DATA_TABLE_HEAD_ROW_CLASS,
   DATA_TABLE_TD_CLASS,
@@ -29,6 +28,7 @@ import {
   MODAL_INPUT_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from "../../lib/design-system";
+import { TOOLBAR_MONTH_INPUT_CLASS } from "../../lib/form-styles";
 
 function monthBounds(): { from: string; to: string } {
   const now = new Date();
@@ -258,6 +258,10 @@ export default function ReportingPage() {
   }
   if (!token) return null;
 
+  const showPlDepartmentFilter =
+    canFilterPlByDepartment && (activeReport === "pl" || pl !== null);
+  const closePeriodMonth = `${String(closeYear).padStart(4, "0")}-${String(closeMonth).padStart(2, "0")}`;
+
   const segBtn = (isActive: boolean, disabled: boolean) =>
     [
       "inline-flex h-8 min-h-8 items-center justify-center rounded-lg px-4 text-[13px] font-semibold transition-colors",
@@ -290,109 +294,107 @@ export default function ReportingPage() {
             </div>
           </Fragment>
         }
+        leading={
+          <div className="flex flex-wrap items-end gap-3" role="group" aria-label="period">
+            <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
+              <span>{t("reporting.from")}</span>
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className={MODAL_INPUT_CLASS}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
+              <span>{t("reporting.to")}</span>
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className={MODAL_INPUT_CLASS}
+              />
+            </label>
+          </div>
+        }
         actions={
-          canClose ? (
-            <div className={`flex flex-wrap items-end gap-3 px-4 py-3 ${CARD_CONTAINER_CLASS}`}>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-slate-600">{t("dashboard.year")}</span>
-                <input
-                  type="number"
-                  value={closeYear}
-                  onChange={(e) => setCloseYear(Number(e.target.value))}
-                  className={`${MODAL_INPUT_CLASS} !w-28`}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-slate-600">{t("dashboard.month")}</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={12}
-                  value={closeMonth}
-                  onChange={(e) => setCloseMonth(Number(e.target.value))}
-                  className={`${MODAL_INPUT_CLASS} !w-24`}
-                />
-              </label>
+          <div className="flex flex-wrap items-end justify-end gap-3">
+            <div
+              className="inline-flex p-1 rounded-lg border border-[#D5DADF] bg-white gap-1"
+              role="group"
+              aria-label="report type"
+            >
               <button
                 type="button"
-                onClick={() => void closePeriod()}
-                disabled={closing}
-                className={PRIMARY_BUTTON_CLASS}
+                className={segBtn(activeReport === "tb", loading === "tb")}
+                disabled={loading === "tb"}
+                onClick={() => void loadTb()}
               >
-                {closing ? t("dashboard.closing") : t("reporting.closePeriodBtn")}
+                {loading === "tb" ? "…" : t("reporting.loadTb")}
+              </button>
+              <button
+                type="button"
+                className={segBtn(activeReport === "pl", loading === "pl")}
+                disabled={loading === "pl"}
+                onClick={() => void loadPl()}
+              >
+                {loading === "pl" ? "…" : t("reporting.loadPl")}
               </button>
             </div>
-          ) : undefined
+            {showPlDepartmentFilter ? (
+              <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
+                <span>{t("reporting.plDepartment")}</span>
+                <select
+                  value={plDepartmentId}
+                  onChange={(e) => setPlDepartmentId(e.target.value)}
+                  className={`${MODAL_INPUT_CLASS} min-w-[180px]`}
+                  aria-describedby="reporting-pl-dept-help"
+                >
+                  <option value="">{t("reporting.plDepartmentAll")}</option>
+                  {plDepartments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+                <span id="reporting-pl-dept-help" className="text-xs font-normal text-[#7F8C8D]">
+                  {t("reporting.plDepartmentHelp")}
+                </span>
+              </label>
+            ) : null}
+            {canClose ? (
+              <Fragment>
+                <label className="flex h-8 flex-col justify-end gap-1 text-sm">
+                  <span className="text-slate-600 leading-none">{t("reporting.closePeriodBtn")}</span>
+                  <input
+                    type="month"
+                    value={closePeriodMonth}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!v) return;
+                      const [y, m] = v.split("-");
+                      setCloseYear(Number(y));
+                      setCloseMonth(Number(m));
+                    }}
+                    className={TOOLBAR_MONTH_INPUT_CLASS}
+                    aria-label={t("reporting.closePeriodBtn")}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void closePeriod()}
+                  disabled={closing}
+                  className={PRIMARY_BUTTON_CLASS}
+                >
+                  {closing ? t("dashboard.closing") : t("reporting.closePeriodBtn")}
+                </button>
+              </Fragment>
+            ) : null}
+          </div>
         }
       />
       {closeMsg && (
         <p className="rounded-lg border border-[#D5DADF] bg-[#F8F9FA] px-4 py-3 text-[13px] text-[#34495E]">{closeMsg}</p>
       )}
-
-      <div
-        className={`flex flex-col flex-wrap gap-4 lg:flex-row lg:items-end ${CARD_CONTAINER_CLASS} p-4`}
-      >
-        <div className="flex flex-wrap items-end gap-3" role="group" aria-label="period">
-          <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
-            <span>{t("reporting.from")}</span>
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className={MODAL_INPUT_CLASS}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
-            <span>{t("reporting.to")}</span>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className={MODAL_INPUT_CLASS}
-            />
-          </label>
-          {canFilterPlByDepartment && (
-            <label className="flex flex-col gap-1 text-sm font-medium text-[#34495E]">
-              <span>{t("reporting.plDepartment")}</span>
-              <select
-                value={plDepartmentId}
-                onChange={(e) => setPlDepartmentId(e.target.value)}
-                className={`${MODAL_INPUT_CLASS} min-w-[180px]`}
-              >
-                <option value="">{t("reporting.plDepartmentAll")}</option>
-                {plDepartments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-        </div>
-
-        <div
-          className="inline-flex p-1 rounded-lg border border-[#D5DADF] bg-white gap-1"
-          role="group"
-          aria-label="report type"
-        >
-          <button
-            type="button"
-            className={segBtn(activeReport === "tb", loading === "tb")}
-            disabled={loading === "tb"}
-            onClick={() => void loadTb()}
-          >
-            {loading === "tb" ? "…" : t("reporting.loadTb")}
-          </button>
-          <button
-            type="button"
-            className={segBtn(activeReport === "pl", loading === "pl")}
-            disabled={loading === "pl"}
-            onClick={() => void loadPl()}
-          >
-            {loading === "pl" ? "…" : t("reporting.loadPl")}
-          </button>
-        </div>
-      </div>
 
       {err && <p className="text-red-600 text-sm">{err}</p>}
 

@@ -8,11 +8,14 @@ import type { ReactNode } from "react";
 export function PageHeader({
   title,
   subtitle,
+  /** Optional left side of the toolbar row (e.g. period picker); `actions` stay right-aligned. */
+  leading,
   actions,
 }: {
   title: ReactNode;
   /** Необязательное пояснение под заголовком (та же колонка, слева). */
   subtitle?: ReactNode;
+  leading?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
@@ -23,7 +26,14 @@ export function PageHeader({
           <div className="mt-2 space-y-2 text-left text-sm text-[#7F8C8D]">{subtitle}</div>
         ) : null}
       </div>
-      {actions ? (
+      {leading != null && leading !== "" ? (
+        <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">{leading}</div>
+          {actions ? (
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{actions}</div>
+          ) : null}
+        </div>
+      ) : actions ? (
         <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2">{actions}</div>
       ) : null}
     </header>

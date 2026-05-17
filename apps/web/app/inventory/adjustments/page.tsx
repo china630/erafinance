@@ -1,12 +1,17 @@
 "use client";
 
+import Link from "next/link";
+import { ClipboardList } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
+import { parsePaginatedList } from "../../../lib/paginated-list";
 import { formatMoneyAzn } from "../../../lib/format-money";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { subscribeListRefresh } from "../../../lib/list-refresh-bus";
 import { PageHeader } from "../../../components/layout/page-header";
+import { EmptyState } from "../../../components/empty-state";
+import { ListPaginationFooter } from "../../../components/list-pagination-footer";
 import { AdjustmentsModal } from "../../../components/inventory/modals";
 import {
   DATA_TABLE_CLASS,
@@ -17,6 +22,7 @@ import {
   DATA_TABLE_TH_RIGHT_CLASS,
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
+  LINK_ACCENT_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from "../../../lib/design-system";
 
@@ -49,6 +55,9 @@ export default function InventoryAdjustmentsPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
   const [rows, setRows] = useState<Movement[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -62,17 +71,25 @@ export default function InventoryAdjustmentsPage() {
     setError(null);
     try {
       const q = new URLSearchParams({
-        take: "500",
+        page: String(page),
+        pageSize: String(pageSize),
         notes: "INV_ADJ_IN,INV_ADJ_OUT",
       });
       const res = await apiFetch(`/api/inventory/movements?${q.toString()}`);
       if (!res.ok) throw new Error(`movements ${res.status}`);
-      setRows(await res.json());
+      const parsed = parsePaginatedList<Movement>(await res.json());
+      setRows(parsed.items);
+      setTotal(parsed.total);
     } catch (e) {
       setError(String(e));
     }
     setLoading(false);
-  }, [token]);
+  }, [token, page, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -106,10 +123,8 @@ export default function InventoryAdjustmentsPage() {
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       {loading && <p className="text-gray-600">{t("common.loading")}</p>}
-      {!loading && rows.length === 0 && !error && (
-        <p className="text-sm text-slate-600">{t("inventory.emptyMovementsHint")}</p>
-      )}
-      {!loading && rows.length > 0 && (
+      {!loading && (
+        <>
         <div className={DATA_TABLE_VIEWPORT_CLASS}>
           <table className={`${DATA_TABLE_CLASS} min-w-full`}>
             <thead>
@@ -124,7 +139,30 @@ export default function InventoryAdjustmentsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((m) => (
+              {rows.length === 0 ? (
+                <tr className={DATA_TABLE_TR_CLASS}>
+                  <td colSpan={7} className={`${DATA_TABLE_TD_CLASS} py-12 text-center`}>
+                    {!error ? (
+                      <EmptyState
+                        icon={
+                          <ClipboardList
+                            className="mx-auto h-12 w-12 stroke-[1.5] text-[#7F8C8D]"
+                            aria-hidden
+                          />
+                        }
+                        title={t("inventory.emptyAdjustmentsTitle")}
+                        description={t("inventory.emptyAdjustmentsHint")}
+                        action={
+                          <Link className={LINK_ACCENT_CLASS} href="/inventory/movements">
+                            {t("inventory.goToMovements")}
+                          </Link>
+                        }
+                      />
+                    ) : null}
+                  </td>
+                </tr>
+              ) : (
+              rows.map((m) => (
                 <tr key={m.id} className={DATA_TABLE_TR_CLASS}>
                   <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>{rowDate(m)}</td>
                   <td className={DATA_TABLE_TD_CLASS}>{m.warehouse.name}</td>
@@ -137,10 +175,19 @@ export default function InventoryAdjustmentsPage() {
                   <td className={DATA_TABLE_TD_RIGHT_CLASS}>{formatMoneyAzn(m.price)}</td>
                   <td className={`${DATA_TABLE_TD_CLASS} text-xs`}>{m.note ?? "—"}</td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
+        <ListPaginationFooter
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+        </>
       )}
 
       <AdjustmentsModal open={modalOpen} onClose={() => setModalOpen(false)} />

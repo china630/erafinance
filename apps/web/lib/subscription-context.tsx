@@ -28,6 +28,11 @@ export type SubscriptionSnapshot = {
     taxPro: boolean;
     tradePro: boolean;
     auditHub: boolean;
+    compliancePro: boolean;
+    industryRetailEcom?: boolean;
+    industryLogisticsCustoms?: boolean;
+    industryConstruction?: boolean;
+    industryCrmWhatsapp?: boolean;
   };
   quotas: {
     employees: {
@@ -67,17 +72,26 @@ function coerceSubscriptionSnapshot(
 ): SubscriptionSnapshot | null {
   if (!s) return null;
   const w = s.quotas.whatsappOutbound;
+  const modules = {
+    ...s.modules,
+    compliancePro: s.modules.compliancePro ?? false,
+    industryRetailEcom: s.modules.industryRetailEcom ?? false,
+    industryLogisticsCustoms: s.modules.industryLogisticsCustoms ?? false,
+    industryConstruction: s.modules.industryConstruction ?? false,
+    industryCrmWhatsapp: s.modules.industryCrmWhatsapp ?? false,
+  };
+  const base: SubscriptionSnapshot = { ...s, modules };
   if (
     w &&
     typeof w.balance === "number" &&
     typeof w.atLimit === "boolean"
   ) {
-    return s;
+    return base;
   }
   return {
-    ...s,
+    ...base,
     quotas: {
-      ...s.quotas,
+      ...base.quotas,
       whatsappOutbound: { balance: 0, atLimit: true },
     },
   };
@@ -101,6 +115,7 @@ function enterpriseBypassSnapshot(): SubscriptionSnapshot {
       "tax_pro",
       "trade_pro",
       "audit_hub",
+      "compliance_pro",
     ],
     customConfig: null,
     modules: {
@@ -112,6 +127,7 @@ function enterpriseBypassSnapshot(): SubscriptionSnapshot {
       taxPro: true,
       tradePro: true,
       auditHub: true,
+      compliancePro: true,
     },
     quotas: {
       employees: { current: 0, max: null, atLimit: false },

@@ -351,10 +351,6 @@ export class HoldingsReportingService {
         currency: cur,
         netProfit: pnl.netProfit,
         netProfitInHoldingBase: null as string | null,
-        lines: pnl.lines,
-        methodologyNote: pnl.methodologyNote,
-        departmentId: pnl.departmentId ?? null,
-        payrollExpenseSource: pnl.payrollExpenseSource,
       });
       totalsByCurrency.set(
         cur,
@@ -383,16 +379,25 @@ export class HoldingsReportingService {
         consolidatedNetProfitInBase = consolidatedNetProfitInBase.add(inBaseSum);
         const last = organizations[organizations.length - 1]!;
         last.netProfitInHoldingBase = inBaseSum.toFixed(4);
-      } catch (e) {
-        if (e instanceof CbarExternalFetchDisabledError) {
-          fxNote =
-            "Курсы ЦБА недоступны (TAX_LOOKUP_MOCK / офлайн): консолидация в базовую валюту не выполнена.";
-          const last = organizations[organizations.length - 1]!;
-          last.netProfitInHoldingBase = null;
-        } else {
-          throw e;
+        } catch (e) {
+          if (e instanceof CbarExternalFetchDisabledError) {
+            fxNote =
+              "Курсы ЦБА недоступны (TAX_LOOKUP_MOCK / офлайн): консолидация в базовую валюту не выполнена.";
+            const last = organizations[organizations.length - 1]!;
+            last.netProfitInHoldingBase = null;
+          } else {
+            this.logger.warn(
+              `Holding consolidated P&L FX failed: org=${org.id} ${cur}->${baseCur}: ${
+                e instanceof Error ? e.message : String(e)
+              }`,
+            );
+            fxNote =
+              fxNote ??
+              "Конвертация в валюту холдинга не выполнена для одной или нескольких организаций; итог в базовой валюте опущен.";
+            const last = organizations[organizations.length - 1]!;
+            last.netProfitInHoldingBase = null;
+          }
         }
-      }
     }
 
     const consolidatedNetProfitByCurrency: Record<string, string> = {};

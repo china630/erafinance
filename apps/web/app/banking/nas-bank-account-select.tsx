@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { MODAL_INPUT_CLASS } from "../../lib/design-system";
 
@@ -35,6 +36,7 @@ type Props = {
 
 /**
  * Smart Aliases: основной текст — название + валюта; код NAS — бейдж. `value` / `onChange` — UUID счёта.
+ * Dropdown is portaled so it stacks above modal dialogs.
  */
 export function NasBankAccountSelect({
   value,
@@ -45,14 +47,40 @@ export function NasBankAccountSelect({
   emptyLabel = "—",
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [portalRect, setPortalRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const listPortalRef = useRef<HTMLUListElement>(null);
 
   const selected = accounts.find((a) => a.id === value);
 
-  useEffect(() => {
+  const updatePortalRect = useCallback(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPortalRect({ top: r.bottom + 4, left: r.left, width: r.width });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPortalRect(null);
+      return;
+    }
+    updatePortalRect();
+    window.addEventListener("scroll", updatePortalRect, true);
+    window.addEventListener("resize", updatePortalRect);
+    return () => {
+      window.removeEventListener("scroll", updatePortalRect, true);
+      window.removeEventListener("resize", updatePortalRect);
+    };
+  }, [open, updatePortalRect]);
+
+  useLayoutEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t)) return;
+      if (listPortalRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
@@ -88,9 +116,19 @@ export function NasBankAccountSelect({
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-[#7F8C8D]" aria-hidden />
       </button>
-      {open && accounts.length > 0 ? (
+      {open &&
+      accounts.length > 0 &&
+      portalRect &&
+      typeof document !== "undefined" &&
+      createPortal(
         <ul
-          className="absolute left-0 right-0 top-full z-[70] mt-1 max-h-60 overflow-auto !rounded-2xl border border-[#D5DADF] bg-white p-1 shadow-md"
+          ref={listPortalRef}
+          className="fixed z-[9999] max-h-60 overflow-auto rounded-2xl border border-[#D5DADF] bg-white p-1 shadow-md"
+          style={{
+            top: portalRect.top,
+            left: portalRect.left,
+            width: portalRect.width,
+          }}
           role="listbox"
         >
           {accounts.map((a) => (
@@ -98,6 +136,7 @@ export function NasBankAccountSelect({
               <button
                 type="button"
                 className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-[13px] text-[#34495E] hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   onChange(a.id);
                   setOpen(false);
@@ -112,8 +151,9 @@ export function NasBankAccountSelect({
               </button>
             </li>
           ))}
-        </ul>
-      ) : null}
+        </ul>,
+        document.body,
+      )}
     </div>
   );
 }

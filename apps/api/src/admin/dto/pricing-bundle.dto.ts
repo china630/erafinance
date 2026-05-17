@@ -1,4 +1,14 @@
-import { IsArray, IsNumber, IsOptional, IsString, Max, Min } from "class-validator";
+import { Type } from "class-transformer";
+import {
+  IsArray,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  ValidateNested,
+} from "class-validator";
+import { PatchPricingBundleTrialConfigDto } from "./pricing-bundle-trial-config.dto";
 
 export class CreatePricingBundleDto {
   @IsString()
@@ -12,6 +22,11 @@ export class CreatePricingBundleDto {
   @IsArray()
   @IsString({ each: true })
   moduleKeys!: string[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PatchPricingBundleTrialConfigDto)
+  trial?: PatchPricingBundleTrialConfigDto;
 }
 
 export class UpdatePricingBundleDto {
@@ -29,4 +44,9 @@ export class UpdatePricingBundleDto {
   @IsArray()
   @IsString({ each: true })
   moduleKeys?: string[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PatchPricingBundleTrialConfigDto)
+  trial?: PatchPricingBundleTrialConfigDto;
 }

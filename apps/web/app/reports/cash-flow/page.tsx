@@ -151,89 +151,94 @@ export default function CashFlowPage() {
           <Fragment>
             <p className="m-0">{t("reports.cashFlow.hint")}</p>
             <p className="m-0 text-[12px]">{t("reporting.activeLedger", { ledger: ledgerType })}</p>
+            <p className="m-0 mt-1 text-[12px] leading-snug text-[#7F8C8D]">{t("reports.cashFlow.glScopeNote")}</p>
           </Fragment>
         }
+        leading={
+          <div className="flex max-w-4xl flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1">
+              <span className={FORM_LABEL_CLASS}>{t("reports.cashFlow.dateFrom")}</span>
+              <input
+                type="date"
+                className={FORM_INPUT_CLASS}
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className={FORM_LABEL_CLASS}>{t("reports.cashFlow.dateTo")}</span>
+              <input
+                type="date"
+                className={FORM_INPUT_CLASS}
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </label>
+            <label className="flex min-w-[220px] flex-col gap-1">
+              <span className={FORM_LABEL_CLASS}>{t("reports.cashFlow.cashDeskId")}</span>
+              <input
+                className={FORM_INPUT_CLASS}
+                value={cashDeskId}
+                onChange={(e) => setCashDeskId(e.target.value)}
+                placeholder={t("reports.cashFlow.cashDeskIdPh")}
+              />
+            </label>
+            <label className="flex min-w-[220px] flex-col gap-1">
+              <span className={FORM_LABEL_CLASS}>{t("reports.cashFlow.bankName")}</span>
+              <input
+                className={FORM_INPUT_CLASS}
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                placeholder={t("reports.cashFlow.bankNamePh")}
+              />
+            </label>
+          </div>
+        }
         actions={
-          <div className={`${CARD_CONTAINER_CLASS} flex flex-wrap items-end gap-3 p-4`}>
-          <label className="flex flex-col gap-1">
-            <span className={FORM_LABEL_CLASS}>{t("reports.cashFlow.dateFrom")}</span>
-            <input
-              type="date"
-              className={FORM_INPUT_CLASS}
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={FORM_LABEL_CLASS}>{t("reports.cashFlow.dateTo")}</span>
-            <input
-              type="date"
-              className={FORM_INPUT_CLASS}
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1 min-w-[220px]">
-            <span className={FORM_LABEL_CLASS}>{t("reports.cashFlow.cashDeskId")}</span>
-            <input
-              className={FORM_INPUT_CLASS}
-              value={cashDeskId}
-              onChange={(e) => setCashDeskId(e.target.value)}
-              placeholder={t("reports.cashFlow.cashDeskIdPh")}
-            />
-          </label>
-          <label className="flex flex-col gap-1 min-w-[220px]">
-            <span className={FORM_LABEL_CLASS}>{t("reports.cashFlow.bankName")}</span>
-            <input
-              className={FORM_INPUT_CLASS}
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-              placeholder={t("reports.cashFlow.bankNamePh")}
-            />
-          </label>
-          <button
-            type="button"
-            className={PRIMARY_BUTTON_CLASS}
-            disabled={loading}
-            onClick={() => void load()}
-          >
-            {loading ? "…" : t("reports.cashFlow.load")}
-          </button>
-          <button
-            type="button"
-            className={SECONDARY_BUTTON_CLASS}
-            disabled={loading}
-            onClick={() => {
-              const b = monthBounds();
-              setFrom(b.from);
-              setTo(b.to);
-              setCashDeskId("");
-              setBankName("");
-            }}
-          >
-            {t("common.reset")}
-          </button>
-          <button
-            type="button"
-            className={PRIMARY_BUTTON_CLASS}
-            disabled={Boolean(exporting)}
-            onClick={() => void exportFile("pdf")}
-          >
-            {exporting === "pdf"
-              ? "…"
-              : t("reporting.exportPdf", { defaultValue: "Экспорт PDF" })}
-          </button>
-          <button
-            type="button"
-            className={PRIMARY_BUTTON_CLASS}
-            disabled={Boolean(exporting)}
-            onClick={() => void exportFile("xlsx")}
-          >
-            {exporting === "xlsx"
-              ? "…"
-              : t("reporting.exportXlsx", { defaultValue: "Экспорт XLSX" })}
-          </button>
-        </div>
+          <div className="flex flex-wrap items-end justify-end gap-2">
+            <button
+              type="button"
+              className={PRIMARY_BUTTON_CLASS}
+              disabled={loading}
+              onClick={() => void load()}
+            >
+              {loading ? "…" : t("reports.cashFlow.load")}
+            </button>
+            <button
+              type="button"
+              className={SECONDARY_BUTTON_CLASS}
+              disabled={loading}
+              onClick={() => {
+                const b = monthBounds();
+                setFrom(b.from);
+                setTo(b.to);
+                setCashDeskId("");
+                setBankName("");
+              }}
+            >
+              {t("common.reset")}
+            </button>
+            <button
+              type="button"
+              className={PRIMARY_BUTTON_CLASS}
+              disabled={Boolean(exporting)}
+              onClick={() => void exportFile("pdf")}
+            >
+              {exporting === "pdf"
+                ? "…"
+                : t("reporting.exportPdf", { defaultValue: "Экспорт PDF" })}
+            </button>
+            <button
+              type="button"
+              className={PRIMARY_BUTTON_CLASS}
+              disabled={Boolean(exporting)}
+              onClick={() => void exportFile("xlsx")}
+            >
+              {exporting === "xlsx"
+                ? "…"
+                : t("reporting.exportXlsx", { defaultValue: "Экспорт XLSX" })}
+            </button>
+          </div>
         }
       />
 

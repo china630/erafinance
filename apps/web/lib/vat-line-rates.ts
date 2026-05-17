@@ -10,7 +10,11 @@ export const INVOICE_VAT_RATE_VALUES = DEFAULT_INVOICE_VAT_RATES;
 
 export type InvoiceVatRateValue = number;
 
+export const VAT_LINE_UNSET = "__unset__" as const;
+
 export type VatRateFormString = "-1" | "0" | "2" | "8" | "18";
+
+export type VatRateFormChoice = VatRateFormString | typeof VAT_LINE_UNSET;
 
 export function vatRateToFormString(v: InvoiceVatRateValue): VatRateFormString {
   return String(v) as VatRateFormString;
@@ -20,6 +24,7 @@ export function formStringToVatRate(
   s: string,
   allowed: readonly number[] = [...DEFAULT_INVOICE_VAT_RATES],
 ): InvoiceVatRateValue | null {
+  if (s === VAT_LINE_UNSET || s === "" || s.trim() === "") return null;
   const n = Number(s);
   for (const x of allowed) {
     if (x === n) return x;

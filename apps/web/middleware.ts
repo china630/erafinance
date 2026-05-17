@@ -21,10 +21,13 @@ function isSkippableAssetPath(pathname: string): boolean {
 }
 
 function isPublicPath(pathname: string): boolean {
+  if (pathname === "/") return true;
+  if (pathname === "/home") return true;
   if (pathname === "/login") return true;
   if (pathname === "/register") return true;
   if (pathname === "/register-org") return true;
   if (pathname === "/help") return true;
+  if (pathname === "/pricing") return true;
   if (pathname.startsWith("/dispute/")) return true;
   if (pathname.startsWith("/verify/")) return true;
   if (pathname.startsWith("/billing/")) return true; // success/cancel pages
@@ -56,11 +59,18 @@ export function middleware(req: NextRequest) {
     });
   }
 
+  const token = req.cookies.get(ACCESS_TOKEN_COOKIE_KEY)?.value;
+
+  if (token && pathname === "/") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/home";
+    return NextResponse.redirect(url);
+  }
+
   if (isPublicPath(pathname)) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  const token = req.cookies.get(ACCESS_TOKEN_COOKIE_KEY)?.value;
   if (!token) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";

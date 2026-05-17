@@ -18,6 +18,7 @@
     "@aws-sdk/client-s3": "^3.741.0",
     "@erafinance/api-contracts": "*",
     "@erafinance/database": "file:../../packages/database",
+    "@google/generative-ai": "^0.24.1",
     "@nestjs/common": "^11.0.8",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.8",

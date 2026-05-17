@@ -9,7 +9,13 @@ export type ListRefreshKey =
   | "inventory-hub"
   | "inventory-movements"
   | "inventory-transfers"
-  | "inventory-adjustments";
+  | "inventory-adjustments"
+  | "inventory-physical"
+  | "manufacturing-recipes"
+  | "manufacturing-releases"
+  | "manufacturing-orders"
+  | "manufacturing-dashboard"
+  | "fixed-assets-usage";
 
 /** После складских мутаций обновить реестры остатков / движений / köçürmə / düzəliş. */
 export function notifyInventoryListsRefresh(): void {
@@ -18,6 +24,7 @@ export function notifyInventoryListsRefresh(): void {
     "inventory-movements",
     "inventory-transfers",
     "inventory-adjustments",
+    "inventory-physical",
   ];
   for (const k of keys) {
     notifyListRefresh(k);

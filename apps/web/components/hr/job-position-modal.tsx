@@ -33,12 +33,15 @@ export function JobPositionModal({
   departments,
   onCreated,
   editingPosition,
+  onAddDepartment,
 }: {
   open: boolean;
   onClose: () => void;
   departments: DeptFlat[];
   onCreated: () => void;
   editingPosition?: JobPositionEditPayload | null;
+  /** Quick path to create a department when none exists or user needs a new one. */
+  onAddDepartment?: () => void;
 }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
@@ -152,6 +155,17 @@ export function JobPositionModal({
                   </option>
                 ))}
               </select>
+              {onAddDepartment && !isEdit ? (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    className="text-[13px] font-medium text-[#2980B9] hover:underline"
+                    onClick={() => onAddDepartment()}
+                  >
+                    {t("hrPositions.addDepartmentQuick")}
+                  </button>
+                </div>
+              ) : null}
             </label>
 
             <label className={MODAL_FIELD_LABEL_CLASS}>

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiFetch } from "../../lib/api-client";
+import { parsePaginatedList } from "../../lib/paginated-list";
 import {
   MODAL_CLOSE_BUTTON_CLASS,
   MODAL_DIALOG_CONTENT_CLASS,
@@ -89,14 +90,26 @@ export function EditEmployeeModal({
 
   const loadPositions = useCallback(async () => {
     if (!open) return;
-    const res = await apiFetch("/api/hr/job-positions");
-    if (!res.ok) {
-      setLoadErr(`${t("hrStructure.loadErr")}: ${res.status}`);
+    try {
+      const merged: JobPositionOpt[] = [];
+      let p = 1;
+      for (;;) {
+        const res = await apiFetch(`/api/hr/job-positions?page=${p}&pageSize=200`);
+        if (!res.ok) {
+          setLoadErr(`${t("hrStructure.loadErr")}: ${res.status}`);
+          setPositions([]);
+          return;
+        }
+        const data = parsePaginatedList<JobPositionOpt>(await res.json());
+        merged.push(...data.items);
+        if (merged.length >= data.total || data.items.length === 0) break;
+        p += 1;
+      }
+      setPositions(merged);
+    } catch {
+      setLoadErr(t("employees.loadErr"));
       setPositions([]);
-      return;
     }
-    const rows = (await res.json()) as JobPositionOpt[];
-    setPositions(rows);
   }, [open, t]);
 
   const loadEmployee = useCallback(async () => {

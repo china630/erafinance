@@ -44,13 +44,13 @@ export default function AuditEngagementDetailPage() {
 
   return (
     <div className="space-y-4">
-      <Link href="/audit-hub/engagements" className="text-xs font-semibold text-[#3498DB] hover:underline">
+      <Link href="/audit-hub/engagements" className="text-xs font-semibold text-[#2980B9] hover:underline">
         ← {t("auditHub.engagementsBackList")}
       </Link>
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
       {row ? (
-        <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 text-sm shadow-sm">
-          <h2 className="text-lg font-bold text-[#2C3E50]">{row.title}</h2>
+        <div className="rounded-xl border border-[#D5DADF] bg-white p-4 text-sm shadow-sm">
+          <h2 className="text-lg font-bold text-[#34495E]">{row.title}</h2>
           <dl className="mt-3 space-y-1 text-xs text-[#34495E]">
             <div>
               <dt className="font-semibold text-[#95A5A6]">ID</dt>

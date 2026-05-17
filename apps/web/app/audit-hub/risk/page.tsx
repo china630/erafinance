@@ -6,6 +6,7 @@ import { auditHubFetch } from "../../../lib/audit-hub-api";
 import {
   CARD_CONTAINER_CLASS,
   INPUT_BORDERED_CLASS,
+  MODAL_FIELD_LABEL_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from "../../../lib/design-system";
 import { useRequireAuth } from "../../../lib/use-require-auth";
@@ -44,54 +45,58 @@ export default function AuditHubRiskPage() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-[#7F8C8D]">{t("auditHub.riskHint")}</p>
-      <div className={`${CARD_CONTAINER_CLASS} grid gap-3 sm:grid-cols-2`}>
-        <label className="text-xs font-semibold text-[#34495E]">
-          {t("auditHub.periodFrom")}
-          <input
-            type="date"
-            className={`${INPUT_BORDERED_CLASS} mt-1 w-full`}
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </label>
-        <label className="text-xs font-semibold text-[#34495E]">
-          {t("auditHub.periodTo")}
-          <input
-            type="date"
-            className={`${INPUT_BORDERED_CLASS} mt-1 w-full`}
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </label>
-        <label className="text-xs font-semibold text-[#34495E]">
-          {t("auditHub.riskWindowDays")}
-          <input
-            className={`${INPUT_BORDERED_CLASS} mt-1 w-full`}
-            value={windowDays}
-            onChange={(e) => setWindowDays(e.target.value)}
-          />
-        </label>
-        <label className="text-xs font-semibold text-[#34495E]">
-          {t("auditHub.riskTake")}
-          <input
-            className={`${INPUT_BORDERED_CLASS} mt-1 w-full`}
-            value={take}
-            onChange={(e) => setTake(e.target.value)}
-          />
-        </label>
-        <label className="text-xs font-semibold text-[#34495E] sm:col-span-2">
-          {t("auditHub.riskExpenseMinDebit")}
-          <input
-            className={`${INPUT_BORDERED_CLASS} mt-1 w-full`}
-            value={expenseMinDebit}
-            onChange={(e) => setExpenseMinDebit(e.target.value)}
-          />
-        </label>
+      <p className="m-0 text-sm text-[#7F8C8D]">{t("auditHub.riskHint")}</p>
+      <div className={`${CARD_CONTAINER_CLASS} space-y-4 p-4`}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className={MODAL_FIELD_LABEL_CLASS}>
+            {t("auditHub.periodFrom")}
+            <input
+              type="date"
+              className={`${INPUT_BORDERED_CLASS} mt-1.5 w-full`}
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+          </label>
+          <label className={MODAL_FIELD_LABEL_CLASS}>
+            {t("auditHub.periodTo")}
+            <input
+              type="date"
+              className={`${INPUT_BORDERED_CLASS} mt-1.5 w-full`}
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </label>
+          <label className={MODAL_FIELD_LABEL_CLASS}>
+            {t("auditHub.riskWindowDays")}
+            <input
+              className={`${INPUT_BORDERED_CLASS} mt-1.5 w-full`}
+              value={windowDays}
+              onChange={(e) => setWindowDays(e.target.value)}
+            />
+          </label>
+          <label className={MODAL_FIELD_LABEL_CLASS}>
+            {t("auditHub.riskTake")}
+            <input
+              className={`${INPUT_BORDERED_CLASS} mt-1.5 w-full`}
+              value={take}
+              onChange={(e) => setTake(e.target.value)}
+            />
+          </label>
+          <label className={`${MODAL_FIELD_LABEL_CLASS} sm:col-span-2`}>
+            {t("auditHub.riskExpenseMinDebit")}
+            <input
+              className={`${INPUT_BORDERED_CLASS} mt-1.5 w-full max-w-md`}
+              value={expenseMinDebit}
+              onChange={(e) => setExpenseMinDebit(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#EBEDF0] pt-3">
+          <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => void load()}>
+            {t("auditHub.load")}
+          </button>
+        </div>
       </div>
-      <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => void load()}>
-        {t("auditHub.load")}
-      </button>
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
       {payload ? <AuditHubRiskResultPanel payload={payload} /> : null}
     </div>

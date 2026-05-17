@@ -19,6 +19,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
+import { pricingModuleLabel } from "../../../lib/pricing-module-label";
 import {
   CARD_CONTAINER_CLASS,
   LINK_ACCENT_CLASS,
@@ -30,7 +31,6 @@ import {
 } from "../../../lib/design-system";
 import {
   useSubscription,
-  type SubscriptionTier,
 } from "../../../lib/subscription-context";
 import { useAuth } from "../../../lib/auth-context";
 import { canAccessBilling } from "../../../lib/role-utils";
@@ -285,11 +285,6 @@ export default function SubscriptionSettingsPage() {
     }
   }, [effectiveSnapshot?.expiresAt, locale, t]);
 
-  const tierLabel = useCallback(
-    (tier: SubscriptionTier) => t(`subscriptionSettings.tierNames.${tier}`),
-    [t],
-  );
-
   const activeModules = effectiveSnapshot?.activeModules ?? [];
   const isEnterprise = effectiveSnapshot?.tier === "ENTERPRISE";
   const readOnlySub = Boolean(effectiveSnapshot?.readOnly);
@@ -425,7 +420,7 @@ export default function SubscriptionSettingsPage() {
             <Lock className="h-12 w-12 mx-auto text-[#2980B9]" aria-hidden />
           }
           action={
-            <Link href="/" className={LINK_ACCENT_CLASS}>
+            <Link href="/home" className={LINK_ACCENT_CLASS}>
               {t("common.backHome")}
             </Link>
           }
@@ -482,7 +477,7 @@ export default function SubscriptionSettingsPage() {
               {t("subscriptionSettings.subtitleV10")}
             </p>
             <div className="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-[13px] items-center">
-              <Link href="/" className={LINK_ACCENT_CLASS}>
+              <Link href="/home" className={LINK_ACCENT_CLASS}>
                 {t("nav.home")}
               </Link>
               <span className="text-[#D5DADF]">/</span>
@@ -528,7 +523,7 @@ export default function SubscriptionSettingsPage() {
               {t("subscriptionSettings.currentPlan")}
             </div>
             <div className="text-[#34495E] font-semibold mt-1">
-              {tierLabel(effectiveSnapshot.tier)}
+              {effectiveSnapshot.tier}
             </div>
             {effectiveSnapshot.isTrial && (
               <span className="inline-block mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-800 bg-amber-100 px-2 py-0.5 rounded-lg">
@@ -701,7 +696,7 @@ export default function SubscriptionSettingsPage() {
                     {moduleIcon(mod.key)}
                     <div className="min-w-0">
                       <div className="text-[13px] font-medium text-[#34495E]">
-                        {mod.name}
+                        {pricingModuleLabel(mod.key, mod.name, t)}
                       </div>
                       {pending && (
                         <div className="mt-1 inline-flex rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
@@ -718,7 +713,7 @@ export default function SubscriptionSettingsPage() {
                     type="button"
                     role="switch"
                     aria-checked={on}
-                    aria-label={mod.name}
+                    aria-label={pricingModuleLabel(mod.key, mod.name, t)}
                     disabled={switchDisabled || busy}
                     onClick={() => void onToggleModule(mod.key, !on)}
                     className={[

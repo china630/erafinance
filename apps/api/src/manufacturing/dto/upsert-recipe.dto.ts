@@ -4,9 +4,12 @@ import {
   ArrayMinSize,
   IsNumber,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from "class-validator";
 
@@ -57,6 +60,12 @@ export class RecipeByproductDto {
 }
 
 export class UpsertRecipeDto {
+  @ApiProperty({ description: "BOM display name" })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  name!: string;
+
   @ApiProperty()
   @IsUUID()
   finishedProductId!: string;

@@ -27,15 +27,30 @@ export class DepreciationService {
     organizationId: string,
     year: number,
     month: number,
-  ) {
-    return this.applyForClosedMonth(tx, organizationId, year, month);
+  ): Promise<{
+    transactionId: string | null;
+    totalAmount: string;
+    assetsCount: number;
+    uopTransactionId: string | null;
+    uopTotalAmount: string;
+    uopAssetsCount: number;
+  }> {
+    const slRb = await this.applySlRbForClosedMonth(tx, organizationId, year, month);
+    const uop = await this.applyUopForClosedMonth(tx, organizationId, year, month);
+    return {
+      transactionId: slRb.transactionId,
+      totalAmount: new Decimal(slRb.totalAmount).add(uop.totalAmount).toString(),
+      assetsCount: slRb.assetsCount + uop.assetsCount,
+      uopTransactionId: uop.transactionId,
+      uopTotalAmount: uop.totalAmount,
+      uopAssetsCount: uop.assetsCount,
+    };
   }
 
   /**
    * Monthly depreciation for STRAIGHT_LINE and REDUCING_BALANCE.
-   * UNITS_OF_PRODUCTION is applied via {@link recordUnitsOfProductionUsage}.
    */
-  async applyForClosedMonth(
+  async applySlRbForClosedMonth(
     tx: Prisma.TransactionClient,
     organizationId: string,
     year: number,
@@ -156,6 +171,150 @@ export class DepreciationService {
       totalAmount: roundMoney2(total).toString(),
       assetsCount: rows.length,
     };
+  }
+
+  /**
+   * Monthly depreciation for UNITS_OF_PRODUCTION using {@link FixedAssetMonthlyUsage}.
+   */
+  async applyUopForClosedMonth(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    year: number,
+    month: number,
+  ): Promise<{ transactionId: string | null; totalAmount: string; assetsCount: number }> {
+    const { end } = monthRangeUtc(year, month);
+    const monthEnd = end;
+
+    const usages = await tx.fixedAssetMonthlyUsage.findMany({
+      where: { organizationId, year, month },
+      include: { fixedAsset: true },
+    });
+
+    type Row = {
+      assetId: string;
+      amount: Prisma.Decimal;
+      periodUnits: Prisma.Decimal;
+    };
+    const rows: Row[] = [];
+
+    for (const u of usages) {
+      const a = u.fixedAsset;
+      if (a.status !== FixedAssetStatus.ACTIVE) continue;
+      if (a.depreciationMethod !== FixedAssetDepreciationMethod.UNITS_OF_PRODUCTION) {
+        continue;
+      }
+      if (a.purchaseDate.getTime() > monthEnd.getTime()) continue;
+
+      const exists = await tx.fixedAssetDepreciationMonth.findUnique({
+        where: {
+          fixedAssetId_year_month: {
+            fixedAssetId: a.id,
+            year,
+            month,
+          },
+        },
+      });
+      if (exists) continue;
+
+      const amount = this.computeUopAmount(a, u.periodUnits);
+      if (!amount || amount.lte(0)) continue;
+
+      rows.push({ assetId: a.id, amount, periodUnits: u.periodUnits });
+    }
+
+    if (rows.length === 0) {
+      return { transactionId: null, totalAmount: "0", assetsCount: 0 };
+    }
+
+    let total = new Decimal(0);
+    const lines: { accountCode: string; debit: string; credit: string }[] = [];
+    for (const r of rows) {
+      total = total.add(r.amount);
+      lines.push({
+        accountCode: DEPRECIATION_EXPENSE_ACCOUNT_CODE,
+        debit: r.amount.toString(),
+        credit: "0",
+      });
+    }
+    lines.push({
+      accountCode: ACCUMULATED_DEPRECIATION_ACCOUNT_CODE,
+      debit: "0",
+      credit: roundMoney2(total).toString(),
+    });
+
+    const { transactionId } = await this.accounting.postJournalInTransaction(tx, {
+      organizationId,
+      date: monthEnd,
+      reference: `DEPR-UOP-${year}-${String(month).padStart(2, "0")}`,
+      description: `Амортизация ОС (выработка) ${month}/${year}`,
+      isFinal: true,
+      lines,
+    });
+
+    for (const r of rows) {
+      await tx.fixedAssetDepreciationMonth.create({
+        data: {
+          organizationId,
+          fixedAssetId: r.assetId,
+          year,
+          month,
+          amount: r.amount,
+          transactionId,
+        },
+      });
+      await tx.fixedAsset.update({
+        where: { id: r.assetId },
+        data: {
+          bookedDepreciation: { increment: r.amount },
+          unitsProducedTotal: { increment: r.periodUnits },
+        },
+      });
+    }
+
+    return {
+      transactionId,
+      totalAmount: roundMoney2(total).toString(),
+      assetsCount: rows.length,
+    };
+  }
+
+  /** @deprecated Use runMonthlyDepreciation */
+  async applyForClosedMonth(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    year: number,
+    month: number,
+  ) {
+    return this.runMonthlyDepreciation(tx, organizationId, year, month);
+  }
+
+  private computeUopAmount(
+    a: {
+      purchasePrice: Prisma.Decimal;
+      salvageValue: Prisma.Decimal;
+      bookedDepreciation: Prisma.Decimal;
+      totalExpectedUnits: Prisma.Decimal | null;
+    },
+    periodUnits: Prisma.Decimal | number,
+  ): Prisma.Decimal | null {
+    if (!a.totalExpectedUnits || new Decimal(a.totalExpectedUnits).lte(0)) {
+      return null;
+    }
+    const pu = new Decimal(periodUnits);
+    if (pu.lte(0)) return null;
+
+    const maxDep = new Decimal(a.purchasePrice).sub(a.salvageValue);
+    if (maxDep.lte(0)) return null;
+
+    const remaining = maxDep.sub(a.bookedDepreciation);
+    if (remaining.lte(0)) return null;
+
+    let amount = roundMoney2(maxDep.mul(pu).div(a.totalExpectedUnits));
+    if (amount.gt(remaining)) {
+      amount = roundMoney2(remaining);
+    }
+    if (amount.lte(0)) return null;
+    return amount;
   }
 
   private computeReducingBalanceMonthlyAmount(

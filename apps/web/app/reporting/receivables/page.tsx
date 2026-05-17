@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
 import { ledgerQueryParam, useLedger } from "../../../lib/ledger-context";
@@ -78,7 +78,15 @@ export default function ReceivablesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t("receivables.title")} subtitle={t("receivables.subtitle")} />
+      <PageHeader
+        title={t("receivables.title")}
+        subtitle={
+          <Fragment>
+            <p className="m-0">{t("receivables.subtitle")}</p>
+            <p className="m-0 mt-2 text-[12px] leading-snug text-[#7F8C8D]">{t("receivables.balanceSemantics")}</p>
+          </Fragment>
+        }
+      />
 
       {data && (
         <p className="text-[13px] text-[#7F8C8D]">

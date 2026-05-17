@@ -10,6 +10,7 @@ import { isRestrictedUserRole } from "../../lib/role-utils";
 import { useRequireAuth } from "../../lib/use-require-auth";
 import { useSubscription } from "../../lib/subscription-context";
 import { EmptyState } from "../../components/empty-state";
+import { ListPaginationFooter } from "../../components/list-pagination-footer";
 import { PageHeader } from "../../components/layout/page-header";
 import { parseHrEmployeesResponse } from "../../lib/hr-employees-list";
 import {
@@ -62,7 +63,7 @@ export default function EmployeesPage() {
   const [rows, setRows] = useState<Employee[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const pageSize = 20;
+  const [pageSize, setPageSize] = useState(25);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -86,7 +87,7 @@ export default function EmployeesPage() {
       setTotal(parsed.total);
     }
     setLoading(false);
-  }, [token, t, page]);
+  }, [token, t, page, pageSize]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -209,41 +210,8 @@ export default function EmployeesPage() {
       />
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
-      {!loading && total > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-          <span>
-            {t("employees.paginationSummary", {
-              from: total === 0 ? 0 : (page - 1) * pageSize + 1,
-              to: Math.min(page * pageSize, total),
-              total,
-            })}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className={`${SECONDARY_BUTTON_CLASS} px-3 py-1 text-xs disabled:opacity-40`}
-            >
-              {t("employees.prevPage")}
-            </button>
-            <span className="tabular-nums">
-              {page} / {Math.max(1, Math.ceil(total / pageSize))}
-            </span>
-            <button
-              type="button"
-              disabled={page * pageSize >= total}
-              onClick={() => setPage((p) => p + 1)}
-              className={`${SECONDARY_BUTTON_CLASS} px-3 py-1 text-xs disabled:opacity-40`}
-            >
-              {t("employees.nextPage")}
-            </button>
-          </div>
-        </div>
-      )}
-
       {loading && <p className="text-gray-600">{t("common.loading")}</p>}
-      {!loading && rows.length > 0 && (
+      {!loading && total > 0 && (
         <>
           <div className="md:hidden space-y-3">
             {rows.map((r) => (
@@ -391,6 +359,16 @@ export default function EmployeesPage() {
       )}
       {!loading && rows.length === 0 && !error && (
         <EmptyState title={t("employees.none")} description={t("employees.emptyHint")} />
+      )}
+
+      {!loading && (
+        <ListPaginationFooter
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
       )}
 
       <CreateEmployeeModal

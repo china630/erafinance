@@ -135,8 +135,12 @@ export function TransferModal({
       maxWidthClass="max-w-2xl"
       footer={<InventoryModalFooter onCancel={onClose} busy={busy} formId={FORM_ID} />}
     >
-      <form id={FORM_ID} className="space-y-4" onSubmit={(e) => void onSubmit(e)}>
-        <div className="grid gap-4 sm:grid-cols-2">
+      <form
+        id={FORM_ID}
+        className="flex min-h-0 max-h-[min(85vh,36rem)] flex-col gap-4"
+        onSubmit={(e) => void onSubmit(e)}
+      >
+        <div className="grid shrink-0 gap-4 sm:grid-cols-2">
           <label className={MODAL_FIELD_LABEL_CLASS}>
             {t("inventory.transferFrom")}
             <select
@@ -167,7 +171,7 @@ export function TransferModal({
           </label>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[13px] font-semibold text-[#34495E]">{t("inventory.transferLines")}</span>
             <Button type="button" variant="secondary" onClick={() => addLine()}>
@@ -175,6 +179,7 @@ export function TransferModal({
               {t("inventory.transferAddLine")}
             </Button>
           </div>
+          <div className="space-y-3 rounded-lg border border-[#D5DADF] bg-[#F8F9FA] p-3">
           {lines.map((row, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
               <label className={`${MODAL_FIELD_LABEL_CLASS} min-w-[200px] flex-1`}>
@@ -216,6 +221,7 @@ export function TransferModal({
               ) : null}
             </div>
           ))}
+          </div>
         </div>
       </form>
     </InventoryModalShell>

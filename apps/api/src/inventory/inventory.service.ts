@@ -6,6 +6,7 @@ import {
 import {
   InventoryAdjustmentDocType,
   InventoryAdjustmentStatus,
+  InventoryValuationMethod,
   Prisma,
   StockMovementReason,
   StockMovementType,
@@ -28,6 +29,7 @@ import {
   VAT_INPUT_ACCOUNT_CODE,
 } from "../ledger.constants";
 import { PrismaService } from "../prisma/prisma.service";
+import { normalizeListPagination } from "../common/list-pagination";
 import { StockService } from "../stock/stock.service";
 import type { PurchaseLineDto, PurchaseStockDto } from "./dto/purchase-stock.dto";
 import type { TransferStockDto } from "./dto/transfer-stock.dto";
@@ -59,7 +61,10 @@ export class InventoryService {
   ) {}
 
   async getInventorySettings(organizationId: string): Promise<
-    OrgInventorySettings & { defaultWarehouseResolvedId: string | null }
+    OrgInventorySettings & {
+      defaultWarehouseResolvedId: string | null;
+      inventoryValuationMethod: InventoryValuationMethod;
+    }
   > {
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
@@ -69,7 +74,11 @@ export class InventoryService {
       organizationId,
       parsed,
     );
-    return { ...parsed, defaultWarehouseResolvedId: resolved };
+    return {
+      ...parsed,
+      defaultWarehouseResolvedId: resolved,
+      inventoryValuationMethod: org?.valuationMethod ?? "AVCO",
+    };
   }
 
   async patchInventorySettings(
@@ -225,9 +234,9 @@ export class InventoryService {
    */
   async listMovementBalances(
     organizationId: string,
-    filters?: { warehouseId?: string; search?: string; take?: number },
-  ): Promise<
-    Array<{
+    filters?: { warehouseId?: string; search?: string; page?: number; pageSize?: number },
+  ): Promise<{
+    items: Array<{
       warehouseId: string;
       warehouseName: string;
       binId: string | null;
@@ -236,9 +245,16 @@ export class InventoryService {
       productName: string;
       productSku: string;
       quantity: string;
-    }>
-  > {
-    const take = Math.min(Math.max(filters?.take ?? 4000, 1), 5000);
+    }>;
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    const { page, pageSize, skip } = normalizeListPagination(
+      filters?.page,
+      filters?.pageSize,
+      50,
+    );
     const wh = filters?.warehouseId?.trim();
     const search = filters?.search?.trim();
     const uuidRe =
@@ -260,6 +276,28 @@ export class InventoryService {
       const pattern = `%${escaped}%`;
       searchClause = Prisma.sql`AND (p.name ILIKE ${pattern} ESCAPE '\\' OR p.sku ILIKE ${pattern} ESCAPE '\\')`;
     }
+
+    const baseFrom = Prisma.sql`
+      FROM stock_movements m
+      INNER JOIN products p ON p.id = m.product_id AND p.organization_id = m.organization_id
+      INNER JOIN warehouses w ON w.id = m.warehouse_id AND w.organization_id = m.organization_id
+      LEFT JOIN warehouse_bins b ON b.id = m.bin_id AND b.organization_id = m.organization_id
+      WHERE m.organization_id = ${organizationId}::uuid
+        AND p.is_service = false
+        ${warehouseClause}
+        ${searchClause}
+      GROUP BY m.warehouse_id, w.name, m.bin_id, b.code, m.product_id, p.name, p.sku
+      HAVING COALESCE(SUM(CASE WHEN m.type::text = 'IN' THEN m.quantity ELSE 0 END), 0)
+           - COALESCE(SUM(CASE WHEN m.type::text = 'OUT' THEN m.quantity ELSE 0 END), 0) > 0
+    `;
+
+    const countRows = await this.prisma.$queryRaw<[{ c: bigint }]>(Prisma.sql`
+      SELECT COUNT(*)::bigint AS c FROM (
+        SELECT 1
+        ${baseFrom}
+      ) sub
+    `);
+    const total = Number(countRows[0]?.c ?? 0);
 
     const rows = await this.prisma.$queryRaw<
       Array<{
@@ -283,70 +321,77 @@ export class InventoryService {
         p.sku AS product_sku,
         COALESCE(SUM(CASE WHEN m.type::text = 'IN' THEN m.quantity ELSE 0 END), 0)
           - COALESCE(SUM(CASE WHEN m.type::text = 'OUT' THEN m.quantity ELSE 0 END), 0) AS quantity
-      FROM stock_movements m
-      INNER JOIN products p ON p.id = m.product_id AND p.organization_id = m.organization_id
-      INNER JOIN warehouses w ON w.id = m.warehouse_id AND w.organization_id = m.organization_id
-      LEFT JOIN warehouse_bins b ON b.id = m.bin_id AND b.organization_id = m.organization_id
-      WHERE m.organization_id = ${organizationId}::uuid
-        AND p.is_service = false
-        ${warehouseClause}
-        ${searchClause}
-      GROUP BY m.warehouse_id, w.name, m.bin_id, b.code, m.product_id, p.name, p.sku
-      HAVING COALESCE(SUM(CASE WHEN m.type::text = 'IN' THEN m.quantity ELSE 0 END), 0)
-           - COALESCE(SUM(CASE WHEN m.type::text = 'OUT' THEN m.quantity ELSE 0 END), 0) > 0
+      ${baseFrom}
       ORDER BY w.name ASC, b.code ASC NULLS LAST, p.name ASC
-      LIMIT ${take}
+      LIMIT ${pageSize} OFFSET ${skip}
     `);
 
-    return rows.map((r) => ({
-      warehouseId: r.warehouse_id,
-      warehouseName: r.warehouse_name,
-      binId: r.bin_id,
-      binCode: r.bin_code,
-      productId: r.product_id,
-      productName: r.product_name,
-      productSku: r.product_sku,
-      quantity: String(r.quantity),
-    }));
+    return {
+      items: rows.map((r) => ({
+        warehouseId: r.warehouse_id,
+        warehouseName: r.warehouse_name,
+        binId: r.bin_id,
+        binCode: r.bin_code,
+        productId: r.product_id,
+        productName: r.product_name,
+        productSku: r.product_sku,
+        quantity: String(r.quantity),
+      })),
+      total,
+      page,
+      pageSize,
+    };
   }
 
-  listMovements(
+  async listMovements(
     organizationId: string,
     filters?: {
       warehouseId?: string;
       productId?: string;
-      take?: number;
+      page?: number;
+      pageSize?: number;
       note?: string;
       notes?: string[];
       type?: StockMovementType;
       reason?: StockMovementReason;
     },
   ) {
+    const { page, pageSize, skip } = normalizeListPagination(
+      filters?.page,
+      filters?.pageSize,
+      25,
+    );
     const noteFilter =
       filters?.notes && filters.notes.length > 0
         ? { note: { in: filters.notes } }
         : filters?.note
           ? { note: filters.note }
           : {};
-    return this.prisma.stockMovement.findMany({
-      where: {
-        organizationId,
-        ...(filters?.warehouseId ? { warehouseId: filters.warehouseId } : {}),
-        ...(filters?.productId ? { productId: filters.productId } : {}),
-        ...(filters?.type ? { type: filters.type } : {}),
-        ...(filters?.reason ? { reason: filters.reason } : {}),
-        ...noteFilter,
-        product: { isService: false },
-      },
-      include: {
-        product: true,
-        warehouse: true,
-        bin: true,
-        invoice: { select: { number: true, id: true } },
-      },
-      orderBy: [{ documentDate: "desc" }, { createdAt: "desc" }],
-      take: filters?.take ?? 200,
-    });
+    const where = {
+      organizationId,
+      ...(filters?.warehouseId ? { warehouseId: filters.warehouseId } : {}),
+      ...(filters?.productId ? { productId: filters.productId } : {}),
+      ...(filters?.type ? { type: filters.type } : {}),
+      ...(filters?.reason ? { reason: filters.reason } : {}),
+      ...noteFilter,
+      product: { isService: false },
+    };
+    const [items, total] = await Promise.all([
+      this.prisma.stockMovement.findMany({
+        where,
+        include: {
+          product: true,
+          warehouse: true,
+          bin: true,
+          invoice: { select: { number: true, id: true } },
+        },
+        orderBy: [{ documentDate: "desc" }, { createdAt: "desc" }],
+        skip,
+        take: pageSize,
+      }),
+      this.prisma.stockMovement.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
   }
 
   /** Цена за ед. без НДС для оценки запасов / расхода (если в форме цена с НДС). */
@@ -743,31 +788,44 @@ export class InventoryService {
   }
 
   /** GL-backed purchase invoices (no per-line product breakdown in this list). */
-  async listPurchaseInvoices(organizationId: string, take = 400) {
-    const rows = await this.prisma.transaction.findMany({
-      where: {
-        organizationId,
-        OR: [
-          { reference: "PURCHASE_INVOICE" },
-          {
-            AND: [
-              { reference: "WEB" },
-              {
-                OR: [
-                  { description: { contains: "Закупка товара" } },
-                  { description: { contains: "Закупка услуги" } },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-      include: {
-        journalEntries: { include: { account: { select: { code: true } } } },
-      },
-      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-      take,
-    });
+  async listPurchaseInvoices(
+    organizationId: string,
+    opts?: { page?: number; pageSize?: number },
+  ) {
+    const { page, pageSize, skip } = normalizeListPagination(
+      opts?.page,
+      opts?.pageSize,
+      25,
+    );
+    const where = {
+      organizationId,
+      OR: [
+        { reference: "PURCHASE_INVOICE" },
+        {
+          AND: [
+            { reference: "WEB" },
+            {
+              OR: [
+                { description: { contains: "Закупка товара" } },
+                { description: { contains: "Закупка услуги" } },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where,
+        include: {
+          journalEntries: { include: { account: { select: { code: true } } } },
+        },
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+        skip,
+        take: pageSize,
+      }),
+      this.prisma.transaction.count({ where }),
+    ]);
 
     const movements = await this.prisma.stockMovement.findMany({
       where: {
@@ -786,7 +844,7 @@ export class InventoryService {
       }
     }
 
-    return rows.map((tr) => {
+    const items = rows.map((tr) => {
       let credit531 = new Decimal(0);
       for (const je of tr.journalEntries) {
         if (je.account.code === PAYABLE_SUPPLIERS_ACCOUNT_CODE) {
@@ -821,6 +879,8 @@ export class InventoryService {
         totalGross: credit531.toString(),
       };
     });
+
+    return { items, total, page, pageSize };
   }
 
   /**
@@ -2608,18 +2668,31 @@ export class InventoryService {
   async listInventoryAdjustments(
     organizationId: string,
     warehouseId?: string,
+    opts?: { page?: number; pageSize?: number },
   ) {
-    return this.prisma.inventoryAdjustment.findMany({
-      where: {
-        organizationId,
-        ...(warehouseId ? { warehouseId } : {}),
-      },
-      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-      include: {
-        warehouse: { select: { id: true, name: true } },
-        _count: { select: { lines: true } },
-      },
-    });
+    const { page, pageSize, skip } = normalizeListPagination(
+      opts?.page,
+      opts?.pageSize,
+      25,
+    );
+    const where = {
+      organizationId,
+      ...(warehouseId ? { warehouseId } : {}),
+    };
+    const [items, total] = await Promise.all([
+      this.prisma.inventoryAdjustment.findMany({
+        where,
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+        skip,
+        take: pageSize,
+        include: {
+          warehouse: { select: { id: true, name: true } },
+          _count: { select: { lines: true } },
+        },
+      }),
+      this.prisma.inventoryAdjustment.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
   }
 
   async getInventoryAdjustment(organizationId: string, id: string) {

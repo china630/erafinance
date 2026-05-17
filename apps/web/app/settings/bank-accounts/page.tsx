@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { PageHeader } from "../../../components/layout/page-header";
 import { Button } from "../../../components/ui/button";
+import { DirectBankingPanel } from "../../../components/settings/direct-banking-panel";
 import { apiFetch } from "../../../lib/api-client";
 import {
   DATA_TABLE_CLASS,
@@ -15,6 +16,7 @@ import {
   DATA_TABLE_VIEWPORT_CLASS,
 } from "../../../lib/design-system";
 import { OrganizationBankAccountModal } from "../../../components/settings/organization-bank-account-modal";
+import { useSubscription } from "../../../lib/subscription-context";
 
 type AccountType = "MAIN" | "SALARY" | "CARD" | "TENDER" | "CREDIT" | "VAT_DEPOSIT";
 
@@ -30,12 +32,21 @@ type Row = {
   isFrozen: boolean;
 };
 
+type DirectSnapshot = {
+  syncActive: boolean;
+  syncMode: "mock" | "rest";
+};
+
 export default function BankAccountsSettingsPage() {
   const { t } = useTranslation();
+  const { ready: subscriptionReady, effectiveSnapshot } = useSubscription();
+  const bankingPro = effectiveSnapshot?.modules.bankingPro ?? false;
+
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
+  const [directInfo, setDirectInfo] = useState<DirectSnapshot | null>(null);
 
   async function load() {
     setLoading(true);
@@ -52,11 +63,44 @@ export default function BankAccountsSettingsPage() {
     }
   }
 
+  const loadDirect = useCallback(async () => {
+    if (!bankingPro) {
+      setDirectInfo(null);
+      return;
+    }
+    const res = await apiFetch("/api/banking/direct-settings");
+    if (!res.ok) {
+      setDirectInfo(null);
+      return;
+    }
+    const data = (await res.json()) as DirectSnapshot;
+    setDirectInfo({
+      syncActive: Boolean(data.syncActive),
+      syncMode: data.syncMode === "rest" ? "rest" : "mock",
+    });
+  }, [bankingPro]);
+
   useEffect(() => {
     void load();
   }, []);
 
+  useEffect(() => {
+    void loadDirect();
+  }, [loadDirect]);
+
   const subtitle = useMemo(() => t("bankAccountsRegistry.subtitle"), [t]);
+
+  function directSyncHint(r: Row): string {
+    if (!bankingPro) return "—";
+    if (!directInfo) return "…";
+    if (directInfo.syncMode === "mock" || !directInfo.syncActive) {
+      return t("bankAccountsRegistry.directSyncInactive");
+    }
+    if (r.isPrimary) {
+      return t("bankAccountsRegistry.directSyncAnchor");
+    }
+    return t("bankAccountsRegistry.directSyncIndirect");
+  }
 
   async function removeRow(id: string) {
     if (!window.confirm(t("bankAccountsRegistry.deleteConfirm"))) return;
@@ -87,6 +131,10 @@ export default function BankAccountsSettingsPage() {
         }
       />
 
+      {subscriptionReady && effectiveSnapshot ? (
+        <DirectBankingPanel snapshot={effectiveSnapshot} />
+      ) : null}
+
       <div className={DATA_TABLE_VIEWPORT_CLASS}>
         <table className={DATA_TABLE_CLASS}>
           <thead>
@@ -97,39 +145,62 @@ export default function BankAccountsSettingsPage() {
               <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("bankAccountsRegistry.columns.accountType")}</th>
               <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("bankAccountsRegistry.columns.ledger")}</th>
               <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("bankAccountsRegistry.columns.status")}</th>
+              <th className={DATA_TABLE_TH_LEFT_CLASS}>
+                {t("bankAccountsRegistry.columns.directSync")}
+              </th>
               <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("common.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className={DATA_TABLE_TR_CLASS}>
-                <td className={DATA_TABLE_TD_CLASS}>{r.bankName}</td>
-                <td className={DATA_TABLE_TD_CLASS}>{r.iban}</td>
-                <td className={DATA_TABLE_TD_CLASS}>{r.currency}</td>
-                <td className={DATA_TABLE_TD_CLASS}>{t(`bankAccountsRegistry.type.${r.accountType}`)}</td>
-                <td className={DATA_TABLE_TD_CLASS}>{r.ledgerAccountCode}</td>
-                <td className={DATA_TABLE_TD_CLASS}>
+                <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`}>{r.bankName}</td>
+                <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`}>{r.iban}</td>
+                <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`}>{r.currency}</td>
+                <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`}>
+                  {t(`bankAccountsRegistry.type.${r.accountType}`)}
+                </td>
+                <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`}>{r.ledgerAccountCode}</td>
+                <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`}>
                   <div className="flex items-center gap-2">
                     {r.isPrimary ? <span>{t("bankAccountsRegistry.primary")}</span> : null}
                     {r.isFrozen ? (
-                      <span className="rounded-full border border-[#FECACA] bg-[#FEF2F2] px-2 py-0.5 text-xs font-semibold text-[#B42318]">
+                      <span className="rounded-full border border-[#FECACA] bg-[#FEF2F2] px-2 py-0.5 text-[11px] font-semibold text-[#B42318]">
                         {t("bankAccountsRegistry.frozenBadge")}
                       </span>
                     ) : null}
                     {!r.isPrimary && !r.isFrozen ? "-" : null}
                   </div>
                 </td>
-                <td className={DATA_TABLE_TD_CLASS}>
+                <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`}>{directSyncHint(r)}</td>
+                <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`}>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" className="px-3 py-1.5 text-xs" onClick={() => { setEditing(r); setModalOpen(true); }}>{t("common.edit")}</Button>
-                    <Button variant="secondary" className="px-3 py-1.5 text-xs text-[#B42318]" onClick={() => void removeRow(r.id)}>{t("common.delete")}</Button>
+                    <Button
+                      variant="outline"
+                      className="px-3 py-1.5 text-xs"
+                      onClick={() => {
+                        setEditing(r);
+                        setModalOpen(true);
+                      }}
+                    >
+                      {t("common.edit")}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="px-3 py-1.5 text-xs text-[#B42318]"
+                      onClick={() => void removeRow(r.id)}
+                    >
+                      {t("common.delete")}
+                    </Button>
                   </div>
                 </td>
               </tr>
             ))}
             {!loading && rows.length === 0 ? (
               <tr>
-                <td className={DATA_TABLE_TD_CLASS} colSpan={7}>{t("bankAccountsRegistry.empty")}</td>
+                <td className={`${DATA_TABLE_TD_CLASS} text-[13px]`} colSpan={8}>
+                  {t("bankAccountsRegistry.empty")}
+                </td>
               </tr>
             ) : null}
           </tbody>
@@ -148,4 +219,3 @@ export default function BankAccountsSettingsPage() {
     </div>
   );
 }
-

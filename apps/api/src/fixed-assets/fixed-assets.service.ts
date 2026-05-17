@@ -193,6 +193,147 @@ export class FixedAssetsService {
     );
   }
 
+  async listMonthlyUsage(organizationId: string, year: number, month: number) {
+    if (month < 1 || month > 12) {
+      throw new BadRequestException("month must be in range 1-12");
+    }
+    const [assets, usages] = await Promise.all([
+      this.prisma.fixedAsset.findMany({
+        where: {
+          organizationId,
+          depreciationMethod: FixedAssetDepreciationMethod.UNITS_OF_PRODUCTION,
+          status: "ACTIVE",
+        },
+        orderBy: [{ inventoryNumber: "asc" }],
+      }),
+      this.prisma.fixedAssetMonthlyUsage.findMany({
+        where: { organizationId, year, month },
+      }),
+    ]);
+    const usageByAsset = new Map(usages.map((u) => [u.fixedAssetId, u]));
+    return {
+      year,
+      month,
+      items: assets.map((a) => {
+        const u = usageByAsset.get(a.id);
+        return {
+          fixedAssetId: a.id,
+          name: a.name,
+          inventoryNumber: a.inventoryNumber,
+          totalExpectedUnits: a.totalExpectedUnits,
+          unitsProducedTotal: a.unitsProducedTotal,
+          periodUnits: u ? Number(u.periodUnits) : null,
+          usageId: u?.id ?? null,
+        };
+      }),
+    };
+  }
+
+  async upsertMonthlyUsage(
+    organizationId: string,
+    assetId: string,
+    params: { year: number; month: number; periodUnits: number },
+  ) {
+    const asset = await this.getOne(organizationId, assetId);
+    if (asset.depreciationMethod !== FixedAssetDepreciationMethod.UNITS_OF_PRODUCTION) {
+      throw new BadRequestException(
+        "Monthly usage is only for UNITS_OF_PRODUCTION assets",
+      );
+    }
+    if (params.periodUnits <= 0) {
+      throw new BadRequestException("periodUnits must be positive");
+    }
+    const depExists = await this.prisma.fixedAssetDepreciationMonth.findUnique({
+      where: {
+        fixedAssetId_year_month: {
+          fixedAssetId: assetId,
+          year: params.year,
+          month: params.month,
+        },
+      },
+    });
+    if (depExists) {
+      throw new ConflictException(
+        "Depreciation already posted for this asset and month",
+      );
+    }
+    return this.prisma.fixedAssetMonthlyUsage.upsert({
+      where: {
+        fixedAssetId_year_month: {
+          fixedAssetId: assetId,
+          year: params.year,
+          month: params.month,
+        },
+      },
+      create: {
+        organizationId,
+        fixedAssetId: assetId,
+        year: params.year,
+        month: params.month,
+        periodUnits: new Decimal(params.periodUnits),
+      },
+      update: {
+        periodUnits: new Decimal(params.periodUnits),
+      },
+    });
+  }
+
+  async bulkUpsertMonthlyUsage(
+    organizationId: string,
+    params: {
+      year: number;
+      month: number;
+      entries: Array<{ fixedAssetId: string; periodUnits: number }>;
+    },
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const results = [];
+      for (const e of params.entries) {
+        const asset = await tx.fixedAsset.findFirst({
+          where: { id: e.fixedAssetId, organizationId },
+        });
+        if (!asset) {
+          throw new NotFoundException(`Fixed asset ${e.fixedAssetId} not found`);
+        }
+        if (asset.depreciationMethod !== FixedAssetDepreciationMethod.UNITS_OF_PRODUCTION) {
+          throw new BadRequestException(
+            `Asset ${e.fixedAssetId} is not UNITS_OF_PRODUCTION`,
+          );
+        }
+        const depExists = await tx.fixedAssetDepreciationMonth.findUnique({
+          where: {
+            fixedAssetId_year_month: {
+              fixedAssetId: e.fixedAssetId,
+              year: params.year,
+              month: params.month,
+            },
+          },
+        });
+        if (depExists) continue;
+
+        const row = await tx.fixedAssetMonthlyUsage.upsert({
+          where: {
+            fixedAssetId_year_month: {
+              fixedAssetId: e.fixedAssetId,
+              year: params.year,
+              month: params.month,
+            },
+          },
+          create: {
+            organizationId,
+            fixedAssetId: e.fixedAssetId,
+            year: params.year,
+            month: params.month,
+            periodUnits: new Decimal(e.periodUnits),
+          },
+          update: { periodUnits: new Decimal(e.periodUnits) },
+        });
+        results.push(row);
+      }
+      return { year: params.year, month: params.month, saved: results.length };
+    });
+  }
+
   private assertDepreciationFieldConsistency(params: {
     depreciationMethod: FixedAssetDepreciationMethod;
     totalExpectedUnits: Prisma.Decimal | null;

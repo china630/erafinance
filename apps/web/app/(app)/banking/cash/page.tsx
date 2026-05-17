@@ -2,7 +2,7 @@
 
 import { CheckCircle2, Eye, Printer, Wallet, X } from "lucide-react";
 import { toast } from "sonner";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "../../../../components/empty-state";
 import { KO1PrintForm, type KO1PrintOrder } from "../../../../components/print/KO1PrintForm";
@@ -178,6 +178,9 @@ export default function BankingCashPage() {
 
   const [balances, setBalances] = useState<Record<string, string> | null>(null);
   const [orders, setOrders] = useState<CashOrderRow[]>([]);
+  const [ordersTotal, setOrdersTotal] = useState(0);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersPageSize, setOrdersPageSize] = useState(25);
   const [accountable, setAccountable] = useState<AccountableRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeOpt[]>([]);
   const [pkoCpLabel, setPkoCpLabel] = useState("");
@@ -239,6 +242,11 @@ export default function BankingCashPage() {
   const [ko1PrintOrder, setKo1PrintOrder] = useState<KO1PrintOrder | null>(null);
   const [viewOrder, setViewOrder] = useState<CashOrderRow | null>(null);
   const [yearMonth, setYearMonth] = useState(defaultYearMonth);
+  const [accountableDialogOpen, setAccountableDialogOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    setOrdersPage(1);
+  }, [yearMonth]);
 
   const fetchCashCounterpartiesIncoming = useCallback(async (search: string) => {
     const q = new URLSearchParams();
@@ -269,7 +277,7 @@ export default function BankingCashPage() {
     setLoading(true);
     setErr(null);
     const { from, to } = monthDateRange(yearMonth);
-    const ordersQuery = `dateFrom=${encodeURIComponent(from)}&dateTo=${encodeURIComponent(to)}`;
+    const ordersQuery = `dateFrom=${encodeURIComponent(from)}&dateTo=${encodeURIComponent(to)}&page=${encodeURIComponent(String(ordersPage))}&pageSize=${encodeURIComponent(String(ordersPageSize))}`;
     const [b, o, e, chart, cf, desks] = await Promise.all([
       apiFetch(`/api/banking/cash/balances?${lq}`),
       apiFetch(`/api/banking/cash/orders?${ordersQuery}`),
@@ -286,7 +294,9 @@ export default function BankingCashPage() {
       return;
     }
     setBalances((await b.json()) as Record<string, string>);
-    setOrders((await o.json()) as CashOrderRow[]);
+    const oj = (await o.json()) as { items?: CashOrderRow[]; total?: number };
+    setOrders(Array.isArray(oj.items) ? oj.items : []);
+    setOrdersTotal(typeof oj.total === "number" ? oj.total : 0);
     if (e.ok) {
       const ej = (await e.json()) as { items?: EmployeeOpt[] };
       setEmployees(ej.items ?? []);
@@ -309,7 +319,7 @@ export default function BankingCashPage() {
       setAccountable((await accRes.json()) as AccountableRow[]);
     }
     setLoading(false);
-  }, [token, t, lq, yearMonth]);
+  }, [token, t, lq, yearMonth, ordersPage, ordersPageSize]);
 
   const loadAccountable = useCallback(async () => {
     if (!token) return;
@@ -542,6 +552,12 @@ export default function BankingCashPage() {
     [accountable],
   );
 
+  const ordersTotalPages = Math.max(1, Math.ceil(ordersTotal / ordersPageSize));
+
+  useEffect(() => {
+    if (ordersPage > ordersTotalPages) setOrdersPage(ordersTotalPages);
+  }, [ordersPage, ordersTotalPages]);
+
   async function submitAdvanceDraft(e: React.FormEvent) {
     e.preventDefault();
     if (!advEmployeeId) return;
@@ -617,21 +633,23 @@ export default function BankingCashPage() {
         <section className="space-y-6 max-w-7xl mx-auto">
         <PageHeader
           title={t("banking.cash.pageTitle")}
+          leading={
+            <div className="flex h-8 items-center gap-2">
+              <span className="shrink-0 text-sm font-medium leading-none text-[#34495E]">
+                {t("banking.monthPickerToolbarLabel")}
+              </span>
+              <input
+                type="month"
+                value={yearMonth}
+                disabled={loading}
+                onChange={(e) => setYearMonth(e.target.value)}
+                className={TOOLBAR_MONTH_INPUT_CLASS}
+                aria-label={t("banking.monthPickerLabel")}
+              />
+            </div>
+          }
           actions={
             <>
-              <div className="flex h-8 items-center gap-2">
-                <span className="shrink-0 text-sm leading-none text-slate-700">
-                  {t("banking.monthPickerToolbarLabel")}
-                </span>
-                <input
-                  type="month"
-                  value={yearMonth}
-                  disabled={loading}
-                  onChange={(e) => setYearMonth(e.target.value)}
-                  className={TOOLBAR_MONTH_INPUT_CLASS}
-                  aria-label={t("banking.monthPickerLabel")}
-                />
-              </div>
               <button
                 type="button"
                 disabled={loading}
@@ -659,6 +677,15 @@ export default function BankingCashPage() {
               <button
                 type="button"
                 disabled={loading}
+                onClick={() => setAccountableDialogOpen(true)}
+                className={SECONDARY_BUTTON_CLASS}
+                title={t("banking.cash.accountableHint")}
+              >
+                {t("banking.cash.sideAccountableTitle")}
+              </button>
+              <button
+                type="button"
+                disabled={loading}
                 onClick={() => setQuickOpen(true)}
                 className={SECONDARY_BUTTON_CLASS}
               >
@@ -679,22 +706,31 @@ export default function BankingCashPage() {
           <>
             {loading && <p className="text-[#7F8C8D] text-[13px]">{t("common.loading")}</p>}
 
-            <div className={`${CARD_CONTAINER_CLASS} p-5`}>
-              <h2 className="text-base font-semibold text-[#34495E] m-0">{t("banking.cash.balanceTitle")}</h2>
+            <div className="space-y-3">
+              <h2 className="m-0 text-base font-semibold text-[#34495E]">{t("banking.cash.balanceTitle")}</h2>
               {balances && (
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div>
-                    <p className="text-xs text-slate-500 m-0">{t("banking.cash.currencyAzn")}</p>
-                    <p className="text-lg font-semibold tabular-nums m-0">{balances.AZN ?? "0.00"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 m-0">{t("banking.cash.currencyUsd")}</p>
-                    <p className="text-lg font-semibold tabular-nums m-0">{balances.USD ?? "0.00"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 m-0">{t("banking.cash.currencyEur")}</p>
-                    <p className="text-lg font-semibold tabular-nums m-0">{balances.EUR ?? "0.00"}</p>
-                  </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {(["AZN", "USD", "EUR"] as const).map((cur) => (
+                    <div key={cur} className={`${CARD_CONTAINER_CLASS} p-5`}>
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#EBEDF0] text-[#2980B9]">
+                          <Wallet className="h-5 w-5" aria-hidden />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="m-0 text-xs font-medium text-slate-500">
+                            {cur === "AZN"
+                              ? t("banking.cash.currencyAzn")
+                              : cur === "USD"
+                                ? t("banking.cash.currencyUsd")
+                                : t("banking.cash.currencyEur")}
+                          </p>
+                          <p className="m-0 mt-2 text-lg font-semibold tabular-nums text-[#34495E]">
+                            {balances[cur] ?? "0.00"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -779,7 +815,52 @@ export default function BankingCashPage() {
                   </tbody>
                 </table>
               </div>
-              {!loading && orders.length === 0 && (
+              {ordersTotal > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#EBEDF0] pt-3 text-[13px] text-[#34495E]">
+                  <label className="flex items-center gap-2">
+                    <span className="text-[#7F8C8D]">{t("common.paginationRowsPerPage")}</span>
+                    <select
+                      className={`${MODAL_INPUT_CLASS} !mt-0 h-9 min-w-[4.5rem]`}
+                      value={String(ordersPageSize)}
+                      onChange={(e) => {
+                        setOrdersPageSize(Number(e.target.value) || 25);
+                        setOrdersPage(1);
+                      }}
+                    >
+                      <option value="10">10</option>
+                      <option value="25">25</option>
+                      <option value="50">50</option>
+                      <option value="100">100</option>
+                    </select>
+                  </label>
+                  <span className="tabular-nums text-[#7F8C8D]">
+                    {t("common.paginationPageOf", {
+                      page: String(ordersPage),
+                      pages: String(ordersTotalPages),
+                      total: String(ordersTotal),
+                    })}
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className={SECONDARY_BUTTON_CLASS}
+                      disabled={ordersPage <= 1}
+                      onClick={() => setOrdersPage((p) => Math.max(1, p - 1))}
+                    >
+                      {t("common.paginationPrev")}
+                    </button>
+                    <button
+                      type="button"
+                      className={SECONDARY_BUTTON_CLASS}
+                      disabled={ordersPage >= ordersTotalPages}
+                      onClick={() => setOrdersPage((p) => Math.min(ordersTotalPages, p + 1))}
+                    >
+                      {t("common.paginationNext")}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {!loading && ordersTotal === 0 && (
                 <p className="px-4 py-6 text-slate-500 text-sm">—</p>
               )}
             </div>
@@ -850,33 +931,65 @@ export default function BankingCashPage() {
               </div>
             ) : null}
 
-            <div className={`${CARD_CONTAINER_CLASS} p-4`}>
-              <h2 className="m-0 text-sm font-semibold text-[#34495E]">{t("banking.cash.sideAccountableTitle")}</h2>
-              <p className="mb-3 mt-1 text-xs text-[#7F8C8D]">{t("banking.cash.accountableHint")}</p>
-              <table className={`${DATA_TABLE_CLASS} min-w-full`}>
-                <thead>
-                  <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
-                    <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("banking.cash.thEmployee")}</th>
-                    <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("banking.cash.thBalance")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accountable.map((r) => (
-                    <tr key={r.employee.id} className={DATA_TABLE_TR_CLASS}>
-                      <td className={DATA_TABLE_TD_CLASS}>
-                        {r.employee.firstName} {r.employee.lastName}
-                      </td>
-                      <td className={DATA_TABLE_TD_RIGHT_CLASS}>
-                        {r.balance} {r.currency}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {accountable.length === 0 && (
-                <p className="text-xs text-slate-500 mt-2 mb-0">{t("banking.cash.accountableEmpty")}</p>
-              )}
-            </div>
+            {accountableDialogOpen ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div
+                  className={`${MODAL_DIALOG_CONTENT_CLASS} flex max-h-[min(90vh,48rem)] w-full max-w-2xl flex-col`}
+                  role="dialog"
+                  aria-modal="true"
+                >
+                  <header className="flex shrink-0 items-start justify-between gap-3">
+                    <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
+                      {t("banking.cash.sideAccountableTitle")}
+                    </h3>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className={MODAL_CLOSE_BUTTON_CLASS}
+                      onClick={() => setAccountableDialogOpen(false)}
+                      aria-label={t("common.close")}
+                    >
+                      <X className="h-4 w-4 shrink-0" aria-hidden />
+                    </Button>
+                  </header>
+                  <p className="m-0 text-[13px] leading-snug text-[#7F8C8D]">{t("banking.cash.accountableHint")}</p>
+                  <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
+                    <div className={DATA_TABLE_VIEWPORT_CLASS}>
+                      <table className={`${DATA_TABLE_CLASS} min-w-full`}>
+                        <thead>
+                          <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
+                            <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("banking.cash.thEmployee")}</th>
+                            <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("banking.cash.thAccount244")}</th>
+                            <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("banking.cash.thBalance")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {accountable.length === 0 ? (
+                            <tr className={DATA_TABLE_TR_CLASS}>
+                              <td className={DATA_TABLE_TD_CLASS} colSpan={3}>
+                                {t("banking.cash.accountableEmpty")}
+                              </td>
+                            </tr>
+                          ) : (
+                            accountable.map((r) => (
+                              <tr key={r.employee.id} className={DATA_TABLE_TR_CLASS}>
+                                <td className={DATA_TABLE_TD_CLASS}>
+                                  {r.employee.firstName} {r.employee.lastName}
+                                </td>
+                                <td className={`${DATA_TABLE_TD_CLASS} font-mono text-xs`}>{r.accountCode}</td>
+                                <td className={DATA_TABLE_TD_RIGHT_CLASS}>
+                                  {r.balance} {r.currency}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </>
         )}
 
@@ -1022,6 +1135,7 @@ export default function BankingCashPage() {
                     required
                   />
                 </label>
+                <p className="m-0 text-[13px] leading-snug text-[#7F8C8D]">{t("banking.cash.advanceCurrencyAznNote")}</p>
                 <div className="flex flex-col gap-1.5">
                   <div className="text-[13px] font-semibold text-[#34495E]">{t("banking.cash.advanceLines")}</div>
                   {advLines.map((line, i) => (
@@ -1282,7 +1396,11 @@ export default function BankingCashPage() {
 
         {rkoOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-lg`} role="dialog" aria-modal="true">
+            <div
+              className={`${MODAL_DIALOG_CONTENT_CLASS} flex max-h-[min(90vh,52rem)] w-full max-w-lg flex-col`}
+              role="dialog"
+              aria-modal="true"
+            >
               <header className="flex shrink-0 items-start justify-between gap-3">
                 <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
                   {t("banking.cash.rkoTitle")}
@@ -1297,7 +1415,8 @@ export default function BankingCashPage() {
                   <X className="h-4 w-4 shrink-0" aria-hidden />
                 </Button>
               </header>
-              <form className="mt-4 flex min-h-0 flex-1 flex-col space-y-4" onSubmit={submitRko}>
+              <form className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden" onSubmit={submitRko}>
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5">
                 <label className={MODAL_FIELD_LABEL_CLASS}>
                   {t("banking.cash.date")}
                   <DatePicker
@@ -1398,6 +1517,7 @@ export default function BankingCashPage() {
                     getOptionLabel={(c) => `${c.name}${c.taxId ? ` (${String(c.taxId)})` : ""}`}
                     placeholder="—"
                     selectedLabel={rkoCpLabel}
+                    portaled
                   />
                 </label>
                 <label className={MODAL_FIELD_LABEL_CLASS}>
@@ -1454,6 +1574,7 @@ export default function BankingCashPage() {
                     rows={2}
                   />
                 </label>
+                </div>
                 <div className={MODAL_FOOTER_ACTIONS_CLASS}>
                   <Button type="button" variant="outline" className={MODAL_FOOTER_BUTTON_CLASS} onClick={() => setRkoOpen(false)}>
                     {t("common.cancel")}

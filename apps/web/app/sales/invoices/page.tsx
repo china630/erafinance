@@ -36,6 +36,7 @@ import { formatInvoiceStatus } from "../../../lib/invoice-status";
 import { formatMoneyAzn } from "../../../lib/format-money";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { PageHeader } from "../../../components/layout/page-header";
+import { ListPaginationFooter } from "../../../components/list-pagination-footer";
 import { ExtensionInstallBanner } from "../../../components/extension-install-banner";
 import { RpaUpsellModal } from "../../../components/rpa-upsell-modal";
 import { EmptyState } from "../../../components/empty-state";
@@ -68,12 +69,22 @@ function canCreateShipmentOrder(r: Row): boolean {
   );
 }
 
+type InvoicesListResponse = {
+  items: Row[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 export default function InvoicesPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
   const router = useRouter();
   const search = useSearchParams();
   const [rows, setRows] = useState<Row[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -114,20 +125,30 @@ export default function InvoicesPage() {
   const load = useCallback(async () => {
     if (!token) {
       setRows([]);
+      setTotal(0);
       setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
-    const res = await apiFetch("/api/invoices");
+    const qs = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    const res = await apiFetch(`/api/invoices?${qs.toString()}`);
     if (!res.ok) {
       setError(`${t("invoices.loadError")}: ${res.status}`);
       setRows([]);
+      setTotal(0);
     } else {
-      setRows(await res.json());
+      const body = (await res.json()) as InvoicesListResponse;
+      const items = Array.isArray(body.items) ? body.items : [];
+      setRows(items);
+      setTotal(typeof body.total === "number" ? body.total : items.length);
+      setSelectedIds([]);
     }
     setLoading(false);
-  }, [token, t]);
+  }, [token, t, page, pageSize]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -138,6 +159,11 @@ export default function InvoicesPage() {
     if (!ready || !token) return;
     return subscribeListRefresh("invoices", () => void load());
   }, [load, ready, token]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     if (!invoiceActionsMenuId) return;
@@ -323,7 +349,7 @@ export default function InvoicesPage() {
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
       {loading && <p className="text-gray-600">{t("common.loading")}</p>}
-      {!loading && rows.length === 0 && !error && (
+      {!loading && total === 0 && !error && (
         <EmptyState
           title={t("invoices.none")}
           description={t("invoices.emptyHint")}
@@ -337,7 +363,7 @@ export default function InvoicesPage() {
           }
         />
       )}
-      {!loading && rows.length > 0 && (
+      {!loading && total > 0 && (
         <>
           <div className="md:hidden space-y-3">
             {rows.map((r) => (
@@ -769,6 +795,16 @@ export default function InvoicesPage() {
             </table>
           </div>
         </>
+      )}
+
+      {!loading && (
+        <ListPaginationFooter
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
       )}
 
       <CreateInvoiceModal open={createOpen} onClose={() => setCreateOpen(false)} />

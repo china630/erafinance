@@ -7,7 +7,7 @@ import {
   downloadAuditHubCsv,
   downloadAuditHubXlsx,
 } from "../../lib/audit-hub-export";
-import { SECONDARY_BUTTON_CLASS } from "../../lib/design-system";
+import { CARD_CONTAINER_CLASS, LINK_ACCENT_CLASS, SECONDARY_BUTTON_CLASS } from "../../lib/design-system";
 
 export type RiskPayload = {
   from: string;
@@ -42,8 +42,8 @@ function isRiskPayload(v: unknown): v is RiskPayload {
 
 function countCardClass(n: number): string {
   return n > 0
-    ? "border-amber-200 bg-amber-50 text-amber-950"
-    : "border-emerald-200 bg-emerald-50 text-emerald-900";
+    ? "border-[#FAD7A0] bg-[#FFFBF0] text-[#34495E]"
+    : "border-[#D5DADF] bg-[#F8FAFC] text-[#34495E]";
 }
 
 export function buildRiskExportSheets(payload: RiskPayload) {
@@ -150,30 +150,30 @@ export function AuditHubRiskResultPanel({ payload }: { payload: unknown }) {
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        <div className={`rounded-lg border px-3 py-2 text-xs ${countCardClass(nCash)}`}>
+        <div className={`rounded-2xl border px-3 py-2 text-xs shadow-sm ${countCardClass(nCash)}`}>
           <div className="font-semibold">{t("auditHub.riskCardDupCash")}</div>
           <div className="mt-1 text-lg font-bold tabular-nums">{nCash}</div>
         </div>
-        <div className={`rounded-lg border px-3 py-2 text-xs ${countCardClass(nPay)}`}>
+        <div className={`rounded-2xl border px-3 py-2 text-xs shadow-sm ${countCardClass(nPay)}`}>
           <div className="font-semibold">{t("auditHub.riskCardDupPay")}</div>
           <div className="mt-1 text-lg font-bold tabular-nums">{nPay}</div>
         </div>
-        <div className={`rounded-lg border px-3 py-2 text-xs ${countCardClass(nExp)}`}>
+        <div className={`rounded-2xl border px-3 py-2 text-xs shadow-sm ${countCardClass(nExp)}`}>
           <div className="font-semibold">{t("auditHub.riskCardExpense")}</div>
           <div className="mt-1 text-lg font-bold tabular-nums">{nExp}</div>
         </div>
-        <div className={`rounded-lg border px-3 py-2 text-xs ${countCardClass(nCp)}`}>
+        <div className={`rounded-2xl border px-3 py-2 text-xs shadow-sm ${countCardClass(nCp)}`}>
           <div className="font-semibold">{t("auditHub.riskCardCpLoad")}</div>
           <div className="mt-1 text-lg font-bold tabular-nums">{nCp}</div>
         </div>
-        <div className={`rounded-lg border px-3 py-2 text-xs ${countCardClass(nZ)}`}>
+        <div className={`rounded-2xl border px-3 py-2 text-xs shadow-sm ${countCardClass(nZ)}`}>
           <div className="font-semibold">{t("auditHub.riskCardCpZ")}</div>
           <div className="mt-1 text-lg font-bold tabular-nums">{nZ}</div>
         </div>
       </div>
 
-      <section className="rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-sm">
-        <h3 className="text-xs font-semibold text-[#2C3E50]">{t("auditHub.riskSectionDupCash")}</h3>
+      <section className={`${CARD_CONTAINER_CLASS} p-4`}>
+        <h3 className="text-xs font-semibold text-[#34495E]">{t("auditHub.riskSectionDupCash")}</h3>
         <RiskPairTable
           rows={d.duplicateCashOrders.pairs}
           columns={[
@@ -187,8 +187,8 @@ export function AuditHubRiskResultPanel({ payload }: { payload: unknown }) {
         />
       </section>
 
-      <section className="rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-sm">
-        <h3 className="text-xs font-semibold text-[#2C3E50]">{t("auditHub.riskSectionDupPay")}</h3>
+      <section className={`${CARD_CONTAINER_CLASS} p-4`}>
+        <h3 className="text-xs font-semibold text-[#34495E]">{t("auditHub.riskSectionDupPay")}</h3>
         <RiskPairTable
           rows={d.duplicateInvoicePayments.pairs}
           columns={[
@@ -210,16 +210,16 @@ export function AuditHubRiskResultPanel({ payload }: { payload: unknown }) {
         />
       </section>
 
-      <section className="rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-sm">
-        <h3 className="text-xs font-semibold text-[#2C3E50]">{t("auditHub.riskSectionExpense")}</h3>
+      <section className={`${CARD_CONTAINER_CLASS} p-4`}>
+        <h3 className="text-xs font-semibold text-[#34495E]">{t("auditHub.riskSectionExpense")}</h3>
         <RiskPairTable
           rows={d.expenseAccountSpikes.items}
           columns={[{ key: "accountCode" }, { key: "accountId" }, { key: "totalDebitNas" }]}
         />
       </section>
 
-      <section className="rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-sm">
-        <h3 className="text-xs font-semibold text-[#2C3E50]">{t("auditHub.riskSectionCpLoad")}</h3>
+      <section className={`${CARD_CONTAINER_CLASS} p-4`}>
+        <h3 className="text-xs font-semibold text-[#34495E]">{t("auditHub.riskSectionCpLoad")}</h3>
         <RiskPairTable
           rows={d.counterpartyPaymentConcentration.items}
           columns={[
@@ -233,8 +233,8 @@ export function AuditHubRiskResultPanel({ payload }: { payload: unknown }) {
         />
       </section>
 
-      <section className="rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-sm">
-        <h3 className="text-xs font-semibold text-[#2C3E50]">{t("auditHub.riskSectionCpZ")}</h3>
+      <section className={`${CARD_CONTAINER_CLASS} p-4`}>
+        <h3 className="text-xs font-semibold text-[#34495E]">{t("auditHub.riskSectionCpZ")}</h3>
         {d.counterpartyZScore.note ? (
           <p className="mb-2 text-[11px] text-[#5D6D7E]">{d.counterpartyZScore.note}</p>
         ) : null}
@@ -253,8 +253,8 @@ export function AuditHubRiskResultPanel({ payload }: { payload: unknown }) {
       </section>
 
       {showRaw ? (
-        <div className="max-h-[360px] overflow-auto rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] p-3">
-          <pre className="whitespace-pre-wrap break-all text-[11px]">
+        <div className={`max-h-[360px] overflow-auto ${CARD_CONTAINER_CLASS} p-4`}>
+          <pre className="whitespace-pre-wrap break-all font-mono text-[11px] text-[#34495E]">
             {JSON.stringify(parsed, null, 2)}
           </pre>
         </div>
@@ -276,10 +276,10 @@ function RiskPairTable({
   return (
     <div className="mt-2 max-h-[280px] overflow-auto">
       <table className="w-full border-collapse text-left text-[11px]">
-        <thead className="sticky top-0 bg-[#F9FAFB] text-[#34495E]">
+        <thead className="sticky top-0 z-10 border-b border-[#D5DADF] bg-[#F8FAFC] text-[#475569]">
           <tr>
             {columns.map((c) => (
-              <th key={c.key} className="border-b border-[#E5E7EB] px-2 py-1.5 font-medium">
+              <th key={c.key} className="border-b border-[#D5DADF] px-2 py-1.5 font-medium">
                 {c.key}
               </th>
             ))}
@@ -287,15 +287,15 @@ function RiskPairTable({
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-[#F3F4F6] hover:bg-[#FAFAFA]">
+            <tr key={i} className="border-b border-[#D5DADF] transition-colors hover:bg-[#F1F5F9]">
               {columns.map((c) => {
                 const v = row[c.key];
                 const href = c.link && v != null && v !== "" ? c.link(v) : null;
                 const text = v === null || v === undefined ? "—" : String(v);
                 return (
-                  <td key={c.key} className="px-2 py-1.5 font-mono text-[#2C3E50]">
+                  <td key={c.key} className="px-2 py-1.5 font-mono text-[#34495E]">
                     {href ? (
-                      <Link className="text-[#1D4ED8] underline" href={href}>
+                      <Link className={LINK_ACCENT_CLASS} href={href}>
                         {text}
                       </Link>
                     ) : (

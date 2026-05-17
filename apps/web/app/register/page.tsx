@@ -131,6 +131,11 @@ export default function RegisterPage() {
             {t("auth.haveAccount")}
           </Link>
         </p>
+        <p className="mt-2 text-sm text-center">
+          <Link href="/pricing" className={LINK_ACCENT_CLASS}>
+            {t("auth.viewPricing")}
+          </Link>
+        </p>
         <p className="mt-3 text-sm text-gray-600">
           <Link href="/register-org" className={LINK_ACCENT_CLASS}>
             {t("auth.registerOrgLink")}

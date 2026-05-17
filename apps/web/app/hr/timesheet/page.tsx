@@ -20,6 +20,7 @@ import {
   PRIMARY_BUTTON_CLASS,
   SECONDARY_BUTTON_CLASS,
 } from "../../../lib/design-system";
+import { TOOLBAR_MONTH_INPUT_CLASS } from "../../../lib/form-styles";
 import { useAuth } from "../../../lib/auth-context";
 import { isRestrictedUserRole } from "../../../lib/role-utils";
 
@@ -77,6 +78,11 @@ export default function HrTimesheetPage() {
 
   const lastDay = useMemo(
     () => new Date(year, month, 0).getDate(),
+    [year, month],
+  );
+
+  const yearMonth = useMemo(
+    () => `${year}-${String(month).padStart(2, "0")}`,
     [year, month],
   );
 
@@ -286,32 +292,29 @@ export default function HrTimesheetPage() {
   return (
     <div className="space-y-6 max-w-[100vw]">
       <PageHeader
-        title={t("hrTimesheet.title")}
+        title={t("timesheet.title")}
         subtitle={t("timesheet.subtitle")}
-        actions={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-              {t("payroll.year")}
+        leading={
+          <div className="flex flex-col gap-2">
+            <div className="flex h-8 flex-wrap items-center gap-2">
+              <span className="shrink-0 text-sm font-medium leading-none text-[#34495E]">
+                {t("banking.monthPickerToolbarLabel")}
+              </span>
               <input
-                type="number"
-                className={`w-24 ${INPUT_BORDERED_CLASS} py-1.5`}
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
+                type="month"
+                value={yearMonth}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!/^\d{4}-\d{2}$/.test(v)) return;
+                  setYear(Number(v.slice(0, 4)));
+                  setMonth(Number(v.slice(5, 7)));
+                }}
+                className={TOOLBAR_MONTH_INPUT_CLASS}
+                aria-label={t("banking.monthPickerLabel")}
               />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-              {t("payroll.month")}
-              <input
-                type="number"
-                min={1}
-                max={12}
-                className={`w-20 ${INPUT_BORDERED_CLASS} py-1.5`}
-                value={month}
-                onChange={(e) => setMonth(Number(e.target.value))}
-              />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-              {t("timesheet.status")}
+            </div>
+            <p className="m-0 text-sm text-slate-600">
+              {t("timesheet.status")}:{" "}
               <span className="font-medium text-gray-900">
                 {timesheet
                   ? timesheet.status === "APPROVED"
@@ -319,20 +322,14 @@ export default function HrTimesheetPage() {
                     : t("timesheet.statusDraft")
                   : "—"}
               </span>
-            </label>
+            </p>
           </div>
         }
-      />
-
-      {error && <p className="text-red-600 text-sm">{error}</p>}
-      {loading && <p className="text-gray-600">{t("common.loading")}</p>}
-
-      {!loading && timesheet && (
-        <>
-          <div className="flex flex-wrap gap-2">
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
-              disabled={busy || !canEdit}
+              disabled={busy || !canEdit || !timesheet}
               onClick={() => void runAutofill()}
               className={PRIMARY_BUTTON_CLASS}
             >
@@ -340,7 +337,7 @@ export default function HrTimesheetPage() {
             </button>
             <button
               type="button"
-              disabled={busy || !canEdit}
+              disabled={busy || !canEdit || !timesheet}
               onClick={() => void runSyncAbsences()}
               className={SECONDARY_BUTTON_CLASS}
             >
@@ -348,7 +345,7 @@ export default function HrTimesheetPage() {
             </button>
             <button
               type="button"
-              disabled={busy || !canEdit}
+              disabled={busy || !canEdit || !timesheet}
               onClick={() => void runApprove()}
               className={PRIMARY_BUTTON_CLASS}
             >
@@ -363,10 +360,17 @@ export default function HrTimesheetPage() {
               {t("timesheet.massApproveBtn", { defaultValue: "Массово утвердить" })}
             </button>
             <Link href="/payroll" className={SECONDARY_BUTTON_CLASS}>
-              {t("hrTimesheet.newAbsence")}
+              {t("timesheet.newAbsence")}
             </Link>
           </div>
+        }
+      />
 
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+      {loading && <p className="text-gray-600">{t("common.loading")}</p>}
+
+      {!loading && timesheet && (
+        <>
           <section className={`${CARD_CONTAINER_CLASS} p-4`}>
             <h2 className="mb-3 text-base font-semibold text-[#34495E]">{t("timesheet.batchTitle")}</h2>
             <div className="flex flex-wrap items-end gap-3 text-sm">
@@ -519,7 +523,22 @@ export default function HrTimesheetPage() {
             </table>
           </div>
 
-          <div className="flex flex-wrap gap-4 text-xs text-slate-600">
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-600">
+            <span>
+              <strong>{t("timesheet.codeWork")}</strong> — {t("timesheet.typeWork")}
+            </span>
+            <span>
+              <strong>{t("timesheet.codeVacation")}</strong> — {t("timesheet.typeVacation")}
+            </span>
+            <span>
+              <strong>{t("timesheet.codeSick")}</strong> — {t("timesheet.typeSick")}
+            </span>
+            <span>
+              <strong>{t("timesheet.codeOff")}</strong> — {t("timesheet.typeOff")}
+            </span>
+            <span>
+              <strong>{t("timesheet.codeTrip")}</strong> — {t("timesheet.typeTrip")}
+            </span>
             <span>
               <strong>{t("timesheet.termSalahiyyat")}</strong> — {t("timesheet.termSalahiyyatDesc")}
             </span>

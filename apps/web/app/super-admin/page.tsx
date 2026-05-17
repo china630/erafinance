@@ -6,11 +6,12 @@ import type { TFunction } from "i18next";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Building2, Check, LogIn, Pencil, Trash2, X } from "lucide-react";
+import { Building2, LogIn, Pencil, Trash2, X } from "lucide-react";
 import { EmptyState } from "../../components/empty-state";
 import { Button } from "../../components/ui/button";
 import { useAuth } from "../../lib/auth-context";
 import { apiFetch } from "../../lib/api-client";
+import { LandingModulesEditor } from "../../components/super-admin/landing-modules-editor";
 import {
   CARD_CONTAINER_CLASS,
   DATA_TABLE_ACTIONS_TD_CLASS,
@@ -46,42 +47,8 @@ type Tab =
   | "subs"
   | "i18n"
   | "logs"
-  | "earlyAccess";
-
-type SubsSubTab = "pricing" | "quotas" | "bundles" | "trial" | "referrals";
-
-type TierKey = "STARTER" | "BUSINESS" | "ENTERPRISE";
-
-type BillingPayload = {
-  prices: Record<string, number>;
-  quotas: Record<string, unknown>;
-  /** Max OCR jobs per org per UTC month (`quota.ocr_jobs_per_org_month_v1`). */
-  ocrJobsPerOrgMonth: number;
-  foundationMonthlyAzn: number;
-  yearlyDiscountPercent: number;
-  quotaPricing: {
-    employeeBlockSize: number;
-    pricePerEmployeeBlockAzn: number;
-    documentPackSize: number;
-    pricePerDocumentPackAzn: number;
-  };
-  pricingModules: Array<{
-    id: string;
-    key: string;
-    name: string;
-    pricePerMonth: number;
-    sortOrder: number;
-  }>;
-  pricingBundles: Array<{
-    id: string;
-    name: string;
-    discountPercent: number;
-    moduleKeys: string[];
-    isTrialDefault?: boolean;
-    trialDurationDays?: number | null;
-    trialQuotas?: Record<string, unknown> | null;
-  }>;
-};
+  | "earlyAccess"
+  | "landing";
 
 const MODULE_SLUG_PRESETS = [
   "production",
@@ -90,6 +57,18 @@ const MODULE_SLUG_PRESETS = [
   "ifrs",
   "banking_pro",
   "hr_full",
+] as const;
+
+const INDUSTRY_MODULE_SLUG_PRESETS = [
+  "industry_retail_ecom",
+  "industry_logistics_customs",
+  "industry_construction",
+  "industry_crm_whatsapp",
+] as const;
+
+const ALL_MODULE_SLUG_PRESETS = [
+  ...MODULE_SLUG_PRESETS,
+  ...INDUSTRY_MODULE_SLUG_PRESETS,
 ] as const;
 
 /** ISO из БД (UTC) → YYYY-MM-DD для input type="date" без сдвига календарного дня. */
@@ -110,13 +89,6 @@ function addOneYearFromTodayDateInput(): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-function tierLabel(tier: string, t: TFunction): string {
-  if (tier === "STARTER" || tier === "BUSINESS" || tier === "ENTERPRISE") {
-    return t(`superAdmin.tier${tier}`);
-  }
-  return tier;
 }
 
 function roleLabel(role: string, t: TFunction): string {
@@ -144,66 +116,6 @@ function earlyAccessModuleLabel(moduleKey: string, t: TFunction): string {
     default:
       return moduleKey;
   }
-}
-
-function BundleSwitch({
-  checked,
-  onChange,
-  "aria-label": ariaLabel,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  "aria-label"?: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={ariaLabel}
-      onClick={() => onChange(!checked)}
-      className={[
-        "relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-[#2980B9] focus:ring-offset-1",
-        checked
-          ? "border-[#2980B9] bg-[#2980B9]"
-          : "border-[#D5DADF] bg-[#EBEDF0]",
-      ].join(" ")}
-    >
-      <span
-        className={[
-          "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform",
-          checked ? "translate-x-6" : "translate-x-1",
-        ].join(" ")}
-      />
-    </button>
-  );
-}
-
-function computeBundlePreview(
-  foundation: number,
-  modules: BillingPayload["pricingModules"],
-  selectedKeys: string[],
-  bundleDiscountPct: number,
-  yearlyDiscPct: number,
-) {
-  const keySet = new Set(selectedKeys);
-  const modulesSum = modules
-    .filter((m) => keySet.has(m.key))
-    .reduce((s, m) => s + m.pricePerMonth, 0);
-  const subtotal = foundation + modulesSum;
-  const afterBundle = subtotal * (1 - bundleDiscountPct / 100);
-  const monthly = afterBundle;
-  const yearly = monthly * 12 * (1 - yearlyDiscPct / 100);
-  return { subtotal, modulesSum, afterBundle, monthly, yearly };
-}
-
-function moduleNamesFromKeys(
-  keys: string[],
-  modules: BillingPayload["pricingModules"],
-): string {
-  const map = new Map(modules.map((m) => [m.key, m.name]));
-  if (keys.length === 0) return "—";
-  return keys.map((k) => map.get(k) ?? k).join(", ");
 }
 
 type OrgSubscription = {
@@ -263,71 +175,6 @@ export default function SuperAdminPage() {
     total: number;
     items: OrgRow[];
   } | null>(null);
-  const [billing, setBilling] = useState<BillingPayload | null>(null);
-  const [billingLoading, setBillingLoading] = useState(false);
-  const [billingLoadError, setBillingLoadError] = useState<string | null>(null);
-  const [billingLoadTimedOut, setBillingLoadTimedOut] = useState(false);
-  const [subsSubTab, setSubsSubTab] = useState<SubsSubTab>("pricing");
-  const [foundationStr, setFoundationStr] = useState("");
-  const [yearlyDiscStr, setYearlyDiscStr] = useState("");
-  const [quotaStr, setQuotaStr] = useState({
-    employeeBlockSize: "",
-    pricePerEmployeeBlockAzn: "",
-    documentPackSize: "",
-    pricePerDocumentPackAzn: "",
-  });
-  const [tierBillingPriceStr, setTierBillingPriceStr] = useState<
-    Record<TierKey, string>
-  >({
-    STARTER: "",
-    BUSINESS: "",
-    ENTERPRISE: "",
-  });
-  const [ocrJobsPerMonthStr, setOcrJobsPerMonthStr] = useState("");
-  const [modulePriceEdits, setModulePriceEdits] = useState<
-    Record<string, string>
-  >({});
-  const [newBundleName, setNewBundleName] = useState("");
-  const [newBundleDisc, setNewBundleDisc] = useState("0");
-  const [newBundleMods, setNewBundleMods] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [editingBundleId, setEditingBundleId] = useState<string | null>(null);
-  const [editBundleName, setEditBundleName] = useState("");
-  const [editBundleDisc, setEditBundleDisc] = useState("0");
-  const [editBundleMods, setEditBundleMods] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [trialBundleId, setTrialBundleId] = useState("");
-  const [trialDurationDays, setTrialDurationDays] = useState("90");
-  const [trialQuotasJson, setTrialQuotasJson] = useState("{}");
-  const [trialSaving, setTrialSaving] = useState(false);
-  const [tierQuotaDraft, setTierQuotaDraft] = useState<
-    Record<
-      TierKey,
-      {
-        maxEmployees: string;
-        maxInvoicesPerMonth: string;
-        maxStorageGb: string;
-      }
-    >
-  >({
-    STARTER: {
-      maxEmployees: "",
-      maxInvoicesPerMonth: "",
-      maxStorageGb: "",
-    },
-    BUSINESS: {
-      maxEmployees: "",
-      maxInvoicesPerMonth: "",
-      maxStorageGb: "",
-    },
-    ENTERPRISE: {
-      maxEmployees: "",
-      maxInvoicesPerMonth: "",
-      maxStorageGb: "",
-    },
-  });
   const [partners, setPartners] = useState<
     Array<{
       id: string;
@@ -462,133 +309,6 @@ export default function SuperAdminPage() {
     setUsers(await res.json());
   }, [token, usersPage, usersQ]);
 
-  const loadBilling = useCallback(async () => {
-    if (!token) return;
-    setBillingLoading(true);
-    setBillingLoadError(null);
-    setBillingLoadTimedOut(false);
-    try {
-      const res = await apiFetch("/api/admin/config/billing");
-      if (!res.ok) {
-        setBillingLoadError(`HTTP ${res.status}`);
-        setBilling(null);
-        return;
-      }
-      const raw = (await res.json()) as Partial<BillingPayload>;
-      const data: BillingPayload = {
-        prices: raw.prices ?? {},
-        quotas: raw.quotas ?? {},
-        ocrJobsPerOrgMonth:
-          typeof raw.ocrJobsPerOrgMonth === "number" &&
-          Number.isFinite(raw.ocrJobsPerOrgMonth)
-            ? raw.ocrJobsPerOrgMonth
-            : 200,
-        foundationMonthlyAzn: raw.foundationMonthlyAzn ?? 29,
-        yearlyDiscountPercent: raw.yearlyDiscountPercent ?? 20,
-        quotaPricing: raw.quotaPricing ?? {
-          employeeBlockSize: 10,
-          pricePerEmployeeBlockAzn: 15,
-          documentPackSize: 1000,
-          pricePerDocumentPackAzn: 5,
-        },
-        pricingModules: raw.pricingModules ?? [],
-        pricingBundles: raw.pricingBundles ?? [],
-      };
-      setBilling(data);
-      setFoundationStr(String(data.foundationMonthlyAzn ?? ""));
-      setYearlyDiscStr(String(data.yearlyDiscountPercent ?? ""));
-      const qp = data.quotaPricing;
-      setQuotaStr({
-        employeeBlockSize: String(qp?.employeeBlockSize ?? ""),
-        pricePerEmployeeBlockAzn: String(qp?.pricePerEmployeeBlockAzn ?? ""),
-        documentPackSize: String(qp?.documentPackSize ?? ""),
-        pricePerDocumentPackAzn: String(qp?.pricePerDocumentPackAzn ?? ""),
-      });
-      const prices = data.prices ?? {};
-      setTierBillingPriceStr({
-        STARTER: String(prices.STARTER ?? ""),
-        BUSINESS: String(prices.BUSINESS ?? ""),
-        ENTERPRISE: String(prices.ENTERPRISE ?? ""),
-      });
-      setOcrJobsPerMonthStr(String(data.ocrJobsPerOrgMonth ?? ""));
-      const mp: Record<string, string> = {};
-      for (const m of data.pricingModules ?? []) {
-        mp[m.id] = String(m.pricePerMonth);
-      }
-      setModulePriceEdits(mp);
-      setNewBundleMods((prev) => {
-        const next = { ...prev };
-        for (const m of data.pricingModules ?? []) {
-          if (next[m.key] === undefined) next[m.key] = false;
-        }
-        return next;
-      });
-      const tiers: TierKey[] = ["STARTER", "BUSINESS", "ENTERPRISE"];
-      const rawQuotas = data.quotas as Record<string, Record<string, unknown>>;
-      const tq = {
-        STARTER: {
-          maxEmployees: "",
-          maxInvoicesPerMonth: "",
-          maxStorageGb: "",
-        },
-        BUSINESS: {
-          maxEmployees: "",
-          maxInvoicesPerMonth: "",
-          maxStorageGb: "",
-        },
-        ENTERPRISE: {
-          maxEmployees: "",
-          maxInvoicesPerMonth: "",
-          maxStorageGb: "",
-        },
-      };
-      for (const tier of tiers) {
-        const q = rawQuotas?.[tier] ?? {};
-        tq[tier] = {
-          maxEmployees: String(q.maxEmployees ?? ""),
-          maxInvoicesPerMonth: String(q.maxInvoicesPerMonth ?? ""),
-          maxStorageGb: String(q.maxStorageGb ?? ""),
-        };
-      }
-      setTierQuotaDraft(tq);
-      const def = (data.pricingBundles ?? []).find((x) => x.isTrialDefault);
-      const firstB = data.pricingBundles?.[0];
-      const pick = def ?? firstB;
-      if (pick) {
-        setTrialBundleId(pick.id);
-        setTrialDurationDays(String(pick.trialDurationDays ?? 90));
-        setTrialQuotasJson(
-          pick.trialQuotas && typeof pick.trialQuotas === "object"
-            ? JSON.stringify(pick.trialQuotas, null, 2)
-            : "{}",
-        );
-      }
-      setBillingLoadTimedOut(false);
-    } catch (e) {
-      setBillingLoadError(e instanceof Error ? e.message : "error");
-      setBilling(null);
-    } finally {
-      setBillingLoading(false);
-    }
-  }, [token]);
-
-  const resetPricingCatalog = useCallback(async () => {
-    if (!token) return;
-    setBillingLoadError(null);
-    try {
-      const res = await apiFetch("/api/admin/config/billing/seed-pricing", {
-        method: "POST",
-      });
-      if (!res.ok) {
-        setBillingLoadError(`HTTP ${res.status}`);
-        return;
-      }
-      await loadBilling();
-    } catch (e) {
-      setBillingLoadError(e instanceof Error ? e.message : "error");
-    }
-  }, [token, loadBilling]);
-
   const loadPartners = useCallback(async () => {
     if (!token) return;
     setPartnersLoad(true);
@@ -604,14 +324,6 @@ export default function SuperAdminPage() {
       setPartnersLoad(false);
     }
   }, [token, t]);
-
-  useEffect(() => {
-    if (tab !== "subs" || !billingLoading) return;
-    const id = window.setTimeout(() => {
-      setBillingLoadTimedOut(true);
-    }, 5000);
-    return () => window.clearTimeout(id);
-  }, [tab, billingLoading]);
 
   const loadI18n = useCallback(async () => {
     if (!token) return;
@@ -703,12 +415,15 @@ export default function SuperAdminPage() {
     setSubTrial(sub?.isTrial ?? false);
     const mods = new Set(sub?.activeModules ?? []);
     const preset: Record<string, boolean> = {};
-    for (const s of MODULE_SLUG_PRESETS) {
+    for (const s of ALL_MODULE_SLUG_PRESETS) {
       preset[s] = mods.has(s);
     }
     setSubPreset(preset);
     const extraMods = (sub?.activeModules ?? []).filter(
-      (m) => !MODULE_SLUG_PRESETS.includes(m as (typeof MODULE_SLUG_PRESETS)[number]),
+      (m) =>
+        !ALL_MODULE_SLUG_PRESETS.includes(
+          m as (typeof ALL_MODULE_SLUG_PRESETS)[number],
+        ),
     );
     setSubExtra(extraMods.join(", "));
   }, []);
@@ -717,7 +432,7 @@ export default function SuperAdminPage() {
     if (!token || !subModalOrg) return;
     setSubSaving(true);
     setErr(null);
-    const fromPresets = MODULE_SLUG_PRESETS.filter((s) => subPreset[s]);
+    const fromPresets = ALL_MODULE_SLUG_PRESETS.filter((s) => subPreset[s]);
     const extra = subExtra
       .split(",")
       .map((x) => x.trim())
@@ -799,14 +514,8 @@ export default function SuperAdminPage() {
 
   useEffect(() => {
     if (!ready || !token || !user?.isSuperAdmin) return;
-    if (tab === "subs") void loadBilling();
-  }, [ready, token, user?.isSuperAdmin, tab, loadBilling]);
-
-  useEffect(() => {
-    if (!ready || !token || !user?.isSuperAdmin) return;
-    if (tab !== "subs" || subsSubTab !== "referrals") return;
-    void loadPartners();
-  }, [ready, token, user?.isSuperAdmin, tab, subsSubTab, loadPartners]);
+    if (tab === "subs") void loadPartners();
+  }, [ready, token, user?.isSuperAdmin, tab, loadPartners]);
 
   useEffect(() => {
     if (!ready || !token || !user?.isSuperAdmin) return;
@@ -885,6 +594,7 @@ export default function SuperAdminPage() {
         {tabBtn("i18n", t("superAdmin.tabLocalization"))}
         {tabBtn("logs", t("superAdmin.tabLogs"))}
         {tabBtn("earlyAccess", t("superAdmin.tabEarlyAccess"))}
+        {tabBtn("landing", t("superAdmin.tabLanding"))}
       </div>
       <p className="text-[13px] text-[#2980B9] flex flex-wrap gap-x-4 gap-y-1">
         <Link href="/super-admin/data" className="underline font-medium">
@@ -970,7 +680,7 @@ export default function SuperAdminPage() {
                       <td className={`${DATA_TABLE_TD_CLASS} font-semibold`}>{o.name}</td>
                       <td className={DATA_TABLE_TD_CLASS}>
                         {o.subscription
-                          ? tierLabel(o.subscription.tier, t)
+                          ? o.subscription.tier
                           : "—"}
                       </td>
                       <td className={DATA_TABLE_TD_RIGHT_CLASS}>
@@ -1172,1116 +882,25 @@ export default function SuperAdminPage() {
 
       {tab === "subs" && (
         <div className="space-y-6 max-w-4xl">
-          {billingLoadError && !billing ? (
-            <EmptyState
-              title={t("superAdmin.billingLoadFailed")}
-              description={billingLoadError}
-              className={`${CARD_CONTAINER_CLASS} !border-solid`}
-              action={
-                <button
-                  type="button"
-                  className={PRIMARY_BUTTON_CLASS}
-                  onClick={() => void resetPricingCatalog()}
-                >
-                  {t("superAdmin.billingResetPrice")}
-                </button>
-              }
-            />
-          ) : null}
-          {!billing && !billingLoadError && !billingLoadTimedOut ? (
-            <div className={`${CARD_CONTAINER_CLASS} p-8 space-y-3`}>
-              <p className="text-sm text-[#7F8C8D] text-center">
-                {t("common.loading")}
-              </p>
+
+          <div className={`${CARD_CONTAINER_CLASS} p-6 space-y-4`}>
+            <h2 className="text-sm font-bold text-[#34495E] uppercase tracking-wide">
+              {t("superAdmin.billingNavTitle")}
+            </h2>
+            <p className="text-[13px] text-[#7F8C8D]">{t("superAdmin.billingNavHint")}</p>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/super-admin/billing/pricing" className={PRIMARY_BUTTON_CLASS}>
+                {t("superAdmin.billingTabPricing")}
+              </Link>
+              <Link href="/super-admin/billing/quotas" className={SECONDARY_BUTTON_CLASS}>
+                {t("superAdmin.billingTabQuotas")}
+              </Link>
+              <Link href="/super-admin/billing/packages" className={SECONDARY_BUTTON_CLASS}>
+                {t("superAdmin.billingTabBundles")}
+              </Link>
             </div>
-          ) : null}
-          {!billing && (billingLoadTimedOut || billingLoadError) ? (
-            <div className={`${CARD_CONTAINER_CLASS} p-6 space-y-4`}>
-              <h2 className="text-sm font-bold text-[#34495E] uppercase tracking-wide">
-                {t("superAdmin.billingFallbackTitle")}
-              </h2>
-              <p className="text-xs text-[#7F8C8D]">{t("superAdmin.billingFallbackHint")}</p>
-              {billingLoadTimedOut && billingLoading ? (
-                <p className="text-xs text-[#34495E]">{t("superAdmin.billingLoadSlow")}</p>
-              ) : null}
-              <label className="block text-sm text-[#34495E] max-w-xs">
-                {t("superAdmin.priceAzn")}
-                <input
-                  className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                  value={foundationStr || "29"}
-                  onChange={(e) => setFoundationStr(e.target.value)}
-                />
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className={PRIMARY_BUTTON_CLASS}
-                  onClick={async () => {
-                    const n = Number.parseFloat(foundationStr || "29");
-                    if (!Number.isFinite(n) || n < 0) return;
-                    const res = await apiFetch("/api/admin/config/billing/foundation", {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ amountAzn: n }),
-                    });
-                    if (!res.ok) {
-                      toast.error(t("common.saveErr"), { description: `${res.status}` });
-                      return;
-                    }
-                    toast.success(t("common.save"));
-                    void loadBilling();
-                  }}
-                >
-                  {t("superAdmin.billingSave")}
-                </button>
-                <button
-                  type="button"
-                  className={SECONDARY_BUTTON_CLASS}
-                  onClick={() => void resetPricingCatalog()}
-                >
-                  {t("superAdmin.billingResetPrice")}
-                </button>
-                <button
-                  type="button"
-                  className={SECONDARY_BUTTON_CLASS}
-                  onClick={() => void loadBilling()}
-                >
-                  {t("superAdmin.billingRetryLoad")}
-                </button>
-              </div>
-            </div>
-          ) : null}
-          {billing ? (
-            <>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSubsSubTab("pricing")}
-                  className={[
-                    "px-3 py-2 rounded-lg text-[13px] font-medium transition",
-                    subsSubTab === "pricing"
-                      ? "bg-[#2980B9] text-white shadow-sm ring-2 ring-[#2980B9] ring-offset-1"
-                      : "bg-white border border-[#D5DADF] text-[#34495E] hover:bg-[#F8F9FA]",
-                  ].join(" ")}
-                >
-                  {t("superAdmin.billingTabPricing")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSubsSubTab("quotas")}
-                  className={[
-                    "px-3 py-2 rounded-lg text-[13px] font-medium transition",
-                    subsSubTab === "quotas"
-                      ? "bg-[#2980B9] text-white shadow-sm ring-2 ring-[#2980B9] ring-offset-1"
-                      : "bg-white border border-[#D5DADF] text-[#34495E] hover:bg-[#F8F9FA]",
-                  ].join(" ")}
-                >
-                  {t("superAdmin.billingTabQuotas")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSubsSubTab("bundles")}
-                  className={[
-                    "px-3 py-2 rounded-lg text-[13px] font-medium transition",
-                    subsSubTab === "bundles"
-                      ? "bg-[#2980B9] text-white shadow-sm ring-2 ring-[#2980B9] ring-offset-1"
-                      : "bg-white border border-[#D5DADF] text-[#34495E] hover:bg-[#F8F9FA]",
-                  ].join(" ")}
-                >
-                  {t("superAdmin.billingTabBundles")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSubsSubTab("trial")}
-                  className={[
-                    "px-3 py-2 rounded-lg text-[13px] font-medium transition",
-                    subsSubTab === "trial"
-                      ? "bg-[#2980B9] text-white shadow-sm ring-2 ring-[#2980B9] ring-offset-1"
-                      : "bg-white border border-[#D5DADF] text-[#34495E] hover:bg-[#F8F9FA]",
-                  ].join(" ")}
-                >
-                  {t("superAdmin.billingTabTrial")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSubsSubTab("referrals")}
-                  className={[
-                    "px-3 py-2 rounded-lg text-[13px] font-medium transition",
-                    subsSubTab === "referrals"
-                      ? "bg-[#2980B9] text-white shadow-sm ring-2 ring-[#2980B9] ring-offset-1"
-                      : "bg-white border border-[#D5DADF] text-[#34495E] hover:bg-[#F8F9FA]",
-                  ].join(" ")}
-                >
-                  {t("superAdmin.billingTabReferrals")}
-                </button>
-              </div>
+          </div>
 
-            {subsSubTab === "pricing" ? (
-              <div className="space-y-6">
-                <div className={`${CARD_CONTAINER_CLASS} p-4 space-y-3`}>
-                  <h2 className="text-sm font-bold text-[#34495E] uppercase tracking-wide">
-                    {t("superAdmin.billingFoundationTitle")}
-                  </h2>
-                  <p className="text-xs text-[#7F8C8D]">
-                    {t("superAdmin.billingFoundationHint")}
-                  </p>
-                  <div className="flex flex-wrap items-end gap-2">
-                    <label className="block text-sm text-[#34495E] flex-1 min-w-[160px]">
-                      {t("superAdmin.priceAzn")}
-                      <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                        value={foundationStr}
-                        onChange={(e) => setFoundationStr(e.target.value)}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className={PRIMARY_BUTTON_CLASS}
-                      onClick={async () => {
-                        const n = Number.parseFloat(foundationStr);
-                        if (!Number.isFinite(n) || n < 0) return;
-                        const res = await apiFetch("/api/admin/config/billing/foundation", {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ amountAzn: n }),
-                        });
-                        if (!res.ok) {
-                          toast.error(t("common.saveErr"), { description: `${res.status}` });
-                          return;
-                        }
-                        toast.success(t("common.save"));
-                        void loadBilling();
-                      }}
-                    >
-                      {t("superAdmin.billingSave")}
-                    </button>
-                  </div>
-                </div>
-
-                <div className={`${CARD_CONTAINER_CLASS} p-4 space-y-3`}>
-                  <h2 className="text-sm font-bold text-[#34495E] uppercase tracking-wide">
-                    {t("superAdmin.billingModuleCatalogTitle")}
-                  </h2>
-                  <div className={DATA_TABLE_VIEWPORT_CLASS}>
-                    <table className={DATA_TABLE_CLASS}>
-                      <thead>
-                        <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
-                          <th className={DATA_TABLE_TH_LEFT_CLASS}>
-                            {t("superAdmin.billingColModule")}
-                          </th>
-                          <th className={DATA_TABLE_TH_RIGHT_CLASS}>
-                            {t("superAdmin.billingColPrice")}
-                          </th>
-                          <th className={DATA_TABLE_ACTIONS_TH_CLASS} />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {billing.pricingModules.map((mod) => (
-                          <tr key={mod.id} className={DATA_TABLE_TR_CLASS}>
-                            <td className={`${DATA_TABLE_TD_CLASS} font-semibold`}>{mod.name}</td>
-                            <td className={`${DATA_TABLE_TD_RIGHT_CLASS} max-w-[10rem]`}>
-                              <input
-                                className={`${MODAL_INPUT_NUMERIC_CLASS} w-full max-w-[8rem] py-1.5 px-2 text-[13px] ml-auto`}
-                                value={modulePriceEdits[mod.id] ?? ""}
-                                onChange={(e) =>
-                                  setModulePriceEdits((s) => ({
-                                    ...s,
-                                    [mod.id]: e.target.value,
-                                  }))
-                                }
-                              />
-                            </td>
-                            <td className={DATA_TABLE_ACTIONS_TD_CLASS}>
-                              <button
-                                type="button"
-                                className={`${TABLE_ROW_ICON_BTN_CLASS} text-[#2980B9]`}
-                                title={t("superAdmin.billingSave")}
-                                onClick={async () => {
-                                  const raw = (
-                                    modulePriceEdits[mod.id] ?? ""
-                                  )
-                                    .trim()
-                                    .replace(",", ".");
-                                  const n = Number.parseFloat(raw);
-                                  if (!Number.isFinite(n) || n < 0) {
-                                    toast.error(t("common.saveErr"), {
-                                      description: t(
-                                        "superAdmin.billingInvalidModulePrice",
-                                      ),
-                                    });
-                                    return;
-                                  }
-                                  const res = await apiFetch(
-                                    `/api/admin/pricing-modules/${encodeURIComponent(mod.key)}`,
-                                    {
-                                      method: "PATCH",
-                                      headers: {
-                                        "Content-Type": "application/json",
-                                      },
-                                      body: JSON.stringify({
-                                        pricePerMonth: n,
-                                      }),
-                                    },
-                                  );
-                                  if (!res.ok) {
-                                    toast.error(t("common.saveErr"), {
-                                      description: `${res.status}`,
-                                    });
-                                    return;
-                                  }
-                                  toast.success(t("common.save"));
-                                  void loadBilling();
-                                }}
-                              >
-                                <Check className="h-4 w-4 shrink-0" aria-hidden />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-            {billing && subsSubTab === "quotas" ? (
-              <div className="space-y-6">
-                <div className={`${CARD_CONTAINER_CLASS} p-4 space-y-5`}>
-                  <h2 className="text-sm font-bold text-[#34495E] uppercase tracking-wide">
-                    {t("superAdmin.billingQuotasSectionsTitle")}
-                  </h2>
-
-                  <div className="space-y-2">
-                    <div className="text-xs font-semibold text-[#7F8C8D] uppercase">
-                      {t("superAdmin.billingFoundationTitle")}
-                    </div>
-                    <p className="text-xs text-[#7F8C8D]">
-                      {t("superAdmin.billingFoundationHint")}
-                    </p>
-                    <div className="flex flex-wrap items-end gap-2">
-                      <label className="block text-sm text-[#34495E] flex-1 min-w-[200px]">
-                        {t("superAdmin.priceAzn")}
-                        <input
-                          className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                          inputMode="decimal"
-                          value={foundationStr}
-                          onChange={(e) => setFoundationStr(e.target.value)}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className={PRIMARY_BUTTON_CLASS}
-                        onClick={async () => {
-                          const n = Number.parseFloat(
-                            foundationStr.trim().replace(",", "."),
-                          );
-                          if (!Number.isFinite(n) || n < 0) {
-                            toast.error(t("common.saveErr"));
-                            return;
-                          }
-                          const res = await apiFetch("/api/admin/config/billing/foundation", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ amountAzn: n }),
-                          });
-                          if (!res.ok) {
-                            toast.error(t("common.saveErr"), {
-                              description: `${res.status}`,
-                            });
-                            return;
-                          }
-                          toast.success(t("common.save"));
-                          void loadBilling();
-                        }}
-                      >
-                        {t("superAdmin.billingSaveFoundation")}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 border-t border-[#EBEDF0] pt-4">
-                    <div className="text-xs font-semibold text-[#7F8C8D] uppercase">
-                      {t("superAdmin.billingTierPricesTitle")}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {(["STARTER", "BUSINESS", "ENTERPRISE"] as const).map((tier) => (
-                        <label key={tier} className="block text-sm text-[#34495E]">
-                          {tierLabel(tier, t)}
-                          <input
-                            className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                            inputMode="decimal"
-                            value={tierBillingPriceStr[tier]}
-                            onChange={(e) =>
-                              setTierBillingPriceStr((s) => ({
-                                ...s,
-                                [tier]: e.target.value,
-                              }))
-                            }
-                          />
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <label className="block text-sm text-[#34495E] max-w-xs">
-                    {t("superAdmin.billingOcrJobsLimit")}
-                    <input
-                      className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                      inputMode="numeric"
-                      value={ocrJobsPerMonthStr}
-                      onChange={(e) => setOcrJobsPerMonthStr(e.target.value)}
-                    />
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <label className="block text-sm text-[#34495E]">
-                      {t("superAdmin.billingQuotaEmployeeBlock")}
-                      <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                        value={quotaStr.employeeBlockSize}
-                        onChange={(e) =>
-                          setQuotaStr((s) => ({
-                            ...s,
-                            employeeBlockSize: e.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                    <label className="block text-sm text-[#34495E]">
-                      {t("superAdmin.billingQuotaEmployeePrice")}
-                      <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                        value={quotaStr.pricePerEmployeeBlockAzn}
-                        onChange={(e) =>
-                          setQuotaStr((s) => ({
-                            ...s,
-                            pricePerEmployeeBlockAzn: e.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                    <label className="block text-sm text-[#34495E]">
-                      {t("superAdmin.billingQuotaDocBlock")}
-                      <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                        value={quotaStr.documentPackSize}
-                        onChange={(e) =>
-                          setQuotaStr((s) => ({
-                            ...s,
-                            documentPackSize: e.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                    <label className="block text-sm text-[#34495E]">
-                      {t("superAdmin.billingQuotaDocPrice")}
-                      <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                        value={quotaStr.pricePerDocumentPackAzn}
-                        onChange={(e) =>
-                          setQuotaStr((s) => ({
-                            ...s,
-                            pricePerDocumentPackAzn: e.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                  </div>
-                  <div className="flex flex-wrap items-end gap-2">
-                    <label className="block text-sm text-[#34495E] flex-1 min-w-[200px]">
-                      {t("superAdmin.billingYearlyDiscountLabel")}
-                      <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                        value={yearlyDiscStr}
-                        onChange={(e) => setYearlyDiscStr(e.target.value)}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className={PRIMARY_BUTTON_CLASS}
-                      onClick={async () => {
-                        const y = Number.parseFloat(
-                          yearlyDiscStr.trim().replace(",", "."),
-                        );
-                        if (!Number.isFinite(y) || y < 0 || y > 100) {
-                          toast.error(t("common.saveErr"), {
-                            description: t("superAdmin.billingInvalidYearlyDiscount"),
-                          });
-                          return;
-                        }
-                        const yRes = await apiFetch("/api/admin/config/billing/yearly-discount", {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ percent: y }),
-                        });
-                        if (!yRes.ok) {
-                          toast.error(t("common.saveErr"), { description: `${yRes.status}` });
-                          return;
-                        }
-                        const parseMoney = (s: string) =>
-                          Number.parseFloat(s.trim().replace(",", "."));
-                        const tierKeys = ["STARTER", "BUSINESS", "ENTERPRISE"] as const;
-                        for (const tier of tierKeys) {
-                          const p = parseMoney(tierBillingPriceStr[tier]);
-                          if (!Number.isFinite(p) || p < 0.01) {
-                            toast.error(t("common.saveErr"), {
-                              description: t("superAdmin.billingInvalidTierPrice", {
-                                tier: tierLabel(tier, t),
-                              }),
-                            });
-                            return;
-                          }
-                          const pRes = await apiFetch("/api/admin/config/billing/price", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ tier, amountAzn: p }),
-                          });
-                          if (!pRes.ok) {
-                            toast.error(t("common.saveErr"), {
-                              description: `${pRes.status} · ${tierLabel(tier, t)}`,
-                            });
-                            return;
-                          }
-                        }
-                        const ocrN = Number.parseInt(
-                          ocrJobsPerMonthStr.trim().replace(/\s/g, ""),
-                          10,
-                        );
-                        if (!Number.isFinite(ocrN) || ocrN < 1) {
-                          toast.error(t("common.saveErr"), {
-                            description: t("superAdmin.billingInvalidOcrLimit"),
-                          });
-                          return;
-                        }
-                        const ocrRes = await apiFetch(
-                          "/api/admin/config/billing/ocr-jobs-per-org-month",
-                          {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ limit: ocrN }),
-                          },
-                        );
-                        if (!ocrRes.ok) {
-                          toast.error(t("common.saveErr"), {
-                            description: `${ocrRes.status}`,
-                          });
-                          return;
-                        }
-                        const patch = {
-                          employeeBlockSize: Number.parseInt(
-                            quotaStr.employeeBlockSize.trim(),
-                            10,
-                          ),
-                          pricePerEmployeeBlockAzn: parseMoney(
-                            quotaStr.pricePerEmployeeBlockAzn,
-                          ),
-                          documentPackSize: Number.parseInt(
-                            quotaStr.documentPackSize.trim(),
-                            10,
-                          ),
-                          pricePerDocumentPackAzn: parseMoney(
-                            quotaStr.pricePerDocumentPackAzn,
-                          ),
-                        };
-                        if (
-                          Number.isFinite(patch.employeeBlockSize) &&
-                          Number.isFinite(patch.pricePerEmployeeBlockAzn) &&
-                          Number.isFinite(patch.documentPackSize) &&
-                          Number.isFinite(patch.pricePerDocumentPackAzn)
-                        ) {
-                          const qRes = await apiFetch("/api/admin/config/billing/quota-pricing", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(patch),
-                          });
-                          if (!qRes.ok) {
-                            toast.error(t("common.saveErr"), {
-                              description: `${qRes.status}`,
-                            });
-                            return;
-                          }
-                        }
-                        toast.success(t("common.save"));
-                        void loadBilling();
-                      }}
-                    >
-                      {t("superAdmin.billingSaveGlobalLimits")}
-                    </button>
-                  </div>
-                </div>
-                <div className={`${CARD_CONTAINER_CLASS} p-4 space-y-4`}>
-                  <h2 className="text-sm font-bold text-[#34495E] uppercase tracking-wide">
-                    {t("superAdmin.tierQuotasTitle")}
-                  </h2>
-                  <p className="text-xs text-[#7F8C8D]">{t("superAdmin.tierQuotasHint")}</p>
-                  {(["STARTER", "BUSINESS", "ENTERPRISE"] as const).map((tier) => (
-                    <div
-                      key={tier}
-                      className="rounded-lg border border-[#EBEDF0] bg-[#F8F9FA] p-3 space-y-3"
-                    >
-                      <div className="text-sm font-semibold text-[#34495E]">
-                        {tierLabel(tier, t)}
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <label className="block text-xs text-[#34495E]">
-                          {t("superAdmin.tierQuotaFieldEmployees")}
-                          <input
-                            className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                            value={tierQuotaDraft[tier].maxEmployees}
-                            onChange={(e) =>
-                              setTierQuotaDraft((q) => ({
-                                ...q,
-                                [tier]: { ...q[tier], maxEmployees: e.target.value },
-                              }))
-                            }
-                          />
-                        </label>
-                        <label className="block text-xs text-[#34495E]">
-                          {t("superAdmin.tierQuotaFieldInvoicesMonth")}
-                          <input
-                            className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                            value={tierQuotaDraft[tier].maxInvoicesPerMonth}
-                            onChange={(e) =>
-                              setTierQuotaDraft((q) => ({
-                                ...q,
-                                [tier]: {
-                                  ...q[tier],
-                                  maxInvoicesPerMonth: e.target.value,
-                                },
-                              }))
-                            }
-                          />
-                        </label>
-                        <label className="block text-xs text-[#34495E]">
-                          {t("superAdmin.tierQuotaFieldStorageGb")}
-                          <input
-                            className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                            value={tierQuotaDraft[tier].maxStorageGb}
-                            onChange={(e) =>
-                              setTierQuotaDraft((q) => ({
-                                ...q,
-                                [tier]: { ...q[tier], maxStorageGb: e.target.value },
-                              }))
-                            }
-                          />
-                        </label>
-                      </div>
-                      <button
-                        type="button"
-                        className={PRIMARY_BUTTON_CLASS}
-                        onClick={async () => {
-                          const d = tierQuotaDraft[tier];
-                          const parseTierQuotaInt = (
-                            s: string,
-                          ): number | null | undefined => {
-                            const t = s.trim();
-                            if (t === "") return null;
-                            const v = Number.parseInt(t, 10);
-                            if (!Number.isFinite(v) || v < 0) return undefined;
-                            return v;
-                          };
-                          const maxEmployees = parseTierQuotaInt(d.maxEmployees);
-                          const maxInvoicesPerMonth = parseTierQuotaInt(
-                            d.maxInvoicesPerMonth,
-                          );
-                          const maxStorageGb = parseTierQuotaInt(d.maxStorageGb);
-                          if (
-                            maxEmployees === undefined ||
-                            maxInvoicesPerMonth === undefined ||
-                            maxStorageGb === undefined
-                          ) {
-                            toast.error(t("common.fillRequired"));
-                            return;
-                          }
-                          const quotas = {
-                            maxEmployees,
-                            maxInvoicesPerMonth,
-                            maxStorageGb,
-                          };
-                          const res = await apiFetch("/api/admin/config/billing/quotas", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ tier, quotas }),
-                          });
-                          if (!res.ok) {
-                            toast.error(t("common.saveErr"), {
-                              description: `${res.status}`,
-                            });
-                            return;
-                          }
-                          toast.success(t("common.save"));
-                          void loadBilling();
-                        }}
-                      >
-                        {t("superAdmin.tierQuotasSave")} · {tierLabel(tier, t)}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {billing && subsSubTab === "bundles" ? (
-              <div className="space-y-6">
-                <div className={`${CARD_CONTAINER_CLASS} p-4 space-y-4`}>
-                  <h2 className="text-sm font-bold text-[#34495E] uppercase tracking-wide">
-                    {t("superAdmin.billingCreateBundle")}
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <label className="block text-sm text-[#34495E] sm:col-span-2">
-                      {t("superAdmin.billingBundleName")}
-                      <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                        value={newBundleName}
-                        onChange={(e) => setNewBundleName(e.target.value)}
-                      />
-                    </label>
-                    <label className="block text-sm text-[#34495E]">
-                      {t("superAdmin.billingBundleDiscount")}
-                      <input
-                        className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                        value={newBundleDisc}
-                        onChange={(e) => setNewBundleDisc(e.target.value)}
-                      />
-                    </label>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-xs font-semibold text-[#7F8C8D] uppercase">
-                      {t("superAdmin.billingModulesInBundle")}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {billing.pricingModules.map((mod) => (
-                        <div
-                          key={mod.key}
-                          className="flex items-center justify-between gap-3 rounded-lg border border-[#EBEDF0] bg-[#F8F9FA] px-3 py-2"
-                        >
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium text-[#34495E] truncate">
-                              {mod.name}
-                            </div>
-                          </div>
-                          <BundleSwitch
-                            checked={Boolean(newBundleMods[mod.key])}
-                            onChange={(v) =>
-                              setNewBundleMods((s) => ({
-                                ...s,
-                                [mod.key]: v,
-                              }))
-                            }
-                            aria-label={mod.name}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  {(() => {
-                    const disc = Number.parseFloat(newBundleDisc);
-                    const selectedKeys = Object.entries(newBundleMods)
-                      .filter(([, on]) => on)
-                      .map(([k]) => k);
-                    const p = computeBundlePreview(
-                      billing.foundationMonthlyAzn,
-                      billing.pricingModules,
-                      selectedKeys,
-                      Number.isFinite(disc) ? disc : 0,
-                      billing.yearlyDiscountPercent,
-                    );
-                    return (
-                      <div className={`${CARD_CONTAINER_CLASS} p-4 bg-[#EBEDF0]/40 border-[#2980B9]/30`}>
-                        <div className="text-xs font-bold text-[#34495E] uppercase mb-2">
-                          {t("superAdmin.billingPreviewTitle")}
-                        </div>
-                        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-[#34495E]">
-                          <div>
-                            <dt className="text-[#7F8C8D] text-xs">
-                              {t("superAdmin.billingPreviewSubtotal")}
-                            </dt>
-                            <dd className="font-semibold tabular-nums">
-                              {p.subtotal.toFixed(2)} AZN
-                            </dd>
-                          </div>
-                          <div>
-                            <dt className="text-[#7F8C8D] text-xs">
-                              {t("superAdmin.billingAfterBundle")}
-                            </dt>
-                            <dd className="font-semibold tabular-nums">
-                              {p.afterBundle.toFixed(2)} AZN / {t("superAdmin.billingPerMonth")}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt className="text-[#7F8C8D] text-xs">
-                              {t("superAdmin.billingPreviewYearly")}
-                            </dt>
-                            <dd className="font-semibold tabular-nums">
-                              {p.yearly.toFixed(2)} AZN
-                            </dd>
-                          </div>
-                        </dl>
-                      </div>
-                    );
-                  })()}
-                  <button
-                    type="button"
-                    className={PRIMARY_BUTTON_CLASS}
-                    onClick={async () => {
-                      const name = newBundleName.trim();
-                      if (!name) return;
-                      const disc = Number.parseFloat(newBundleDisc);
-                      if (!Number.isFinite(disc) || disc < 0 || disc > 100) return;
-                      const moduleKeys = Object.entries(newBundleMods)
-                        .filter(([, on]) => on)
-                        .map(([k]) => k);
-                      const res = await apiFetch("/api/admin/pricing-bundles", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          name,
-                          discountPercent: disc,
-                          moduleKeys,
-                        }),
-                      });
-                      if (!res.ok) {
-                        toast.error(t("common.saveErr"), { description: `${res.status}` });
-                        return;
-                      }
-                      toast.success(t("common.save"));
-                      setNewBundleName("");
-                      setNewBundleDisc("0");
-                      setNewBundleMods((prev) => {
-                        const o: Record<string, boolean> = {};
-                        for (const k of Object.keys(prev)) o[k] = false;
-                        return o;
-                      });
-                      void loadBilling();
-                    }}
-                  >
-                    {t("superAdmin.billingSave")}
-                  </button>
-                </div>
-
-                <div className={`${CARD_CONTAINER_CLASS} p-4 space-y-3`}>
-                  <h2 className="text-sm font-bold text-[#34495E] uppercase tracking-wide">
-                    {t("superAdmin.billingBundlesList")}
-                  </h2>
-                  {billing.pricingBundles.length === 0 ? (
-                    <p className="text-sm text-[#7F8C8D]">
-                      {t("superAdmin.billingBundlesEmpty")}
-                    </p>
-                  ) : (
-                    <ul className="space-y-3">
-                      {billing.pricingBundles.map((b) => {
-                        const p = computeBundlePreview(
-                          billing.foundationMonthlyAzn,
-                          billing.pricingModules,
-                          b.moduleKeys,
-                          b.discountPercent,
-                          billing.yearlyDiscountPercent,
-                        );
-                        return (
-                          <li
-                            key={b.id}
-                            className="rounded-lg border border-[#D5DADF] p-3 flex flex-col gap-3"
-                          >
-                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                              <div>
-                                <div className="font-semibold text-[#34495E]">
-                                  {b.name}
-                                  {b.isTrialDefault ? (
-                                    <span className="ml-2 text-xs font-normal text-[#2980B9]">
-                                      ({t("superAdmin.trialDefaultBadge")})
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <div className="text-xs text-[#7F8C8D] mt-1">
-                                  −{b.discountPercent}% ·{" "}
-                                  {moduleNamesFromKeys(
-                                    b.moduleKeys,
-                                    billing.pricingModules,
-                                  )}
-                                </div>
-                                <div className="text-xs text-[#34495E] mt-2 tabular-nums">
-                                  {t("superAdmin.billingPreviewMonthly")}:{" "}
-                                  {p.monthly.toFixed(2)} AZN ·{" "}
-                                  {t("superAdmin.billingPreviewYearly")}:{" "}
-                                  {p.yearly.toFixed(2)} AZN
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap gap-2 self-start">
-                                <button
-                                  type="button"
-                                  className="text-sm text-[#2980B9] hover:underline inline-flex items-center gap-1"
-                                  onClick={() => {
-                                    setEditingBundleId(b.id);
-                                    setEditBundleName(b.name);
-                                    setEditBundleDisc(String(b.discountPercent));
-                                    const mods: Record<string, boolean> = {};
-                                    for (const m of billing.pricingModules) {
-                                      mods[m.key] = b.moduleKeys.includes(m.key);
-                                    }
-                                    setEditBundleMods(mods);
-                                  }}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" aria-hidden />
-                                  {t("superAdmin.billingBundleEdit")}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="text-sm text-red-600 hover:underline"
-                                  onClick={async () => {
-                                    const res = await apiFetch(
-                                      `/api/admin/pricing-bundles/${b.id}`,
-                                      {
-                                        method: "DELETE",
-                                      },
-                                    );
-                                    if (!res.ok) {
-                                      toast.error(t("common.saveErr"), {
-                                        description: `${res.status}`,
-                                      });
-                                      return;
-                                    }
-                                    toast.success(t("common.save"));
-                                    if (editingBundleId === b.id) {
-                                      setEditingBundleId(null);
-                                    }
-                                    void loadBilling();
-                                  }}
-                                >
-                                  {t("superAdmin.billingDeleteBundle")}
-                                </button>
-                              </div>
-                            </div>
-                            {editingBundleId === b.id ? (
-                              <div className="border-t border-[#EBEDF0] pt-3 space-y-3">
-                                <label className="block text-sm text-[#34495E]">
-                                  {t("superAdmin.billingBundleName")}
-                                  <input
-                                    className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                                    value={editBundleName}
-                                    onChange={(e) => setEditBundleName(e.target.value)}
-                                  />
-                                </label>
-                                <label className="block text-sm text-[#34495E]">
-                                  {t("superAdmin.billingBundleDiscount")}
-                                  <input
-                                    className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                                    value={editBundleDisc}
-                                    onChange={(e) => setEditBundleDisc(e.target.value)}
-                                  />
-                                </label>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  {billing.pricingModules.map((mod) => (
-                                    <div
-                                      key={mod.key}
-                                      className="flex items-center justify-between gap-3 rounded-lg border border-[#EBEDF0] bg-[#F8F9FA] px-3 py-2"
-                                    >
-                                      <div className="text-sm font-medium text-[#34495E] truncate">
-                                        {mod.name}
-                                      </div>
-                                      <BundleSwitch
-                                        checked={Boolean(editBundleMods[mod.key])}
-                                        onChange={(v) =>
-                                          setEditBundleMods((s) => ({
-                                            ...s,
-                                            [mod.key]: v,
-                                          }))
-                                        }
-                                        aria-label={mod.name}
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    className={PRIMARY_BUTTON_CLASS}
-                                    onClick={async () => {
-                                      const name = editBundleName.trim();
-                                      if (!name) return;
-                                      const disc = Number.parseFloat(editBundleDisc);
-                                      if (!Number.isFinite(disc) || disc < 0 || disc > 100) return;
-                                      const moduleKeys = Object.entries(editBundleMods)
-                                        .filter(([, on]) => on)
-                                        .map(([k]) => k);
-                                      const res = await apiFetch(
-                                        `/api/admin/pricing-bundles/${b.id}`,
-                                        {
-                                          method: "PATCH",
-                                          headers: {
-                                            "Content-Type": "application/json",
-                                          },
-                                          body: JSON.stringify({
-                                            name,
-                                            discountPercent: disc,
-                                            moduleKeys,
-                                          }),
-                                        },
-                                      );
-                                      if (!res.ok) {
-                                        toast.error(t("common.saveErr"), {
-                                          description: `${res.status}`,
-                                        });
-                                        return;
-                                      }
-                                      toast.success(t("common.save"));
-                                      setEditingBundleId(null);
-                                      void loadBilling();
-                                    }}
-                                  >
-                                    {t("superAdmin.billingSave")}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={SECONDARY_BUTTON_CLASS}
-                                    onClick={() => setEditingBundleId(null)}
-                                  >
-                                    {t("common.close")}
-                                  </button>
-                                </div>
-                              </div>
-                            ) : null}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            ) : null}
-            {billing && subsSubTab === "trial" ? (
-              <div className={`${CARD_CONTAINER_CLASS} p-4 space-y-4 max-w-2xl`}>
-                <h2 className="text-sm font-bold text-[#34495E] uppercase tracking-wide">
-                  {t("superAdmin.trialEditorTitle")}
-                </h2>
-                <p className="text-xs text-[#7F8C8D]">{t("superAdmin.trialEditorHint")}</p>
-                <label className="block text-sm text-[#34495E]">
-                  {t("superAdmin.trialBundleSelect")}
-                  <select
-                    className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`}
-                    value={trialBundleId}
-                    onChange={(e) => {
-                      const id = e.target.value;
-                      setTrialBundleId(id);
-                      const x = billing.pricingBundles.find((pb) => pb.id === id);
-                      if (x) {
-                        setTrialDurationDays(String(x.trialDurationDays ?? 90));
-                        setTrialQuotasJson(
-                          x.trialQuotas && typeof x.trialQuotas === "object"
-                            ? JSON.stringify(x.trialQuotas, null, 2)
-                            : "{}",
-                        );
-                      }
-                    }}
-                  >
-                    {billing.pricingBundles.map((pb) => (
-                      <option key={pb.id} value={pb.id}>
-                        {pb.name}
-                        {pb.isTrialDefault ? " ★" : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-sm text-[#34495E]">
-                  {t("superAdmin.trialDurationDays")}
-                  <input
-                    className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm"
-                    type="number"
-                    min={1}
-                    max={3650}
-                    value={trialDurationDays}
-                    onChange={(e) => setTrialDurationDays(e.target.value)}
-                  />
-                </label>
-                <label className="block text-sm text-[#34495E]">
-                  {t("superAdmin.trialQuotasJson")}
-                  <textarea
-                    className="mt-1 w-full border border-[#D5DADF] rounded-lg px-2 py-1.5 text-sm font-mono min-h-[120px]"
-                    value={trialQuotasJson}
-                    onChange={(e) => setTrialQuotasJson(e.target.value)}
-                  />
-                </label>
-                <label className="flex cursor-pointer items-start gap-2 text-[13px] text-[#34495E]">
-                  <input
-                    type="checkbox"
-                    className={`mt-0.5 ${MODAL_CHECKBOX_CLASS}`}
-                    checked={
-                      Boolean(
-                        billing.pricingBundles.find((pb) => pb.id === trialBundleId)
-                          ?.isTrialDefault,
-                      )
-                    }
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      void (async () => {
-                        if (!trialBundleId) return;
-                        const res = await apiFetch(
-                          `/api/admin/pricing-bundles/${trialBundleId}/trial-config`,
-                          {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              isTrialDefault: checked,
-                            }),
-                          },
-                        );
-                        if (!res.ok) {
-                          toast.error(t("common.saveErr"), {
-                            description: `${res.status}`,
-                          });
-                          return;
-                        }
-                        toast.success(t("common.save"));
-                        void loadBilling();
-                      })();
-                    }}
-                  />
-                  <span>{t("superAdmin.trialIsDefault")}</span>
-                </label>
-                <button
-                  type="button"
-                  className={PRIMARY_BUTTON_CLASS}
-                  disabled={trialSaving || !trialBundleId}
-                  onClick={async () => {
-                    if (!trialBundleId) return;
-                    const days = Number.parseInt(trialDurationDays, 10);
-                    if (!Number.isFinite(days) || days < 1) {
-                      toast.error(t("common.fillRequired"));
-                      return;
-                    }
-                    let trialQuotas: Record<string, unknown> | null = null;
-                    const raw = trialQuotasJson.trim();
-                    if (raw && raw !== "{}") {
-                      try {
-                        trialQuotas = JSON.parse(raw) as Record<string, unknown>;
-                      } catch {
-                        toast.error(t("superAdmin.trialQuotasJsonInvalid"));
-                        return;
-                      }
-                    }
-                    setTrialSaving(true);
-                    const res = await apiFetch(
-                      `/api/admin/pricing-bundles/${trialBundleId}/trial-config`,
-                      {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          trialDurationDays: days,
-                          trialQuotas,
-                        }),
-                      },
-                    );
-                    setTrialSaving(false);
-                    if (!res.ok) {
-                      toast.error(t("common.saveErr"), { description: `${res.status}` });
-                      return;
-                    }
-                    toast.success(t("common.save"));
-                    void loadBilling();
-                  }}
-                >
-                  {t("superAdmin.trialSaveConfig")}
-                </button>
-              </div>
-            ) : null}
-            {billing && subsSubTab === "referrals" ? (
-              <div className="space-y-6 max-w-4xl">
                 <div className={`${CARD_CONTAINER_CLASS} p-4 space-y-3`}>
                   <h2 className="text-sm font-bold text-[#34495E] uppercase tracking-wide">
                     {t("superAdmin.referralsNewPartner")}
@@ -2379,10 +998,7 @@ export default function SuperAdminPage() {
                     </div>
                   )}
                 </div>
-              </div>
-            ) : null}
-            </>
-          ) : null}
+
         </div>
       )}
 
@@ -2703,6 +1319,8 @@ export default function SuperAdminPage() {
         </div>
       )}
 
+      {tab === "landing" && <LandingModulesEditor />}
+
       {subModalOrg ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -2747,9 +1365,9 @@ export default function SuperAdminPage() {
                     }
                   }}
                 >
-                  <option value="STARTER">{t("superAdmin.tierSTARTER")}</option>
-                  <option value="BUSINESS">{t("superAdmin.tierBUSINESS")}</option>
-                  <option value="ENTERPRISE">{t("superAdmin.tierENTERPRISE")}</option>
+                  <option value="STARTER">STARTER</option>
+                  <option value="BUSINESS">BUSINESS</option>
+                  <option value="ENTERPRISE">ENTERPRISE</option>
                 </select>
               </label>
               <label className={MODAL_FIELD_LABEL_CLASS}>
@@ -2784,6 +1402,27 @@ export default function SuperAdminPage() {
                 <p className="mb-2 m-0 text-[13px] text-[#7F8C8D]">{t("superAdmin.orgSubModulesHint")}</p>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {MODULE_SLUG_PRESETS.map((slug) => (
+                    <label key={slug} className="flex cursor-pointer items-center gap-2 font-mono text-[13px] text-[#34495E]">
+                      <input
+                        type="checkbox"
+                        className={MODAL_CHECKBOX_CLASS}
+                        checked={Boolean(subPreset[slug])}
+                        onChange={() =>
+                          setSubPreset((s) => ({
+                            ...s,
+                            [slug]: !s[slug],
+                          }))
+                        }
+                      />
+                      {slug}
+                    </label>
+                  ))}
+                </div>
+                <div className="mb-1.5 mt-4 text-[13px] font-semibold text-[#34495E]">
+                  {t("superAdmin.orgSubIndustryModules")}
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {INDUSTRY_MODULE_SLUG_PRESETS.map((slug) => (
                     <label key={slug} className="flex cursor-pointer items-center gap-2 font-mono text-[13px] text-[#34495E]">
                       <input
                         type="checkbox"
@@ -2906,7 +1545,7 @@ export default function SuperAdminPage() {
                         <td className={DATA_TABLE_TD_CLASS}>{roleLabel(row.role, t)}</td>
                         <td className={DATA_TABLE_TD_CLASS}>
                           {row.subscription
-                            ? tierLabel(row.subscription.tier, t)
+                            ? row.subscription.tier
                             : "—"}
                         </td>
                         <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>

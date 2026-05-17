@@ -32,6 +32,8 @@ import {
   UpdatePricingBundleDto,
 } from "./dto/pricing-bundle.dto";
 import { PatchPricingBundleTrialConfigDto } from "./dto/pricing-bundle-trial-config.dto";
+import { PatchBillingGlobalLimitsDto } from "./dto/patch-billing-global-limits.dto";
+import { PatchBillingPricingCatalogDto } from "./dto/patch-billing-pricing-catalog.dto";
 import { PatchFoundationDto } from "./dto/patch-foundation.dto";
 import { PatchPricingModulePriceDto } from "./dto/patch-pricing-module-price.dto";
 import { PatchOcrJobsPerOrgMonthDto } from "./dto/patch-ocr-jobs-per-org-month.dto";
@@ -42,6 +44,7 @@ import { SetTierQuotasDto } from "./dto/set-tier-quotas.dto";
 import { TranslationUpsertDto } from "./dto/translation-upsert.dto";
 import { UpsertChartTemplateEntryDto } from "./dto/upsert-chart-template-entry.dto";
 import { PatchChartTemplateEntryDto } from "./dto/patch-chart-template-entry.dto";
+import { PatchLandingModuleMarketingDto } from "./dto/patch-landing-module-marketing.dto";
 import { PatchTranslationOverrideDto } from "./dto/patch-translation-override.dto";
 import { PutSystemConfigDto } from "./dto/put-system-config.dto";
 import { CreateCurrencyDto, PatchCurrencyDto } from "./dto/admin-currency.dto";
@@ -141,6 +144,24 @@ export class AdminController {
     return this.admin.patchFoundation(dto);
   }
 
+  @Patch("config/billing/pricing-catalog")
+  @ApiOperation({
+    summary:
+      "Foundation + все цены pricing_modules в одной транзакции (Super-Admin Прайс-лист)",
+  })
+  patchBillingPricingCatalog(@Body() dto: PatchBillingPricingCatalogDto) {
+    return this.admin.patchBillingPricingCatalog(dto);
+  }
+
+  @Patch("config/billing/global-limits")
+  @ApiOperation({
+    summary:
+      "Годовая скидка, OCR/мес., unit pricing квот, legacy billing.price.* — одна транзакция",
+  })
+  patchBillingGlobalLimits(@Body() dto: PatchBillingGlobalLimitsDto) {
+    return this.admin.patchBillingGlobalLimits(dto);
+  }
+
   @Patch("config/billing/yearly-discount")
   @ApiOperation({ summary: "Скидка при годовой оплате (%)" })
   patchYearlyDiscount(@Body() dto: PatchYearlyDiscountDto) {
@@ -210,6 +231,21 @@ export class AdminController {
   @ApiOperation({ summary: "Удалить пакет" })
   deletePricingBundle(@Param("id", ParseUUIDPipe) id: string) {
     return this.admin.deletePricingBundle(id);
+  }
+
+  @Get("landing-modules")
+  @ApiOperation({ summary: "List landing page marketing blocks" })
+  listLandingModules() {
+    return this.admin.listLandingModulesAdmin();
+  }
+
+  @Patch("landing-modules/:moduleSlug")
+  @ApiOperation({ summary: "Update landing page marketing block" })
+  patchLandingModule(
+    @Param("moduleSlug") moduleSlug: string,
+    @Body() dto: PatchLandingModuleMarketingDto,
+  ) {
+    return this.admin.patchLandingModuleMarketing(moduleSlug, dto);
   }
 
   @Get("translations")

@@ -4,7 +4,12 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { auditHubFetch } from "../../../lib/audit-hub-api";
-import { PRIMARY_BUTTON_CLASS } from "../../../lib/design-system";
+import {
+  CARD_CONTAINER_CLASS,
+  INPUT_BORDERED_CLASS,
+  MODAL_FIELD_LABEL_CLASS,
+  PRIMARY_BUTTON_CLASS,
+} from "../../../lib/design-system";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
 const TYPES = [
@@ -21,7 +26,7 @@ function isCalcType(v: string): v is (typeof TYPES)[number] {
 
 function AuditHubCalculationInner() {
   const { t } = useTranslation();
-  useRequireAuth();
+  const { ready, token } = useRequireAuth();
   const searchParams = useSearchParams();
   const [type, setType] = useState<(typeof TYPES)[number]>("invoice");
   const [id, setId] = useState("");
@@ -55,39 +60,50 @@ function AuditHubCalculationInner() {
     setJson(JSON.stringify(data, null, 2));
   }
 
+  if (!ready || !token) return null;
+
   return (
     <div className="space-y-4">
-      <p className="text-sm text-[#7F8C8D]">{t("auditHub.calcHint")}</p>
-      <div className="flex flex-wrap gap-3">
-        <label className="text-xs font-semibold text-[#34495E]">
-          {t("auditHub.calcType")}
-          <select
-            className="ml-2 rounded border border-[#D1D5DB] p-1.5 text-xs"
-            value={type}
-            onChange={(e) => setType(e.target.value as (typeof TYPES)[number])}
-          >
-            {TYPES.map((x) => (
-              <option key={x} value={x}>
-                {x}
-              </option>
-            ))}
-          </select>
-        </label>
-        <input
-          className="min-w-[240px] flex-1 rounded border border-[#D1D5DB] p-2 text-xs font-mono"
-          placeholder={t("auditHub.calcIdPh")}
-          value={id}
-          onChange={(e) => setId(e.target.value)}
-        />
-        <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => void load()}>
-          {t("auditHub.load")}
-        </button>
+      <p className="m-0 text-sm text-[#7F8C8D]">{t("auditHub.calcHint")}</p>
+      <div className={`${CARD_CONTAINER_CLASS} space-y-4 p-4`}>
+        <div className="max-w-2xl space-y-4">
+          <label className={MODAL_FIELD_LABEL_CLASS}>
+            {t("auditHub.calcType")}
+            <select
+              className={`${INPUT_BORDERED_CLASS} mt-1.5 w-full`}
+              value={type}
+              onChange={(e) => setType(e.target.value as (typeof TYPES)[number])}
+            >
+              {TYPES.map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className={MODAL_FIELD_LABEL_CLASS}>
+            {t("auditHub.calcIdPh")}
+            <input
+              className={`${INPUT_BORDERED_CLASS} mt-1.5 w-full font-mono`}
+              placeholder={t("auditHub.calcIdPh")}
+              value={id}
+              onChange={(e) => setId(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#EBEDF0] pt-3">
+          <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => void load()}>
+            {t("auditHub.load")}
+          </button>
+        </div>
       </div>
-      {err ? <p className="text-xs text-red-600">{err}</p> : null}
+      {err ? <p className="text-sm text-red-600">{err}</p> : null}
       {json ? (
-        <pre className="max-h-[480px] overflow-auto rounded border border-[#E5E7EB] bg-[#FAFAFA] p-3 text-[11px] leading-relaxed">
-          {json}
-        </pre>
+        <div className={`${CARD_CONTAINER_CLASS} p-4`}>
+          <pre className="max-h-[min(70vh,520px)] overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-[#34495E]">
+            {json}
+          </pre>
+        </div>
       ) : null}
     </div>
   );

@@ -71,7 +71,7 @@ export function TrialBanner() {
       <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-800">
         <div className="font-semibold">{t("trialBanner.readOnlyTitle")}</div>
         <div className="mt-1 text-red-700">{t("trialBanner.readOnlyBody")}</div>
-        <Link href="/admin/billing" className={`${LINK_ACCENT_CLASS} mt-2 inline-flex`}>
+        <Link href="/settings/subscription" className={`${LINK_ACCENT_CLASS} mt-2 inline-flex`}>
           {t("trialBanner.readOnlyCta")}
         </Link>
       </div>

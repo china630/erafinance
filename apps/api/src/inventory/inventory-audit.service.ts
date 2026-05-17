@@ -14,6 +14,7 @@ import {
 } from "@erafinance/database";
 import { assertMayPostManualJournal } from "../auth/policies/invoice-finance.policy";
 import { PrismaService } from "../prisma/prisma.service";
+import { normalizeListPagination } from "../common/list-pagination";
 import type { CreateInventoryAuditDto } from "./dto/create-inventory-audit.dto";
 import { AccountingService } from "../accounting/accounting.service";
 import { getClosedPeriodKeys, monthKeyUtc } from "../reporting/reporting-period.util";
@@ -51,12 +52,27 @@ export class InventoryAuditService {
     private readonly stock: StockService,
   ) {}
 
-  async findAll(organizationId: string) {
-    return this.prisma.inventoryAudit.findMany({
-      where: { organizationId },
-      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-      include: { warehouse: { select: { id: true, name: true } } },
-    });
+  async findAll(
+    organizationId: string,
+    opts?: { page?: number; pageSize?: number },
+  ) {
+    const { page, pageSize, skip } = normalizeListPagination(
+      opts?.page,
+      opts?.pageSize,
+      25,
+    );
+    const where = { organizationId };
+    const [items, total] = await Promise.all([
+      this.prisma.inventoryAudit.findMany({
+        where,
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+        skip,
+        take: pageSize,
+        include: { warehouse: { select: { id: true, name: true } } },
+      }),
+      this.prisma.inventoryAudit.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
   }
 
   async findOne(organizationId: string, id: string) {

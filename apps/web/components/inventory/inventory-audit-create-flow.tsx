@@ -14,7 +14,10 @@ import {
   MODAL_INPUT_CLASS,
   MODAL_INPUT_NUMERIC_CLASS,
 } from "../../lib/design-system";
+import { EmptySelectOption } from "../../lib/empty-select-option";
 import { Button } from "../ui/button";
+import Link from "next/link";
+import { LINK_ACCENT_CLASS } from "../../lib/design-system";
 
 type WarehouseRow = { id: string; name: string; inventoryAccountCode?: string };
 
@@ -56,9 +59,15 @@ function toNum(v: string): number {
 export function InventoryAuditCreateFlow({
   onNavigateToHistory,
   onBackToInventory,
+  onAuditStarted,
+  compactForModal = false,
 }: {
   onNavigateToHistory: () => void;
   onBackToInventory: () => void;
+  /** After COUNTING starts, parent may navigate to `/inventory/audits/:id`. */
+  onAuditStarted?: (auditId: string) => void;
+  /** Hide duplicate title/back when embedded in create dialog on `/inventory/audits`. */
+  compactForModal?: boolean;
 }) {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
@@ -70,6 +79,7 @@ export function InventoryAuditCreateFlow({
   const [creating, setCreating] = useState(false);
   const [workflowBusy, setWorkflowBusy] = useState(false);
   const [savingLineId, setSavingLineId] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
   const pendingTimers = useRef<Record<string, number>>({});
   const auditRef = useRef<AuditDetail | null>(null);
   useEffect(() => {
@@ -116,7 +126,11 @@ export function InventoryAuditCreateFlow({
     const res = await apiFetch("/api/inventory/reconciliations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: dateStr, warehouseId }),
+      body: JSON.stringify({
+        date: dateStr,
+        warehouseId,
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
+      }),
     });
     if (!res.ok) {
       setCreating(false);
@@ -138,8 +152,10 @@ export function InventoryAuditCreateFlow({
       `/api/inventory/reconciliations/${encodeURIComponent(created.id)}`,
     );
     if (detail.ok) {
-      setAudit((await detail.json()) as AuditDetail);
+      const next = (await detail.json()) as AuditDetail;
+      setAudit(next);
       toast.success(t("inventory.auditOkDraft"));
+      onAuditStarted?.(next.id);
     } else {
       setError(await detail.text());
     }
@@ -259,6 +275,7 @@ export function InventoryAuditCreateFlow({
 
   return (
     <div className="space-y-4">
+      {!compactForModal ? (
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="m-0 text-lg font-semibold text-[#34495E]">{t("inventory.auditTitle")}</h2>
@@ -273,16 +290,31 @@ export function InventoryAuditCreateFlow({
           {t("inventory.auditBack")}
         </Button>
       </div>
+      ) : null}
 
       {error && <p className="text-[13px] text-red-600">{error}</p>}
       {loading && <p className="text-[13px] text-[#7F8C8D]">{t("common.loading")}</p>}
 
       {!loading && warehouses.length === 0 && !error && (
-        <EmptyState title={t("inventory.auditEmpty")} description={t("inventory.emptyStockHint")} />
+        <EmptyState
+          title={t("inventory.auditEmpty")}
+          description={t("inventory.emptyStockHint")}
+          action={
+            compactForModal ? (
+              <Link href="/inventory/settings" className={LINK_ACCENT_CLASS}>
+                {t("inventory.settings")}
+              </Link>
+            ) : undefined
+          }
+        />
       )}
 
       {!loading && warehouses.length > 0 && !audit && (
         <div className={`${CARD_CONTAINER_CLASS} space-y-4 p-6`}>
+          <p className="m-0 text-[13px] leading-relaxed text-[#7F8C8D]">{t("inventory.auditCreateSteps")}</p>
+          {compactForModal ? (
+            <p className="m-0 text-[12px] text-[#7F8C8D]">{t("inventory.auditCreateModalHint")}</p>
+          ) : null}
           <div className="grid gap-4 md:grid-cols-2">
             <label className={MODAL_FIELD_LABEL_CLASS}>
               {t("inventory.thWh")}
@@ -291,6 +323,7 @@ export function InventoryAuditCreateFlow({
                 value={warehouseId}
                 onChange={(e) => setWarehouseId(e.target.value)}
               >
+                <EmptySelectOption />
                 {warehouses.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name}
@@ -303,6 +336,16 @@ export function InventoryAuditCreateFlow({
               <input type="date" className={`mt-1 block w-full ${MODAL_INPUT_CLASS}`} value={dateStr} readOnly />
             </label>
           </div>
+          <label className={MODAL_FIELD_LABEL_CLASS}>
+            {t("inventory.auditNotesOptional")}
+            <textarea
+              className={`mt-1 block min-h-[4rem] w-full resize-y ${MODAL_INPUT_CLASS}`}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              maxLength={2000}
+              placeholder={t("inventory.auditNotesPlaceholder")}
+            />
+          </label>
           <div className={MODAL_FOOTER_ACTIONS_CLASS}>
             <Button
               type="button"
@@ -311,13 +354,18 @@ export function InventoryAuditCreateFlow({
               disabled={creating}
               onClick={() => void createDraft()}
             >
-              {creating ? "…" : t("inventory.auditSaveDraft")}
+              {creating
+                ? "…"
+                : t(compactForModal ? "inventory.auditCreateAndStart" : "inventory.auditSaveDraft")}
             </Button>
           </div>
+          {compactForModal ? (
+            <p className="m-0 text-[12px] text-[#7F8C8D]">{t("inventory.auditStartAndOpen")}</p>
+          ) : null}
         </div>
       )}
 
-      {audit && (
+      {audit && !compactForModal && (
         <>
           <section className="overflow-x-auto rounded-2xl border border-[#D5DADF] bg-white shadow-sm">
             <table className="min-w-full border-collapse text-[13px]">

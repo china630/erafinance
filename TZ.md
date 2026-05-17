@@ -2,7 +2,7 @@
 
 Единый документ для разработки: объединяет ядро Core MVP, расширения v2, интеграции v3 и слой монетизации v4. Сводные продуктовые решения — **[PRD.md](./PRD.md)** (§12 и др.). Детализация REST — **§0.0** ниже и Swagger API.
 
-**Оглавление (верхний уровень):** **§0.0** — реестр ключевых REST; §0 — статус синхронизации; §1 — инфраструктура; §2–§10 — модули **1–9**; **§6.0** — Treasury + касса/банк; **§7.0** — HR, табель, payroll, ЦФО; §11 — паттерн разработки (**§11.1** — web: `PageHeader`, сайдбар-only); §12–§14 — дорожные карты; **§13.6** — Browser Extension RPA (ERA Finance Assistant); §15 — Super-Admin; §16–§17 — hardening; **§21** — Dispute & Recovery (платформа).
+**Оглавление (верхний уровень):** **§0.0** — реестр ключевых REST; §0 — статус синхронизации; §1 — инфраструктура (**§1.4** — локальность данных AZ); §2–§10 — модули **1–9**; **§6.0** — Treasury + касса/банк; **§7.0** — HR, табель, payroll, ЦФО; §11 — паттерн разработки (**§11.1** — web: `PageHeader`, сайдбар-only); §12–§14 — дорожные карты; **§13.6** — Browser Extension RPA (ERA Finance Assistant); §15 — Super-Admin; §16–§17 — hardening; **§21** — Dispute & Recovery (платформа); **§22** — Risk & Compliance (ERM); **§23** — Zero-Knowledge encryption & State Identity Escrow (**`FEAT-SEC-CRYPTO-001`**, PLANNED).
 
 **Стандарт статусов (глобально для PRD/TZ):**
 - [x] **COMPLETED (scope):** задача реализована и зафиксирована.
@@ -45,6 +45,7 @@
 | GET / POST | `/api/integrations/drakaris/v1/client/:id`, `/payments` | Drakaris/yığım inbound API: Basic Auth, конверт `{status,description,data}`, status-коды 200/401/402/404/405/406/407/408 (см. §14.8.14) |
 | GET / PATCH | `/api/users/me` | Self-service профиль текущего пользователя: PII (cipher), `phone` (E.164 +994), `locale` (`AZ`\|`RU`), смена пароля (см. §2.2) |
 | GET | `/api/reports/cash-flow` | ДДС прямой метод (`CashFlowService.getDirectCashFlow`), query: `dateFrom`, `dateTo`, опц. `cashDeskId`, `bankName` |
+| GET / PATCH | `/api/banking/direct-settings` | Просмотр (masked) и обновление REST/Open Banking direct sync в `Organization.settings.bankingDirect`; веб-UI — блок **`DirectBankingPanel`** на **`/settings/bank-accounts`** (модуль **`banking_pro`**; см. **§6.0**). |
 | GET | `/api/hr/payroll/jobs/:jobId` | Статус фоновой задачи расчёта ЗП (BullMQ) |
 | GET | `/api/notifications` | Список in-app уведомлений текущего пользователя: пагинация (`page`, `pageSize`), фильтр `unreadOnly` |
 | GET | `/api/notifications/unread-count` | Количество непрочитанных (бейдж в шапке) |
@@ -55,6 +56,13 @@
 | POST | `/api/admin/platform/dual-approval` | Super-admin: создать `DualApprovalRequest` |
 | POST | `/api/admin/platform/dual-approval/:id/approve` | Super-admin: второй approver → `APPROVED` |
 | POST | `/api/public/disputes/:id/counter-claim` | Публично: контр-заявление по JWT из ссылки (§21.4) |
+| GET | `/api/public/pricing` | Публичный read-only снимок прайс-листа (Foundation, модули, пакеты, квоты tier, годовая скидка, unit pricing, OCR); без JWT — см. **§15.3.1** |
+| GET | `/api/public/landing-modules` | Публичные карточки маркетингового лендинга (AZ/RU JSON); без JWT — см. **§15.3.2** |
+| GET | `/api/admin/landing-modules` | Super-admin: список `LandingModuleMarketing` |
+| PATCH | `/api/admin/landing-modules/:moduleSlug` | Super-admin: обновление текстов карточки (audit на PATCH) |
+| GET | `/api/compliance/risk-summary` | ERM: сводка posture + счётчики **PENDING** (`compliance_pro` / ENTERPRISE) — см. **§22** |
+| GET | `/api/compliance/risk-audits` | ERM: список **`RiskAudit`** (фильтры `status`/`type`, пагинация) |
+| PATCH | `/api/compliance/risk-audits/:id` | ERM: смена статуса **MITIGATED** / **IGNORED** + опционально `mitigationNote` |
 
 Полный перечень — OpenAPI `/api`. См. также `/api/treasury/*`, `POST /api/banking/manual-entry`, `POST /api/banking/transfers`, `POST /api/banking/conversions`, `POST /api/banking/cash-deposits`, `GET /api/holdings/:id/consolidated-pnl`, `GET /api/reporting/pl?departmentId=…`.
 
@@ -80,7 +88,7 @@
 
 ## 0. Синхронизация с PRD
 
-Таблица **§0.0** отражает актуальные контракты **v25.0**. Расширенное описание модулей — разделы **§2–§10**, **§6.0**, **§7.0**; продуктовые формулировки — **PRD §4.12**, **§4.13**, **§5.1**.
+Таблица **§0.0** отражает актуальные контракты **v25.2** (добавлены tenant-эндпоинты **`/api/compliance/*`** для ERM). Расширенное описание модулей — разделы **§2–§10**, **§6.0**, **§7.0**; продуктовые формулировки — **PRD §4.12**, **§4.13**, **§5.1**.
 
 ---
 
@@ -163,7 +171,15 @@
 
 **Источник курсов:** `cbar_official_rates`, `CbarFxService`.
 
-### 1.4. Очереди и Background Jobs
+### 1.4. Локальность данных (Азербайджан) — статус и комплаенс
+
+**Статус (product / ops):** production-развёртывание **по умолчанию** ориентировано на **хостинг в юрисдикции, согласованной с заказчиком**; для типового B2B SMB в Азербайджане — **AZ-first**: вычислительные узлы (API, web, workers), **PostgreSQL** и **Redis** в регионе **EU/Frankfurt** или **EU/Amsterdam** (DigitalOcean / аналог) с **VPC-only** доступом БД/кэша (см. **§1.6**), объекты в **S3-совместимом** хранилище с **Object Lock** для evidence (PRD §7.13, §10.0).
+
+**Данные клиента (tenant):** первичное хранение **в выбранном регионе**; резервные копии и cross-region replication — только по **явной** политике заказчика и договору (RPO/RTO — §21.2.1). Персональные/налоговые идентификаторы (**VÖEN**, PII) — **at-rest encryption** + blind index (TZ §2, §16).
+
+**Регуляторные ожидания:** продукт **не заменяет** юридическую квалификацию хранения персональных данных; при требовании **100% AZ-only** инфраструктуры — отдельный **deployment profile** (выделенные VM/DB в AZ DC, без EU egress для primary OLTP) фиксируется в **приложении к договору** и runbook деплоя.
+
+### 1.5. Очереди и Background Jobs
 
 - **Обязательный стандарт:** BullMQ + Redis для всех тяжёлых и массовых задач (Payroll, bulk-операции по инвойсам, пересчёты COGS, импорты/синхронизации).
 - **Ролевая архитектура узлов:** инстансы разделяются на:
@@ -173,13 +189,13 @@
 - **Массовый импорт холдингов:** загрузка Excel/JSON дампов (в т.ч. 1С-маппинг) должна поддерживать пакетный запуск миграций для 20–30 компаний одновременно через BullMQ (partition by organization/import session).
 - **IBAN validation pipeline:** при импорте и ручном вводе реквизитов действует проверка формата AZ и алгоритм контрольной суммы **MOD-97**; невалидные строки уходят в reject-отчёт импорта.
 
-### 1.5. Сетевой регламент (DigitalOcean VPC)
+### 1.6. Сетевой регламент (DigitalOcean VPC)
 
 - Внутренний трафик между App/API/Workers, Redis и PostgreSQL должен проходить **только через Private Networking** (VPC/private interface).
 - Публичный ingress допускается только для edge-слоя (reverse proxy / web entrypoint); Redis и PostgreSQL не публикуются во внешний интернет.
 - Для production-топологии обязателен контроль security group/firewall правил, исключающий доступ к Redis/DB с public IP.
 
-### 1.6. Режим «Thundering Herd»
+### 1.7. Режим «Thundering Herd»
 
 - Для очередей задач использовать **Managed Redis** (или эквивалент managed deployment) с политикой памяти **`noeviction`**.
 - Запрещены eviction-политики, способные удалять ключи очередей/lock-ключи BullMQ при пиковых нагрузках.
@@ -189,7 +205,7 @@
 - Retry-политика должна использовать **Exponential Backoff** для transient-сбоев (`429/5xx` и сетевые ошибки) с ограничением числа попыток.
 - Integration Health API `GET /api/integrations/health` (Owner-only) обязан отдавать по провайдеру: `lastSync`, `latencyMs`, `currentStatus`, `providerSuccessRate`, `cacheHitRate`; UI-маршрут `/admin/integrations/health` остаётся скрытым из стандартной навигации.
 
-#### 1.6.1. AI Portal Monitoring (PLANNED, v-next)
+#### 1.7.1. AI Portal Monitoring (PLANNED, v-next)
 
 **Статус:** только roadmap.
 
@@ -206,7 +222,7 @@
 ### Модель тенанта
 
 - **1 tenant = 1 юрлицо (один VÖEN).** Пользователь с несколькими компаниями состоит в нескольких организациях (связь **many-to-many** через membership).
-- **Premium / RPA entrypoints** (`tax_pro`, `trade_pro` и др. по матрице продукта): перед запуском сценариев, завязанных на VÖEN и внешние порталы, API **обязан** убедиться, что у организации заполнен **`taxIdBlindIndex`** (уникальный guard на БД) и нет рассинхрона; при нарушении — **403** + аудит (`VoenIntegrityGuard` / аналог).
+- **Premium / RPA entrypoints** (`tax_pro`, `trade_pro` и др. по матрице продукта): перед запуском сценариев, завязанных на VÖEN и внешние порталы, API **обязан** убедиться, что у организации заполнен **`taxIdBlindIndex`** (уникальный guard на БД), что расшифрованный VÖEN проходит **валидацию формата и контрольной суммы** (10 цифр, правила как в `stdnum.az.voen`), что нет **открытого high-severity** сигнала в **`risk_audits`** (`PENDING` + `HIGH` для типов **FRAUD** / **COMPLIANCE**); при нарушении — **403** с локализованным телом (`message` + `messageAz` + `messageRu`, выбор основного `message` по `Accept-Language`) — **`VoenIntegrityGuard`**.
 - В сущности **Organization** сразу завести поле **`subscriptionPlan`**; лимиты тарифов в MVP **не хардкодить** (детализация подписок — §14).
 
 ### 2.1. Рефакторинг на Many-to-Many (схема и auth)
@@ -244,25 +260,28 @@
 
 ### 2.2. Self-service профиль пользователя (`/api/users/me`, v2026.06)
 
+- **`GET /api/users/me`** дополнительно возвращает **`emailVerifiedAt: string | null`** (ISO-8601) — время подтверждения e-mail (**`users.email_verified_at`**); `null` — смена e-mail разрешена.
+- **`PATCH /api/users/me`:** если у пользователя **`emailVerifiedAt != null`** и в теле передан **`email`**, отличный от текущего (после нормализации), ответ **`409 Conflict`** с телом **`{ code: "EMAIL_VERIFIED_LOCKED", message: "..." }`** — самообслуживание не меняет подтверждённый адрес.
+
 Контур редактирования собственных данных пользователя — отдельный от настроек организации (см. PRD §4.1). Размещается в **`AuthModule`**: контроллер **`apps/api/src/auth/users.controller.ts`**, сервисный метод **`AuthService.updateMe(userId, dto)`**. Все мутации — внутри одной **`prisma.$transaction`**; глобальный **`AuditMutationInterceptor`** покрывает `PATCH` автоматически.
 
 | Метод | Путь | Назначение |
 |-------|------|------------|
-| GET | `/api/users/me` | Возвращает текущий профиль: `id`, `email`, расшифрованные `firstName` / `lastName` / `fullName`, `avatarUrl`, `phone`, `locale`. Используется фронтом в `refreshSession`. |
-| PATCH | `/api/users/me` | Частичное обновление профиля; глобальный `Throttle` (по умолчанию `30 / 60s`). |
+| GET | `/api/users/me` | Возвращает текущий профиль: `id`, `email`, `emailVerifiedAt` (ISO или `null`), расшифрованные `firstName` / `lastName` / `fullName`, `avatarUrl`, `phone`, `locale`. Используется фронтом в `refreshSession`. |
+| PATCH | `/api/users/me` | Частичное обновление профиля; глобальный `Throttle` (по умолчанию `30 / 60s`). При **`emailVerifiedAt != null`** смена **`email`** → **`409 Conflict`**, код **`EMAIL_VERIFIED_LOCKED`**. |
 
 **`UpdateMeDto`** (`apps/api/src/auth/dto/update-me.dto.ts`):
 
 - `firstName?: string` (`@IsString @MaxLength(80)`); нормализация и `encryptText` через существующие хелперы из `auth.service.ts` (PII-cipher).
 - `lastName?: string` — аналогично.
-- `email?: string` (`@IsEmail`) — при изменении проверяется уникальность; конфликт → **`409 Conflict`**.
+- `email?: string` (`@IsEmail`) — при изменении проверяется уникальность; конфликт → **`409 Conflict`**. Если **`emailVerifiedAt`** у пользователя задан — смена e-mail через PATCH запрещена (**`EMAIL_VERIFIED_LOCKED`**).
 - `phone?: string | null` (`@IsString @MaxLength(20)`); при `null` / пустой строке поле очищается; формат **E.164 `+994XXXXXXXXX`** (валидация на сервере; `Compliance` AZ).
 - `locale?: UserLocale` (`@IsEnum`); допустимы только `AZ` и `RU`; влияет на бандл Next.js при следующем входе/`refreshSession`.
 - `passwordChange?: { currentPassword, newPassword (MinLength 8) }` (`@ValidateNested`): сервер делает `bcrypt.compare(currentPassword, user.passwordHash)`; на ок — `bcrypt.hash(newPassword, 10)`. Неверный текущий пароль → **`400 Bad Request`** с кодом **`INVALID_CURRENT_PASSWORD`** без подсказок (anti-enumeration).
 
 **Контракт ответа `auth/me`:** функции `toPublicUser` / `toPublicUserNoOrg` в `auth.service.ts` дополнены полями `phone` и `locale`, чтобы **`GET /api/auth/me`** (используется веб-клиентом для `refreshSession`) возвращал актуальный профиль без отдельного раунд-трипа.
 
-**Web (`apps/web/app/settings/profile/page.tsx`):** отдельная страница «Профиль» на боковой навигации; форма с **`PageHeader`**, `CARD_CONTAINER_CLASS`, инпутами по DESIGN.md. На submit — `apiFetch('/api/users/me', PATCH)`; на успех — `useAuth().refreshSession()` + при изменении локали `i18n.changeLanguage(newLocale)`. Тип `AuthUser` в `apps/web/lib/auth-context.tsx` дополнен опциональными `phone?` и `locale?`.
+**Web (`apps/web/app/settings/profile/page.tsx`):** отдельная страница «Профиль» на боковой навигации; **две карточки** `CARD_CONTAINER_CLASS` (персональные данные и смена пароля); инпуты по DESIGN.md. На submit — `apiFetch('/api/users/me', PATCH)`; на успех — `useAuth().refreshSession()` + при изменении локали `i18n.changeLanguage(newLocale)`. Тип `AuthUser` в `apps/web/lib/auth-context.tsx` дополнен опциональными `phone?` и `locale?`.
 
 ### Система ролей (RBAC)
 
@@ -531,12 +550,12 @@
 
 - Импорт выписок (**dropzone**, `POST /api/banking/import`) вынесен в отдельное модальное окно; кнопка открытия импорта — в **`PageHeader.actions`** (вместе с синхронизацией и фильтром месяца).
 - Из шапки страницы удалены нецелевые кнопки и legacy-текст (пояснения в духе OSV/NAS в теле страницы, произвольные ссылки на отчёты вне паттерна `PageHeader`).
-- Кнопка **«Добавить счёт»** открывает только модальное окно создания банковского счёта (**`BankingCreateAccountModal`**, `POST /api/accounts/bank-accounts`), без редиректа в IFRS/Mapping.
+- Кнопка **«Добавить счёт»** открывает только модальное окно создания банковского счёта (**`OrganizationBankAccountModal`**, `GET/POST /api/banking/bank-accounts`), без редиректа в IFRS/Mapping.
 
 **Web UI `/banking` (обновление v2026.05.02):**
 
 - Вкладки UI (**«Выписки / исходящие»**) и **ручная форма** исходящего платежа (IBAN списания/получателя и т.д.) **удалены**.
-- Фильтр периода: **`input type="month"`**; строки выписок запрашиваются с **`bankOnly=true`**, **`valueDateFrom` / `valueDateTo`** по границам выбранного месяца (`GET /api/banking/lines?…`).
+- Фильтр периода: **`input type="month"`**; строки выписок запрашиваются с **`bankOnly=true`**, **`valueDateFrom` / `valueDateTo`** по границам выбранного месяца (`GET /api/banking/lines?…`). Ответ реестра: **`{ items, total, page, pageSize }`** (пагинация серверная; фильтры те же, что и у прежнего списка строк).
 - **Гибридная таблица:** сверху блок **«На отправку»** — все **`BankPaymentDraft`** со статусом **`PENDING`** (`GET /api/banking/payment-drafts?status=PENDING`); ниже **«История»** — строки **`BankStatementLine`** за выбранный месяц.
 - **Синхронизация:** кнопка выполняет **push** — `POST /api/banking/payment-drafts/send-all` (тело: опционально `fromAccountIban`, иначе первый IBAN из **`organization_bank_accounts`**), затем **pull** — `POST /api/banking/sync`.
 
@@ -733,7 +752,7 @@
 
 **Разделение потоков Bank vs Cash (реестры операций):**
 
-- Эндпоинт реестра: `GET /api/banking/lines`.
+- Эндпоинт реестра: `GET /api/banking/lines` (ответ **`{ items, total, page, pageSize }`**, query **`page`**, **`pageSize`** — см. также описание UI `/banking` выше).
 - Для страницы **Bank** (`/banking`) UI обязан запрашивать только банковские операции:  
   `GET /api/banking/lines?channel=BANK&bankOnly=true`
 - При `bankOnly=true` сервер выполняет **жёсткий фильтр** по `origin`, исключая кассовые и системные источники, и возвращает **только**:
@@ -782,6 +801,7 @@
 ### Reconciliation (сверка)
 
 - Загрузка выписки: MVP — **CSV / Excel**; импорт тяжёлых файлов — через **очередь**. Прямые API банков (Pasha, ABB и др.) — дорожная карта (см. §13).
+- **Настройки Direct Banking (REST):** для владельца/админа — **`GET` / `PATCH /api/banking/direct-settings`** (masked просмотр, обновление URL/токенов по банкам); веб-блок **`DirectBankingPanel`** на странице **`/settings/bank-accounts`** (в составе реестра банковских счетов организации; модуль **`banking_pro`**).
 - Инструмент **Match (Invoicing match):** сопоставление строки выписки с существующим инвойсом или создание новой транзакции расхода (например, аренда или налоги).
 
 ### Подраздел Kassa (касса, v8.2)
@@ -1153,6 +1173,16 @@
 
 **UI:** страница **`/inventory/physical`**, ключи i18n `inventory.physical*`.
 
+#### §10.2.0 Manufacturing — BOM, WIP (целевая модель) и распределение накладных
+
+**Task IDs:** **`MOD-MFG-001`** (BOM / `ProductRecipe`), **`MOD-MFG-002`** (атомарный выпуск), **`MOD-MFG-WIP-001`** (очередь производства / WIP — **PRD [x] COMPLETED**), **`MOD-MFG-OH-001`** (overhead allocation).
+
+**BOM (рецепт / Bill of Materials):** каноническая модель — **`ProductRecipe`** (один готовый **`Product`** на организацию) + строки **`ProductRecipeLine`** (`quantityPerUnit`, **`wasteFactor`**, уникальность компонента в рецепте) + опционально **`ProductRecipeByproduct`**. Валидация ацикличности: готовый продукт не может входить в собственный BOM. Выпуск в текущей реализации — документ **`ManufacturingRelease`** с `batchQty` (см. **§10.2.1**).
+
+**WIP и производственные заказы:** **`ManufacturingOrder`** + **`ManufacturingOrderLine`** (статусы `DRAFT` → `IN_PROGRESS` → `COMPLETED` | `CANCELLED`). **Старт:** списание сырья, **Dr 203 / Cr 201** (`WIP_MANUFACTURING_ACCOUNT_CODE = "203"`). **Завершение:** приход ГП, **Dr 204 / Cr 203**, связь с **`ManufacturingRelease`**. **Отмена из IN_PROGRESS:** возврат сырья, **Dr 201 / Cr 203**. REST: `GET/POST /api/manufacturing/orders`, `POST …/:id/start|complete|cancel`; UI **`/manufacturing/orders`**. **Legacy:** атомарный **`POST /api/manufacturing/release`** (Dr 204 / Cr 201 одним шагом) сохранён.
+
+**Распределение накладных (cost allocation):** пул **`OverheadPool`** за **`calendarMonth`**, драйвер **`OverheadDriver`** (QUANTITY / MATERIAL_COST / VOLUME / TIME), распределение на выбранные проведённые **`ManufacturingRelease`** через **`POST …/manufacturing/overhead/allocate-batch`** с проводками из пула счёта затрат на **711** (детали GL — **§12.8.6**). Идемпотентность по паре (poolId, releaseId).
+
 #### §10.2 (v14.0) Модуль Manufacturing — спецификации (ProductRecipe)
 
 **Связь с ЦФО:** производственные и складские проводки, как и прочие операционные расходы, для P&L по подразделениям должны согласовываться с правилами **`departmentId`** в финансовых транзакциях — см. **§7.0.1** (в т.ч. быстрый расход и зарплатные проводки по ЦФО при **PAID** реестра выплат).
@@ -1247,24 +1277,31 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 - **`/inventory/movements`** — реестр движений; **`GET /api/inventory/movements`** — только по товарам (**`isService: false`**), опционально `note` / `notes` (CSV) для фильтрации по `stock_movements.note`.
 - **`/inventory/transfers`** — реестр строк **`TRANSFER_OUT`** (партия `transfer_batch_id` + сопоставление со **`TRANSFER_IN`**); создание — кнопка **+ Yeni köçürmə** → **`TransferModal`** (**`CreateTransferModal`**).
 - **`/inventory/adjustments`** — реестр движений с примечаниями **`INV_ADJ_IN`** / **`INV_ADJ_OUT`**; создание — **+ Yeni düzəliş** → **`AdjustmentsModal`** (**`CreateAdjustmentModal`**).
-- **`/inventory/audits`**, **`/inventory/audits/[id]`** — реестр и карточка **сличительной ведомости**; **`InventoryAuditCreateFlow`** и модалки дергают **`/api/inventory/reconciliations/*`** (список/деталь можно также **`GET /api/inventory/reconciliations`**). Не полагаться на **`POST /api/inventory/audits/:id/approve`** (**§10.1**).
-- **`/inventory/physical`** — акты **`InventoryAdjustment`** (WRITE_OFF / SURPLUS); см. **§10.1.1**.
+- **`/inventory/audits`**, **`/inventory/audits/[id]`** — реестр (пагинация **`ListPaginationFooter`**, 25/50/100) и карточка **сличительной ведомости**; модалка создания — **`InventoryAuditCreateFlow`** с **`compactForModal`** (склад + комментарий → `POST` + `start` → редирект на `[id]`); мутации — **`/api/inventory/reconciliations/*`**. Не полагаться на **`POST /api/inventory/audits/:id/approve`** (**§10.1**).
+- **`/inventory/physical`** — реестр **`GET /api/inventory/physical-adjustments`** + **`PhysicalAdjustmentModal`**; акты **`InventoryAdjustment`** (WRITE_OFF / SURPLUS); см. **§10.1.1**.
 - **`/purchases`** — реестр закупок (приходы **PURCHASE**) + кнопка **+ Yeni alış** → **`PurchaseModal`** (только по клику; query из глобальной навигации не используется). В меню строки (товарные **`goods`** / **`dual`**) — **«Mədaxil orderi yarat»**: открывает **`CreateReceiptModal`** с предзаполненным **`basisTransactionId`**.
 - **`/inventory/receipts`** — реестр движений с **`reason=RECEIPT`**; кнопка нового прихода → **`CreateReceiptModal`** (`apps/web/components/inventory/create-receipt-modal.tsx`; алиас экспорта **`ReceiptModal`** из `app/inventory/receipts/receipt-modal.tsx`).
 
-#### §10.2.4 (v2026.05.01) Web: İstehsalat (отдельный раздел навигации)
+#### §10.2.4 (v2026.05.15) Web: İstehsalat (отдельный раздел навигации)
 
-- Маршруты: **`/manufacturing`** — **серверный редирект** на **`/manufacturing/recipes`**; **`/manufacturing/releases`** (см. PRD **§4.10A**, модуль 10; старые **`/recipe`** / **`/release`** — редирект). Раздел не вложен в «Anbar» в клиентском меню.
+- Маршруты: **`/manufacturing`** — **дашборд** (виджеты); **`/manufacturing/recipes`**, **`/manufacturing/releases`**, **`/manufacturing/overhead`** (см. PRD **§4.10A**; старые **`/recipe`** / **`/release`** — редирект). Компоненты: `apps/web/components/manufacturing/*` (`recipe-modal`, `release-modal`, `manufacturing-dashboard-widgets`). Раздел не вложен в «Anbar» в клиентском меню.
 
 **API (REST, префикс `/api`)**
 
 | Метод | Путь | Назначение |
 |-------|------|------------|
-| GET | `/manufacturing/recipes` | Список рецептур организации (пагинация, поиск по `finishedProduct.name`). |
-| GET | `/manufacturing/recipes/:id` | Детали рецепта с компонентами (`lines`). |
-| POST | `/manufacturing/recipes` | Создание рецепта с массивом `lines` (в одной `prisma.$transaction`). |
-| PATCH | `/manufacturing/recipes/:id` | Обновление (замена массива `lines`, в т.ч. `wasteFactor`). |
-| DELETE | `/manufacturing/recipes/:id` | Мягкое или жёсткое удаление (политика — при реализации; при наличии производственных ордеров — запрет). |
+| GET | `/manufacturing/dashboard` | Виджеты: `activeRuns` (0 + comingSoon), `recentReleases`, `inventoryAlerts` (дефицит компонентов BOM). |
+| GET | `/manufacturing/recipes?page&pageSize&q` | Пагинация; поиск по `name` и `finishedProduct.name`. |
+| GET | `/manufacturing/recipes/:recipeId` | Детали с `lines`, `byproducts`, UOM. |
+| GET | `/manufacturing/recipes/by-product/:finishedProductId` | Рецепт по готовому продукту. |
+| GET | `/manufacturing/recipes/:recipeId/available-output?warehouseId=` | Virtual stock (без изменений). |
+| PUT | `/manufacturing/recipes` | Upsert (`name`, `finishedProductId`, `lines`, `byproducts`) в `prisma.$transaction`. |
+| DELETE | `/manufacturing/recipes/:recipeId` | Удаление; запрет при наличии `ManufacturingRelease`. |
+| GET | `/manufacturing/releases?page&pageSize&period&recipeId&warehouseId` | Журнал выпусков (`status: COMPLETED` в ответе). |
+| POST | `/manufacturing/release` | Проведение выпуска (атомарно: склад + NAS + `ManufacturingRelease`). |
+| GET | `/manufacturing/overhead/period-summary?period=` | Выпуски месяца, `suggestedOverheadTotal` (дебет **741**), `totalAllocated`. |
+| POST | `/manufacturing/overhead/allocate-batch` | Пул + распределение на выбранные `releaseIds` (`QUANTITY` → `VOLUME`, `MATERIAL_COST`). |
+| GET/POST/PATCH | `/manufacturing/overhead/drivers`, `pools`, `allocate` | Legacy power-user API (без изменений). |
 
 **Gating:** все эндпоинты защищены `@RequiresModule('manufacturing')`; при `tier === ENTERPRISE` — доступ без ограничений.
 
@@ -1317,13 +1354,15 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 - **Secure payroll export storage (v2026.04.16):** универсальные зарплатные реестры сохраняются как файл через `STORAGE_SERVICE` (S3/local), а не inline `data:` payload.
 - **Temporary links (TTL):** скачивание зарплатного файла доступно только по временной подписанной ссылке и только ролям `OWNER`/`ACCOUNTANT` в пределах текущего `organizationId`.
 - **Early access / painted door (market validation):** тенантские эндпоинты **`POST /api/early-access/events`**, **`POST /api/early-access/signup`**, **`GET /api/early-access/me`** — фиксация кликов, времени модалки, конверсии в лист ожидания и снимка тарифа/отрасли (см. PRD §5.0.1). Высокочастотный **`POST …/events`** **исключён** из `AuditMutationInterceptor`. Супер-админ: **`GET /api/admin/early-access/summary`**, **`GET /api/admin/early-access/events`** (кросс-тенант при `skipTenantFilter` на `/api/admin/*`). Пороговые уведомления: env **`EARLY_ACCESS_THRESHOLDS`** (по умолчанию `50,100`).
+- **Industry entitlements (v2026.06):** slugs **`industry_retail_ecom`**, **`industry_logistics_customs`**, **`industry_construction`**, **`industry_crm_whatsapp`** в `customConfig.modules` / `activeModules` (Super-Admin PATCH); снимок `modules.industry*` в `/subscription/me`; при включении — навигация на shell **`/industry/{vertical}`**, иначе painted-door модалка. Не включаются автоматически для ENTERPRISE.
 
 ### 11.1. Web UI: шапка страницы (`PageHeader`)
 
-- **Назначение:** единообразная «шапка» контентной области в `apps/web` (Next.js App Router): заголовок страницы, опционально пояснение, опционально блок действий (кнопки, ссылки «назад», фильтры периода и т.д.) — в соответствии с **PRD §10.1** (две строки: заголовок слева; действия справа).
-- **Компонент:** `PageHeader` в `apps/web/components/layout/page-header.tsx` (props: `title`, `subtitle?`, `actions?`). Подзаголовок рендерится во вложенном `div`, допускающем несколько абзацев или вспомогательных блоков (например, отчётный период + ссылки на подотчёты).
+- **Назначение:** единообразная «шапка» контентной области в `apps/web` (Next.js App Router): заголовок страницы, опционально пояснение, опционально **тулбар** (фильтры слева, действия справа) — в соответствии с **PRD §10.1**.
+- **Компонент:** `PageHeader` в `apps/web/components/layout/page-header.tsx` (props: `title`, `subtitle?`, `leading?`, `actions?`). Подзаголовок рендерится во вложенном `div`, допускающем несколько абзацев. При наличии **`leading`** и **`actions`** компонент выстраивает одну строку: **слева** — `leading`, **справа** — `actions` (`justify-between`), что используется на отчётных экранах (хаб **Reporting**, **Tax export**, **Holding P&L**, **Cash flow**).
 - **Тулбар `actions`:** все кастомные элементы управления (инпуты, пикеры) внутри слота `actions` компонента `PageHeader` должны быть жёстко выровнены по вертикали (`flex items-center`) и соответствовать стандартной высоте кнопок тулбара (32px / `h-8`).
-- **Навигация:** переходы между модулями — через **сайдбар**; отдельная горизонтальная полоса «хлебных» ссылок между разделами **не применяется** (исторический `ModulePageLinks` из репозитория удалён).
+- **Пагинация реестров (API + web):** для списков с большим объёмом строк контракт ответа — **`{ items, total, page, pageSize }`** (верхняя граница `pageSize` на сервере); клиент — компонент **`ListPaginationFooter`** (`apps/web/components/list-pagination-footer.tsx`): опции **25 / 50 / 100**, default **25**; футер при **`!loading`** всегда (в т.ч. `total === 0`). Пустая опция нативных `<select>` — **`common.emptyValue`** («—»), хелпер **`EmptySelectOption`**. Конкретные пути — OpenAPI; ориентир по UX — банковский реестр **`GET /api/banking/lines`** (**§6.0**).
+- **Навигация:** переходы между модулями — через **сайдбар**; отдельная горизонтальная полоса «хлебных» ссылок между разделами **не применяется** (исторический `ModulePageLinks` из репозитория удалён). **Audit:** сворачиваемая секция сайдбара **над** разделом **«Администрирование»** — **Audit Hub** (`/audit-hub`, роли OWNER / ADMIN / ACCOUNTANT / AUDITOR; без модуля `audit_hub` — locked) и **Приглашения аудита** (`/audit-invitations`, inbox Audit Engagement). **Журнал аудита организации** — **`/settings/audit`** (`GET /api/audit/logs`, tenant-scoped). **Журнал безопасности владельца** — **`/admin/audit-log`** (`GET /api/admin/audit-logs`, OWNER, платформенный контур).
 - **Синхронизация с визуальным гайдом:** типографика и цвета заголовков/кнопок — [DESIGN.md](./DESIGN.md).
 - **Прочие UX-стандарты web** (модалки Create/Edit, `max-w-screen-xl`, collapse сайдбара, контраст, empty state): таблица **PRD §10.1**.
 
@@ -1384,11 +1423,11 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
   - выборка `ACTIVE` по выбранному `depreciationMethod`;
   - **STRAIGHT_LINE:** `(purchasePrice - salvageValue) / usefulLifeMonths` с ограничением по остатку;
   - **REDUCING_BALANCE:** от **остаточной балансовой** стоимости × (`decliningBalanceRate`/12), floor до `salvageValue`;
-  - **UNITS_OF_PRODUCTION:** начисление за месяц пропорционально **выработке за период** / `totalExpectedUnits` (выработка вводится отдельной мутацией до/в рамках закрытия месяца);
+  - **UNITS_OF_PRODUCTION:** начисление за месяц пропорционально **выработке за период** / `totalExpectedUnits`; таблица **`fixed_asset_monthly_usage`** (`FixedAssetMonthlyUsage`, уникальность `fixedAssetId + year + month`); UI **`/fixed-assets/usage`**, API `GET/POST …/usage/monthly`, `PUT …/:id/monthly-usage` до BullMQ/cron `runMonthlyDepreciation`;
   - проводка периода: **Дт 713 — Кт 112**;
   - пообъектная фиксация в `FixedAssetDepreciationMonth` + инкремент `bookedDepreciation`.
 - **Идемпотентность:** уникальный ключ (`fixedAssetId`, `year`, `month`) + проверка существующих начислений перед вставкой.
-- **API/UI:** endpoint `POST /api/fixed-assets/depreciation/run`; web-страница `/fixed-assets` показывает book value и запускает начисление за месяц.
+- **API/UI:** endpoint `POST /api/fixed-assets/depreciation/run`; web **`/fixed-assets`** (реестр, метод амортизации, book value); **`/accounting/fixed-assets`** — redirect alias; **`/fixed-assets/usage`** — ввод UoP за месяц.
 - **Monthly automation (v2026.06, BullMQ):** очередь **`monthly-depreciation`** в `apps/api/src/fixed-assets/monthly-depreciation.queue.ts` регистрирует повторяющийся job со схемой **`{ pattern: "0 1 1 * *" }`** (1-го числа в **01:00 UTC**, через час после биллинга, чтобы не конкурировать), `jobId = "fixed-assets-monthly-depreciation"`, `attempts: 3`, экспоненциальный backoff `60_000`. Воркер `apps/api/src/fixed-assets/monthly-depreciation.worker.ts`: вычисляет **предыдущий** UTC-месяц, выбирает все `Organization` без soft-delete (**`deletedAt: null` && `isDeleted: false`**), для каждой org вызывает `runMonthlyDepreciation(orgId, { year, month })` под **`runWithTenantContextAsync({ organizationId, skipTenantFilter: false })`** (Prisma extension). Ошибка одной org логируется + срабатывает `attachWorkerFailureAlert` (общий Slack/Telegram webhook), цикл по остальным организациям продолжается. Существующая идемпотентность по `FixedAssetDepreciationMonth (assetId, year, month)` гарантирует безопасный re-run (повторный запуск cron не дублирует проводки). Аварийный выключатель — env-флаг **`FIXED_ASSETS_MONTHLY_DISABLED=1`** (queue не регистрируется, worker не стартует). Регистрация — в `FixedAssetsModule.providers`.
 
 ### 12.4. Налоговый портал (экспорт)
@@ -1558,6 +1597,7 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 - **Реализовано:** таблицы `overhead_drivers`, `overhead_pools`, `overhead_allocations`, `manufacturing_releases` (связь выпуска с `transactions` и `stock_movements` по ГП); Nest **`ManufacturingOverheadService`** + **`ManufacturingOverheadController`** (`/api/manufacturing/overhead/...`, модуль **`manufacturing`**, entitlement **`manufacturing`**).
 - **Драйверы:** `VOLUME` (вес = `quantity` выпуска), `MATERIAL_COST` (вес = `material_cost`), `TIME` — равный вес на каждый release в месяце (MVP без shop-floor hours).
 - **Allocate:** `POST /api/manufacturing/overhead/allocate?period=YYYY-MM` — для каждого пула периода остаток = `totalAmount − sum(existing allocations)`; новые доли только у release без строки allocation; проводка **Дт `debit_account_code` / Кт `credit_account_code`** пакетом в одной `Transaction` на пул-итерацию; повторный вызов не дублирует уже созданные пары pool+release.
+- **UI v2026.05:** `GET …/period-summary` (подсказка суммы по дебету счёта **741** за месяц); `POST …/allocate-batch` — один пул на период + распределение на выбранные выпуски по ключу **QUANTITY** / **MATERIAL_COST**; экран **`/manufacturing/overhead`**.
 
 #### §12.8.7 PSA mini
 
@@ -1650,7 +1690,7 @@ Cash Flow is generated for a period (`dateFrom`..`dateTo`, UTC inclusive). API: 
 **Обязательные технические правила v3.2+:**
 
 - Контур API/Workers остаётся stateless (см. §3.2), состояние задач — только Redis/DB.
-- Все тяжёлые операции идут через Async-First pipeline (см. §1.4 и PRD §10.3).
+- Все тяжёлые операции идут через Async-First pipeline (см. §1.5 и PRD §10.3).
 - Финансовая запись в Ledger выполняется транзакционно и балансно (см. §3), независимо от источника задачи (HTTP/job/replay).
 
 ### 13.6. Browser Extension RPA (ERA Finance Assistant)
@@ -1843,7 +1883,14 @@ enum SubscriptionTier {
 
 ### 14.3. Демо (релиз продукта 4.1)
 
-При создании организации: `OrganizationSubscription` с `isTrial: true`, **`tier: BUSINESS`** (тариф квот по умолчанию для триала), **`expiresAt`** = конец периода, заданного **Trial-пакетом** (`PricingBundle` с `isTrialDefault=true`: поля `trialDurationDays` — по умолчанию **90** календарных дней от `Organization.createdAt`, `moduleKeys` — whitelist бесплатных модулей на триале, `trialQuotas` — JSON override квот). В `OrganizationSubscription.customConfig` сохраняются `trialPackageId` и копия квот для enforcement.
+При создании организации: `OrganizationSubscription` с `isTrial: true`, **`tier: BUSINESS`** (тариф квот по умолчанию для триала). Резолвер trial-пакета — **`apps/api/src/subscription/trial-package.util.ts`** (`resolveNewOrganizationTrialSubscription`, вызывается из `AuthService` при регистрации):
+
+1. Предпочтение пакета с **`PricingBundle.slug === 'TRIAL_3_MONTHS'`**, иначе **`isTrialDefault: true`**, иначе константы.
+2. **`expiresAt`** — **`computeTrialExpiresAtBaku(Organization.createdAt, 3)`**: +3 календарных месяца в **Asia/Baku**, конец календарного дня Baku → UTC; fallback — `trialDurationDays` (90).
+3. **`moduleKeys`** — whitelist операционных модулей; фильтр исключений: **`tax_pro`**, **`trade_pro`**, **`compliance_pro`**.
+4. В **`customConfig`**: `trialPackageId`, **`trialPlanSlug: 'TRIAL_3_MONTHS'`**, копия квот (`trialQuotas`) для enforcement.
+
+Сид: один пакет с `slug`, `isTrialDefault`, `trialDurationDays: 90` — `packages/database/prisma/lib/core/trial-bundle-seed.ts`.
 
 **Баннер на дашборде** при активном демо (`isTrial === true`, срок не истёк): тексты AZ/RU из PRD; ссылка на `/settings/subscription` или аналог — **на все дни** trial, не только при остатке ≤ 5 дней.
 
@@ -1889,9 +1936,12 @@ enum SubscriptionTier {
 | Поле | Тип | Описание |
 |------|-----|----------|
 | `id` | UUID | PK |
+| `slug` | String, unique, optional | Стабильный идентификатор пакета (например **`TRIAL_3_MONTHS`**) |
 | `name` | String | Название пакета (например «Retail Bundle») |
 | `discountPercent` | Decimal | Скидка на сумму базы+модулей пакета, % |
 | `moduleKeys` | JSON (массив строк) | Ключи модулей, входящих в пакет |
+| `isTrialDefault` | Boolean | Trial-пакет по умолчанию (только один `true` в сиде) |
+| `trialDurationDays` | Int, optional | Fallback длительности trial в днях |
 
 **SystemConfig (база и квоты, не модули):**
 
@@ -1911,7 +1961,7 @@ enum SubscriptionTier {
 - **Скидка пакета:** итог после выбора модулей умножается на \((1 - \text{bundleDiscount}/100)\), если применён именованный пакет.
 - **Годовая скидка:** при периоде «год» к месячному эквиваленту применяется \((1 - \text{yearlyDiscount}/100)\) к сумме за 12 месяцев (или эквивалентная логика в одной строке — зафиксировать в коде биллинга).
 
-**API (Super-Admin):** `GET /admin/config/billing` возвращает в т.ч. **опциональные** исторические `prices` (`billing.price.*`), `quotas`/`quotaPricing`, `foundationMonthlyAzn`, `yearlyDiscountPercent`, `pricingModules[]`, `pricingBundles[]`. Обновление: `PATCH` foundation, yearly-discount, quota-pricing; `PATCH /admin/pricing-modules/:id`; CRUD `/admin/pricing-bundles`.
+**API (Super-Admin):** `GET /admin/config/billing` возвращает в т.ч. **опциональные** исторические `prices` (`billing.price.*`), `quotas`/`quotaPricing`, `foundationMonthlyAzn`, `yearlyDiscountPercent`, `pricingModules[]`, `pricingBundles[]`. Обновление: **`PATCH /admin/config/billing/pricing-catalog`** (Foundation + все модули, транзакция), **`PATCH /admin/config/billing/global-limits`** (годовая скидка, OCR, unit pricing, три legacy tier price, транзакция); по отдельности при необходимости — `PATCH` foundation, yearly-discount, quota-pricing; `PATCH /admin/pricing-modules/:id` (legacy); CRUD `/admin/pricing-bundles` с опциональным **`trial`** в теле обновления пакета.
 
 ### 14.7. Emergency Access Override (v8.9)
 
@@ -2172,15 +2222,23 @@ enum SubscriptionTier {
 | GET | `/admin/organizations` | Список компаний с пагинацией и поиском по VÖEN/названию. |
 | PATCH | `/admin/organizations/:id/subscription` | Принудительное продление, блокировка, смена тарифа. |
 | GET/PATCH | `/admin/config/billing` | Чтение цен, квот, Foundation, каталога `PricingModules`, `PricingBundles` (через `SystemConfig` + Prisma). |
-| PATCH | `/admin/config/billing/foundation`, `/yearly-discount`, `/quota-pricing` | База, годовая скидка, единицы квот. |
-| PATCH | `/admin/pricing-modules/:id` | Цена модуля в каталоге. |
+| PATCH | `/admin/config/billing/foundation`, `/yearly-discount`, `/quota-pricing` | База, годовая скидка, единицы квот (по отдельности при необходимости). |
+| PATCH | `/admin/config/billing/pricing-catalog` | **Атомарно:** Foundation + цены **всех** строк **`pricing_modules`** из тела запроса (`prisma.$transaction`). |
+| PATCH | `/admin/config/billing/global-limits` | **Атомарно:** `billing.yearly_discount_percent`, `quota.ocr_jobs_per_org_month_v1`, `billing.quota_unit_pricing_v1`, legacy **`billing.price.*`** для трёх tier (`prisma.$transaction`). |
+| PATCH | `/admin/pricing-modules/:id` | Цена одного модуля (legacy; предпочтительно bulk **`pricing-catalog`**). |
 | POST/PATCH/DELETE | `/admin/pricing-bundles`, `/admin/pricing-bundles/:id` | Пакеты (Paket yaradıcısı). |
 | GET/POST/DELETE | `/admin/translations` | Редактор переводов; `POST /admin/translations/sync` — инкремент версии кэша для клиентов. |
 | GET | `/public/translations?locale=` | Публичная выдача переопределений для слияния на клиенте. |
+| GET | `/public/pricing` | То же, что **`GET /api/public/pricing`** (см. **§15.3.1**): публичный read-only снимок прайс-листа для лендинга. |
+| GET | `/public/landing-modules` | То же, что **`GET /api/public/landing-modules`** (см. **§15.3.2**): карточки маркетингового лендинга AZ/RU. |
+| GET | `/admin/landing-modules` | Список **`LandingModuleMarketing`** для Super-Admin. |
+| PATCH | `/admin/landing-modules/:moduleSlug` | Редактирование текстов карточки лендинга (`names`, `descriptions`, `tasks`, `sortOrder`); audit на PATCH. |
 | GET | `/admin/audit-logs` | Глобальный просмотр `AuditLog` с фильтром по `organizationId`. |
 | POST | `/admin/impersonate/:userId` | Выдача токенов от имени пользователя (поддержка). |
 
 **Биллинг:** `GET /billing/plans` и поле `tier` в `POST /billing/checkout` — **не** смешивать с «коробочной» ценой: `tier` выбирает **тариф квот**; денежные суммы строк счёта — из Foundation, каталога модулей и `quota_unit_pricing` (значения в `SystemConfig` / снимках, не из захардкоженных констант в коде).
+
+**UI (маркетинг):** маршрут **`/super-admin`**, вкладка **«Лендинг»** — таблица карточек `LandingModuleMarketing` и модалка редактирования AZ/RU (`LandingModulesEditor`); см. **§15.3.2** и PRD §7.6.4.
 
 ### 15.2. Tarif Konstruktoru (конструктор тарифов, v8.1+; UI v8.8)
 
@@ -2188,13 +2246,42 @@ enum SubscriptionTier {
 
 | Элемент | Описание |
 |---------|----------|
-| **Прайс-лист** | Вкладка **«Прайс-лист» / Qiymət siyahısı**: секция **Foundation** (базовая цена), таблица **модулей** из `PricingModules` (цена/мес.), секция **докупки квот** — единицы расширения (`billing.quota_unit_pricing_v1`) и **годовая скидка** (%). **Тарифы квот** (STARTER / BUSINESS / ENTERPRISE) — в коде и подписке (`tier`), не отдельная таблица имён. |
-| **Квоты (подвкладка)** | Вкладка **«Квоты»** в разделе подписки Super-Admin: **отдельное** сохранение **Foundation** (`PATCH /admin/config/billing/foundation`); карточка **глобальных лимитов** — **legacy `billing.price.*`**, **`quota.ocr_jobs_per_org_month_v1`**, **`billing.quota_unit_pricing_v1`**, **`billing.yearly_discount_percent`** (см. `PATCH`-маршруты §15.1); блок **«квоты по tier»** — для каждого `SubscriptionTier` только **`maxEmployees`**, **`maxInvoicesPerMonth`**, **`maxStorageGb`** (`PATCH /admin/config/billing/quotas`); в UI **пустое поле** сериализуется как **`null`** (безлимит). |
-| **Paket yaradıcısı** | Вкладка **«Paket yaradıcısı»**: выбор модулей **переключателями (switch)**, имя пакета, **скидка пакета** (%), **предпросмотр** для клиента (месяц / год с учётом годовой скидки); сохранение в `PricingBundles`. |
+| **Прайс-лист** | Маршрут **`/super-admin/billing/pricing`**: секция **Foundation** (в UI — метка **ERA Core**, i18n **`superAdmin.billingFoundationTitle`** / **`pricingPage.foundationTitle`**), таблица **`PricingModules`**; **одна** кнопка сохранения вызывает **`PATCH /admin/config/billing/pricing-catalog`** (Foundation + все цены модулей в **`$transaction`**). Секции докупки квот / годовой скидки при необходимости остаются на **Квотах** или дублируются по продуктовому решению. **Подписи модулей** в веб-клиенте: i18n **`pricingModule.<key>`** в **`packages/i18n/src/resources.ts`** (RU/AZ), **fallback** на поле **`name`** из БД (`apps/web/lib/pricing-module-label.ts`); то же для **`/pricing`** и **Settings → Subscription**. |
+| **Квоты** | Маршрут **`/super-admin/billing/quotas`**: **без** блока Foundation (Foundation только на **Прайс-листе**). Карточки по tier с заголовками **`STARTER` / `BUSINESS` / `ENTERPRISE`** (литералы enum, **не** i18n); модалка **редактирования** tier (legacy **`billing.price.*`** + **`maxEmployees`**, **`maxInvoicesPerMonth`**, **`maxStorageGb`**). Глобальные лимиты (OCR, unit pricing, годовая скидка, три legacy tier price) — **`PATCH /admin/config/billing/global-limits`** в одной транзакции. Квоты tier — по-прежнему **`PATCH /admin/config/billing/quotas`** (или расширение bulk позже). |
+| **Paket yaradıcısı** | Маршрут **`/super-admin/billing/packages`**: список пакетов; создание и редактирование — **модалка** (модули switch с подписями **`pricingModule.<key>`** / fallback на **`name`**, имя пакета, скидка %, предпросмотр). **Trial-пакет:** `isTrialDefault`, `trialDurationDays`, `trialQuotas` — в **той же** модалке; сохранение через **`PATCH /admin/pricing-bundles/:id`** с опциональным телом **`trial`** (атомарно с полями пакета в **`$transaction`**) и/или существующий контракт trial-config, объединённый в сервисе. Визуально: **badge/рамка** для пакета с `isTrialDefault`. |
 | **Стиль** | Карточки: `CARD_CONTAINER_CLASS`, палитра **#34495E** / **#2980B9** (см. DESIGN.md). |
 | **Связь с БД** | Модули и пакеты — таблицы **`pricing_modules`**, **`pricing_bundles`**; Foundation, единицы докупки квот и годовая скидка — `SystemConfig`. Подписка организации — `OrganizationSubscription.customConfig` + **`tier` (тариф квот)**. |
 
 Ключи **`billing.price.*`**, если присутствуют, **не** задают продуктовую цену для новых клиентов (PRD §7.1); основной UX — конструктор (Foundation + модули + overlimit), а не «три карточки коробок».
+
+### 15.3. Публичные маркетинговые API (read-only)
+
+#### 15.3.1. Публичный прайс-лист (`GET /api/public/pricing`, read-only)
+
+**Назначение:** единый read-only снимок для **гостей** и **внешнего маркетингового сайта** без JWT и без данных организаций. Продуктовая связь — [PRD.md](./PRD.md) §7.1 (ссылка на витрину), §7.6.4 (таблица полей и веб **`/pricing`**).
+
+| Аспект | Реализация |
+|--------|------------|
+| **HTTP** | **`GET /api/public/pricing`** (префикс приложения Nest: **`/api`**). Класс **`PublicPricingController`** (`apps/api/src/admin/public-pricing.controller.ts`), декоратор **`@Public()`**, **`@SkipThrottle()`**; глобальные guards пропускают маршрут по **`IS_PUBLIC_KEY`** (см. `JwtAuthGuard`, `SubscriptionReadOnlyGuard`). |
+| **Источник данных** | **`AdminService.getPublicPricingSnapshot()`** — внутри используется тот же снимок, что и для **`GET /admin/config/billing`**, с **санитизацией**: из модулей убраны UUID; из пакетов убраны **`id`** и JSON **`trialQuotas`** (остаются **`isTrialDefault`**, **`trialDurationDays`** для маркетинга trial). |
+| **Тело ответа (JSON)** | **`currency`**: `"AZN"`; **`foundationMonthlyAzn`**, **`yearlyDiscountPercent`**; **`pricingModules[]`**: `{ key, name, pricePerMonth, sortOrder }`; **`pricingBundles[]`**: `{ name, discountPercent, moduleKeys, isTrialDefault, trialDurationDays }`; **`tierLegacyPricePerMonthAzn`** (ключи tier → число); **`tierQuotasIncluded`** (ключи tier → `{ maxEmployees, maxInvoicesPerMonth, maxStorageGb }` с `null` как безлимит); **`quotaUnitPricing`**, **`ocrJobsPerOrgMonth`**. При ошибке чтения БД — пустые массивы / объекты и **`unavailable: true`** (HTTP **200**), лог предупреждения. |
+| **CORS (внешний лендинг)** | В **production** браузерный `fetch` с другого Origin требует, чтобы Origin был в **`CORS_ORIGINS`** API (переменная окружения, см. **`apps/api/src/main.ts`**, **`.env.example`**). |
+| **Веб (монорепо)** | **`/pricing`** — `apps/web/app/pricing/page.tsx`; публичный маршрут в **`apps/web/middleware.ts`**; в **`apps/web/app/layout.tsx`** — **`publicPath`** и **`barePublicLayout`**, чтобы страница рендерилась **без** принудительного редиректа на логин и **без** `AppShell`. Клиент: **`publicApiFetch("/api/public/pricing")`**; тип **`PublicPricingResponse`** — `apps/web/lib/public-pricing-types.ts`. |
+| **i18n** | Ключи **`pricingPage.*`**, **`pricingModule.*`** (подписи модулей по **`pricing_modules.key`**, fallback на **`name`** из снимка API), **`auth.viewPricing`** в **`packages/i18n/src/resources.ts`** (RU/AZ); каталог Super-Admin: **`npm run i18n:catalog`**. |
+
+Таблица **§15.1** также содержит краткую строку для **`/public/pricing`** (канонический путь относительно префикса **`/api`** на балансировщике — **`/api/public/pricing`**).
+
+#### 15.3.2. Landing modules (`GET /api/public/landing-modules`)
+
+| Аспект | Реализация |
+|--------|------------|
+| **HTTP** | **`GET /api/public/landing-modules`** — `PublicLandingController` (`apps/api/src/admin/public-landing.controller.ts`), **`@Public()`**, **`@SkipThrottle()`**. |
+| **Данные** | Prisma **`LandingModuleMarketing`** (`landing_module_marketing`): `moduleSlug`, `sortOrder`, `names`, `descriptions`, `tasks` (JSON AZ/RU). Сид/upsert — `seedLandingModuleMarketing` из `packages/database/prisma/lib/config/landing-modules.ts`. |
+| **Admin** | **`GET /api/admin/landing-modules`**, **`PATCH /api/admin/landing-modules/:moduleSlug`** — Super-Admin + `AuditMutationInterceptor` на PATCH; DTO `PatchLandingModuleMarketingDto`. |
+| **Веб `/`** | `apps/web/app/page.tsx` (RSC): server fetch + `revalidate: 300`; fallback `apps/web/lib/config/landing-modules.ts`. Locale: cookie `erafinance_i18n_lang` → `Accept-Language` → `az`. |
+| **Маршруты web** | **`/`** — лендинг; **`/home`** — дашборд; **`middleware.ts`**: `/` и `/home` public; с токеном **`/`** → redirect **`/home`**; `layout.tsx` — `/` в `barePublicLayout`. |
+
+**Prisma:** модель `LandingModuleMarketing`; миграция `20260522120000_landing_module_marketing` (идемпотентный SQL).
 
 ---
 
@@ -2216,7 +2303,7 @@ enum SubscriptionTier {
 
 ### Квоты и продукт
 
-- Лимиты по тиру (**`TierQuotas`**: сотрудники, инвойсы в месяц, хранилище) и глобальные настройки (OCR/мес., unit pricing) редактируются в **Super-Admin → Подписка → Квоты**; отдельного лимита «число организаций на пользователя» **нет** (удалён как продуктово избыточный).
+- Лимиты по тиру (**`TierQuotas`**: сотрудники, инвойсы в месяц, хранилище) и глобальные настройки (OCR/мес., unit pricing) редактируются в **Super-Admin → `/super-admin/billing/quotas`**; отдельного лимита «число организаций на пользователя» **нет** (удалён как продуктово избыточный).
 
 ### 16.1. Soft Delete (архивация сущностей)
 
@@ -2261,9 +2348,42 @@ enum SubscriptionTier {
 - **COGS FIFO regression tests:** добавлены интеграционные/сервисные тесты цепочки `закупки разными слоями -> частичная реализация`, с проверкой корректной суммы COGS и проводок `Дт 701 — Кт 201`.
 - **Multi-currency VAT rounding handler (M4):** регрессионные тесты фиксируют VAT-математику по мультивалютным счетам и обработку копеечных расхождений через счета курсовых разниц (`662/562`) в Ledger.
 
+### 16.5. Reporting Optimization (M7 Heavy Load)
+
+- Для ускорения тяжелых выборок добавлены композитные индексы:
+  - `transactions(organization_id, is_final, date)` — фильтрация периода и posted-only.
+  - `journal_entries(organization_id, ledger_type, transaction_id)` — быстрый отбор по org+book+периоду.
+  - `journal_entries(account_id)` — ускорение точечных агрегатов по счетам (эквивалент индексирования journal lines).
+- В `ReportingService.trialBalance` внедрен snapshot-first расчет:
+  - используется снимок из `account_balances` на конец последнего закрытого месяца `< dateFrom`;
+  - к снимку добавляются только обороты открытого периода;
+  - при отсутствии снимка по счету включается fallback-агрегация.
+- При `closePeriod` автоматически материализуется снимок сальдо на конец закрытого месяца в `account_balances` (по `accountId + ledgerType`).
+- **Cross-validation (M2/M7 QA):** в отчётном контуре включена автоматическая сверка `P&L.netProfit` c proxy-значением из `TrialBalance` за тот же период; результат возвращается как `crossValidation.ok/delta` для раннего обнаружения расхождений.
+- **Performance budget:** trial balance и P&L профилированы на массивах **10,000+** движений/строк; в ответах фиксируются метаданные производительности (`elapsedMs`, `rowsProcessed/accountRows`) для SRE-мониторинга.
+
+### 16.6. DevOps & Monitoring Hardening
+
+- **Automated DB Backups:** скрипт `scripts/db-backup.sh` выполняет `pg_dump` с gzip-архивацией и ротацией (удаление бэкапов старше 7 дней, configurable `RETENTION_DAYS`).
+- **DR Runbook:** документ `docs/deploy/DR_RUNBOOK.md` фиксирует пошаговое восстановление БД из `*.sql.gz`, валидацию и rollback-порядок.
+- **Audit Daily Check:** `@Cron('0 2 * * *')` запускает `AuditService.verifyChain()`; при разрывах цепочки пишется `error` лог с compromised IDs.
+- **External Critical Alerting (M8):** при `compromisedIds.length > 0` cron дополнительно отправляет критическое внешнее уведомление на `AUDIT_ALERT_WEBHOOK_URL` (Slack/Telegram-compatible webhook) с текстом:
+  `"[CRITICAL] ERA Finance: Обнаружено нарушение целостности Audit Log. Возможна ручная манипуляция в БД. Скомпрометированные ID: ..."`  
+  При отсутствии webhook-конфига событие обязательно остаётся в error-логе.
+- **Banking Circuit Breaker:** в `BankingGatewayService` реализован fail-fast:
+  - 3 подряд ошибки провайдера переводят circuit в `OPEN` на 5 минут;
+  - в `OPEN` новые запросы отклоняются локально (`ServiceUnavailable`, code `BANK_CIRCUIT_OPEN`);
+  - успешный вызов закрывает circuit и сбрасывает счетчик.
+- **M5 SLA metrics:** в `BankingGatewayService` накапливаются `attempts/success/failed/successRatePct` по провайдерам для потока bank failover и автосверки.
+- **Jest benchmark:** добавлен stress-тест на **100+** конкурентных запросов к банковским адаптерам с проверкой, что после порога ошибок circuit breaker шорт-схемит обращения (без повторных внешних вызовов).
+
 ---
 
 ## 17. Платформа (v5.7): консистентность данных и UX
+
+### VÖEN Integrity Guard (Phase 3.2) — синхронно с PRD §3.2
+
+- [x] **COMPLETED:** реализация в коде — `apps/api/src/auth/guards/voen-integrity.guard.ts`, утилита **`VoenValidator`** — `apps/api/src/common/utils/voen-validator.ts`; охват премиум-маршрутов: **`/api/customs/*`**, **`/api/ocr/*`**, **`/api/tax/*`**, **`/api/tax-reports/*`**, а также **`/api/reporting/vat-appendix-xlsx`**, **`/api/reporting/etaxes-vat-declaration`**, **`/api/reporting/tax-declarations*`** (включая submit/download/receipt).
 
 ### Validation Layer (Strict Sync с §2)
 
@@ -2345,35 +2465,6 @@ enum SubscriptionTier {
 | **2026.04.16** | Архив | SaaS Go-Live Hardening Priority 0: Secure Storage for Payroll, Tax Engine consolidation, Absence guard payload & tests. |
 | **2026.04.17** | Архив | SaaS Hardening v1 (Batch 1): RBAC policy enforcement, Ledger Period Lock, and atomic transaction tests. |
 | **2026.04.18** | Архив | SaaS Hardening v1 (Batch 2): RBAC auto-scanner, Public Invoice rate-limiting, and CRM fallback modes. |
-### 16.5. Reporting Optimization (M7 Heavy Load)
-
-- Для ускорения тяжелых выборок добавлены композитные индексы:
-  - `transactions(organization_id, is_final, date)` — фильтрация периода и posted-only.
-  - `journal_entries(organization_id, ledger_type, transaction_id)` — быстрый отбор по org+book+периоду.
-  - `journal_entries(account_id)` — ускорение точечных агрегатов по счетам (эквивалент индексирования journal lines).
-- В `ReportingService.trialBalance` внедрен snapshot-first расчет:
-  - используется снимок из `account_balances` на конец последнего закрытого месяца `< dateFrom`;
-  - к снимку добавляются только обороты открытого периода;
-  - при отсутствии снимка по счету включается fallback-агрегация.
-- При `closePeriod` автоматически материализуется снимок сальдо на конец закрытого месяца в `account_balances` (по `accountId + ledgerType`).
-- **Cross-validation (M2/M7 QA):** в отчётном контуре включена автоматическая сверка `P&L.netProfit` c proxy-значением из `TrialBalance` за тот же период; результат возвращается как `crossValidation.ok/delta` для раннего обнаружения расхождений.
-- **Performance budget:** trial balance и P&L профилированы на массивах **10,000+** движений/строк; в ответах фиксируются метаданные производительности (`elapsedMs`, `rowsProcessed/accountRows`) для SRE-мониторинга.
-
-### 16.6. DevOps & Monitoring Hardening
-
-- **Automated DB Backups:** скрипт `scripts/db-backup.sh` выполняет `pg_dump` с gzip-архивацией и ротацией (удаление бэкапов старше 7 дней, configurable `RETENTION_DAYS`).
-- **DR Runbook:** документ `docs/deploy/DR_RUNBOOK.md` фиксирует пошаговое восстановление БД из `*.sql.gz`, валидацию и rollback-порядок.
-- **Audit Daily Check:** `@Cron('0 2 * * *')` запускает `AuditService.verifyChain()`; при разрывах цепочки пишется `error` лог с compromised IDs.
-- **External Critical Alerting (M8):** при `compromisedIds.length > 0` cron дополнительно отправляет критическое внешнее уведомление на `AUDIT_ALERT_WEBHOOK_URL` (Slack/Telegram-compatible webhook) с текстом:
-  `"[CRITICAL] ERA Finance: Обнаружено нарушение целостности Audit Log. Возможна ручная манипуляция в БД. Скомпрометированные ID: ..."`  
-  При отсутствии webhook-конфига событие обязательно остаётся в error-логе.
-- **Banking Circuit Breaker:** в `BankingGatewayService` реализован fail-fast:
-  - 3 подряд ошибки провайдера переводят circuit в `OPEN` на 5 минут;
-  - в `OPEN` новые запросы отклоняются локально (`ServiceUnavailable`, code `BANK_CIRCUIT_OPEN`);
-  - успешный вызов закрывает circuit и сбрасывает счетчик.
-- **M5 SLA metrics:** в `BankingGatewayService` накапливаются `attempts/success/failed/successRatePct` по провайдерам для потока bank failover и автосверки.
-- **Jest benchmark:** добавлен stress-тест на **100+** конкурентных запросов к банковым адаптерам с проверкой, что после порога ошибок circuit breaker шорт-схемит обращения (без повторных внешних вызовов).
-
 | **2026.04.20** | Архив | SaaS Hardening v1 (Batch 3): Reporting draft leakage prevention, Inventory COGS/FIFO strict calculations, and VAT rounding math. |
 | **2026.04.21** | Архив | Multi-GAAP Foundation: Parallel NAS/IFRS ledgers, automated mapping engine, and ledger-aware reporting. |
 | **2026.04.22** | Архив | NAS Chart of Accounts: i18n support, Commercial/Small template profiles (`TemplateAccount` + `coaTemplate`), and manual account import (`/api/accounts/templates`, `import-from-template`, `/accounting/chart`). |
@@ -2409,17 +2500,25 @@ enum SubscriptionTier {
 | **2026.05.22** | Текущая | **`v1.0.0-RC1` (Release Candidate 1)** — синхронизация ТЗ с этапом: **UI/UX** — модальные окна на реестрах, **`PageHeader`**, сайдбар-only layout (**§11.1**); **Склад** и **Производство** разведены по разделам/маршрутам; **закупки товаров vs услуг** (поля вида закупки, склад, проводки); **VÖEN** — строгая валидация ответа интеграции (**§13.2**), в CRM — **`legalForm`** (ОПФ) и **`isVatPayer`** (**§4**); перекрёстные ссылки на [PRD.md](./PRD.md) §4.3. |
 | **2026.05.23** | Текущая | **i18n (web):** §17 — политика **RU/AZ** с дефолтом **`az`**, таблица **`ui-lang.ts`**, расширен охват **`i18n:audit`** на **`apps/web/lib`**, описаны merge оверрайдов (**`overwrite: true`**), **`processTranslationOverridesFlat`**, ремап ОПФ, аудит **`audit-translation-overrides.ts`**; строка «Локаль» в §1; синхронизация с PRD §7.6.1 / §12. |
 | **2026.05.24** | Текущая | **i18n:** в §17 зафиксированы **`dropCounterpartyLegalFormPoisonDottedKeys`**, ключ **`counterparties.legalFormField`**; команда **`db:audit-i18n-overrides`** в списке; в [docs/deploy/deploy.ru.md](../docs/deploy/deploy.ru.md) добавлен §**7.4** (локальный **`db:deploy`** + dry-run аудита). |
-| **2026.05.11** | Текущая | **Painted door / early access:** PRD §5.0.1; API и модель в §11 (REST) и §17 (транзакции + `early_access_*`); UI — секция сайдбара Industry Solutions, модалка воронки, вкладка Super-Admin «Отраслевые модули (waitlist)». |
 | **2026.05.25** | Текущая | **Web / маршруты:** модуль **«План счетов» (Hesablar planı)** — **`/accounting/chart`**, **`/accounting/mapping`**, **`/accounting/ifrs-mapping`**; пункты вынесены из сайдбара «Администрирование» в отдельную секцию. Удалены канонические пути **`/settings/chart`**, **`/settings/mapping`**, **`/settings/finance/ifrs-mapping`** (постоянные **301** редиректы в **`next.config.ts`** приложения **`apps/web`**). |
 | **2026.05.26** | Текущая | **§8.0 Integrations (ƏMAS):** отдельный адаптер + **BullMQ** для исходящих запросов и обработки ответов госсерверов; перекрёстная ссылка на [PRD.md](./PRD.md) §13. |
 | **2026.05.27** | Текущая | **§13.2 DVX:** перекрёстная ссылка на гибридную архитектуру ГНС — [PRD.md](./PRD.md) §6.1.1; первый буллет про продуктовый контур vs техдетали реализации. |
 | **2026.05.28** | Текущая | **§8.0 ƏMAS:** зафиксирована поэтапная стратегия (ссылка на [PRD.md](./PRD.md) §13.0); уточнено, что BullMQ/HTTP-адаптер — **фаза 3**; фазы 1–2 — отдельные компоненты до S2S. |
 | **2026.05.29** | Текущая | **§14.5 Квоты:** roadmap-пункт **WhatsApp** — пакеты сообщений, ссылка на [PRD.md](./PRD.md) §6.8 / §7.12.3. |
+| **2026.05.33** | Текущая | **Painted door / early access:** PRD §5.0.1; API и модель в §11 (REST) и §17 (транзакции + `early_access_*`); UI — секция сайдбара Industry Solutions, модалка воронки, вкладка Super-Admin «Отраслевые модули (waitlist)». |
 | **2026.05.31** | Текущая | Отражена поэтапная стратегия интеграции с DVX (включая Chrome RPA) и зафиксирована архитектура единого браузерного расширения с проверкой подписки на уровне выбранной организации (Multi-tenant RPA Gating). |
 | **2026.05.32** | Текущая | **NAS по виду организации:** единый **`OrganizationKind`** (`COMMERCIAL` / `BUDGET` / `NGO`), колонки **`organizations.kind`**, **`template_accounts.kind`**, **`chart_of_accounts_entries.kind`**; три JSON-каталога; онбординг и super-admin chart-template с **`kind`**; §18 и таблица API §0 обновлены. |
 | **2026.06.04** | Текущая | **Profile / Billing providers / FA monthly:** добавлены §**2.2** (`/api/users/me`, `User.phone`, `User.locale = AZ \| RU`, смена пароля с `INVALID_CURRENT_PASSWORD`), §**14.8.2** (`Organization.drakarisClientId @unique`), §**14.8.14** (Drakaris/yığım — Basic Auth, REST `/api/integrations/drakaris/v1/...`, `DrakarisStatus` 200/401/402/404/405/406/407/408, идемпотентность по `transaction-id` → `PaymentOrder.idempotencyKey`, env `DRAKARIS_*`), §**12.5** (BullMQ-воркер `monthly-depreciation`, cron `0 1 1 * *`, env `FIXED_ASSETS_MONTHLY_DISABLED`); миграция `20260510140000_add_user_locale_phone_drakaris_org`. Ссылка из PRD §4.1 / §5.D / §7.12.4. |
 | **2026.06.05** | Текущая | **§20.2 HS / AZ customs tariff curation:** платформенное версионирование `customs_tariff_rates` по `(hs_code, effective_from)`, dedupe на дату в `loadActiveRates`, парсер акта MD → `prisma/catalog/trade/customs-tariff-rates.json` (`parse-az-customs-act-md.mjs`), импорт JSON (`import-customs-tariff-from-json.ts`), шаблон CSV и маппинг кодов ЕИ в `prisma/catalog/trade/`; см. PRD §7.6.2. |
 | **2026.06.06** | Текущая | **§14.5 / §14.8.2 / §14.8.7 / §15.2:** квоты без **`maxOrganizations`**; колонка **`whatsapp_outbound_messages_balance`**, **`GET /api/subscription/me`** → `quotas.whatsappOutbound`; перечень **`QuotaKind`**; вкладка Super-Admin **«Квоты»** (Foundation, глобальные лимиты, tier JSON с `null`); синхронизация с PRD §7.6 / §7.12. |
+| **2026.06.10** | Текущая | **§15.1–15.2 / §16:** Super-Admin биллинг — UI **`/super-admin/billing/*`**; **`PATCH .../pricing-catalog`**, **`PATCH .../global-limits`** (`$transaction`); tier-имена в UI — литералы; Trial в модалке пакета; см. PRD §7.6. |
+| **2026.06.13** | Текущая | **§0.0 / §15.3:** публичный read-only **`GET /api/public/pricing`** (`PublicPricingController`, `getPublicPricingSnapshot`), веб **`/pricing`** (middleware + root layout publicPath); CORS **`CORS_ORIGINS`** для внешнего лендинга; версия реестра **v25.1**; см. PRD §7.6.4. |
+| **2026.06.14** | Текущая | **§11.1 / §15.2–15.3:** подписи **`pricing_modules`** в вебе — **`pricingModule.<key>`** + fallback на **`name`**; Foundation в UI — **ERA Core**; **Audit Hub** в корне сайдбара над «Администрирование»; **`/audit-invitations`** — inbox приглашений в Audit Engagement (см. PRD §4.8.1). |
+| **2026.06.15** | Текущая | **§11.1:** сайдбар — секция **Audit** (`/audit-hub`, `/audit-invitations`); разграничение **`/settings/audit`** vs **`/admin/audit-log`**; **`/settings/organization`** — банки только через **`/settings/bank-accounts`**; см. PRD §4.8.1, §14. |
+| **2026.06.19** | Текущая | **§23 Zero-Knowledge (PLANNED):** DEK/KEK envelope, `UserOrganizationKey`, Tier 1–3 recovery, ASAN/SİMA state escrow contract; Task **`FEAT-SEC-CRYPTO-001`**; PRD §15. |
+| **2026.06.18** | Текущая | **Лендинг / trial / маршруты:** **`GET /api/public/landing-modules`**, admin PATCH landing; веб **`/`** (RSC) и **`/home`** (дашборд); **`TRIAL_3_MONTHS`**, `computeTrialExpiresAtBaku`, исключение **`compliance_pro`** — **§14.3**, **§15.3.2**; Prisma `LandingModuleMarketing`, `PricingBundle.slug`; см. PRD §7.3, §7.6.4. |
+| **2026.06.17** | Текущая | **Док-синхронизация ERM / roadmap:** PRD **§14.2** task IDs; TZ **§1.4** (локальность данных AZ/EU), **§10.2.0** (manufacturing BOM / WIP target vs release / overhead), **§21.2.1** (SLA Customs / Tax / Treasury), **§22.0**; реестр **§0.0** — **`/api/compliance/*`** (v25.2); **нумерация §1:** добавлен новый **§1.4** (локальность), прежние **§1.4–§1.6** сдвинуты на **§1.5–§1.7** (очереди/BullMQ — **§1.5**). |
+| **2026.06.16** | Текущая | **§22 Risk & Compliance (ERM):** Prisma **`RiskAudit`** / таблица **`risk_audits`**, tenant API **`/api/compliance/*`** с **`@RequiresModule('compliance_pro')`**, **`ComplianceService`** и rule-based сканеры, очередь **`compliance-risk-scan`** (cron UTC, env **`COMPLIANCE_RISK_SCAN_DISABLED`**), веб **`/compliance`** и индикатор posture в шапке; миграция **`20260210120000_risk_audits_erm`**; см. [PRD.md](./PRD.md) §14–§14.1. |
 
 ### Принцип ведения истории (дальше)
 
@@ -2525,6 +2624,16 @@ enum SubscriptionTier {
 | Исполнение transfer после APPROVED | только при ≥2 approvers + валидный step-up |
 | Snapshot (MVP metadata / full worker) | best-effort < 5 мин для среднего тенанта (полный COPY — R3) |
 
+### 21.2.1. Целевые SLA по ключевым продуктовым модулям (операционные KPI)
+
+Ориентиры для **SRE / Customer Success** и договорных приложений; измеряются на **production** за скользящее **30 дней** (p95, кроме оговоренных batch).
+
+| Контур | Метрика | Цель (p95) | Примечание |
+|--------|---------|------------|------------|
+| **Customs / Trade Pro** (`trade_pro`, BGD capture + Excel) | Успешный **prefill-capture** без retry пользователя | **≤ 90 с** для типового BGD (≤ 40 строк) при зелёном circuit breaker интеграций | При деградации портала — fallback **Excel import** без нарушения целостности проводок (TZ §20). |
+| **Tax / DVX** (`tax_pro`, RPA + файловый контур) | End-to-end **submit journal** (запись в журнал отправок) после «Send» в UI | **≤ 120 с** для одиночной декларации | Phase 3 S2S — пересмотр после контрактного SLA с провайдером. |
+| **Treasury / Direct Banking** (sync statement + match) | Инкрементальная синхронизация выписки (типичный месяц, ≤ 500 строк) | **≤ 60 с** | Не включает ручную разметку пользователем; при **open** circuit breaker — ответ **503** вместо зависания (§1.7). |
+
 ### 21.3. Retention
 
 Согласовано с **S3 Object Lock** (`invoices/pdf`, `evidence`, `attachments`, `snapshots`) — см. `apps/api/src/storage/storage.constants.ts` и PRD §7.13.
@@ -2540,6 +2649,249 @@ enum SubscriptionTier {
 ### 21.6. Метрики и алерты
 
 Счётчики событий (dispute opened, transfer executed, snapshot duration, rollback duration, audit gap) — интеграция с Prometheus/Sentry по мере внедрения SRE-контура; критичные разрывы цепочки аудита — webhook `AUDIT_ALERT_WEBHOOK_URL` + email super-admin.
+
+---
+
+## 22. Risk & Compliance (ERM) — архитектура и правила
+
+### 22.0. Phase 14.1 и идентификаторы задач (синхрон с PRD)
+
+Продуктовая фаза **Phase 14.1 — Risk & Compliance (ERM)** зафиксирована в **[PRD.md](./PRD.md) §14.1–§14.2** (платный модуль **`compliance_pro`**, ENTERPRISE по правилам полного пакета). Таблица **Task ID** в PRD — единый реестр для **`docs/modules-roadmap.html`** и **`docs/modules-roadmap-facts.html`**: **`MOD-ERM-001`**, **`MOD-ERM-002`**, **`FEAT-ERM-TAX-001`**, **`FEAT-ERM-VOEN-001`**, **`FEAT-ERM-FRAUD-001`**, **`FEAT-ERM-UX-001`** (все **[x] COMPLETED** в PRD); **`FEAT-ERM-AI-001`** — **[ ] PLANNED**; **`FEAT-SEC-CRYPTO-001`** — **[ ] PLANNED** (Phase 15 — **§23**).
+
+**Назначение:** модуль **`compliance_pro`** даёт организации дашборд **рисков** и журнал **системных сигналов** (`RiskAudit`), формируемых **периодическими** rule-based сканерами (BullMQ). **Гейтинг:** все tenant API модуля и веб-дашборд только при активном **`compliance_pro`** или при **ENTERPRISE** (полный пакет модулей по правилам §14.2). **ENTERPRISE** получает `compliancePro: true` в снимке подписки.
+
+### 22.1. Данные и транзакционность
+
+- Таблица **`risk_audits`**: см. Prisma-модель **`RiskAudit`** — `organizationId`, `type` (**TAX** | **FRAUD** | **COMPLIANCE**), `severity`, `status` (**PENDING** | **MITIGATED** | **IGNORED**), `description`, `metadata` (JSON), **`dedupeKey`** (уникален в паре с `organizationId`).
+- Любая **смена статуса** (минимизация / игнор) выполняется в **`prisma.$transaction`**: одно обновление строки; запись в **`AuditLog`** для самого HTTP-запроса идёт через **`AuditMutationInterceptor`** как для прочих мутаций.
+- Идемпотентность сканеров: **upsert** по `(organizationId, dedupeKey)` внутри транзакции (create или update severity/description/metadata при повторном срабатывании).
+
+### 22.2. REST (tenant, префикс `/api/compliance`)
+
+| Метод | Путь | Назначение |
+|-------|------|------------|
+| GET | `/risk-audits` | Список сигналов (фильтры: `status`, `type`, пагинация `page`/`pageSize`) |
+| GET | `/risk-summary` | Сводка для UI и индикатора в шапке: уровень **posture** (`green` / `yellow` / `red`), счётчики по **PENDING** |
+| GET | `/vat-threshold-monitor` | Снимок YTD оборота AZN vs порог 200k, полоса/зона для виджета (см. §22.3) |
+| PATCH | `/risk-audits/:id` | `status` = **MITIGATED** \| **IGNORED**, опционально `mitigationNote` |
+
+Все маршруты за **`JwtAuthGuard`**, **`SubscriptionGuard`**, метаданными **`@RequiresModule('compliance_pro')`** (или константа `ModuleEntitlement.COMPLIANCE_PRO`).
+
+### 22.3. Оборот и порог НДС (Tax Limit Monitor)
+
+- **Календарный год Asia/Baku (UTC+4, без DST):** `year = getBakuCalendarYear(ref)`; границы UTC для instant-полей: **`start = Date.UTC(year, 0, 1) − 4h`**, **`end = Date.UTC(year + 1, 0, 1) − 4h − 1ms`**; для **`@db.Date`** (`CashOrder.date`, `BankStatementLine.valueDate` / `BankStatement.date`) — инклюзивно **1 янв … 31 дек** года Баку (`TaxLimitService.getBakuCalendarYearBoundsUtc` / `getBakuCalendarYearDateRange`).
+- **Оборот YTD (cash method, не по `Invoice.status`):**
+  1. **Связанные платежи:** сумма **`CashOrder.amount`** — **`kind = KMO`**, **`status = POSTED`**, **`currency = AZN`**, **`source_invoice_id` IS NOT NULL** (учитывает **PARTIALLY_PAID** и **PAID** через фактические оплаты); **плюс** сумма **`BankStatementLine.amount`** — **`type = INFLOW`**, **`is_matched = true`**, **`matched_invoice_id` IS NOT NULL**, дата строки в году Баку; **исключить** строки **`origin = INVOICE_PAYMENT_SYSTEM`** и **`BankStatement.channel = CASH`** (зеркало кассовой оплаты счёта — иначе двойной учёт с KMO).
+  2. **Несвязанные поступления:** **`CashOrder` KMO** **`POSTED`**, AZN, **`source_invoice_id` IS NULL** и **`source_invoice_payment_id` IS NULL**; **плюс** **`BankStatementLine` INFLOW** с **`matched_invoice_id` IS NULL** (прямая выручка / несопоставленные приходы).
+- **Итог:** `totalAzn = linkedPaymentsAzn + unlinkedPaymentsAzn`; в API снимка — поля **`linkedPaymentsAzn`**, **`unlinkedPaymentsAzn`** (алиасы **`invoiceTotalAzn`** / **`cashStandaloneAzn`** сохранены для совместимости UI).
+- Константы в **`apps/api/src/compliance/compliance.constants.ts`**: **`VAT_REGISTRATION_THRESHOLD_AZN = 200_000`**, **`VAT_TURNOVER_WARN_AZN = 160_000`** (80%), **`VAT_TURNOVER_CRITICAL_AZN = 190_000`** (95%).
+- **RiskAudit:** при превышении **160k** — **`MEDIUM`**, при превышении **190k** — **`HIGH`**, тип **TAX**, **`dedupeKey`:** `tax_vat_threshold_ytd_${year}`; upsert по паре `(organizationId, dedupeKey)` как в §22.1.
+- **Уведомления и аудит:** при **создании** записи или **смене** `severity` (например MEDIUM→HIGH) — **`NotificationService.notifyFinanceUsers`** (OWNER/ACCOUNTANT) + **`AuditLog`** с `entityType = compliance.tax_limit_monitor`, `action = THRESHOLD_HIT`.
+- **UI:** виджет **`TaxLimitWidget`** на **`/compliance`** (модуль **`compliance_pro`**): шкала **rounded-lg**, корпус **rounded-2xl**, подписи **`text-[13px]`**; цвет полосы: зелёный **<80%** порога, жёлтый **80–95%**, красный **>95%**. API: **`GET /api/compliance/vat-threshold-monitor`**.
+
+### 22.4. VÖEN / контрагенты (сканер Compliance)
+
+- Детектор **без внешнего API** в phase 1: неверная длина **VÖEN** (не 10 цифр при расшифровке слоя приложения или blind index пуст/невалиден там, где используется формат); контрагент **`deletedAt != null`**, но есть **живые** инвойсы/проводки после даты удаления; крупные суммы по контрагенту с **`isVatPayer = false`** (порог в константах). По каждому правилу — свой **`dedupeKey`** (например `voen_invalid_${counterpartyId}`).
+
+### 22.5. Fraud-паттерны (сканер Fraud, rule-based)
+
+- Окно анализа **72 часа**. Условие-пример: **≥ 3** записей **`AuditLog`** с **`entityType = HTTP_MUTATION`**, **`action = PATCH`**, путь содержит `/users/me`, один и тот же **`userId`**, и в том же окне есть **проведённый** **`CashOrder`** с **`kind = KXO`**, **`status = POSTED`**, **`amount ≥ FRAUD_CASH_WITHDRAWAL_THRESHOLD_AZN`** (константа, напр. 10 000).
+- **`dedupeKey`:** `fraud_password_then_cash_${userId}_${bucket}` (bucket по дате UTC-дня) для ограничения частоты.
+- Расширенные **ML/AI**-сканы не входят в phase 1.
+
+### 22.6. BullMQ
+
+- Очередь **`compliance-risk-scan`**, env **`COMPLIANCE_RISK_SCAN_DISABLED=1`** — не регистрировать repeat-задания и не стартовать worker.
+- **`compliance_risk_daily`** (например **`0 2 * * *`** UTC): для организаций с **`compliance_pro`** — **`runScansForOrganization`** (VÖEN + fraud; **без** налогового порога).
+- **`check-tax-limits`** (например **`0 3 * * *`** UTC): для всех организаций с **`billingStatus = ACTIVE`** и не удалённых — **`runTaxLimitScanForOrganization`** (расчёт оборота, upsert **RiskAudit**, уведомление при новом/эскалации).
+- Обработчик: ошибка по одной организации не отменяет остальные.
+
+### 22.7. Web
+
+- UI по **[DESIGN.md](../DESIGN.md):** панели дашборда **`rounded-2xl`**, список оповещений компактно **`rounded-lg`**, детальный текст **`text-[13px]`**.
+- Paywall и сообщения — i18n **RU/AZ** (`packages/i18n`).
+- **Council Chamber:** **`/compliance/council/[verdictId]`** — три карточки Elder, итог RU/AZ, polling при **`QUEUED`/`RUNNING`**, кнопка «Смягчить» → **`PATCH /api/compliance/risk-audits/:id`** с **`suggestedAction`**.
+
+### 22.8. Council of Elders (multi-agent)
+
+**Модель:** `CouncilVerdict` (`council_verdicts`), статусы **`QUEUED` → `RUNNING` → `COMPLETED` | `FAILED`**, опциональная связь **`riskAuditId`**, **`dedupeKey`** уникален в паре с **`organizationId`** (NULL допускается для ручных запусков).
+
+**Консенсус:** `finalSeverity = HIGH`, если **любой** Elder `score > 80`; иначе `MEDIUM`, если любой `> 60`; иначе `LOW`. **`finalScore`** — **max** из трёх оценок (аудируемо). При завершении можно обновить связанный **`RiskAudit`** (**PENDING**), не трогая **`MITIGATED`/`IGNORED`**.
+
+**PII:** перед вызовом Gemini — `CouncilSnapshotBuilder` + `council-pii.util` (маски VÖEN, email, phone, имена; контрагенты — токены `CP_n`, организация — `ORG_A`). Сырой snapshot **не логировать**.
+
+**Gemini:** 4 вызова на deliberation (3 Elder + Synthesizer); env **`GEMINI_API_KEY`**, **`GEMINI_COUNCIL_MODEL`** (default `gemini-2.0-flash`); **`COUNCIL_DELIBERATION_DISABLED=1`** — без worker/repeat jobs.
+
+**Очередь `council-analysis`:** job `council_deliberate`, **`jobId`** `council:{organizationId}:{dedupeKey}` или `council:{organizationId}:manual:{verdictId}`. Repeat: **`council_weekly_scan`** `0 22 * * 0`, **`council_pre_tax_scan`** `0 22 15 * *` — только org с **`compliance_pro`**.
+
+**Триггеры:** `TAX_LIMIT_HIT` (эскалация Tax Limit Monitor), `HIGH_VALUE_TRANSACTION` (Invoice **PAID** AZN или standalone **KMO** ≥ **`COUNCIL_LARGE_TRANSACTION_AZN`**, default 50000), `MANUAL` (квота **`COUNCIL_MONTHLY_MANUAL_QUOTA`**, default 5/календарный месяц UTC), `WEEKLY_CRON`, `PRE_TAX_CRON`; `VOEN_RISKY_COUNTERPARTY` — enum placeholder.
+
+**REST** (гейтинг **`compliance_pro`**, JWT):
+
+| Method | Path | Назначение |
+|--------|------|------------|
+| `POST` | `/api/compliance/council/deliberate` | Ручной запуск; body `{ riskAuditId? }` или `{ targetEntityType, targetEntityId? }` |
+| `GET` | `/api/compliance/council/verdicts/:id` | Verdict для Chamber |
+| `GET` | `/api/compliance/council/verdicts` | Список (`riskAuditId?`, pagination) |
+
+**JSON (контракты Zod — `packages/api-contracts/src/council.ts`):**
+
+`ElderVerdict`: `{ score: 0–100, stance: "clear"|"watch"|"high_risk", findings: string[], reasoning: string }`.
+
+`elderVerdicts`: `{ tax, forensic, strategist }` каждый — `ElderVerdict` (+ опционально усечённый `rawThoughts` в metadata worker).
+
+`CouncilSynthesizerOutput`: `{ summaryAz, summaryRu, suggestedAction }`.
+
+`CouncilSnapshot` (user message Elder): анонимизированный JSON контекста (цель, суммы, даты, типы; без PII).
+
+---
+
+## 23. Zero-Knowledge Multi-tenant Encryption & State Identity Escrow (Phase 15)
+
+### 23.0. Статус, Task ID и связь с PRD
+
+| Поле | Значение |
+|------|----------|
+| **Статус** | [ ] **PLANNED (scope)** — спецификация для фаз реализации после текущего production scope |
+| **Task ID** | **`FEAT-SEC-CRYPTO-001`** (реестр PRD §14.2, roadmap `docs/modules-roadmap*.html`) |
+| **PRD** | **[PRD.md](./PRD.md) §15** — продуктовые цели, Tier 1–3 recovery, «дилемма бухгалтера» |
+| **Связь** | ASAN İmza / SİMA для **подписи документов** — существующий контур (PRD §6.2, `MOD-V3-SIGN-001`); §23 добавляет **state-backed crypto escrow** для **восстановления OMRK**, не смешивая с PDF signing API |
+
+**Инвариант платформы:** HTTP API и PostgreSQL **не** являются доверенной зоной для plaintext финансовых payload. Workers BullMQ **не** расшифровывают tenant ciphertext без явного **opt-in** server-side processing (вне scope Phase 15 — отчёты остаются client-decrypt или отдельный «compliance export» с ключом в сессии).
+
+### 23.1. Криптографический профиль (нормативный)
+
+| Примитив | Параметры |
+|----------|-----------|
+| **Симметричное шифрование данных** | **AES-256-GCM**; уникальный **96-bit nonce** на операцию encrypt; AAD = `{ organizationId, entityType, fieldName, schemaVersion }` (канонический JSON, UTF-8) |
+| **Обёртка ключей (wrap)** | **AES-256-GCM**; KEK / OMRK / state-derived key как wrapping key |
+| **KDF (KEK из пароля)** | Целевой: **Argon2id** (`m`, `t`, `p` в профиле `UserCryptoProfile`); минимальный fallback: **PBKDF2-HMAC-SHA256** ≥ 310_000 итераций (параметр версионируется) |
+| **Seed** | **BIP-39** (английский wordlist, 128 bit entropy → 12 слов) → **BIP-39 seed** → HKDF → root → KEK (конкретная derivation зафиксируется в `apps/web/lib/crypto/derivation.ts` при реализации) |
+| **OMRK** | 256-bit CSPRNG; формат отображения: grouped Base32 или QR для offline backup |
+| **State escrow** | Асимметричная обёртка OMRK: **X25519** или **RSA-OAEP-3072** публичным ключом, выданным **state identity provider** (ASAN/SİMA); точный OID/alg — по контракту шлюза на момент интеграции |
+
+**Запрещено на wire и в логах:** `dekPlaintext`, `kekPlaintext`, `omrkPlaintext`, `mnemonic`, `masterPassword`.
+
+### 23.2. Модель данных (целевая Prisma, PLANNED)
+
+| Модель / таблица | Назначение |
+|-------------------|------------|
+| **`OrganizationCryptoProfile`** | `organizationId` (PK/FK), `dekWrappedByOmrk` (bytes), `stateEscrowBlob` (bytes, nullable), `stateEscrowCertId`, `cryptoSchemaVersion`, `zkEnabledAt` |
+| **`UserCryptoProfile`** | `userId` (PK/FK), `kdfAlgorithm`, `kdfSalt` (bytes), `kdfParams` (JSON), `wrapVersion` |
+| **`UserOrganizationKey`** | **Уникальный** `(userId, organizationId)`; `wrappedDek` (bytes), `wrapNonce`, `wrapVersion`, `createdAt`, `rotatedAt` |
+| **Ciphertext columns** | На чувствительных сущностях: `encryptedPayload` (bytes) + `payloadMeta` (JSON: nonce, version) **или** отдельная таблица `EncryptedFieldBlob` (`organizationId`, `entityType`, `entityId`, `fieldKey`, `ciphertext`, `nonce`) |
+
+**Поля в scope ciphertext (v1 spec):** контрагенты (legal name, tax id blob), строки инвойсов (описания, суммы вне агрегатов — продуктовое уточнение), проводки/journal line memos, складские серийные/партийные атрибуты. **Не** шифровать в v1: UUID, `organizationId`, статусы enum, даты, foreign keys — для индексов и tenant filter.
+
+**Миграция:** включение ZK — **opt-in** per organization; legacy plaintext → background re-encrypt job (клиент-driven).
+
+### 23.3. Клиентский модуль (web)
+
+**Расположение (план):** `apps/web/lib/crypto/` — `dek.ts`, `kek.ts`, `wrap.ts`, `session-vault.ts`, `bip39-recovery.ts`.
+
+| Компонент | Ответственность |
+|-----------|----------------|
+| **`session-vault`** | In-memory (или `sessionStorage` только для **wrapped** DEK session handle, **не** KEK) хранение разблокированного DEK до timeout/lock |
+| **`unlockFlow`** | Master password → KEK → fetch `UserOrganizationKey` → unwrap DEK |
+| **`orgSwitch`** | При смене `organizationId` — сброс DEK в vault, загрузка другой строки `UserOrganizationKey` |
+| **`api-crypto-interceptor`** | Fetch wrapper: encrypt outgoing JSON fields / decrypt incoming по `cryptoSchemaVersion` |
+
+**Web Crypto API:** только `subtle.encrypt` / `decrypt` / `deriveKey`; запрет custom crypto в JS userland для AES.
+
+### 23.4. Multi-tenant matrix (Accountant Dilemma) — алгоритм
+
+```
+User U has KEK = KDF(password_U, salt_U)
+For each Organization O_i membership:
+  Server stores UserOrganizationKey(U, O_i) = Wrap(DEK_O_i, KEK_U)
+Active org context = O_k:
+  DEK_k = Unwrap(UserOrganizationKey(U, O_k), KEK_U)
+  API ciphertext decrypted only with DEK_k
+```
+
+**Инвариант:** `DEK_O_i ≠ DEK_O_j` для `i ≠ j`. Компрометация `wrappedDek` для `(U, O_i)` без KEK_U **бесполезна**.
+
+**Invite flow (PLANNED):** член с активным `DEK_O` создаёт `Wrap(DEK_O, KEK_invitee)` на клиенте invitee после принятия invite — сервер сохраняет новую строку `UserOrganizationKey`.
+
+### 23.5. Трёхуровневое восстановление (технические потоки)
+
+#### Tier 1 — BIP-39 seed (user self-service)
+
+| Шаг | Actor | Действие |
+|-----|-------|----------|
+| 1 | Client | `mnemonic` → `KEK_new = Derive(mnemonic)` |
+| 2 | Client | Для каждой org membership: `wrappedDek' = Wrap(DEK, KEK_new)` |
+| 3 | API | `PATCH /api/users/me/crypto/rewrap` — массив `{ organizationId, wrappedDek, wrapNonce, wrapVersion }` |
+| 4 | API | `PATCH /api/users/me/crypto/password-kdf` — новый salt/params (пароль уже сменён в auth) |
+
+**Сервер:** не принимает mnemonic; только новые wraps.
+
+#### Tier 2 — Organization Master Recovery Key (Owner)
+
+| Шаг | Actor | Действие |
+|-----|-------|----------|
+| 1 | Client (Owner) | Ввод **OMRK** offline |
+| 2 | Client | `DEK = Unwrap(organization.dekWrappedByOmrk, OMRK)` |
+| 3 | Client | `wrappedDek_accountant = Wrap(DEK, KEK_accountant)` → API сохраняет для target user |
+| 4 | Audit | `TENANT_CRYPTO_OWNER_RECOVERY` |
+
+#### Tier 3 — State Identity Escrow (ASAN İmza / SİMA)
+
+| Шаг | Actor | Действие |
+|-----|-------|----------|
+| 1 | Client (Owner) | `POST /api/organizations/:id/crypto/state-recovery/init` → `challengeId`, redirect URL / deep link |
+| 2 | State GW | Mobile push / ASAN İmza; пользователь подтверждает личность (**VÖEN** юрлица + **PIN** владельца) |
+| 3 | API | `POST /api/integrations/state-identity/callback` — проверка подписи ответа (JWKS / gov cert pinning), `sub`, `voen`, `nonce` |
+| 4 | API | Выдача **`stateEscrowBlob`** + одноразовый **`recoveryToken`** (TTL ≤ 5 min) **только** инициатору |
+| 5 | Client | `OMRK = Unwrap(stateEscrowBlob, keyMaterial from state assertion)` — **только в браузере**; далее как Tier 2 |
+| 6 | Audit | `TENANT_CRYPTO_STATE_RECOVERY` + `stateProvider`, `assertionId` (без PII в логах) |
+
+**Контракт state gateway (абстракция):**
+
+| Поле ответа | Проверка |
+|-------------|----------|
+| `voen` | Совпадает с `Organization.voen` |
+| `personPinHash` / `fin` | Совпадает с Owner membership FIN (хранится как blind index / HMAC) |
+| `signature` | Валидна по цепочке гос. CA |
+| `exp`, `nonce` | Freshness ≤ 300 s, nonce single-use в Redis |
+
+**Платформа не хранит** приватный ключ расшифровки escrow — только ciphertext blob, привязанный к org.
+
+### 23.6. REST (PLANNED, префикс `/api`)
+
+| Метод | Путь | Auth | Назначение |
+|-------|------|------|------------|
+| GET | `/users/me/crypto/profile` | JWT | KDF salt/params, `wrapVersion` |
+| PUT | `/users/me/crypto/profile` | JWT + audit | Обновление KDF metadata (после смены пароля) |
+| GET | `/users/me/crypto/organization-keys` | JWT | Список `{ organizationId, wrappedDek, wrapNonce, wrapVersion }` |
+| PUT | `/users/me/crypto/organization-keys/:organizationId` | JWT + audit | Upsert wrap для одной org |
+| POST | `/organizations/:id/crypto/enable` | OWNER + audit | Инициализация DEK, OMRK wrap, опционально state escrow setup |
+| POST | `/organizations/:id/crypto/state-recovery/init` | OWNER | Старт Tier 3 |
+| POST | `/integrations/state-identity/callback` | mTLS / signed webhook | Callback гос. шлюза |
+| POST | `/organizations/:id/crypto/state-recovery/complete` | OWNER + one-time token | Финализация после client unwrap |
+
+**Все мутации** — `AuditMutationInterceptor`. **Нет** endpoint «decrypt for support».
+
+### 23.7. Threat model (кратко)
+
+| Угроза | Митигация Phase 15 |
+|--------|-------------------|
+| Компрометация БД | Ciphertext + wrapped keys; нет DEK |
+| Компрометация API | Нет ключей в памяти сервиса (по дизайну) |
+| Компрометация аккаунта бухгалтера | Только wraps для org, где есть membership; KEK под паролем |
+| Malicious super-admin | Нет master decrypt; Tier 3 только с state auth Owner |
+| Loss password + seed | Tier 2 (Owner OMRK) |
+| Loss OMRK | Tier 3 (ASAN/SİMA) |
+
+**Non-goals:** защита от скомпрометированного **клиентского** устройства с активной unlock-сессией; защита от **coerced** Owner с действующим ASAN (социальная инженерия).
+
+### 23.8. Hardening checklist (перед COMPLETED)
+
+- [ ] SAST: grep CI на `dekPlaintext` / логирование buffer.
+- [ ] Unit: wrap/unwrap round-trip, wrong KEK → GCM auth fail.
+- [ ] Integration: два org, один user — decrypt isolation.
+- [ ] State sandbox E2E для Tier 3.
+- [ ] PRD §14.2: `FEAT-SEC-CRYPTO-001` → **[x] COMPLETED**.
 
 ---
 

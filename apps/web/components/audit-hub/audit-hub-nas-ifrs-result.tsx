@@ -7,7 +7,11 @@ import {
   downloadAuditHubCsv,
   downloadAuditHubXlsx,
 } from "../../lib/audit-hub-export";
-import { SECONDARY_BUTTON_CLASS } from "../../lib/design-system";
+import {
+  CARD_CONTAINER_CLASS,
+  LINK_ACCENT_CLASS,
+  SECONDARY_BUTTON_CLASS,
+} from "../../lib/design-system";
 
 export type NasIfrsPayload = {
   from: string;
@@ -110,29 +114,29 @@ export function AuditHubNasIfrsResultPanel({ payload }: { payload: unknown }) {
         </button>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        <div className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs shadow-sm">
-          <div className="font-semibold text-[#34495E]">{t("auditHub.reconCardAsym")}</div>
-          <div className="mt-1 text-2xl font-bold tabular-nums text-[#2C3E50]">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className={`${CARD_CONTAINER_CLASS} p-4`}>
+          <div className="text-xs font-semibold text-[#34495E]">{t("auditHub.reconCardAsym")}</div>
+          <div className="mt-1 text-2xl font-bold tabular-nums text-[#34495E]">
             {parsed.items.length}
           </div>
         </div>
-        <div className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs shadow-sm">
-          <div className="font-semibold text-[#34495E]">{t("auditHub.reconCardTotals")}</div>
-          <div className="mt-1 text-2xl font-bold tabular-nums text-[#2C3E50]">
+        <div className={`${CARD_CONTAINER_CLASS} p-4`}>
+          <div className="text-xs font-semibold text-[#34495E]">{t("auditHub.reconCardTotals")}</div>
+          <div className="mt-1 text-2xl font-bold tabular-nums text-[#34495E]">
             {parsed.totalsMismatchItems.length}
           </div>
         </div>
       </div>
 
-      <section className="rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-sm">
-        <h3 className="text-xs font-semibold text-[#2C3E50]">{t("auditHub.reconSectionAsym")}</h3>
+      <section className={`${CARD_CONTAINER_CLASS} p-4`}>
+        <h3 className="text-xs font-semibold text-[#34495E]">{t("auditHub.reconSectionAsym")}</h3>
         <div className="mt-2 max-h-[280px] overflow-auto">
           {parsed.items.length === 0 ? (
             <p className="text-[11px] text-[#7F8C8D]">—</p>
           ) : (
             <table className="w-full border-collapse text-left text-[11px]">
-              <thead className="sticky top-0 bg-[#F9FAFB]">
+              <thead className="sticky top-0 z-10 border-b border-[#D5DADF] bg-[#F8FAFC]">
                 <tr>
                   <th className="border-b px-2 py-1.5">transactionId</th>
                   <th className="border-b px-2 py-1.5">date</th>
@@ -142,13 +146,13 @@ export function AuditHubNasIfrsResultPanel({ payload }: { payload: unknown }) {
               </thead>
               <tbody>
                 {parsed.items.map((row) => (
-                  <tr key={row.transactionId} className="border-b border-[#F3F4F6]">
+                  <tr key={row.transactionId} className="border-b border-[#D5DADF]">
                     <td className="px-2 py-1.5 font-mono">{row.transactionId}</td>
                     <td className="px-2 py-1.5">{row.date}</td>
                     <td className="px-2 py-1.5">{row.issue}</td>
                     <td className="px-2 py-1.5">
                       <Link
-                        className="text-[#1D4ED8] underline"
+                        className={LINK_ACCENT_CLASS}
                         href={jeExplainHref(row.transactionId)}
                       >
                         journal_posting
@@ -163,14 +167,14 @@ export function AuditHubNasIfrsResultPanel({ payload }: { payload: unknown }) {
       </section>
 
       {parsed.includeTotalsMismatch ? (
-        <section className="rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-sm">
-          <h3 className="text-xs font-semibold text-[#2C3E50]">{t("auditHub.reconSectionTotals")}</h3>
+        <section className={`${CARD_CONTAINER_CLASS} p-4`}>
+          <h3 className="text-xs font-semibold text-[#34495E]">{t("auditHub.reconSectionTotals")}</h3>
           <div className="mt-2 max-h-[280px] overflow-auto">
             {parsed.totalsMismatchItems.length === 0 ? (
               <p className="text-[11px] text-[#7F8C8D]">—</p>
             ) : (
               <table className="w-full border-collapse text-left text-[11px]">
-                <thead className="sticky top-0 bg-[#F9FAFB]">
+                <thead className="sticky top-0 z-10 border-b border-[#D5DADF] bg-[#F8FAFC]">
                   <tr>
                     <th className="border-b px-2 py-1.5">transactionId</th>
                     <th className="border-b px-2 py-1.5">date</th>
@@ -181,14 +185,14 @@ export function AuditHubNasIfrsResultPanel({ payload }: { payload: unknown }) {
                 </thead>
                 <tbody>
                   {parsed.totalsMismatchItems.map((row) => (
-                    <tr key={row.transactionId} className="border-b border-[#F3F4F6]">
+                    <tr key={row.transactionId} className="border-b border-[#D5DADF]">
                       <td className="px-2 py-1.5 font-mono">{row.transactionId}</td>
                       <td className="px-2 py-1.5">{row.date}</td>
                       <td className="px-2 py-1.5 font-mono">{row.nasDebitSum}</td>
                       <td className="px-2 py-1.5 font-mono">{row.ifrsDebitSum}</td>
                       <td className="px-2 py-1.5">
                         <Link
-                          className="text-[#1D4ED8] underline"
+                          className={LINK_ACCENT_CLASS}
                           href={jeExplainHref(row.transactionId)}
                         >
                           journal_posting
@@ -204,7 +208,7 @@ export function AuditHubNasIfrsResultPanel({ payload }: { payload: unknown }) {
       ) : null}
 
       {showRaw ? (
-        <div className="max-h-[360px] overflow-auto rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] p-3">
+        <div className="max-h-[360px] overflow-auto rounded-lg border border-[#D5DADF] bg-[#FAFAFA] p-3">
           <pre className="whitespace-pre-wrap break-all text-[11px]">
             {JSON.stringify(parsed, null, 2)}
           </pre>

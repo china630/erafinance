@@ -33,11 +33,14 @@ export function InternalTransferModal({
   onClose,
   onDone,
   initialMode,
+  /** When true (e.g. opened from operations menu), mode tabs are hidden and mode stays `initialMode`. */
+  hideModeTabs,
 }: {
   open: boolean;
   onClose: () => void;
   onDone: () => void;
   initialMode?: Mode;
+  hideModeTabs?: boolean;
 }) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>(initialMode ?? "TRANSFER");
@@ -76,6 +79,15 @@ export function InternalTransferModal({
     () => accounts.find((a) => a.id === targetBankAccountId) ?? null,
     [accounts, targetBankAccountId],
   );
+
+  const modalTitle = useMemo(() => {
+    if (hideModeTabs) {
+      if (mode === "TRANSFER") return t("banking.transfer.modeTransfer");
+      if (mode === "CONVERSION") return t("banking.transfer.modeConversion");
+      return t("banking.transfer.modeCashDeposit");
+    }
+    return t("banking.transfer.title");
+  }, [hideModeTabs, mode, t]);
 
   if (!open) return null;
 
@@ -165,7 +177,7 @@ export function InternalTransferModal({
     <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : undefined)}>
       <DialogContent className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-2xl`}>
         <DialogHeader className="shrink-0">
-          <h3 className="m-0 flex-1 text-lg font-semibold text-[#34495E]">{t("banking.transfer.title")}</h3>
+          <h3 className="m-0 flex-1 text-lg font-semibold text-[#34495E]">{modalTitle}</h3>
           <Button
             type="button"
             variant="ghost"
@@ -178,29 +190,31 @@ export function InternalTransferModal({
         </DialogHeader>
 
         <div className="mt-4 space-y-4">
-          <div className="grid gap-2 md:grid-cols-3">
-            <button
-              type="button"
-              onClick={() => setMode("TRANSFER")}
-              className={`${MODAL_FOOTER_BUTTON_CLASS} ${mode === "TRANSFER" ? "border-[#16A085] text-[#16A085]" : ""}`}
-            >
-              {t("banking.transfer.modeTransfer")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("CONVERSION")}
-              className={`${MODAL_FOOTER_BUTTON_CLASS} ${mode === "CONVERSION" ? "border-[#16A085] text-[#16A085]" : ""}`}
-            >
-              {t("banking.transfer.modeConversion")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("CASH_DEPOSIT")}
-              className={`${MODAL_FOOTER_BUTTON_CLASS} ${mode === "CASH_DEPOSIT" ? "border-[#16A085] text-[#16A085]" : ""}`}
-            >
-              {t("banking.transfer.modeCashDeposit")}
-            </button>
-          </div>
+          {!hideModeTabs ? (
+            <div className="grid gap-2 md:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => setMode("TRANSFER")}
+                className={`${MODAL_FOOTER_BUTTON_CLASS} ${mode === "TRANSFER" ? "border-[#16A085] text-[#16A085]" : ""}`}
+              >
+                {t("banking.transfer.modeTransfer")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("CONVERSION")}
+                className={`${MODAL_FOOTER_BUTTON_CLASS} ${mode === "CONVERSION" ? "border-[#16A085] text-[#16A085]" : ""}`}
+              >
+                {t("banking.transfer.modeConversion")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("CASH_DEPOSIT")}
+                className={`${MODAL_FOOTER_BUTTON_CLASS} ${mode === "CASH_DEPOSIT" ? "border-[#16A085] text-[#16A085]" : ""}`}
+              >
+                {t("banking.transfer.modeCashDeposit")}
+              </button>
+            </div>
+          ) : null}
 
           {mode !== "CASH_DEPOSIT" ? (
             <>

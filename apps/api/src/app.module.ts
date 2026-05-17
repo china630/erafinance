@@ -18,6 +18,7 @@ import { AuditorMutationGuard } from "./auth/guards/auditor-mutation.guard";
 import { SubscriptionReadOnlyGuard } from "./subscription/subscription-read-only.guard";
 import { BillingAccessGuard } from "./billing/billing-access.guard";
 import { BankingModule } from "./banking/banking.module";
+import { ComplianceModule } from "./compliance/compliance.module";
 import { CounterpartiesModule } from "./counterparties/counterparties.module";
 import { FinanceModule } from "./finance/finance.module";
 import { FxModule } from "./fx/fx.module";
@@ -44,7 +45,7 @@ import { ReferralsModule } from "./referrals/referrals.module";
 import { AdminModule } from "./admin/admin.module";
 import { OrganizationsModule } from "./organizations/organizations.module";
 import { TenantContextInterceptor } from "./prisma/tenant-context.interceptor";
-import { VoenIntegrityGuard } from "./common/guards/voen-integrity.guard";
+import { VoenIntegrityGuard } from "./auth/guards/voen-integrity.guard";
 import { TreasuryModule } from "./treasury/treasury.module";
 import { ReportsModule } from "./reports/reports.module";
 import { NotificationModule } from "./notifications/notification.module";
@@ -97,6 +98,7 @@ const apiEnvFiles = apiEnvFilePaths();
     TaxModule,
     AuditModule,
     AuditHubModule,
+    ComplianceModule,
     AdminModule,
     OrganizationsModule,
     TreasuryModule,

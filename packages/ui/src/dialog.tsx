@@ -32,6 +32,16 @@ function getFocusable(container: HTMLElement): HTMLElement[] {
   );
 }
 
+/** Prefer first real field so header close is not focused on every open/re-run. */
+function getPreferredInitialFocus(root: HTMLElement): HTMLElement {
+  const preferred = root.querySelector<HTMLElement>(
+    'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])',
+  );
+  if (preferred) return preferred;
+  const focusables = getFocusable(root);
+  return focusables[0] ?? root;
+}
+
 export function Dialog({
   open,
   onOpenChange,
@@ -60,19 +70,20 @@ export function DialogContent({
   const { open, onOpenChange, contentId } = useDialogContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
 
   useEffect(() => {
     if (!open) return;
     restoreFocusRef.current = document.activeElement as HTMLElement | null;
     const root = containerRef.current;
     if (!root) return;
-    const focusables = getFocusable(root);
-    (focusables[0] ?? root).focus();
+    getPreferredInitialFocus(root).focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onOpenChange(false);
+        onOpenChangeRef.current(false);
         return;
       }
       if (event.key !== "Tab") return;
@@ -99,7 +110,7 @@ export function DialogContent({
       document.removeEventListener("keydown", onKeyDown);
       restoreFocusRef.current?.focus();
     };
-  }, [open, onOpenChange]);
+  }, [open]);
 
   if (!open) return null;
 

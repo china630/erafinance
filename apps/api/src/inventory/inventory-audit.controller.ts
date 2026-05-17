@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -22,8 +22,12 @@ export class InventoryAuditController {
 
   @Get()
   @ApiOperation({ summary: "Список инвентаризационных описей" })
-  findAll(@OrganizationId() organizationId: string) {
-    return this.audits.findAll(organizationId);
+  findAll(
+    @OrganizationId() organizationId: string,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query("pageSize", new DefaultValuePipe(25), ParseIntPipe) pageSize: number,
+  ) {
+    return this.audits.findAll(organizationId, { page, pageSize });
   }
 
   @Patch("lines/:lineId")

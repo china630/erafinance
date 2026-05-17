@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiFetch } from "../../lib/api-client";
+import { parsePaginatedList } from "../../lib/paginated-list";
 import { notifyInventoryListsRefresh } from "../../lib/list-refresh-bus";
 import {
   MODAL_FIELD_LABEL_CLASS,
@@ -113,10 +114,11 @@ export function CreateReceiptModal({
   }, []);
 
   const loadBasis = useCallback(async () => {
-    const res = await apiFetch("/api/inventory/purchase-invoices?take=100");
+    const res = await apiFetch("/api/inventory/purchase-invoices?page=1&pageSize=200");
     if (!res.ok) return;
-    const list = (await res.json()) as PurchaseInvoiceRow[];
-    setBasisOptions(Array.isArray(list) ? list.filter((r) => r.kind === "goods" || r.kind === "dual") : []);
+    const parsed = parsePaginatedList<PurchaseInvoiceRow>(await res.json());
+    const list = parsed.items.filter((r) => r.kind === "goods" || r.kind === "dual");
+    setBasisOptions(list);
   }, []);
 
   const loadBins = useCallback(async (whId: string) => {
@@ -435,7 +437,7 @@ export function CreateReceiptModal({
                 <span>{t("inventory.receiptBasisLinesLoading")}</span>
               </div>
             ) : null}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[min(55vh,22rem)] overflow-y-auto">
               <table className="w-full min-w-[640px] table-fixed border-collapse text-[13px]">
                 <colgroup>
                   <col />

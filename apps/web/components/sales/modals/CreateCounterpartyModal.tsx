@@ -16,7 +16,6 @@ import {
   MODAL_CHECKBOX_CLASS,
   MODAL_FIELD_LABEL_CLASS,
   MODAL_INPUT_CLASS,
-  MODAL_INPUT_TAX_ID_CLASS,
 } from "../../../lib/design-system";
 import { Button } from "../../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../../ui/select";
@@ -41,8 +40,8 @@ export function CreateCounterpartyModal({
   const { t, i18n } = useTranslation();
   const [name, setName] = useState("");
   const [taxId, setTaxId] = useState("");
-  const [role, setRole] = useState<"CUSTOMER" | "SUPPLIER" | "BOTH" | "OTHER">("CUSTOMER");
-  const [legalForm, setLegalForm] = useState<CounterpartyLegalForm>("LLC");
+  const [role, setRole] = useState<"" | "CUSTOMER" | "SUPPLIER" | "BOTH" | "OTHER">("");
+  const [legalForm, setLegalForm] = useState<CounterpartyLegalForm | "">("");
   const [address, setAddress] = useState("");
   const [email, setEmail] = useState("");
   const [isVatPayer, setIsVatPayer] = useState(false);
@@ -195,8 +194,8 @@ export function CreateCounterpartyModal({
     if (!open) return;
     setName("");
     setTaxId("");
-    setRole("CUSTOMER");
-    setLegalForm("LLC");
+    setRole("");
+    setLegalForm("");
     setAddress("");
     setEmail("");
     setIsVatPayer(false);
@@ -225,16 +224,22 @@ export function CreateCounterpartyModal({
       toast.error(t("counterparties.taxInvalid"));
       return;
     }
+    if (!legalForm) {
+      toast.error(t("counterparties.legalFormRequired"));
+      return;
+    }
     setBusy(true);
-    const body = {
+    const body: Record<string, unknown> = {
       name: name.trim(),
       taxId: digits,
-      role,
       legalForm,
       address: address.trim() || undefined,
       email: email.trim() || undefined,
       isVatPayer,
     };
+    if (role) {
+      body.role = role;
+    }
     const res = await apiFetch("/api/counterparties", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -255,7 +260,7 @@ export function CreateCounterpartyModal({
       open={open}
       title={t("counterparties.newTitle")}
       onClose={onClose}
-      maxWidthClass="max-w-xl"
+      maxWidthClass="max-w-3xl"
       footer={
         <SalesModalFooter onCancel={onClose} busy={busy} formId="create-counterparty-form" />
       }
@@ -278,7 +283,7 @@ export function CreateCounterpartyModal({
         </div>
         <div>
           <span className={lbl}>{t("counterparties.taxId")}</span>
-          <div className="flex w-full max-w-md min-w-0 items-center justify-between gap-3">
+          <div className="flex w-full min-w-0 items-stretch gap-2 sm:gap-3">
             <input
               name="taxId"
               inputMode="numeric"
@@ -287,7 +292,7 @@ export function CreateCounterpartyModal({
               onChange={(e) => {
                 setTaxId(e.target.value.replace(/\D/g, "").slice(0, 10));
               }}
-              className={MODAL_INPUT_TAX_ID_CLASS}
+              className={`${MODAL_INPUT_CLASS} h-9 min-h-9 min-w-0 flex-1 tabular-nums max-w-none`}
               aria-invalid={!taxValid && digits.length > 0}
             />
             <Button
@@ -315,10 +320,13 @@ export function CreateCounterpartyModal({
           <Select
             key={i18n.language}
             value={legalForm}
-            onValueChange={(v) => setLegalForm(v as CounterpartyLegalForm)}
+            onValueChange={(v) => setLegalForm(v as CounterpartyLegalForm | "")}
           >
             <SelectTrigger className="" />
             <SelectContent>
+              <SelectItem value="" disabled>
+                {t("counterparties.selectLegalForm")}
+              </SelectItem>
               {legalFormOptions.map(({ value, label }) => (
                 <SelectItem key={value} value={value}>
                   {label}
@@ -344,6 +352,7 @@ export function CreateCounterpartyModal({
           <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
             <SelectTrigger className="" />
             <SelectContent>
+              <SelectItem value="">{t("counterparties.selectRoleOptional")}</SelectItem>
               <SelectItem value="CUSTOMER">{t("counterparties.roleCustomer")}</SelectItem>
               <SelectItem value="SUPPLIER">{t("counterparties.roleSupplier")}</SelectItem>
               <SelectItem value="BOTH">{t("counterparties.roleBoth")}</SelectItem>

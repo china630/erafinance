@@ -40,6 +40,7 @@ import {
   ScrollText,
   Settings,
   Shield,
+  ShieldAlert,
   ShieldCheck,
   ShoppingBag,
   PanelLeftClose,
@@ -57,10 +58,14 @@ import {
 import type { AuthUser } from "../../lib/auth-context";
 import { useEarlyAccess } from "../early-access/early-access-context";
 import {
-  EARLY_ACCESS_MODULE_ORDER,
   EARLY_ACCESS_MODULES,
   type EarlyAccessModuleKey,
 } from "../early-access/modules.config";
+import {
+  INDUSTRY_NAV_ITEMS,
+  hasIndustryModuleAccess,
+} from "../../lib/industry-modules";
+import { useSubscription } from "../../lib/subscription-context";
 
 type SidebarLayout = {
   /** Collapsed rail только на lg+; на мобильном выезде — всегда полная ширина. */
@@ -417,9 +422,11 @@ export type MainNavSections = {
   payrollHrActive: boolean;
   reportsActive: boolean;
   chartOfAccountsActive: boolean;
-  adminActive: boolean;
+  tenantAdminActive: boolean;
+  superAdminNavActive: boolean;
   reportingHubActive: boolean;
   inventoryMainActive: boolean;
+  auditSectionActive: boolean;
 };
 
 export function MainSidebar({
@@ -431,6 +438,7 @@ export function MainSidebar({
   lockedIfrsMapping,
   lockedBankingPro,
   lockedAuditHub,
+  lockedCompliancePro,
   token,
   user,
   canPostAccounting,
@@ -448,6 +456,7 @@ export function MainSidebar({
   lockedIfrsMapping: boolean;
   lockedBankingPro: boolean;
   lockedAuditHub: boolean;
+  lockedCompliancePro: boolean;
   token: string | null;
   user: AuthUser | null;
   canPostAccounting: boolean;
@@ -460,6 +469,15 @@ export function MainSidebar({
   const pathname = usePathname();
   const { t } = useTranslation();
   const { open: openEarlyAccess } = useEarlyAccess();
+  const { effectiveSnapshot: subscriptionSnapshot } = useSubscription();
+  const canSeeAuditHubNav =
+    user?.role === "OWNER" ||
+    user?.role === "ADMIN" ||
+    user?.role === "ACCOUNTANT" ||
+    user?.role === "AUDITOR";
+  const canSeeComplianceNav =
+    canSeeAuditHubNav || user?.role === "DIRECTOR";
+  const showAuditNavSection = Boolean(token) || canSeeAuditHubNav;
   const [layoutWide, setLayoutWide] = useState(false);
   const [openFlyoutKey, setOpenFlyoutKey] = useState<string | null>(null);
 
@@ -500,9 +518,9 @@ export function MainSidebar({
           aria-label="Main navigation"
         >
         <SideNavItem
-          href="/"
+          href="/home"
           label={t("nav.home")}
-          isActive={pathname === "/"}
+          isActive={pathname === "/home" || pathname === "/"}
           icon={Home}
           onNavClick={onNavClick}
         />
@@ -564,6 +582,15 @@ export function MainSidebar({
                 nested
                 onNavClick={onNavClick}
               />
+              {user && user.role != null && user.role !== "USER" ? (
+                <SideNavSubItem
+                  href="/finance/prepaid-expenses"
+                  label={t("nav.prepaidExpenses")}
+                  isActive={pathname.startsWith("/finance/prepaid-expenses")}
+                  icon={ScrollText}
+                  onNavClick={onNavClick}
+                />
+              ) : null}
             </>
           ) : null}
         </CollapsibleNavSection>
@@ -598,23 +625,32 @@ export function MainSidebar({
             icon={Briefcase}
             sectionActive={false}
           >
-            {EARLY_ACCESS_MODULE_ORDER.map((modKey: EarlyAccessModuleKey) => {
-              const mod = EARLY_ACCESS_MODULES[modKey];
-              const navLabel =
-                modKey === "RETAIL_ECOM"
-                  ? t("nav.industryRetailEcom")
-                  : modKey === "LOGISTICS_CUSTOMS"
-                    ? t("nav.industryLogisticsCustoms")
-                    : modKey === "CONSTRUCTION"
-                      ? t("nav.industryConstruction")
-                      : t("nav.industryCrmWhatsapp");
+            {INDUSTRY_NAV_ITEMS.map((item) => {
+              const mod = EARLY_ACCESS_MODULES[item.key];
+              const entitled = hasIndustryModuleAccess(
+                subscriptionSnapshot,
+                item.key,
+              );
+              if (entitled) {
+                return (
+                  <SideNavItem
+                    key={item.key}
+                    href={item.href}
+                    label={t(item.labelKey)}
+                    icon={mod.icon}
+                    isActive={pathname.startsWith(item.href)}
+                    nested
+                    onNavClick={onNavClick}
+                  />
+                );
+              }
               return (
                 <SideNavTeaser
-                  key={modKey}
-                  label={navLabel}
+                  key={item.key}
+                  label={t(item.labelKey)}
                   icon={mod.icon}
                   badge={t("earlyAccess.beta")}
-                  onClick={() => openEarlyAccess(modKey)}
+                  onClick={() => openEarlyAccess(item.key)}
                   onNavClick={onNavClick}
                 />
               );
@@ -741,7 +777,7 @@ export function MainSidebar({
         >
           <SideNavItem
             href="/manufacturing"
-            label={t("nav.manufacturing")}
+            label={t("nav.manufacturingHub")}
             isActive={pathname === "/manufacturing"}
             locked={lockedManufacturing}
             icon={Factory}
@@ -760,6 +796,13 @@ export function MainSidebar({
             label={t("nav.manufacturingRelease")}
             isActive={pathname.startsWith("/manufacturing/releases")}
             icon={PackageSearch}
+            onNavClick={onNavClick}
+          />
+          <SideNavSubItem
+            href="/manufacturing/orders"
+            label={t("nav.manufacturingOrders")}
+            isActive={pathname.startsWith("/manufacturing/orders")}
+            icon={ClipboardList}
             onNavClick={onNavClick}
           />
           <SideNavSubItem
@@ -927,25 +970,59 @@ export function MainSidebar({
               icon={Link2}
               onNavClick={onNavClick}
             />
-            <SideNavSubItem
-              href="/finance/prepaid-expenses"
-              label={t("nav.prepaidExpenses")}
-              isActive={pathname.startsWith("/finance/prepaid-expenses")}
-              icon={ScrollText}
-              onNavClick={onNavClick}
-            />
           </CollapsibleNavSection>
         ) : null}
 
-        {(token || user?.isSuperAdmin) && (
+        {showAuditNavSection ? (
           <CollapsibleNavSection
-            sectionKey="admin"
-            title={t("nav.sectionAdmin")}
-            icon={Settings}
-            sectionActive={navSections.adminActive}
+            sectionKey="audit"
+            title={t("nav.sectionAudit")}
+            icon={ClipboardList}
+            sectionActive={navSections.auditSectionActive}
           >
+            {canSeeAuditHubNav ? (
+              <SideNavItem
+                href="/audit-hub"
+                label={t("auditHub.navTitle")}
+                isActive={pathname.startsWith("/audit-hub")}
+                icon={ClipboardList}
+                locked={lockedAuditHub}
+                nested
+                onNavClick={onNavClick}
+              />
+            ) : null}
+            {canSeeComplianceNav ? (
+              <SideNavItem
+                href="/compliance"
+                label={t("compliance.navTitle")}
+                isActive={pathname.startsWith("/compliance")}
+                icon={ShieldAlert}
+                locked={lockedCompliancePro}
+                nested
+                onNavClick={onNavClick}
+              />
+            ) : null}
             {token ? (
-              <>
+              <SideNavItem
+                href="/audit-invitations"
+                label={t("nav.auditInvitations")}
+                isActive={pathname.startsWith("/audit-invitations")}
+                icon={Inbox}
+                nested
+                onNavClick={onNavClick}
+              />
+            ) : null}
+          </CollapsibleNavSection>
+        ) : null}
+
+        {token ? (
+          <CollapsibleNavSection
+            sectionKey="tenantAdmin"
+            title={t("nav.sectionTenantAdmin")}
+            icon={Settings}
+            sectionActive={navSections.tenantAdminActive}
+          >
+            <>
                 <SideNavItem
                   href="/settings/profile"
                   label={t("nav.profile")}
@@ -954,6 +1031,19 @@ export function MainSidebar({
                   nested
                   onNavClick={onNavClick}
                 />
+                {user?.role === "OWNER" ? (
+                  <SideNavItem
+                    href="/settings/subscription"
+                    label={t("nav.settingsSubscription")}
+                    isActive={
+                      pathname.startsWith("/settings/subscription") ||
+                      pathname.startsWith("/admin/billing")
+                    }
+                    icon={CreditCard}
+                    nested
+                    onNavClick={onNavClick}
+                  />
+                ) : null}
                 <SideNavItem
                   href="/companies"
                   label={t("nav.companies")}
@@ -962,16 +1052,7 @@ export function MainSidebar({
                   nested
                   onNavClick={onNavClick}
                 />
-                <SideNavItem
-                  href="/audit-invitations"
-                  label={t("nav.auditInvitations")}
-                  isActive={pathname.startsWith("/audit-invitations")}
-                  icon={Inbox}
-                  nested
-                  onNavClick={onNavClick}
-                />
-              </>
-            ) : null}
+            </>
             {user && user.role != null && user.role !== "USER" ? (
               <>
                 {(user.role === "OWNER" || user.role === "ADMIN") && (
@@ -1010,34 +1091,8 @@ export function MainSidebar({
                     />
                   </>
                 )}
-                {(user.role === "OWNER" ||
-                  user.role === "ADMIN" ||
-                  user.role === "ACCOUNTANT" ||
-                  user.role === "AUDITOR") && (
-                  <SideNavItem
-                    href="/audit-hub"
-                    label={t("auditHub.navTitle")}
-                    isActive={pathname.startsWith("/audit-hub")}
-                    icon={ClipboardList}
-                    nested
-                    locked={lockedAuditHub}
-                    onNavClick={onNavClick}
-                  />
-                )}
                 {user.role === "OWNER" ? (
                   <>
-                    <SideNavItem
-                      href="/admin/billing"
-                      label={t("nav.settingsSubscription")}
-                      isActive={
-                        (pathname.startsWith("/admin/billing") &&
-                          !pathname.startsWith("/admin/payment-history")) ||
-                        pathname.startsWith("/settings/subscription")
-                      }
-                      icon={CreditCard}
-                      nested
-                      onNavClick={onNavClick}
-                    />
                     <SideNavItem
                       href="/admin/payment-history"
                       label={t("nav.paymentHistory")}
@@ -1066,30 +1121,45 @@ export function MainSidebar({
                 />
               </>
             ) : null}
-            {user?.isSuperAdmin ? (
-              <SideNavItem
-                href="/super-admin/data"
-                label={t("nav.superAdminData")}
-                isActive={pathname.startsWith("/super-admin/data")}
-                icon={Database}
-                nested
-                onNavClick={onNavClick}
-              />
-            ) : null}
-            {user?.isSuperAdmin ? (
-              <SideNavItem
-                href="/super-admin"
-                label={t("nav.superAdmin")}
-                isActive={
-                  pathname.startsWith("/super-admin") && !pathname.startsWith("/super-admin/data")
-                }
-                icon={ShieldCheck}
-                nested
-                onNavClick={onNavClick}
-              />
-            ) : null}
           </CollapsibleNavSection>
-        )}
+        ) : null}
+        {user?.isSuperAdmin ? (
+          <CollapsibleNavSection
+            sectionKey="superAdmin"
+            title={t("nav.sectionSuperAdmin")}
+            icon={ShieldCheck}
+            sectionActive={navSections.superAdminNavActive}
+          >
+            <SideNavItem
+              href="/super-admin/data"
+              label={t("nav.superAdminData")}
+              isActive={pathname.startsWith("/super-admin/data")}
+              icon={Database}
+              nested
+              onNavClick={onNavClick}
+            />
+            <SideNavItem
+              href="/super-admin/billing/pricing"
+              label={t("nav.superAdminBilling")}
+              isActive={pathname.startsWith("/super-admin/billing")}
+              icon={CreditCard}
+              nested
+              onNavClick={onNavClick}
+            />
+            <SideNavItem
+              href="/super-admin"
+              label={t("nav.superAdmin")}
+              isActive={
+                pathname.startsWith("/super-admin") &&
+                !pathname.startsWith("/super-admin/data") &&
+                !pathname.startsWith("/super-admin/billing")
+              }
+              icon={ShieldCheck}
+              nested
+              onNavClick={onNavClick}
+            />
+          </CollapsibleNavSection>
+        ) : null}
         </nav>
         <div className="mt-auto hidden shrink-0 border-t border-gray-200 p-2 lg:block">
           <button

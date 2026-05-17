@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InvoiceStatus, Prisma, type UserRole } from "@erafinance/database";
@@ -38,6 +39,7 @@ import { CashOrderService } from "../kassa/cash-order.service";
 import { IntegrationSyncRunService } from "../integrations/integration-sync-run.service";
 import { BulkSyncResultInvoicesDto } from "./dto/bulk-sync-result-invoices.dto";
 import { decodeOrganizationTaxId, decryptText } from "../security/pii-crypto.util";
+import { CouncilTriggerService } from "../compliance/council/council-trigger.service";
 
 type Decimal = Prisma.Decimal;
 const Decimal = Prisma.Decimal;
@@ -69,43 +71,63 @@ export class InvoicesService {
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
     private readonly cashOrders: CashOrderService,
     private readonly syncRuns: IntegrationSyncRunService,
+    @Optional() private readonly councilTriggers?: CouncilTriggerService,
   ) {}
 
-  async list(organizationId: string) {
-    const rows = await this.prisma.invoice.findMany({
-      where: { organizationId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        counterparty: { select: { id: true, nameCipher: true, taxIdCipher: true } },
-        _count: { select: { items: true } },
-        items: {
-          select: {
-            productId: true,
-            product: { select: { isService: true } },
+  async list(
+    organizationId: string,
+    opts?: { page?: number; pageSize?: number },
+  ) {
+    const page = Math.max(1, opts?.page ?? 1);
+    const pageSize = Math.min(200, Math.max(1, opts?.pageSize ?? 25));
+    const skip = (page - 1) * pageSize;
+
+    const where = { organizationId };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+        include: {
+          counterparty: { select: { id: true, nameCipher: true, taxIdCipher: true } },
+          _count: { select: { items: true } },
+          items: {
+            select: {
+              productId: true,
+              product: { select: { isService: true } },
+            },
           },
         },
-      },
-    });
-    return rows.map((inv) => {
-      const cp = this.decodeCounterparty(inv.counterparty);
-      const paidTotal = inv.paidAmount ?? new Decimal(0);
-      const remaining = inv.totalAmount.sub(paidTotal);
-      const hasGoodsLines = inv.items.some(
-        (it) => it.productId != null && it.product && !it.product.isService,
-      );
-      const { items: _items, ...rest } = inv;
-      return {
-        ...rest,
-        counterparty: {
-          id: inv.counterparty.id,
-          name: cp.name,
-          taxId: cp.taxId,
-        },
-        paidTotal: paidTotal.toFixed(4),
-        remaining: remaining.toFixed(4),
-        hasGoodsLines,
-      };
-    });
+      }),
+      this.prisma.invoice.count({ where }),
+    ]);
+    return {
+      items: rows.map((inv) => {
+        const cp = this.decodeCounterparty(inv.counterparty);
+        const paidTotal = inv.paidAmount ?? new Decimal(0);
+        const remaining = inv.totalAmount.sub(paidTotal);
+        const hasGoodsLines = inv.items.some(
+          (it) => it.productId != null && it.product && !it.product.isService,
+        );
+        const { items: _items, ...rest } = inv;
+        return {
+          ...rest,
+          counterparty: {
+            id: inv.counterparty.id,
+            name: cp.name,
+            taxId: cp.taxId,
+          },
+          paidTotal: paidTotal.toFixed(4),
+          remaining: remaining.toFixed(4),
+          hasGoodsLines,
+        };
+      }),
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async getOne(organizationId: string, id: string) {
@@ -564,7 +586,7 @@ export class InvoicesService {
     if (!head) throw new NotFoundException("Invoice not found");
     assertUserMayMutateInvoiceInPaidStatus(role, head.status);
 
-    await this.prisma.$transaction(async (tx) => {
+    const councilTrigger = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.invoice.findFirst({
         where: { id: invoiceId, organizationId },
         include: {
@@ -654,7 +676,29 @@ export class InvoicesService {
           paymentReceived,
         },
       });
+
+      return {
+        becamePaid: nextStatus === InvoiceStatus.PAID,
+        currency: existing.currency,
+        totalAmount: Number(existing.totalAmount),
+        number: existing.number,
+      };
     });
+
+    if (
+      councilTrigger.becamePaid &&
+      councilTrigger.currency === "AZN" &&
+      this.councilTriggers
+    ) {
+      void this.councilTriggers.maybeTriggerHighValueTransaction({
+        organizationId,
+        entityType: "INVOICE",
+        entityId: invoiceId,
+        label: `Invoice:${councilTrigger.number}`,
+        amountAzn: councilTrigger.totalAmount,
+        currency: councilTrigger.currency,
+      });
+    }
 
     return this.getOne(organizationId, invoiceId);
   }

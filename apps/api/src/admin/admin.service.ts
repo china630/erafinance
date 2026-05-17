@@ -21,6 +21,8 @@ import {
 } from "../security/pii-crypto.util";
 import { SystemConfigService } from "../system-config/system-config.service";
 import type { AdminSubscriptionPatchDto } from "./dto/admin-subscription-patch.dto";
+import type { PatchBillingGlobalLimitsDto } from "./dto/patch-billing-global-limits.dto";
+import type { PatchBillingPricingCatalogDto } from "./dto/patch-billing-pricing-catalog.dto";
 import type {
   CreatePricingBundleDto,
   UpdatePricingBundleDto,
@@ -40,6 +42,42 @@ import { getDefaultFlatTranslations } from "./i18n-default-catalog";
 import { PricingService } from "./pricing.service";
 
 const I18N_CACHE_KEY = "i18n.cacheVersion";
+
+const BILLING_SYSTEM_KEYS = {
+  foundation: "billing.foundation_monthly_azn",
+  yearlyDiscount: "billing.yearly_discount_percent",
+  quotaUnitPricing: "billing.quota_unit_pricing_v1",
+  ocrJobsPerOrgMonth: "quota.ocr_jobs_per_org_month_v1",
+} as const;
+
+const TIER_LEGACY_PRICE_KEYS: Record<SubscriptionTier, string> = {
+  STARTER: "billing.price.STARTER",
+  BUSINESS: "billing.price.BUSINESS",
+  ENTERPRISE: "billing.price.ENTERPRISE",
+};
+
+const tierQuotaConfigKey = (tier: SubscriptionTier) => `quota.tier.${tier}`;
+
+function pricingBundleTrialPatch(
+  trial: PatchPricingBundleTrialConfigDto | undefined,
+): Prisma.PricingBundleUpdateInput {
+  if (!trial) return {};
+  const data: Prisma.PricingBundleUpdateInput = {};
+  if (trial.isTrialDefault !== undefined) {
+    data.isTrialDefault = trial.isTrialDefault;
+  }
+  if (trial.trialDurationDays !== undefined) {
+    data.trialDurationDays =
+      trial.trialDurationDays === null ? null : trial.trialDurationDays;
+  }
+  if (trial.trialQuotas !== undefined) {
+    data.trialQuotas =
+      trial.trialQuotas === null
+        ? Prisma.DbNull
+        : (trial.trialQuotas as Prisma.InputJsonValue);
+  }
+  return data;
+}
 
 function parseExpiresAtFromDto(raw: string): Date {
   const d = new Date(raw);
@@ -347,6 +385,36 @@ export class AdminService {
     };
   }
 
+  /**
+   * Read-only marketing snapshot: no JWT, no org secrets.
+   * Omits module/bundle UUIDs and trial quota JSON from bundles.
+   */
+  async getPublicPricingSnapshot() {
+    const config = await this.getBillingConfig();
+    return {
+      currency: "AZN" as const,
+      foundationMonthlyAzn: config.foundationMonthlyAzn,
+      yearlyDiscountPercent: config.yearlyDiscountPercent,
+      pricingModules: config.pricingModules.map((m) => ({
+        key: m.key,
+        name: m.name,
+        pricePerMonth: m.pricePerMonth,
+        sortOrder: m.sortOrder,
+      })),
+      pricingBundles: config.pricingBundles.map((b) => ({
+        name: b.name,
+        discountPercent: b.discountPercent,
+        moduleKeys: b.moduleKeys,
+        isTrialDefault: Boolean(b.isTrialDefault),
+        trialDurationDays: b.trialDurationDays ?? null,
+      })),
+      tierLegacyPricePerMonthAzn: config.prices,
+      tierQuotasIncluded: config.quotas,
+      quotaUnitPricing: config.quotaPricing,
+      ocrJobsPerOrgMonth: config.ocrJobsPerOrgMonth,
+    };
+  }
+
   async seedPricingCatalogDefaults() {
     const modules = await this.pricing.resetPricingCatalogToDefaults();
     return {
@@ -366,6 +434,64 @@ export class AdminService {
   async patchFoundation(dto: PatchFoundationDto) {
     await this.systemConfig.setFoundationMonthlyAzn(dto.amountAzn);
     return { ok: true, foundationMonthlyAzn: dto.amountAzn };
+  }
+
+  async patchBillingPricingCatalog(dto: PatchBillingPricingCatalogDto) {
+    const keys = [...new Set(dto.modules.map((m) => m.key))];
+    const found = await this.prisma.pricingModule.findMany({
+      where: { key: { in: keys } },
+      select: { key: true },
+    });
+    if (found.length !== keys.length) {
+      throw new BadRequestException(
+        "pricing-catalog: unknown or duplicate module keys",
+      );
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.systemConfig.upsert({
+        where: { key: BILLING_SYSTEM_KEYS.foundation },
+        create: {
+          key: BILLING_SYSTEM_KEYS.foundation,
+          value: dto.foundationMonthlyAzn,
+        },
+        update: { value: dto.foundationMonthlyAzn },
+      });
+      for (const m of dto.modules) {
+        await tx.pricingModule.update({
+          where: { key: m.key },
+          data: { pricePerMonth: m.pricePerMonth },
+        });
+      }
+    });
+    return { ok: true as const };
+  }
+
+  async patchBillingGlobalLimits(dto: PatchBillingGlobalLimitsDto) {
+    await this.prisma.$transaction(async (tx) => {
+      const upsert = (key: string, value: unknown) =>
+        tx.systemConfig.upsert({
+          where: { key },
+          create: { key, value: value as object },
+          update: { value: value as object },
+        });
+      await upsert(
+        BILLING_SYSTEM_KEYS.yearlyDiscount,
+        dto.yearlyDiscountPercent,
+      );
+      await upsert(
+        BILLING_SYSTEM_KEYS.ocrJobsPerOrgMonth,
+        dto.ocrJobsPerOrgMonth,
+      );
+      await upsert(BILLING_SYSTEM_KEYS.quotaUnitPricing, dto.quotaPricing);
+      const tiers = Object.keys(TIER_LEGACY_PRICE_KEYS) as SubscriptionTier[];
+      for (const tier of tiers) {
+        await upsert(
+          TIER_LEGACY_PRICE_KEYS[tier],
+          dto.tierPrices[tier],
+        );
+      }
+    });
+    return { ok: true as const };
   }
 
   async patchYearlyDiscount(dto: PatchYearlyDiscountDto) {
@@ -392,22 +518,34 @@ export class AdminService {
   }
 
   async createPricingBundle(dto: CreatePricingBundleDto) {
-    const row = await this.prisma.pricingBundle.create({
-      data: {
-        name: dto.name.trim(),
-        discountPercent: dto.discountPercent,
-        moduleKeys: dto.moduleKeys,
-      },
+    const row = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.pricingBundle.create({
+        data: {
+          name: dto.name.trim(),
+          discountPercent: dto.discountPercent,
+          moduleKeys: dto.moduleKeys,
+        },
+      });
+      if (dto.trial?.isTrialDefault === true) {
+        await tx.pricingBundle.updateMany({
+          where: { id: { not: created.id }, isTrialDefault: true },
+          data: { isTrialDefault: false },
+        });
+      }
+      const trialData = pricingBundleTrialPatch(dto.trial);
+      if (Object.keys(trialData).length > 0) {
+        return tx.pricingBundle.update({
+          where: { id: created.id },
+          data: trialData,
+        });
+      }
+      return created;
     });
     return serializePricingBundle(row);
   }
 
   async updatePricingBundle(id: string, dto: UpdatePricingBundleDto) {
-    const data: {
-      name?: string;
-      discountPercent?: number;
-      moduleKeys?: string[];
-    } = {};
+    const data: Prisma.PricingBundleUpdateInput = {};
     if (dto.name !== undefined) {
       data.name = dto.name.trim();
     }
@@ -417,12 +555,21 @@ export class AdminService {
     if (dto.moduleKeys !== undefined) {
       data.moduleKeys = dto.moduleKeys;
     }
+    Object.assign(data, pricingBundleTrialPatch(dto.trial));
     if (Object.keys(data).length === 0) {
       throw new BadRequestException("Nothing to update");
     }
-    const row = await this.prisma.pricingBundle.update({
-      where: { id },
-      data,
+    const row = await this.prisma.$transaction(async (tx) => {
+      if (dto.trial?.isTrialDefault === true) {
+        await tx.pricingBundle.updateMany({
+          where: { id: { not: id }, isTrialDefault: true },
+          data: { isTrialDefault: false },
+        });
+      }
+      return tx.pricingBundle.update({
+        where: { id },
+        data,
+      });
     });
     return serializePricingBundle(row);
   }
@@ -431,30 +578,21 @@ export class AdminService {
     id: string,
     dto: PatchPricingBundleTrialConfigDto,
   ) {
-    if (dto.isTrialDefault === true) {
-      await this.prisma.pricingBundle.updateMany({
-        where: { id: { not: id }, isTrialDefault: true },
-        data: { isTrialDefault: false },
-      });
-    }
-    const data: Prisma.PricingBundleUpdateInput = {};
-    if (dto.isTrialDefault !== undefined) {
-      data.isTrialDefault = dto.isTrialDefault;
-    }
-    if (dto.trialDurationDays !== undefined) {
-      data.trialDurationDays =
-        dto.trialDurationDays === null ? null : dto.trialDurationDays;
-    }
-    if (dto.trialQuotas !== undefined) {
-      data.trialQuotas =
-        dto.trialQuotas === null ? Prisma.DbNull : (dto.trialQuotas as Prisma.InputJsonValue);
-    }
-    if (Object.keys(data).length === 0) {
+    const trialData = pricingBundleTrialPatch(dto);
+    if (Object.keys(trialData).length === 0) {
       throw new BadRequestException("Nothing to update");
     }
-    const row = await this.prisma.pricingBundle.update({
-      where: { id },
-      data,
+    const row = await this.prisma.$transaction(async (tx) => {
+      if (dto.isTrialDefault === true) {
+        await tx.pricingBundle.updateMany({
+          where: { id: { not: id }, isTrialDefault: true },
+          data: { isTrialDefault: false },
+        });
+      }
+      return tx.pricingBundle.update({
+        where: { id },
+        data: trialData,
+      });
     });
     return serializePricingBundle(row);
   }
@@ -492,7 +630,14 @@ export class AdminService {
           ? dto.quotas.maxStorageGb
           : current.maxStorageGb,
     };
-    await this.systemConfig.setTierQuotas(dto.tier, merged);
+    const key = tierQuotaConfigKey(dto.tier);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.systemConfig.upsert({
+        where: { key },
+        create: { key, value: merged as object },
+        update: { value: merged as object },
+      });
+    });
     return { ok: true, tier: dto.tier, quotas: merged };
   }
 
@@ -806,6 +951,39 @@ export class AdminService {
       },
     });
   }
+
+  async listPublicLandingModules() {
+    const rows = await this.prisma.landingModuleMarketing.findMany({
+      orderBy: [{ sortOrder: "asc" }, { moduleSlug: "asc" }],
+    });
+    return { items: rows.map(serializeLandingModule) };
+  }
+
+  async listLandingModulesAdmin() {
+    return this.listPublicLandingModules();
+  }
+
+  async patchLandingModuleMarketing(
+    moduleSlug: string,
+    dto: import("./dto/patch-landing-module-marketing.dto").PatchLandingModuleMarketingDto,
+  ) {
+    const existing = await this.prisma.landingModuleMarketing.findUnique({
+      where: { moduleSlug },
+    });
+    if (!existing) {
+      throw new NotFoundException("Landing module not found");
+    }
+    const row = await this.prisma.landingModuleMarketing.update({
+      where: { moduleSlug },
+      data: {
+        ...(dto.sortOrder != null ? { sortOrder: dto.sortOrder } : {}),
+        names: dto.names as object,
+        descriptions: dto.descriptions as object,
+        tasks: dto.tasks as object,
+      },
+    });
+    return serializeLandingModule(row);
+  }
 }
 
 function serializePricingModule(m: {
@@ -847,3 +1025,23 @@ function serializePricingBundle(b: {
         : null,
   };
 }
+
+function serializeLandingModule(row: {
+  moduleSlug: string;
+  sortOrder: number;
+  names: unknown;
+  descriptions: unknown;
+  tasks: unknown;
+}) {
+  return {
+    moduleSlug: row.moduleSlug,
+    sortOrder: row.sortOrder,
+    names: row.names,
+    descriptions: row.descriptions,
+    tasks: row.tasks,
+  };
+}
+
+export type AdminLandingModuleMarketingRow = ReturnType<
+  typeof serializeLandingModule
+>;

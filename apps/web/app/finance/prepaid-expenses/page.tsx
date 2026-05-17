@@ -107,7 +107,7 @@ export default function PrepaidExpensesPage() {
   if (!token) return null;
 
   return (
-    <div className="max-w-4xl space-y-8">
+    <div className="w-full max-w-none space-y-8">
       <PageHeader title={t("prepaid.title")} subtitle={t("prepaid.subtitle")} />
 
       <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm space-y-3">

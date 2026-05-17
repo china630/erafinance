@@ -18,6 +18,8 @@ import { BankDirectSyncQueueService } from "./bank-sync.queue";
 import { BankDirectSyncWorker } from "./bank-sync.worker";
 import { BankWebhookController } from "./bank-webhook.controller";
 import { BankingController } from "./banking.controller";
+import { BankingCredentialsService } from "./banking-credentials.service";
+import { BankingDirectSettingsService } from "./banking-direct-settings.service";
 import { BankingGatewayService } from "./banking-gateway.service";
 import { BankingService } from "./banking.service";
 import { IbanValidationService } from "./iban-validation.service";
@@ -49,6 +51,8 @@ import { UniversalBankExportService } from "./universal-bank-export.service";
     BankDirectSyncWorker,
     BankBalancesSyncQueueService,
     BankBalancesSyncWorker,
+    BankingCredentialsService,
+    BankingDirectSettingsService,
   ],
   exports: [BankingGatewayService, BankBalancesSyncQueueService],
 })

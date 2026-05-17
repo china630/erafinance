@@ -4,10 +4,24 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
-import { inputFieldClass } from "../../../lib/form-classes";
+import { parsePaginatedList } from "../../../lib/paginated-list";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { PageHeader } from "../../../components/layout/page-header";
-import { SECONDARY_BUTTON_CLASS } from "../../../lib/design-system";
+import { ListPaginationFooter } from "../../../components/list-pagination-footer";
+import { PsaProjectCreateModal } from "../../../components/psa/psa-project-create-modal";
+import { EmptyState } from "../../../components/empty-state";
+import {
+  DATA_TABLE_CLASS,
+  DATA_TABLE_HEAD_ROW_CLASS,
+  DATA_TABLE_TD_CLASS,
+  DATA_TABLE_TD_RIGHT_CLASS,
+  DATA_TABLE_TH_LEFT_CLASS,
+  DATA_TABLE_TH_RIGHT_CLASS,
+  DATA_TABLE_TR_CLASS,
+  DATA_TABLE_VIEWPORT_CLASS,
+  PRIMARY_BUTTON_CLASS,
+  SECONDARY_BUTTON_CLASS,
+} from "../../../lib/design-system";
 
 type Cp = { id: string; name: string; taxId?: string | null };
 type Project = {
@@ -21,128 +35,146 @@ type Project = {
   _count?: { timeEntries: number; tasks: number };
 };
 
-const lbl = "block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5";
-
 export default function PsaProjectsPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [cps, setCps] = useState<Cp[]>([]);
   const [err, setErr] = useState<string | null>(null);
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [cpId, setCpId] = useState("");
-  const [rate, setRate] = useState("50");
+  const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const load = useCallback(async () => {
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     setErr(null);
+    const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     const [pr, cp] = await Promise.all([
-      apiFetch("/api/psa/projects"),
+      apiFetch(`/api/psa/projects?${qs.toString()}`),
       apiFetch("/api/counterparties"),
     ]);
     if (!pr.ok || !cp.ok) {
       setErr(t("psa.loadErr"));
-      return;
+      setProjects([]);
+      setTotal(0);
+    } else {
+      const parsed = parsePaginatedList<Project>(await pr.json());
+      setProjects(parsed.items);
+      setTotal(parsed.total);
+      setCps((await cp.json()) as Cp[]);
     }
-    setProjects((await pr.json()) as Project[]);
-    const cplist = (await cp.json()) as Cp[];
-    setCps(cplist);
-    setCpId((prev) => prev || cplist[0]?.id || "");
-  }, [token, t]);
+    setLoading(false);
+  }, [token, t, page, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     if (!ready || !token) return;
     void load();
   }, [load, ready, token]);
 
-  const createProject = async () => {
-    if (!token || !cpId) return;
-    setErr(null);
-    const res = await apiFetch("/api/psa/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code: code.trim(),
-        name: name.trim(),
-        counterpartyId: cpId,
-        hourlyRate: Number(rate),
-        billingMode: "HOURLY",
-      }),
-    });
-    if (!res.ok) {
-      setErr(t("psa.saveErr"));
-      return;
-    }
-    setCode("");
-    setName("");
-    void load();
-  };
+  if (!ready) {
+    return (
+      <div className="text-gray-600">
+        <p>{t("common.loading")}</p>
+      </div>
+    );
+  }
+  if (!token) return null;
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <div className="w-full space-y-6">
       <PageHeader
         title={t("psa.title")}
         actions={
-          <Link href="/employees" className={SECONDARY_BUTTON_CLASS}>
-            ← {t("nav.employees")}
-          </Link>
+          <>
+            <button
+              type="button"
+              className={PRIMARY_BUTTON_CLASS}
+              onClick={() => setCreateOpen(true)}
+              disabled={cps.length === 0}
+            >
+              + {t("psa.createProject")}
+            </button>
+            <Link href="/employees" className={SECONDARY_BUTTON_CLASS}>
+              {t("nav.employees")}
+            </Link>
+          </>
         }
       />
 
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
+      {loading && <p className="text-gray-600">{t("common.loading")}</p>}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-bold text-slate-800 mb-3">{t("psa.projects")}</h2>
-        <ul className="text-sm text-slate-700 divide-y divide-slate-100">
-          {projects.map((p) => (
-            <li key={p.id} className="py-2 flex justify-between gap-2">
-              <span>
-                <span className="font-mono text-xs text-slate-500">{p.code}</span> {p.name}
-              </span>
-              <span className="text-xs text-slate-500">
-                {p._count?.timeEntries ?? 0}h / {p._count?.tasks ?? 0} tasks
-              </span>
-            </li>
-          ))}
-          {projects.length === 0 ? <li className="py-2 text-slate-500">{t("psa.none")}</li> : null}
-        </ul>
-      </section>
+      {!loading && (
+        <>
+          <div className={DATA_TABLE_VIEWPORT_CLASS}>
+            <table className={`${DATA_TABLE_CLASS} min-w-full`}>
+              <thead>
+                <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
+                  <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("psa.code")}</th>
+                  <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("psa.name")}</th>
+                  <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("psa.projects")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.length === 0 ? (
+                  <tr className={DATA_TABLE_TR_CLASS}>
+                    <td colSpan={3} className={`${DATA_TABLE_TD_CLASS} py-12 text-center`}>
+                      <EmptyState
+                        title={t("psa.none")}
+                        action={
+                          <button
+                            type="button"
+                            className={PRIMARY_BUTTON_CLASS}
+                            onClick={() => setCreateOpen(true)}
+                            disabled={cps.length === 0}
+                          >
+                            + {t("psa.createProject")}
+                          </button>
+                        }
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                  projects.map((p) => (
+                    <tr key={p.id} className={DATA_TABLE_TR_CLASS}>
+                      <td className={`${DATA_TABLE_TD_CLASS} font-mono text-xs`}>{p.code}</td>
+                      <td className={DATA_TABLE_TD_CLASS}>{p.name}</td>
+                      <td className={`${DATA_TABLE_TD_RIGHT_CLASS} text-xs text-[#7F8C8D]`}>
+                        {p._count?.timeEntries ?? 0}h / {p._count?.tasks ?? 0}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <ListPaginationFooter
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        </>
+      )}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-bold text-slate-800 mb-3">{t("psa.createProject")}</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className={lbl}>{t("psa.code")}</label>
-            <input className={inputFieldClass} value={code} onChange={(e) => setCode(e.target.value)} />
-          </div>
-          <div>
-            <label className={lbl}>{t("psa.name")}</label>
-            <input className={inputFieldClass} value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div>
-            <label className={lbl}>{t("psa.hourlyRate")}</label>
-            <input className={inputFieldClass} value={rate} onChange={(e) => setRate(e.target.value)} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={lbl}>{t("psa.counterpartyId")}</label>
-            <select className={inputFieldClass} value={cpId} onChange={(e) => setCpId(e.target.value)}>
-              {cps.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.id.slice(0, 8)}…)
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <button
-          type="button"
-          className="mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white"
-          onClick={() => void createProject()}
-        >
-          {t("psa.createProject")}
-        </button>
-      </section>
+      <PsaProjectCreateModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        counterparties={cps}
+        onCreated={() => void load()}
+      />
     </div>
   );
 }

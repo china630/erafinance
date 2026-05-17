@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { auditHubFetch } from "../../lib/audit-hub-api";
-import { CARD_CONTAINER_CLASS, PRIMARY_BUTTON_CLASS } from "../../lib/design-system";
+import { CARD_CONTAINER_CLASS } from "../../lib/design-system";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 type Summary = {
@@ -43,72 +42,43 @@ export default function AuditHubDashboardPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className={`${CARD_CONTAINER_CLASS} grid gap-4 sm:grid-cols-2 lg:grid-cols-4`}>
-        <div>
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={`${CARD_CONTAINER_CLASS} p-4`}>
           <div className="text-xs font-semibold uppercase tracking-wide text-[#95A5A6]">
             {t("auditHub.summaryNotes")}
           </div>
-          <div className="mt-1 text-2xl font-bold text-[#2C3E50]">
+          <div className="mt-2 text-2xl font-bold tabular-nums text-[#34495E]">
             {summary?.auditNotesLast30Days ?? "—"}
           </div>
         </div>
-        <div>
+        <div className={`${CARD_CONTAINER_CLASS} p-4`}>
           <div className="text-xs font-semibold uppercase tracking-wide text-[#95A5A6]">
             {t("auditHub.summarySamples")}
           </div>
-          <div className="mt-1 text-2xl font-bold text-[#2C3E50]">
+          <div className="mt-2 text-2xl font-bold tabular-nums text-[#34495E]">
             {summary?.samplesLast30Days ?? "—"}
           </div>
         </div>
-        <div>
+        <div className={`${CARD_CONTAINER_CLASS} p-4`}>
           <div className="text-xs font-semibold uppercase tracking-wide text-[#95A5A6]">
             {t("auditHub.summaryMutations")}
           </div>
-          <div className="mt-1 text-2xl font-bold text-[#2C3E50]">
+          <div className="mt-2 text-2xl font-bold tabular-nums text-[#34495E]">
             {summary?.auditMutationsLast30Days ?? "—"}
           </div>
         </div>
-        <div>
+        <div className={`${CARD_CONTAINER_CLASS} p-4`}>
           <div className="text-xs font-semibold uppercase tracking-wide text-[#95A5A6]">
             {t("auditHub.summaryBackdating")}
           </div>
-          <div className="mt-1 text-2xl font-bold text-[#2C3E50]">
+          <div className="mt-2 text-2xl font-bold tabular-nums text-[#34495E]">
             {summary?.backdatedCandidates ?? "—"}
           </div>
         </div>
       </div>
 
-      {err ? (
-        <p className="text-sm text-red-600">{err}</p>
-      ) : null}
-
-      <div className={`${CARD_CONTAINER_CLASS} flex flex-wrap gap-2`}>
-        <Link href="/audit-hub/timeline" className={PRIMARY_BUTTON_CLASS}>
-          {t("auditHub.navTimeline")}
-        </Link>
-        <Link href="/audit-hub/sampling" className={PRIMARY_BUTTON_CLASS}>
-          {t("auditHub.navSampling")}
-        </Link>
-        <Link href="/audit-hub/backdating" className={PRIMARY_BUTTON_CLASS}>
-          {t("auditHub.navBackdating")}
-        </Link>
-        <Link href="/audit-hub/bulk-export" className={PRIMARY_BUTTON_CLASS}>
-          {t("auditHub.navBulkExport")}
-        </Link>
-        <Link href="/audit-hub/reconciliation" className={PRIMARY_BUTTON_CLASS}>
-          {t("auditHub.navReconciliation")}
-        </Link>
-        <Link href="/audit-hub/risk" className={PRIMARY_BUTTON_CLASS}>
-          {t("auditHub.navRisk")}
-        </Link>
-        <Link href="/audit-hub/calculation" className={PRIMARY_BUTTON_CLASS}>
-          {t("auditHub.navCalculation")}
-        </Link>
-        <Link href="/audit-hub/engagements" className={PRIMARY_BUTTON_CLASS}>
-          {t("auditHub.navEngagements")}
-        </Link>
-      </div>
+      {err ? <p className="text-sm text-red-600">{err}</p> : null}
     </div>
   );
 }

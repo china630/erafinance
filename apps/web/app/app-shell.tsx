@@ -12,6 +12,7 @@ import { useLedger } from "../lib/ledger-context";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MainSidebar } from "../components/layout/Sidebar";
 import { MainHeader } from "../components/layout/Header";
+import { ComplianceRiskIndicator } from "../components/compliance/compliance-risk-indicator";
 import { InAppNotificationBell } from "../components/notifications/in-app-notification-bell";
 import { ExternalAuditEngagementBanner } from "../components/audit-hub/ExternalAuditEngagementBanner";
 import { AuditEngagementSessionProvider } from "../lib/audit-engagement-session";
@@ -496,6 +497,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return !snapshot.modules.auditHub;
   }, [token, subReady, snapshot]);
 
+  const lockedCompliancePro = useMemo(() => {
+    if (!token || !subReady) return false;
+    if (!snapshot) return false;
+    if (String(snapshot.tier).toUpperCase() === "ENTERPRISE") return false;
+    return !snapshot.modules.compliancePro;
+  }, [token, subReady, snapshot]);
+
   const billingBanner = useMemo(() => {
     const status = snapshot?.billingStatus;
     if (status === "SOFT_BLOCK") {
@@ -517,7 +525,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const bankCashActive =
       pathname.startsWith("/banking") ||
       pathname.startsWith("/expenses") ||
-      pathname.startsWith("/treasury/cash-flow");
+      pathname.startsWith("/treasury/cash-flow") ||
+      pathname.startsWith("/finance/prepaid-expenses");
     const salesActive =
       pathname.startsWith("/sales/invoices") ||
       pathname.startsWith("/sales/reconciliation");
@@ -534,13 +543,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const reportsActive =
       pathname.startsWith("/reporting") || pathname.startsWith("/reports");
     const chartOfAccountsActive =
-      pathname.startsWith("/accounting") || pathname.startsWith("/finance");
-    const adminActive =
+      pathname.startsWith("/accounting") ||
+      (pathname.startsWith("/finance") &&
+        !pathname.startsWith("/finance/prepaid-expenses"));
+    const auditSectionActive =
+      pathname.startsWith("/audit-hub") ||
+      pathname.startsWith("/audit-invitations") ||
+      pathname.startsWith("/compliance");
+    const tenantAdminActive =
       pathname.startsWith("/companies") ||
       pathname.startsWith("/settings") ||
-      pathname.startsWith("/super-admin") ||
-      pathname.startsWith("/audit-hub") ||
-      pathname.startsWith("/audit-invitations");
+      pathname.startsWith("/admin");
+    const superAdminNavActive = pathname.startsWith("/super-admin");
     const reportingHubActive =
       !pathname.startsWith("/reports") &&
       (pathname === "/reporting" ||
@@ -561,9 +575,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       payrollHrActive,
       reportsActive,
       chartOfAccountsActive,
-      adminActive,
+      tenantAdminActive,
+      superAdminNavActive,
       reportingHubActive,
       inventoryMainActive,
+      auditSectionActive,
     };
   }, [pathname]);
 
@@ -658,7 +674,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-secondary">
         <header className="border-b border-[#D5DADF] bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-sm">
           <Link
-            href="/"
+            href="/home"
             className="text-sm font-semibold text-action hover:opacity-90"
           >
             ← {t("nav.home")}
@@ -700,6 +716,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         lockedIfrsMapping={lockedIfrsMapping}
         lockedBankingPro={lockedBankingPro}
         lockedAuditHub={lockedAuditHub}
+        lockedCompliancePro={lockedCompliancePro}
         token={token}
         user={user}
         canPostAccounting={canPostAccounting}
@@ -735,6 +752,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           }
           orgSwitcher={<OrgSwitcher onNavigate={closeMobileNav} />}
           onLogout={() => void logout()}
+          riskIndicator={<ComplianceRiskIndicator />}
         />
 
         <main className="app-shell-main mx-auto w-full min-w-0 max-w-screen-xl px-4 py-6 pb-24 sm:px-6 sm:py-8 lg:px-8 lg:pb-8">

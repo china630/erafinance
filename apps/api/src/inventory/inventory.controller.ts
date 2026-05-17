@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -111,15 +113,16 @@ export class InventoryController {
   })
   balances(
     @OrganizationId() organizationId: string,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query("pageSize", new DefaultValuePipe(50), ParseIntPipe) pageSize: number,
     @Query("warehouseId") warehouseId?: string,
     @Query("search") search?: string,
-    @Query("take") take?: string,
   ) {
-    const takeN = take ? Number.parseInt(take, 10) : NaN;
     return this.inventory.listMovementBalances(organizationId, {
       warehouseId: warehouseId || undefined,
       search: search?.trim() || undefined,
-      take: Number.isFinite(takeN) ? takeN : undefined,
+      page,
+      pageSize,
     });
   }
 
@@ -130,12 +133,10 @@ export class InventoryController {
   })
   purchaseInvoices(
     @OrganizationId() organizationId: string,
-    @Query("take") take?: string,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query("pageSize", new DefaultValuePipe(25), ParseIntPipe) pageSize: number,
   ) {
-    return this.inventory.listPurchaseInvoices(
-      organizationId,
-      take ? Number.parseInt(take, 10) : 400,
-    );
+    return this.inventory.listPurchaseInvoices(organizationId, { page, pageSize });
   }
 
   @Get("purchase-invoices/:id")
@@ -193,9 +194,10 @@ export class InventoryController {
   @ApiOperation({ summary: "История движений" })
   movements(
     @OrganizationId() organizationId: string,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query("pageSize", new DefaultValuePipe(25), ParseIntPipe) pageSize: number,
     @Query("warehouseId") warehouseId?: string,
     @Query("productId") productId?: string,
-    @Query("take") take?: string,
     @Query("note") note?: string,
     @Query("notes") notesCsv?: string,
     @Query("type") type?: string,
@@ -218,7 +220,8 @@ export class InventoryController {
     return this.inventory.listMovements(organizationId, {
       warehouseId: warehouseId || undefined,
       productId: productId || undefined,
-      take: take ? Number.parseInt(take, 10) : undefined,
+      page,
+      pageSize,
       note: note?.trim() || undefined,
       notes: notes && notes.length > 0 ? notes : undefined,
       type: typeParsed,
@@ -346,11 +349,14 @@ export class InventoryController {
   })
   listPhysicalAdjustments(
     @OrganizationId() organizationId: string,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query("pageSize", new DefaultValuePipe(25), ParseIntPipe) pageSize: number,
     @Query("warehouseId") warehouseId?: string,
   ) {
     return this.inventory.listInventoryAdjustments(
       organizationId,
       warehouseId || undefined,
+      { page, pageSize },
     );
   }
 

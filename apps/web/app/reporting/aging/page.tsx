@@ -17,6 +17,8 @@ import {
   DATA_TABLE_TH_RIGHT_CLASS,
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
+  MODAL_INPUT_CLASS,
+  PRIMARY_BUTTON_CLASS,
 } from "../../../lib/design-system";
 
 type Row = {
@@ -44,6 +46,7 @@ type Payload = {
 export default function AgingPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
+  const [asOf, setAsOf] = useState(() => new Date().toISOString().slice(0, 10));
   const [data, setData] = useState<Payload | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,7 +59,9 @@ export default function AgingPage() {
     }
     setLoading(true);
     setErr(null);
-    const res = await apiFetch("/api/reporting/aging");
+    const qs = new URLSearchParams();
+    if (asOf.trim()) qs.set("asOf", asOf.trim());
+    const res = await apiFetch(`/api/reporting/aging?${qs.toString()}`);
     setLoading(false);
     if (!res.ok) {
       setErr(`${t("aging.loadErr")}: ${res.status}`);
@@ -64,7 +69,7 @@ export default function AgingPage() {
     } else {
       setData((await res.json()) as Payload);
     }
-  }, [token, t]);
+  }, [token, t, asOf]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -82,7 +87,29 @@ export default function AgingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t("aging.title")} subtitle={t("aging.subtitle")} />
+      <PageHeader
+        title={t("aging.title")}
+        subtitle={t("aging.subtitle")}
+        leading={
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="block shrink-0 text-[13px] font-medium text-[#34495E]">
+              {t("aging.asOf")}
+              <input
+                type="date"
+                value={asOf}
+                onChange={(e) => setAsOf(e.target.value)}
+                className={`mt-1 block h-9 ${MODAL_INPUT_CLASS}`}
+              />
+            </label>
+            <p className="m-0 max-w-xl pb-1 text-[12px] leading-snug text-[#7F8C8D]">
+              {t("aging.asOfPickerHint")}
+            </p>
+            <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => void load()}>
+              {t("aging.applyAsOf")}
+            </button>
+          </div>
+        }
+      />
 
       {data && (
         <p className="text-sm text-slate-600">

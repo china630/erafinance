@@ -20,7 +20,7 @@ import { Roles } from "../auth/decorators/roles.decorator";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthUser } from "../auth/types/auth-user";
 import { OrganizationId } from "../common/org-id.decorator";
-import { VoenIntegrityGuard } from "../common/guards/voen-integrity.guard";
+import { VoenIntegrityGuard } from "../auth/guards/voen-integrity.guard";
 import { RequiresModule } from "../subscription/requires-module.decorator";
 import { SubscriptionGuard } from "../subscription/subscription.guard";
 import { ModuleEntitlement } from "../subscription/subscription.constants";
@@ -30,7 +30,7 @@ import { CustomsService } from "./customs.service";
 @ApiTags("customs")
 @ApiBearerAuth("bearer")
 @Controller("customs/declarations")
-@UseGuards(RolesGuard)
+@UseGuards(RolesGuard, VoenIntegrityGuard)
 export class CustomsController {
   constructor(private readonly customs: CustomsService) {}
 
@@ -57,7 +57,7 @@ export class CustomsController {
   }
 
   @Post("prefill-capture")
-  @UseGuards(SubscriptionGuard, VoenIntegrityGuard, RolesGuard)
+  @UseGuards(SubscriptionGuard)
   @RequiresModule(ModuleEntitlement.TRADE_PRO)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
   @ApiOperation({ summary: "Create BGD draft from extension/widget capture (trade_pro)" })

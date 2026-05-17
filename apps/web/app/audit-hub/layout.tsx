@@ -48,28 +48,38 @@ export default function AuditHubLayout({
     { href: "/audit-hub/engagements", label: t("auditHub.navEngagements") },
   ];
 
+  const isDashboard = pathname === "/audit-hub";
+  const activeSectionLabel =
+    tabs.find((tab) => tab.href !== "/audit-hub" && pathname.startsWith(tab.href))?.label ??
+    t("auditHub.dashboardTitle");
+
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-[#2C3E50]">
-          {t("auditHub.dashboardTitle")}
-        </h1>
-        <p className="mt-1 text-sm text-[#7F8C8D]">{t("auditHub.dashboardSubtitle")}</p>
-      </div>
+      {isDashboard ? (
+        <>
+          <h1 className="m-0 text-2xl font-semibold text-[#34495E]">{t("auditHub.dashboardTitle")}</h1>
+          <p className="m-0 mt-2 text-sm text-[#7F8C8D]">{t("auditHub.dashboardSubtitle")}</p>
+        </>
+      ) : (
+        <div>
+          <h1 className="m-0 text-2xl font-semibold text-[#34495E]">{activeSectionLabel}</h1>
+          <p className="m-0 mt-2 text-sm text-[#7F8C8D]">{t("auditHub.sectionContextHint")}</p>
+        </div>
+      )}
 
       {probingGuest ? (
-        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+        <div className="rounded-2xl border border-[#D5DADF] bg-[#EBEDF0]/60 px-4 py-3 text-[13px] text-[#34495E]">
           {t("auditHub.guestSessionChecking")}
         </div>
       ) : null}
 
       {locked ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="rounded-2xl border border-[#D5DADF] bg-[#FFFBF0] px-4 py-3 text-[13px] text-[#34495E]">
           {t("auditHub.paywall")}
         </div>
       ) : (
         <>
-          <nav className="flex flex-wrap gap-2 border-b border-[#E5E7EB] pb-2">
+          <nav className="flex flex-wrap gap-2 border-b border-[#D5DADF] pb-2">
             {tabs.map((tab) => {
               const active =
                 tab.href === "/audit-hub"
@@ -80,10 +90,10 @@ export default function AuditHubLayout({
                   key={tab.href}
                   href={tab.href}
                   className={[
-                    "rounded-md px-3 py-1.5 text-xs font-semibold transition",
+                    "rounded-lg border px-3 py-1.5 text-[13px] font-medium transition",
                     active
-                      ? "bg-primary/10 text-primary border border-primary/20"
-                      : "text-[#7F8C8D] hover:bg-white hover:text-[#2C3E50]",
+                      ? "border-[#2980B9] bg-white text-[#34495E] shadow-sm"
+                      : "border-transparent text-[#7F8C8D] hover:border-[#D5DADF]",
                   ].join(" ")}
                 >
                   {tab.label}

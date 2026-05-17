@@ -5,10 +5,27 @@ import { useTranslation } from "react-i18next";
 import { auditHubFetch } from "../../../lib/audit-hub-api";
 import {
   CARD_CONTAINER_CLASS,
+  DATA_TABLE_CLASS,
+  DATA_TABLE_HEAD_ROW_CLASS,
+  DATA_TABLE_TD_CLASS,
+  DATA_TABLE_TD_RIGHT_CLASS,
+  DATA_TABLE_TH_LEFT_CLASS,
+  DATA_TABLE_TH_RIGHT_CLASS,
+  DATA_TABLE_TR_CLASS,
+  DATA_TABLE_VIEWPORT_CLASS,
   INPUT_BORDERED_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from "../../../lib/design-system";
 import { useRequireAuth } from "../../../lib/use-require-auth";
+
+type BackdatingRow = {
+  entityType: string;
+  entityId: string;
+  label: string;
+  documentDate: string;
+  createdAt: string;
+  deltaDays: number;
+};
 
 export default function AuditHubBackdatingPage() {
   const { t } = useTranslation();
@@ -18,7 +35,7 @@ export default function AuditHubBackdatingPage() {
   const [to, setTo] = useState("");
   const [thresholdDays, setThresholdDays] = useState("1");
   const [entityTypes, setEntityTypes] = useState("invoice,transaction");
-  const [items, setItems] = useState<unknown[] | null>(null);
+  const [items, setItems] = useState<BackdatingRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -34,16 +51,18 @@ export default function AuditHubBackdatingPage() {
       setErr(t("auditHub.loadErr"));
       return;
     }
-    const body = (await res.json()) as { items: unknown[] };
+    const body = (await res.json()) as { items: BackdatingRow[] };
     setItems(body.items ?? []);
   }, [token, from, to, thresholdDays, entityTypes, t]);
 
   if (!ready || !token) return null;
 
+  const rows = items ?? [];
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-[#7F8C8D]">{t("auditHub.backdatingHint")}</p>
-      <div className={`${CARD_CONTAINER_CLASS} grid gap-3 sm:grid-cols-2`}>
+      <div className={`${CARD_CONTAINER_CLASS} grid gap-3 p-4 sm:grid-cols-2`}>
         <label className="text-xs font-semibold text-[#34495E]">
           {t("auditHub.periodFrom")}
           <input
@@ -83,11 +102,50 @@ export default function AuditHubBackdatingPage() {
         {t("auditHub.load")}
       </button>
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
-      <div className={`${CARD_CONTAINER_CLASS} max-h-[480px] overflow-auto`}>
-        <pre className="whitespace-pre-wrap break-all text-[11px]">
-          {items ? JSON.stringify(items, null, 2) : "—"}
-        </pre>
-      </div>
+
+      {items !== null && rows.length > 0 ? (
+        <div className={`${CARD_CONTAINER_CLASS} p-0`}>
+          <div className={DATA_TABLE_VIEWPORT_CLASS}>
+            <table className={DATA_TABLE_CLASS}>
+              <thead className={DATA_TABLE_HEAD_ROW_CLASS}>
+                <tr>
+                  <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("auditHub.timelineColKind")}</th>
+                  <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("auditHub.backdatingColLabel")}</th>
+                  <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("auditHub.backdatingColDocDate")}</th>
+                  <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("auditHub.backdatingColCreated")}</th>
+                  <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("auditHub.backdatingColDelta")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={`${row.entityType}-${row.entityId}`} className={DATA_TABLE_TR_CLASS}>
+                    <td className={`${DATA_TABLE_TD_CLASS} text-xs`}>{row.entityType}</td>
+                    <td className={`${DATA_TABLE_TD_CLASS} text-xs`}>{row.label}</td>
+                    <td className={`${DATA_TABLE_TD_CLASS} whitespace-nowrap text-xs`}>{row.documentDate}</td>
+                    <td className={`${DATA_TABLE_TD_CLASS} whitespace-nowrap text-xs`}>
+                      {row.createdAt?.replace("T", " ").slice(0, 19)}
+                    </td>
+                    <td className={`${DATA_TABLE_TD_RIGHT_CLASS} text-xs`}>{row.deltaDays}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {items !== null && rows.length === 0 ? (
+        <p className="text-sm text-[#7F8C8D]">—</p>
+      ) : null}
+
+      {items !== null && rows.length > 0 ? (
+        <details className="rounded-xl border border-[#D5DADF] bg-white p-3 text-[13px] text-[#34495E]">
+          <summary className="cursor-pointer font-medium text-[#2980B9]">{t("auditHub.showRawJson")}</summary>
+          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-[11px] text-[#34495E]">
+            {JSON.stringify(rows, null, 2)}
+          </pre>
+        </details>
+      ) : null}
     </div>
   );
 }

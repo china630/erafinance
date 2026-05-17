@@ -43,6 +43,13 @@ export const ModuleEntitlement = {
   RECOVERY_PRO: "recovery_pro",
   /** Auditor workplace: timeline, sampling, bulk export, backdating reports (paid add-on). */
   AUDIT_HUB: "audit_hub",
+  /** Risk & Compliance (ERM): automated signals and dashboard. */
+  COMPLIANCE_PRO: "compliance_pro",
+  /** Industry Solutions verticals (beta; explicit tenant toggle). */
+  INDUSTRY_RETAIL_ECOM: "industry_retail_ecom",
+  INDUSTRY_LOGISTICS_CUSTOMS: "industry_logistics_customs",
+  INDUSTRY_CONSTRUCTION: "industry_construction",
+  INDUSTRY_CRM_WHATSAPP: "industry_crm_whatsapp",
 } as const;
 
 export type ModuleEntitlementKey =

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -44,6 +45,7 @@ export default function InventorySettingsPage() {
     allowNegativeStock?: boolean;
     defaultWarehouseId?: string | null;
     defaultWarehouseResolvedId?: string | null;
+    inventoryValuationMethod?: string | null;
   } | null>(null);
   const [allowNeg, setAllowNeg] = useState(false);
   const [defWh, setDefWh] = useState("");
@@ -183,6 +185,25 @@ export default function InventorySettingsPage() {
             />
             {t("inventory.allowNeg")}
           </label>
+          {settings?.inventoryValuationMethod ? (
+            <div className="rounded-xl border border-[#D5DADF] bg-[#F8F9FA] px-4 py-3 text-sm text-[#34495E]">
+              <p className="font-medium text-[#34495E]">{t("inventory.valuationMethodLabel")}</p>
+              <p className="mt-1 tabular-nums text-[#2C3E50]">
+                {t(`inventory.valuationMethod_${settings.inventoryValuationMethod}`, {
+                  defaultValue: settings.inventoryValuationMethod,
+                })}
+              </p>
+              <p className="mt-2 text-xs leading-snug text-[#7F8C8D]">
+                {t("inventory.valuationMethodOrgNote")}
+              </p>
+              <Link
+                href="/settings/organization"
+                className="mt-2 inline-block text-[13px] font-medium text-[#2980B9] hover:text-[#2471A3]"
+              >
+                {t("inventory.valuationMethodOrgLink")}
+              </Link>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-end gap-3">
             <label className="block min-w-0 max-w-xs flex-1 text-sm font-medium text-gray-700">
               {t("inventory.defaultWhLabel")}

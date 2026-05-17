@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
+import { normalizeListPagination } from "../common/list-pagination";
 import { CreateDepartmentDto } from "./dto/create-department.dto";
 import { CreateJobPositionDto } from "./dto/create-job-position.dto";
 import { UpdateDepartmentDto } from "./dto/update-department.dto";
@@ -196,20 +197,36 @@ export class OrgStructureService {
     });
   }
 
-  async listJobPositions(organizationId: string, departmentId?: string) {
-    return this.prisma.jobPosition.findMany({
-      where: {
-        department: {
-          organizationId,
-          ...(departmentId ? { id: departmentId } : {}),
+  async listJobPositions(
+    organizationId: string,
+    departmentId?: string,
+    opts?: { page?: number; pageSize?: number },
+  ) {
+    const { page, pageSize, skip } = normalizeListPagination(
+      opts?.page,
+      opts?.pageSize,
+      25,
+    );
+    const where = {
+      department: {
+        organizationId,
+        ...(departmentId ? { id: departmentId } : {}),
+      },
+    };
+    const [items, total] = await Promise.all([
+      this.prisma.jobPosition.findMany({
+        where,
+        skip,
+        take: pageSize,
+        include: {
+          department: { select: { id: true, name: true } },
+          _count: { select: { employees: true } },
         },
-      },
-      include: {
-        department: { select: { id: true, name: true } },
-        _count: { select: { employees: true } },
-      },
-      orderBy: [{ department: { name: "asc" } }, { name: "asc" }],
-    });
+        orderBy: [{ department: { name: "asc" } }, { name: "asc" }],
+      }),
+      this.prisma.jobPosition.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
   }
 
   private async assertJobPositionInOrg(organizationId: string, positionId: string) {

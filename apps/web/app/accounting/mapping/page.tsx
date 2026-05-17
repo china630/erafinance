@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { accountDisplayName } from "../../../lib/account-display-name";
 import { apiFetch } from "../../../lib/api-client";
@@ -12,7 +11,6 @@ import { SubscriptionPaywall } from "../../../components/subscription-paywall";
 import {
   CARD_CONTAINER_CLASS,
   INPUT_BORDERED_CLASS,
-  LINK_ACCENT_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from "../../../lib/design-system";
 import { PageHeader } from "../../../components/layout/page-header";
@@ -169,18 +167,10 @@ function AccountMappingContent() {
       <PageHeader
         title={t("mapping.title")}
         subtitle={
-          <>
-            <p className="text-sm text-slate-600">{t("mapping.subtitle")}</p>
-            <div className="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-sm items-center">
-              <Link href="/" className={LINK_ACCENT_CLASS}>
-                {t("nav.home")}
-              </Link>
-              <span className="text-slate-300">/</span>
-              <Link href="/reporting" className={LINK_ACCENT_CLASS}>
-                {t("nav.reportingHub")}
-              </Link>
-            </div>
-          </>
+          <Fragment>
+            <p className="m-0 text-sm text-slate-600">{t("mapping.subtitle")}</p>
+            <p className="m-0 mt-2 text-[12px] leading-snug text-[#7F8C8D]">{t("mapping.contextHelp")}</p>
+          </Fragment>
         }
       />
 

@@ -4,10 +4,12 @@ import { Inbox } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
+import { parsePaginatedList } from "../../../lib/paginated-list";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { subscribeListRefresh } from "../../../lib/list-refresh-bus";
 import { PageHeader } from "../../../components/layout/page-header";
 import { EmptyState } from "../../../components/empty-state";
+import { ListPaginationFooter } from "../../../components/list-pagination-footer";
 import { CreateReceiptModal } from "../../../components/inventory/create-receipt-modal";
 import {
   DATA_TABLE_CLASS,
@@ -36,7 +38,7 @@ type Movement = {
 };
 
 function fmtQty(v: unknown): string {
-  if (v == null) return "—";
+  if (v == null) return "вЂ”";
   if (typeof v === "object" && v !== null && "toString" in v) {
     return String((v as { toString(): string }).toString());
   }
@@ -52,6 +54,9 @@ export default function InventoryReceiptsPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
   const [rows, setRows] = useState<Movement[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -64,15 +69,26 @@ export default function InventoryReceiptsPage() {
     setLoading(true);
     setError(null);
     try {
-      const q = new URLSearchParams({ take: "300", reason: "RECEIPT" });
+      const q = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+        reason: "RECEIPT",
+      });
       const res = await apiFetch(`/api/inventory/movements?${q.toString()}`);
       if (!res.ok) throw new Error(`movements ${res.status}`);
-      setRows((await res.json()) as Movement[]);
+      const parsed = parsePaginatedList<Movement>(await res.json());
+      setRows(parsed.items);
+      setTotal(parsed.total);
     } catch (e) {
       setError(String(e));
     }
     setLoading(false);
-  }, [token]);
+  }, [token, page, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -114,14 +130,8 @@ export default function InventoryReceiptsPage() {
       />
 
       {loading && <p className="text-gray-600">{t("common.loading")}</p>}
-      {!loading && rows.length === 0 && !error && (
-        <EmptyState
-          icon={<Inbox className="h-12 w-12 mx-auto stroke-[1.5] text-[#7F8C8D]" aria-hidden />}
-          title={t("inventory.receiptEmptyTitle")}
-          description={t("inventory.receiptEmptyHint")}
-        />
-      )}
-      {!loading && rows.length > 0 && (
+      {!loading && (
+        <>
         <div className={DATA_TABLE_VIEWPORT_CLASS}>
           <table className={`${DATA_TABLE_CLASS} min-w-full`}>
             <thead>
@@ -135,21 +145,48 @@ export default function InventoryReceiptsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((m) => (
+              {rows.length === 0 ? (
+                <tr className={DATA_TABLE_TR_CLASS}>
+                  <td colSpan={6} className={`${DATA_TABLE_TD_CLASS} py-12 text-center`}>
+                    {!error ? (
+                      <EmptyState
+                        icon={
+                          <Inbox
+                            className="mx-auto h-12 w-12 stroke-[1.5] text-[#7F8C8D]"
+                            aria-hidden
+                          />
+                        }
+                        title={t("inventory.receiptEmptyTitle")}
+                        description={t("inventory.receiptEmptyHint")}
+                      />
+                    ) : null}
+                  </td>
+                </tr>
+              ) : (
+              rows.map((m) => (
                 <tr key={m.id} className={DATA_TABLE_TR_CLASS}>
                   <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>{rowDate(m)}</td>
                   <td className={DATA_TABLE_TD_CLASS}>{m.warehouse.name}</td>
                   <td className={DATA_TABLE_TD_CLASS}>{m.product.name}</td>
                   <td className={DATA_TABLE_TD_RIGHT_CLASS}>{fmtQty(m.quantity)}</td>
-                  <td className={DATA_TABLE_TD_CLASS}>{m.bin?.code ?? "—"}</td>
+                  <td className={DATA_TABLE_TD_CLASS}>{m.bin?.code ?? "вЂ”"}</td>
                   <td className={`${DATA_TABLE_TD_CLASS} max-w-[14rem] truncate`} title={m.note ?? ""}>
-                    {m.note ?? "—"}
+                    {m.note ?? "вЂ”"}
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
+        <ListPaginationFooter
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+        </>
       )}
     </div>
   );

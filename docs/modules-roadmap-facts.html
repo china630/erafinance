@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ERA Finance — roadmap: фактический статус (PRD/TZ 2026.05.18)</title>
+  <title>ERA Finance — roadmap: фактический статус (PRD/TZ 2026.06.19)</title>
   <style>
     :root {
       --bg: #f6f7f9;
@@ -24,7 +24,7 @@
       color: var(--text);
       line-height: 1.5;
     }
-    .wrap { max-width: 1200px; margin: 0 auto; }
+    .wrap { max-width: 1280px; margin: 0 auto; }
     h1 { margin: 0 0 0.5rem; font-size: 1.5rem; color: #34495e; }
     .meta { margin: 0 0 1rem; color: var(--muted); font-size: 0.92rem; }
     .legend {
@@ -35,6 +35,7 @@
       margin-bottom: 1rem;
       font-size: 0.9rem;
     }
+    .integrity-bad td:first-child { box-shadow: inset 3px 0 0 #c0392b; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -42,10 +43,10 @@
       border: 1px solid var(--border);
       border-radius: 8px;
       overflow: hidden;
-      font-size: 0.9rem;
+      font-size: 0.82rem;
     }
     th, td {
-      padding: 0.6rem 0.75rem;
+      padding: 0.55rem 0.65rem;
       border-bottom: 1px solid var(--border);
       text-align: left;
       vertical-align: top;
@@ -55,7 +56,7 @@
     .status-done { color: var(--ok); font-weight: 600; }
     .status-partial { color: var(--part); font-weight: 600; }
     .status-planned { color: var(--plan); font-weight: 600; }
-    code { background: #eef1f4; padding: 0.1em 0.35em; border-radius: 4px; }
+    code { background: #eef1f4; padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.92em; }
     .table-filters {
       display: flex;
       flex-wrap: wrap;
@@ -75,24 +76,27 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 0.4rem 0.5rem;
-      min-width: 180px;
+      min-width: 160px;
       background: #fff;
       color: var(--text);
     }
+    .prio { text-align: center; font-weight: 600; min-width: 2rem; }
+    .tid { font-family: ui-monospace, monospace; font-size: 0.8rem; white-space: nowrap; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>ERA Finance — фактический roadmap-статус</h1>
     <p class="meta">
-      Срез по <strong>PRD.md</strong> и <strong>TZ.md</strong> на дату <strong>2026.05.18</strong> (запись истории: <em>Final QA (Platform): Billing reconciliation and automated DR validation. Horizons v1/v2 reached 100%.</em>).
-      Только факт-статусы из документов, без оценочных процентов. Горизонты <strong>v1</strong> (Opening Balances Wizard, PRD §4.1.3) и <strong>v2</strong> (PRD §5) — <strong>COMPLETED</strong> в спецификации.
+      Срез по <strong>PRD.md</strong> (в т.ч. <strong>§14.2–§14.2.1</strong> Task ID) и <strong>TZ.md</strong> на дату <strong>2026.06.19</strong> (лендинг <code>MOD-LAND-001</code>, trial <code>TRIAL_3_MONTHS</code>, дашборд <code>/home</code>; Phase 15 <code>FEAT-SEC-CRYPTO-001</code> — PLANNED).
+      <strong>Правило целостности:</strong> если в колонке <em>PRD Req</em> стоит <code>[ ] PLANNED</code>, в колонке <em>Fact</em> не может быть <strong>COMPLETED</strong> для того же <code>Task ID</code>.
+      Символы <code>[~] PARTIAL</code> в roadmap соответствуют <strong>PARTIAL</strong> здесь; пустой план — <strong>PLANNED</strong>.
     </p>
 
     <section class="legend">
       <div><span class="status-done">COMPLETED</span> — реализовано и зафиксировано в PRD/TZ/changelog.</div>
-      <div><span class="status-partial">PARTIAL</span> — реализовано частично, дальнейшее расширение уже описано в roadmap.</div>
-      <div><span class="status-planned">PLANNED</span> — целевая функция задокументирована как следующий этап.</div>
+      <div><span class="status-partial">PARTIAL</span> — реализовано частично; объём в roadmap.</div>
+      <div><span class="status-planned">PLANNED</span> — задокументировано как следующий этап.</div>
     </section>
 
     <div class="table-filters" aria-label="Фильтры таблицы фактов">
@@ -108,7 +112,7 @@
         </select>
       </label>
       <label>
-        Статус
+        Fact (факт)
         <select id="facts-status-filter">
           <option value="all">Все</option>
           <option value="COMPLETED">COMPLETED</option>
@@ -117,92 +121,420 @@
         </select>
       </label>
       <label>
+        Priority (1–4)
+        <select id="facts-priority-filter">
+          <option value="all">Все</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </label>
+      <label>
+        Owner / team
+        <select id="facts-owner-filter">
+          <option value="all">Все</option>
+        </select>
+      </label>
+      <label>
         Поиск по строке
-        <input id="facts-text-filter" type="search" placeholder="Например: IFRS, payroll, e-Taxes" />
+        <input id="facts-text-filter" type="search" placeholder="Task ID, модуль, IFRS…" />
       </label>
     </div>
 
     <table id="facts-table">
       <thead>
         <tr>
+          <th>Task ID</th>
           <th>Модуль / блок</th>
           <th>Факт из PRD/TZ</th>
           <th>Горизонт</th>
-          <th>Статус</th>
+          <th>PRD Req</th>
+          <th>Fact</th>
+          <th>Owner</th>
+          <th class="prio">P</th>
         </tr>
       </thead>
       <tbody id="facts-table-body">
-        <tr>
+        <tr data-task-id="MOD-OB-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v1" data-priority="2" data-owner="Core">
+          <td class="tid">MOD-OB-001</td>
           <td>Opening Balances (v1)</td>
-          <td>Мастер начальных остатков: finance / HR / inventory, preview/post, шаблоны импорта, тесты (PRD §4.1.3 <code>[x] COMPLETED</code>, TZ migration).</td>
+          <td>Мастер начальных остатков: finance / HR / inventory, preview/post, динамические XLSX-шаблоны, Early Balance Guard, Optimistic Locking, HR-алиасы <code>finCode / employeeId</code> (PRD §4.1.3 <code>[x] COMPLETED</code>, TZ migration).</td>
           <td>Текущая / v1</td>
+          <td>[x] COMPLETED</td>
           <td class="status-done">COMPLETED</td>
+          <td>Core</td>
+          <td class="prio">2</td>
         </tr>
-        <tr>
+        <tr data-task-id="MOD-V2-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v2" data-priority="1" data-owner="Core">
+          <td class="tid">MOD-V2-001</td>
           <td>Горизонт v2 (PRD §5)</td>
-          <td>Сводно: <strong>[x] 100% COMPLETED</strong> — блоки A–D (взаиморасчёты, e-Taxes v2, Multi-GAAP/IFRS, ОС и связанный складской контур); Bridge Sprint RBAC/Billing; детали в M2/M4/M7/M9 и §5 PRD.</td>
+          <td><strong>[x] 100% COMPLETED</strong> — блоки A–D; Bridge Sprint RBAC/Billing; Generic SaaS Strengthening Waves 1–2 (Activity Stream, Approval Workflow MVP касса, Director, Virtual Stock, РБП, КЗР на выпуск, PSA mini).</td>
           <td>v2</td>
+          <td>[x] COMPLETED</td>
           <td class="status-done">COMPLETED</td>
+          <td>Core</td>
+          <td class="prio">1</td>
         </tr>
-        <tr>
-          <td>M1 IAM</td>
-          <td>Invite lifecycle (invite/accept/revoke), owner-only billing access, RBAC policy hardening и org-membership governance.</td>
+        <tr data-task-id="MOD-M1-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая" data-priority="1" data-owner="Core">
+          <td class="tid">MOD-M1-001</td>
+          <td>M1 IAM &amp; Profile</td>
+          <td>Invite lifecycle, RBAC; <strong>v2026.06</strong> — <code>/settings/profile</code>, <code>User.phone</code> (E.164 +994), <code>User.locale</code>, <code>emailVerifiedAt</code>-блокировка смены e-mail, <code>GET/PATCH /api/users/me</code>; ERP-дашборд — <code>/home</code> (§7.3.1).</td>
           <td>Текущая</td>
+          <td>[x] COMPLETED</td>
           <td class="status-done">COMPLETED</td>
+          <td>Core</td>
+          <td class="prio">1</td>
         </tr>
-        <tr>
-          <td>M2 Ledger</td>
-          <td>Period Close Checklist (draft invoices / negative balances / depreciation gate), NAS/IFRS parallel books и Netting-проводки.</td>
+        <tr data-task-id="MOD-M2-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v2" data-priority="1" data-owner="Core">
+          <td class="tid">MOD-M2-001</td>
+          <td>M2 Ledger &amp; Accounting</td>
+          <td>Period Close Checklist, NAS/IFRS, Netting; <strong>OrganizationKind</strong> + <code>TemplateAccount.kind</code>; <code>/accounting/*</code>.</td>
           <td>Текущая / v2</td>
+          <td>[x] COMPLETED</td>
           <td class="status-done">COMPLETED</td>
+          <td>Core</td>
+          <td class="prio">1</td>
         </tr>
-        <tr>
+        <tr data-task-id="MOD-M3-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v3" data-priority="2" data-owner="Core">
+          <td class="tid">MOD-M3-001</td>
           <td>M3 CRM</td>
-          <td>Counterparty merge engine + mandatory VÖEN lookup/locking, MDM global linkage и fallback-контур интеграций.</td>
+          <td>Counterparty merge + integrity; VÖEN lookup (TZ §13.2); MDM <code>GlobalCounterparty</code>; ОПФ, <code>isVatPayer</code>, <code>CounterpartyBankAccount</code> 1:N.</td>
           <td>Текущая / v3</td>
+          <td>[x] COMPLETED</td>
           <td class="status-done">COMPLETED</td>
+          <td>Core</td>
+          <td class="prio">2</td>
         </tr>
-        <tr>
-          <td>M4 Sales</td>
-          <td>AR/AP v2: partial allocations, tranche FIFO, AR Aging, one-click Netting UX и multicurrency rounding control.</td>
-          <td>Текущая / v2</td>
+        <tr data-task-id="MOD-M4-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v2,v4+" data-priority="2" data-owner="Core">
+          <td class="tid">MOD-M4-001</td>
+          <td>M4 Sales &amp; Purchases</td>
+          <td>AR/AP v2, Dual-List, НДС построчно, multicurrency; <strong>Phase 11</strong> — <code>isInternational</code> + Commercial Invoice PDF.</td>
+          <td>Текущая / v2 / v4+</td>
+          <td>[x] COMPLETED</td>
           <td class="status-done">COMPLETED</td>
+          <td>Core</td>
+          <td class="prio">2</td>
         </tr>
-        <tr>
-          <td>M5 Cash / Treasury</td>
-          <td>Outbound banking drafts (<code>PENDING→SENT→COMPLETED/REJECTED</code>) и E2E auto-matching выписок с платежами/salary registries.</td>
-          <td>Текущая / v3</td>
+        <tr data-task-id="MOD-M5-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v2,v3" data-priority="1" data-owner="Treasury">
+          <td class="tid">MOD-M5-001</td>
+          <td>M5 Cash &amp; Treasury</td>
+          <td>Outbound drafts, E2E matching, Birbank/Pasha/ABB, IBAN deep-check, Kassa MKO/KXO, Direct Banking в <code>/settings/bank-accounts</code> (<code>banking_pro</code>).</td>
+          <td>Текущая / v2 / v3</td>
+          <td>[x] COMPLETED</td>
           <td class="status-done">COMPLETED</td>
+          <td>Treasury</td>
+          <td class="prio">1</td>
         </tr>
-        <tr>
+        <tr data-task-id="MOD-M6-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая" data-priority="2" data-owner="Core">
+          <td class="tid">MOD-M6-001</td>
           <td>M6 HR &amp; Payroll</td>
-          <td>Hire-Gate лимитов штата, mass-approve табелей для руководителей и строгая payroll finance изоляция по ролям.</td>
+          <td>Hire-Gate Serializable, mass-approve табелей, payroll isolation, EMPLOYEE vs CONTRACTOR, vacation balance cron.</td>
           <td>Текущая</td>
+          <td>[x] COMPLETED</td>
           <td class="status-done">COMPLETED</td>
+          <td>Core</td>
+          <td class="prio">2</td>
         </tr>
-        <tr>
+        <tr data-task-id="MOD-M7-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v2" data-priority="3" data-owner="Core">
+          <td class="tid">MOD-M7-001</td>
           <td>M7 Reports</td>
-          <td>Trial Balance / P&amp;L / Cash Flow exports, e-Taxes workflow, NAS/IFRS toggle, департамент-фильтры и closed-period snapshots.</td>
+          <td>Trial Balance / P&amp;L / Cash Flow, e-Taxes, NAS/IFRS toggle, dept filters, executive widgets.</td>
           <td>Текущая / v2</td>
+          <td>[x] COMPLETED</td>
           <td class="status-done">COMPLETED</td>
+          <td>Core</td>
+          <td class="prio">3</td>
         </tr>
-        <tr>
-          <td>M8 Audit</td>
-          <td>Hash chain verification (<code>prevHash→hash</code>), daily integrity cron, PII masking и archive retention pipeline.</td>
+        <tr data-task-id="MOD-M8-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая" data-priority="2" data-owner="Platform">
+          <td class="tid">MOD-M8-001</td>
+          <td>M8 Audit + Audit Hub</td>
+          <td>Hash chain, PII masking, <code>audit_hub</code>, <code>/audit-hub</code>, секция «Audit» в сайдбаре + <code>/audit-invitations</code>.</td>
           <td>Текущая</td>
+          <td>[x] COMPLETED</td>
           <td class="status-done">COMPLETED</td>
+          <td>Platform</td>
+          <td class="prio">2</td>
         </tr>
-        <tr>
-          <td>M9 Inventory &amp; Manufacturing</td>
-          <td>Inventory adjustments, AVCO/FIFO toggle, WMS-light bins, release workflow и byproducts/defects accounting.</td>
+        <tr data-task-id="MOD-M9-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v2" data-priority="3" data-owner="Core">
+          <td class="tid">MOD-M9-001</td>
+          <td>M9 Inventory (Anbar)</td>
+          <td><code>InventoryAdjustment</code>, AVCO/FIFO, WMS-light bins, сличительная <code>InventoryAudit</code> на <code>/api/inventory/reconciliations/*</code>, ордера, перемещения.</td>
           <td>Текущая / v2</td>
+          <td>[x] COMPLETED</td>
           <td class="status-done">COMPLETED</td>
+          <td>Core</td>
+          <td class="prio">3</td>
         </tr>
-        <tr>
-          <td>Платформа (Billing / Ops / DR)</td>
-          <td>Post-paid, consent UX, pending deactivation, SOFT/HARD block, crons; webhooks / auto-resume; <code>pg_dump</code> + <code>docs/DR_RUNBOOK.md</code>; <strong>сверка биллинга</strong> — <code>npm run platform:billing-reconcile</code> (PRD §7.12, TZ §14.8.12); <strong>DR drill</strong> — <code>bash scripts/dr-drill.sh</code>, <code>npm run platform:dr-validate</code>, опционально baseline JSON (TZ §14.8.13, DR_RUNBOOK §8). Bank circuit breaker, integrations health.</td>
-          <td>Текущая / v3 / v4+</td>
+        <tr data-task-id="MOD-M10-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v2" data-priority="3" data-owner="Core">
+          <td class="tid">MOD-M10-001</td>
+          <td>M10 Manufacturing</td>
+          <td><code>/manufacturing/*</code>, <code>ProductRecipe</code>, <code>ManufacturingRelease</code>, overhead pools, virtual stock.</td>
+          <td>Текущая / v2</td>
+          <td>[x] COMPLETED</td>
           <td class="status-done">COMPLETED</td>
+          <td>Core</td>
+          <td class="prio">3</td>
+        </tr>
+        <tr data-task-id="MOD-MFG-WIP-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v2,v4+" data-priority="3" data-owner="Core">
+          <td class="tid">MOD-MFG-WIP-001</td>
+          <td>M10 — WIP / ManufacturingOrder</td>
+          <td>Очередь <code>ManufacturingOrder</code>, поэтапный WIP, погашение и проводки (PRD §14.2 <code>[x] COMPLETED</code>, TZ §10.2.0).</td>
+          <td>Текущая / v2</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Core</td>
+          <td class="prio">3</td>
+        </tr>
+        <tr data-task-id="MOD-FA-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v2" data-priority="3" data-owner="Core">
+          <td class="tid">MOD-FA-001</td>
+          <td>Fixed Assets v2</td>
+          <td>Реестр ОС, STRAIGHT_LINE + RB/UoP, BullMQ <code>monthly-depreciation</code> (PRD §5.D, §14.2.1 <code>[x] COMPLETED</code>).</td>
+          <td>v2</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Core</td>
+          <td class="prio">3</td>
+        </tr>
+        <tr data-task-id="MOD-GS-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v2" data-priority="3" data-owner="Platform">
+          <td class="tid">MOD-GS-001</td>
+          <td>Generic SaaS (Waves 1–2)</td>
+          <td>PRD §5.E: Activity Stream, Approval Workflow (касса), Director, virtual stock, РБП, КЗР, PSA mini — в продукте.</td>
+          <td>v2</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Platform</td>
+          <td class="prio">3</td>
+        </tr>
+        <tr data-task-id="MOD-V3-DB-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v3" data-priority="2" data-owner="Treasury">
+          <td class="tid">MOD-V3-DB-001</td>
+          <td>v3 / Direct Banking</td>
+          <td>OAuth2 + Redis, топ-3 банка, IBAN deep-check, circuit breaker, integrations health.</td>
+          <td>v3</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Treasury</td>
+          <td class="prio">2</td>
+        </tr>
+        <tr data-task-id="MOD-V3-DVX-001" data-req-status="PARTIAL" data-fact-status="PARTIAL" data-horizons="v3" data-priority="3" data-owner="Integrations">
+          <td class="tid">MOD-V3-DVX-001</td>
+          <td>v3 / DVX (e-taxes) — phased</td>
+          <td>Phase 1 XML + journal; Phase 2 RPA Chrome <code>tax_pro</code>; Phase 3 S2S — после legal clearance.</td>
+          <td>v3</td>
+          <td>[~] PARTIAL</td>
+          <td class="status-partial">PARTIAL</td>
+          <td>Integrations</td>
+          <td class="prio">3</td>
+        </tr>
+        <tr data-task-id="MOD-V3-EMAS-001" data-req-status="PARTIAL" data-fact-status="PARTIAL" data-horizons="v3" data-priority="3" data-owner="Integrations">
+          <td class="tid">MOD-V3-EMAS-001</td>
+          <td>v3 / ƏMAS (MLSA) — phased</td>
+          <td>Phase 1 Excel/PDF Əmr; Phase 2 RPA e-müqavilə; Phase 3 S2S DOST RIM.</td>
+          <td>v3</td>
+          <td>[~] PARTIAL</td>
+          <td class="status-partial">PARTIAL</td>
+          <td>Integrations</td>
+          <td class="prio">3</td>
+        </tr>
+        <tr data-task-id="MOD-V3-SIGN-001" data-req-status="PLANNED" data-fact-status="PLANNED" data-horizons="v3" data-priority="4" data-owner="Integrations">
+          <td class="tid">MOD-V3-SIGN-001</td>
+          <td>v3 / ASAN İmza, SİMA</td>
+          <td><code>LOCKED_BY_SIGNATURE</code> в модели/UI; провайдеры — следующая веха (PRD §6.2).</td>
+          <td>v3</td>
+          <td>[ ] PLANNED</td>
+          <td class="status-planned">PLANNED</td>
+          <td>Integrations</td>
+          <td class="prio">4</td>
+        </tr>
+        <tr data-task-id="MOD-V4-BIL-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v4+" data-priority="1" data-owner="Platform">
+          <td class="tid">MOD-V4-BIL-001</td>
+          <td>v4 / Billing &amp; Subscription</td>
+          <td>Hybrid LEGO, post-paid, SOFT/HARD block, webhooks, <code>platform:billing-reconcile</code>, PAŞA + Drakaris; trial <code>TRIAL_3_MONTHS</code> (+3 мес. Asia/Baku; без <code>tax_pro</code>/<code>trade_pro</code>/<code>compliance_pro</code> в whitelist).</td>
+          <td>Текущая / v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Platform</td>
+          <td class="prio">1</td>
+        </tr>
+        <tr data-task-id="MOD-V4-SA-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v4+" data-priority="2" data-owner="Platform">
+          <td class="tid">MOD-V4-SA-001</td>
+          <td>v4 / Super-Admin &amp; публичный прайс</td>
+          <td><code>/super-admin/billing/*</code>, Data Hub, редактор <code>landing-modules</code>, <code>GET /api/public/pricing</code>, <code>/pricing</code>, i18n <code>pricingModule.*</code> / <code>landing.*</code>.</td>
+          <td>v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Platform</td>
+          <td class="prio">2</td>
+        </tr>
+        <tr data-task-id="MOD-LAND-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v4+" data-priority="2" data-owner="Platform">
+          <td class="tid">MOD-LAND-001</td>
+          <td>Marketing landing &amp; trial</td>
+          <td>Лендинг <code>/</code> (RSC AZ/RU, <code>revalidate: 300</code>), <code>landing_module_marketing</code>, <code>GET /api/public/landing-modules</code>, middleware → <code>/home</code> с cookie; trial <code>TRIAL_3_MONTHS</code> (PRD §7.3, §7.6.4; TZ §14.3, §15.3.2).</td>
+          <td>Текущая / v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Platform</td>
+          <td class="prio">2</td>
+        </tr>
+        <tr data-task-id="MOD-V4-P11-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v4+" data-priority="2" data-owner="Integrations">
+          <td class="tid">MOD-V4-P11-001</td>
+          <td>v4 / Phase 11 — International Trade &amp; AI-OCR</td>
+          <td>TZ §19: международные инвойсы, OCR <code>OcrJob</code>, <code>CustomsDeclaration</code> с проводками.</td>
+          <td>v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Integrations</td>
+          <td class="prio">2</td>
+        </tr>
+        <tr data-task-id="MOD-V4-P12-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v4+" data-priority="2" data-owner="Integrations">
+          <td class="tid">MOD-V4-P12-001</td>
+          <td>v4 / Phase 12 — Customs (<code>trade_pro</code>)</td>
+          <td>Assistant capture BGD, Excel fallback, <code>CustomsTariffRate</code>, TZ §20–§20.2.</td>
+          <td>v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Integrations</td>
+          <td class="prio">2</td>
+        </tr>
+        <tr data-task-id="MOD-ERM-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v4+" data-priority="2" data-owner="Data/Compliance">
+          <td class="tid">MOD-ERM-001</td>
+          <td>ERM — дашборд <code>/compliance</code></td>
+          <td>Сводка posture, список PENDING, mitigation flow (PRD §14.1, TZ §22).</td>
+          <td>v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Data/Compliance</td>
+          <td class="prio">2</td>
+        </tr>
+        <tr data-task-id="MOD-ERM-002" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v4+" data-priority="2" data-owner="Data/Compliance">
+          <td class="tid">MOD-ERM-002</td>
+          <td>ERM — модель <code>RiskAudit</code></td>
+          <td>Типы TAX/FRAUD/COMPLIANCE, статусы, <code>dedupeKey</code>, tenant API <code>/api/compliance/*</code>.</td>
+          <td>v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Data/Compliance</td>
+          <td class="prio">2</td>
+        </tr>
+        <tr data-task-id="FEAT-ERM-TAX-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v4+" data-priority="2" data-owner="Data/Compliance">
+          <td class="tid">FEAT-ERM-TAX-001</td>
+          <td>ERM — Tax Monitor</td>
+          <td>Порог 200 000 AZN YTD по инвойсам AZN, BullMQ-сканер (PRD §14.1).</td>
+          <td>v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Data/Compliance</td>
+          <td class="prio">2</td>
+        </tr>
+        <tr data-task-id="FEAT-ERM-VOEN-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v4+" data-priority="3" data-owner="Data/Compliance">
+          <td class="tid">FEAT-ERM-VOEN-001</td>
+          <td>ERM — VÖEN Guard</td>
+          <td>Эвристики контрагентов / формата VÖEN без внешнего реестра (phase 1).</td>
+          <td>v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Data/Compliance</td>
+          <td class="prio">3</td>
+        </tr>
+        <tr data-task-id="FEAT-ERM-FRAUD-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v4+" data-priority="3" data-owner="Data/Compliance">
+          <td class="tid">FEAT-ERM-FRAUD-001</td>
+          <td>ERM — Fraud Detector</td>
+          <td>Rule-based: <code>AuditLog</code> + крупные KXO, окно 72ч (TZ §22.5).</td>
+          <td>v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Data/Compliance</td>
+          <td class="prio">3</td>
+        </tr>
+        <tr data-task-id="FEAT-ERM-UX-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v4+" data-priority="3" data-owner="Data/Compliance">
+          <td class="tid">FEAT-ERM-UX-001</td>
+          <td>ERM — индикатор в шапке</td>
+          <td>«Светофор» posture по PENDING для <code>compliance_pro</code>.</td>
+          <td>v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Data/Compliance</td>
+          <td class="prio">3</td>
+        </tr>
+        <tr data-task-id="MOD-V4-IND-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v4+" data-priority="4" data-owner="GTM">
+          <td class="tid">MOD-V4-IND-001</td>
+          <td>v4 / Industry Solutions (painted door)</td>
+          <td>Waitlist, <code>early_access_*</code>, entitlement shell; вертикальная глубина — roadmap (PRD §5.0.1, §14.2.1).</td>
+          <td>v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>GTM</td>
+          <td class="prio">4</td>
+        </tr>
+        <tr data-task-id="MOD-V4-WA-001" data-req-status="PLANNED" data-fact-status="PLANNED" data-horizons="v4+" data-priority="4" data-owner="Integrations">
+          <td class="tid">MOD-V4-WA-001</td>
+          <td>v4 / WhatsApp Business API</td>
+          <td>Баланс в org + квота в <code>/subscription/me</code>; BSP/checkout — следующий цикл (PRD §6.8).</td>
+          <td>v4+</td>
+          <td>[ ] PLANNED</td>
+          <td class="status-planned">PLANNED</td>
+          <td>Integrations</td>
+          <td class="prio">4</td>
+        </tr>
+        <tr data-task-id="MOD-PLT-DSP-001" data-req-status="PARTIAL" data-fact-status="PARTIAL" data-horizons="v4+" data-priority="2" data-owner="Platform">
+          <td class="tid">MOD-PLT-DSP-001</td>
+          <td>Dispute &amp; Recovery (Tenant Recovery)</td>
+          <td>Step-up OTP, dual approval, <code>OwnershipDispute</code>, snapshots, rollback MVP, counter-claim JWT (PRD §7.13, TZ §21) — <strong>PARTIAL</strong>.</td>
+          <td>v4+</td>
+          <td>[~] PARTIAL</td>
+          <td class="status-partial">PARTIAL</td>
+          <td>Platform</td>
+          <td class="prio">2</td>
+        </tr>
+        <tr data-task-id="MOD-PLT-DR-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v3,v4+" data-priority="2" data-owner="Platform">
+          <td class="tid">MOD-PLT-DR-001</td>
+          <td>DR drill &amp; post-restore validate</td>
+          <td><code>scripts/dr-drill.sh</code>, <code>npm run platform:dr-validate</code>, <code>docs/DR_RUNBOOK.md</code> §8 (TZ §14.8.13).</td>
+          <td>Текущая / v3 / v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Platform</td>
+          <td class="prio">2</td>
+        </tr>
+        <tr data-task-id="MOD-REF-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="v4+" data-priority="4" data-owner="GTM">
+          <td class="tid">MOD-REF-001</td>
+          <td>v4 / Referral &amp; Partner</td>
+          <td>Tiers 10/15/20%, <code>/partner</code>, регистрация <code>?ref=</code>, Super-Admin CRUD (PRD §7.14).</td>
+          <td>v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>GTM</td>
+          <td class="prio">4</td>
+        </tr>
+        <tr data-task-id="MOD-PLT-OPS-001" data-req-status="COMPLETED" data-fact-status="COMPLETED" data-horizons="Текущая,v3,v4+" data-priority="2" data-owner="Platform">
+          <td class="tid">MOD-PLT-OPS-001</td>
+          <td>Платформа (multi-tenant / i18n / reconcile)</td>
+          <td>Prisma extensions, BullMQ tenant context, PII encryption, i18n три слоя, <code>platform:billing-reconcile</code> (без дублирования DR — см. <code>MOD-PLT-DR-001</code>).</td>
+          <td>Текущая / v3 / v4+</td>
+          <td>[x] COMPLETED</td>
+          <td class="status-done">COMPLETED</td>
+          <td>Platform</td>
+          <td class="prio">2</td>
+        </tr>
+        <tr data-task-id="FEAT-INT-MON-001" data-req-status="PLANNED" data-fact-status="PLANNED" data-horizons="v4+" data-priority="4" data-owner="Integrations">
+          <td class="tid">FEAT-INT-MON-001</td>
+          <td>Assistant Monitoring Service (vNext)</td>
+          <td>AI-watcher DOM порталов госуслуг — PRD §7.6.3, TZ §1.7.1; <strong>PLANNED (vNext)</strong>.</td>
+          <td>v4+</td>
+          <td>[ ] PLANNED</td>
+          <td class="status-planned">PLANNED</td>
+          <td>Integrations</td>
+          <td class="prio">4</td>
+        </tr>
+        <tr data-task-id="FEAT-SEC-CRYPTO-001" data-req-status="PLANNED" data-fact-status="PLANNED" data-horizons="v4+" data-priority="2" data-owner="Platform">
+          <td class="tid">FEAT-SEC-CRYPTO-001</td>
+          <td>Phase 15 — Zero-Knowledge &amp; ASAN/SİMA escrow</td>
+          <td>Envelope encryption (DEK/KEK), accountant multi-org access matrix, 3-tier recovery (Tier 1–3), ASAN/SİMA state escrow — scope only, не production (PRD §15, TZ §23).</td>
+          <td>v4+ / Phase 15</td>
+          <td>[ ] PLANNED</td>
+          <td class="status-planned">PLANNED</td>
+          <td>Platform</td>
+          <td class="prio">2</td>
         </tr>
       </tbody>
     </table>
@@ -211,28 +543,63 @@
     (function () {
       const horizon = document.getElementById("facts-horizon-filter");
       const status = document.getElementById("facts-status-filter");
+      const priority = document.getElementById("facts-priority-filter");
+      const owner = document.getElementById("facts-owner-filter");
       const text = document.getElementById("facts-text-filter");
       const tbody = document.getElementById("facts-table-body");
-      if (!horizon || !status || !text || !tbody) return;
+      if (!horizon || !status || !priority || !owner || !text || !tbody) return;
 
       const rows = Array.from(tbody.querySelectorAll("tr"));
+      const owners = new Set(rows.map((r) => r.dataset.owner).filter(Boolean));
+      owners.forEach((o) => {
+        const opt = document.createElement("option");
+        opt.value = o;
+        opt.textContent = o;
+        owner.appendChild(opt);
+      });
+
+      function horizonMatch(row, h) {
+        if (h === "all") return true;
+        const hay = (row.dataset.horizons || "").toLowerCase();
+        return hay.split(",").some((x) => x.trim() === h || hay.includes(h));
+      }
+
+      function rankFact(f) {
+        if (f === "COMPLETED") return 3;
+        if (f === "PARTIAL") return 2;
+        return 1;
+      }
+      function rankReq(r) {
+        if (r === "COMPLETED") return 3;
+        if (r === "PARTIAL") return 2;
+        return 1;
+      }
+
       function applyFilters() {
         const h = String(horizon.value || "all").toLowerCase();
         const s = String(status.value || "all").toLowerCase();
+        const p = String(priority.value || "all");
+        const o = String(owner.value || "all");
         const q = String(text.value || "").trim().toLowerCase();
         rows.forEach((row) => {
-          const cells = row.querySelectorAll("td");
-          const horizonText = (cells[2]?.textContent || "").toLowerCase();
-          const statusText = (cells[3]?.textContent || "").toLowerCase();
+          const fact = String(row.dataset.factStatus || "").toUpperCase();
+          const req = String(row.dataset.reqStatus || "").toUpperCase();
           const rowText = (row.textContent || "").toLowerCase();
-          const horizonOk = h === "all" ? true : horizonText.includes(h);
-          const statusOk = s === "all" ? true : statusText.includes(s);
+          const horizonOk = horizonMatch(row, h);
+          const statusOk = s === "all" ? true : fact === s;
+          const prioOk = p === "all" ? true : (row.dataset.priority || "") === p;
+          const ownerOk = o === "all" ? true : (row.dataset.owner || "") === o;
           const textOk = q.length === 0 ? true : rowText.includes(q);
-          row.style.display = horizonOk && statusOk && textOk ? "" : "none";
+          const badIntegrity = rankFact(fact) > rankReq(req);
+          row.classList.toggle("integrity-bad", badIntegrity);
+          row.style.display = horizonOk && statusOk && prioOk && ownerOk && textOk ? "" : "none";
         });
       }
+
       horizon.addEventListener("change", applyFilters);
       status.addEventListener("change", applyFilters);
+      priority.addEventListener("change", applyFilters);
+      owner.addEventListener("change", applyFilters);
       text.addEventListener("input", applyFilters);
       applyFilters();
     })();

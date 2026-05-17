@@ -1,5 +1,20 @@
 import "./instrument";
 import "reflect-metadata";
+/**
+ * Express `res.json()` uses `JSON.stringify`, which throws on `BigInt`.
+ * Prisma exposes BigInt columns (e.g. `Organization.storageUsedBytes`, `OrganizationDataSnapshot.sizeBytes`)
+ * and any controller returning such a row would 500 with `TypeError: Do not know how to serialize a BigInt`.
+ * Serializing BigInt as a decimal string is the conventional Node + Express fix.
+ */
+if (typeof (BigInt.prototype as { toJSON?: () => string }).toJSON !== "function") {
+  Object.defineProperty(BigInt.prototype, "toJSON", {
+    value: function toJSON(this: bigint): string {
+      return this.toString();
+    },
+    writable: true,
+    configurable: true,
+  });
+}
 import { Logger, ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";

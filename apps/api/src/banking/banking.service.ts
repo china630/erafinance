@@ -1080,6 +1080,8 @@ export class BankingService {
       valueDateFrom?: string;
       /** YYYY-MM-DD (UTC-день), включительно до конца дня */
       valueDateTo?: string;
+      page?: number;
+      pageSize?: number;
     },
   ) {
     const channelFilter =
@@ -1116,36 +1118,55 @@ export class BankingService {
           }
         : {};
 
-    return this.prisma.bankStatementLine.findMany({
-      where: {
-        organizationId,
-        ...channelFilter,
-        ...originFilter,
-        ...valueDateRange,
-        ...(filters?.bankStatementId
-          ? { bankStatementId: filters.bankStatementId }
+    const where = {
+      organizationId,
+      ...channelFilter,
+      ...originFilter,
+      ...valueDateRange,
+      ...(filters?.bankStatementId
+        ? { bankStatementId: filters.bankStatementId }
+        : {}),
+      ...(filters?.needsAttention
+        ? { isMatched: false, type: BankStatementLineType.INFLOW }
+        : filters?.unmatchedOnly
+          ? { isMatched: false }
           : {}),
-        ...(filters?.needsAttention
-          ? { isMatched: false, type: BankStatementLineType.INFLOW }
-          : filters?.unmatchedOnly
-            ? { isMatched: false }
-            : {}),
-      },
-      orderBy: [{ valueDate: "desc" }, { createdAt: "desc" }],
-      include: {
-        bankStatement: {
-          select: {
-            id: true,
-            bankName: true,
-            date: true,
-            channel: true,
-          },
-        },
-        matchedInvoice: {
-          select: { id: true, number: true, status: true, totalAmount: true },
+    };
+
+    const page = Math.max(1, Math.trunc(filters?.page ?? 1));
+    const pageSize = Math.min(200, Math.max(1, Math.trunc(filters?.pageSize ?? 25)));
+    const skip = (page - 1) * pageSize;
+
+    const orderBy = [{ valueDate: "desc" as const }, { createdAt: "desc" as const }];
+    const include = {
+      bankStatement: {
+        select: {
+          id: true,
+          bankName: true,
+          date: true,
+          channel: true,
         },
       },
-    });
+      matchedInvoice: {
+        select: { id: true, number: true, status: true, totalAmount: true },
+      },
+    };
+
+    return Promise.all([
+      this.prisma.bankStatementLine.findMany({
+        where,
+        orderBy,
+        skip,
+        take: pageSize,
+        include,
+      }),
+      this.prisma.bankStatementLine.count({ where }),
+    ]).then(([items, total]) => ({
+      items,
+      total,
+      page,
+      pageSize,
+    }));
   }
 
   listPaymentDrafts(organizationId: string, status?: "PENDING" | "SENT" | "REJECTED" | "COMPLETED") {

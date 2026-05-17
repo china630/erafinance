@@ -5,11 +5,13 @@ import { FileSpreadsheet, MoreHorizontal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../lib/api-client";
+import { parsePaginatedList } from "../../lib/paginated-list";
 import { formatMoneyAzn } from "../../lib/format-money";
 import { useRequireAuth } from "../../lib/use-require-auth";
 import { subscribeListRefresh } from "../../lib/list-refresh-bus";
 import { PageHeader } from "../../components/layout/page-header";
 import { EmptyState } from "../../components/empty-state";
+import { ListPaginationFooter } from "../../components/list-pagination-footer";
 import { CreateReceiptModal } from "../../components/inventory/create-receipt-modal";
 import { PurchaseModal } from "../../components/inventory/modals";
 import { Badge } from "../../components/ui/badge";
@@ -67,6 +69,9 @@ export default function PurchasesPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
   const [rows, setRows] = useState<PurchaseInvoiceRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -84,14 +89,22 @@ export default function PurchasesPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch("/api/inventory/purchase-invoices?take=400");
+      const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      const res = await apiFetch(`/api/inventory/purchase-invoices?${qs.toString()}`);
       if (!res.ok) throw new Error(`purchase-invoices ${res.status}`);
-      setRows(await res.json());
+      const parsed = parsePaginatedList<PurchaseInvoiceRow>(await res.json());
+      setRows(parsed.items);
+      setTotal(parsed.total);
     } catch (e) {
       setError(String(e));
     }
     setLoading(false);
-  }, [token]);
+  }, [token, page, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -166,19 +179,8 @@ export default function PurchasesPage() {
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       {loading && <p className="text-gray-600">{t("common.loading")}</p>}
-      {!loading && rows.length === 0 && !error && (
-        <EmptyState
-          icon={<FileSpreadsheet className="h-12 w-12 mx-auto stroke-[1.5] text-[#7F8C8D]" aria-hidden />}
-          title={t("inventory.purchasesRegistryTitle")}
-          description={t("inventory.purchaseEmptyRegistryHint")}
-          action={
-            <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => setModalOpen(true)}>
-              + {t("inventory.purchaseNewOpenBtn")}
-            </button>
-          }
-        />
-      )}
-      {!loading && rows.length > 0 && (
+      {!loading && (
+        <>
         <div className={DATA_TABLE_VIEWPORT_CLASS}>
           <table className={`${DATA_TABLE_CLASS} min-w-full`}>
             <thead>
@@ -192,7 +194,34 @@ export default function PurchasesPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((m) => (
+              {rows.length === 0 ? (
+                <tr className={DATA_TABLE_TR_CLASS}>
+                  <td colSpan={6} className={`${DATA_TABLE_TD_CLASS} py-12 text-center`}>
+                    {!error ? (
+                      <EmptyState
+                        icon={
+                          <FileSpreadsheet
+                            className="mx-auto h-12 w-12 stroke-[1.5] text-[#7F8C8D]"
+                            aria-hidden
+                          />
+                        }
+                        title={t("inventory.purchasesRegistryTitle")}
+                        description={t("inventory.purchaseEmptyRegistryHint")}
+                        action={
+                          <button
+                            type="button"
+                            className={PRIMARY_BUTTON_CLASS}
+                            onClick={() => setModalOpen(true)}
+                          >
+                            + {t("inventory.purchaseNewOpenBtn")}
+                          </button>
+                        }
+                      />
+                    ) : null}
+                  </td>
+                </tr>
+              ) : (
+              rows.map((m) => (
                 <tr key={m.id} className={DATA_TABLE_TR_CLASS}>
                   <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>{rowDate(m)}</td>
                   <td className={DATA_TABLE_TD_CLASS}>{purchaseKindLabel(m, t)}</td>
@@ -244,10 +273,19 @@ export default function PurchasesPage() {
                     )}
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
+        <ListPaginationFooter
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+        </>
       )}
 
       <input

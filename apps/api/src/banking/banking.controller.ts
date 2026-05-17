@@ -33,8 +33,10 @@ import { OrganizationId } from "../common/org-id.decorator";
 import { parseLedgerTypeQuery } from "../common/ledger-type.util";
 import { BankIntegrationService } from "./bank-integration.service";
 import { BankMatchService } from "./bank-match.service";
+import { BankingDirectSettingsService } from "./banking-direct-settings.service";
 import { BankingService } from "./banking.service";
 import { BankingGatewayService } from "./banking-gateway.service";
+import { PatchBankingDirectDto } from "./dto/patch-banking-direct.dto";
 import { CashOutDto } from "./dto/cash-out.dto";
 import { CreateBankConversionDto } from "./dto/create-bank-conversion.dto";
 import { CreateCashDepositDto } from "./dto/create-cash-deposit.dto";
@@ -65,6 +67,7 @@ export class BankingController {
     private readonly bankIntegration: BankIntegrationService,
     private readonly ibanValidation: IbanValidationService,
     private readonly reliability: IntegrationReliabilityService,
+    private readonly bankingDirectSettings: BankingDirectSettingsService,
   ) {}
 
   @Get("account-cards")
@@ -87,6 +90,28 @@ export class BankingController {
   })
   balances(@OrganizationId() organizationId: string) {
     return this.gateway.getBalances(organizationId);
+  }
+
+  @Get("direct-settings")
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({
+    summary:
+      "Masked Open Banking / REST sync settings (URLs, token presence; no raw secrets)",
+  })
+  getDirectSettings(@OrganizationId() organizationId: string) {
+    return this.bankingDirectSettings.getView(organizationId);
+  }
+
+  @Patch("direct-settings")
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @ApiOperation({ summary: "Update direct banking REST settings (per-bank URL, token)" })
+  patchDirectSettings(
+    @OrganizationId() organizationId: string,
+    @Body() dto: PatchBankingDirectDto,
+  ) {
+    return this.bankingDirectSettings.patch(organizationId, dto);
   }
 
   @Post("import")
@@ -349,7 +374,7 @@ export class BankingController {
   }
 
   @Get("lines")
-  @ApiOperation({ summary: "Строки выписок (операции)" })
+  @ApiOperation({ summary: "Строки выписок (операции), с пагинацией" })
   listLines(
     @OrganizationId() organizationId: string,
     @Query("bankStatementId") bankStatementId?: string,
@@ -359,12 +384,17 @@ export class BankingController {
     @Query("bankOnly") bankOnly?: string,
     @Query("valueDateFrom") valueDateFrom?: string,
     @Query("valueDateTo") valueDateTo?: string,
+    @Query("page") pageStr?: string,
+    @Query("pageSize") pageSizeStr?: string,
   ) {
     const ch = channel?.trim().toUpperCase();
     const channelFilter =
       ch === "BANK" || ch === "CASH" ? ch : undefined;
     const from = valueDateFrom?.trim();
     const to = valueDateTo?.trim();
+    const page = Math.max(1, Math.trunc(Number(pageStr) || 1));
+    const pageSizeRaw = Math.trunc(Number(pageSizeStr) || 25);
+    const pageSize = Math.min(200, Math.max(1, pageSizeRaw));
     return this.banking.listLines(organizationId, {
       bankStatementId: bankStatementId || undefined,
       unmatchedOnly: unmatchedOnly === "1" || unmatchedOnly === "true",
@@ -373,6 +403,8 @@ export class BankingController {
       bankOnly: bankOnly === "1" || bankOnly === "true",
       valueDateFrom: from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : undefined,
       valueDateTo: to && /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : undefined,
+      page,
+      pageSize,
     });
   }
 

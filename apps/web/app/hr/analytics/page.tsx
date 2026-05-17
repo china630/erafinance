@@ -12,6 +12,7 @@ import {
   BORDER_MUTED_CLASS,
   CARD_CONTAINER_CLASS,
 } from "../../../lib/design-system";
+import { TOOLBAR_MONTH_INPUT_CLASS } from "../../../lib/form-styles";
 
 type Dept = { id: string; name: string };
 type EmpRow = {
@@ -109,7 +110,10 @@ export default function HrAnalyticsPage() {
   const daysInMonth = bounds?.days ?? 31;
 
   const loadData = useCallback(async () => {
-    if (!token || !bounds) return;
+    if (!token || !bounds) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setErr(null);
     try {
@@ -199,17 +203,22 @@ export default function HrAnalyticsPage() {
       <PageHeader
         title={t("hrAnalytics.title")}
         subtitle={t("hrAnalytics.subtitle")}
+        leading={
+          <div className="flex h-8 flex-wrap items-center gap-2">
+            <span className="shrink-0 text-sm font-medium leading-none text-[#34495E]">
+              {t("banking.monthPickerToolbarLabel")}
+            </span>
+            <input
+              type="month"
+              value={monthValue}
+              onChange={(e) => setMonthValue(e.target.value)}
+              className={TOOLBAR_MONTH_INPUT_CLASS}
+              aria-label={t("hrAnalytics.monthFilter")}
+            />
+          </div>
+        }
         actions={
           <div className="flex flex-wrap items-end justify-end gap-3">
-            <label className="block shrink-0 text-[13px] font-medium text-[#34495E]">
-              {t("hrAnalytics.monthFilter")}
-              <input
-                type="month"
-                value={monthValue}
-                onChange={(e) => setMonthValue(e.target.value)}
-                className={`mt-1 block h-9 rounded-lg border ${BORDER_MUTED_CLASS} bg-white px-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#2980B9]/40`}
-              />
-            </label>
             {!isDeptHead ? (
               <label className="block min-w-[12rem] shrink-0 text-[13px] font-medium text-[#34495E]">
                 {t("hrAnalytics.departmentFilter")}

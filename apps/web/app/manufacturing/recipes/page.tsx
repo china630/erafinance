@@ -1,107 +1,94 @@
 "use client";
 
 import Link from "next/link";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { apiFetch } from "../../../lib/api-client";
-import { inputFieldClass, textareaFieldClass } from "../../../lib/form-classes";
+import { parsePaginatedList } from "../../../lib/paginated-list";
 import { useRequireAuth } from "../../../lib/use-require-auth";
+import { subscribeListRefresh, notifyListRefresh } from "../../../lib/list-refresh-bus";
 import { PageHeader } from "../../../components/layout/page-header";
-import { SECONDARY_BUTTON_CLASS } from "../../../lib/design-system";
+import { EmptyState } from "../../../components/empty-state";
+import { ListPaginationFooter } from "../../../components/list-pagination-footer";
+import { RecipeModal } from "../../../components/manufacturing/recipe-modal";
 import { SubscriptionPaywall } from "../../../components/subscription-paywall";
+import {
+  DATA_TABLE_CLASS,
+  DATA_TABLE_HEAD_ROW_CLASS,
+  DATA_TABLE_TD_CLASS,
+  DATA_TABLE_TH_LEFT_CLASS,
+  DATA_TABLE_TH_RIGHT_CLASS,
+  DATA_TABLE_TR_CLASS,
+  DATA_TABLE_VIEWPORT_CLASS,
+  PRIMARY_BUTTON_CLASS,
+  SECONDARY_BUTTON_CLASS,
+} from "../../../lib/design-system";
+import { FORM_INPUT_CLASS, FORM_LABEL_CLASS } from "../../../lib/form-styles";
 
-type Product = { id: string; name: string; sku: string };
+type RecipeRow = {
+  id: string;
+  name: string;
+  updatedAt: string;
+  finishedProduct?: { id: string; name: string; sku: string };
+  _count?: { lines: number; byproducts: number };
+};
 
-function parseRecipeLines(text: string): { componentProductId: string; quantityPerUnit: number }[] {
-  const lines: { componentProductId: string; quantityPerUnit: number }[] = [];
-  const re =
-    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*[,;\s]+\s*([\d.]+)\s*$/i;
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    if (!line) continue;
-    const m = re.exec(line);
-    if (!m) {
-      throw new Error(`Bad line: ${line}`);
-    }
-    const q = Number(m[2]);
-    if (!Number.isFinite(q) || q <= 0) throw new Error(`Bad qty: ${line}`);
-    lines.push({ componentProductId: m[1], quantityPerUnit: q });
-  }
-  if (lines.length === 0) throw new Error("No lines");
-  return lines;
-}
-
-function parseByproducts(
-  text: string,
-): { productId: string; quantityPerUnit: number; costFactor?: number }[] {
-  const out: { productId: string; quantityPerUnit: number; costFactor?: number }[] = [];
-  const re =
-    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*[,;\s]+\s*([\d.]+)(?:\s*[,;\s]+\s*([\d.]+))?\s*$/i;
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    if (!line) continue;
-    const m = re.exec(line);
-    if (!m) throw new Error(`Bad byproduct line: ${line}`);
-    const q = Number(m[2]);
-    const c = m[3] ? Number(m[3]) : 0;
-    if (!Number.isFinite(q) || q <= 0) throw new Error(`Bad byproduct qty: ${line}`);
-    if (!Number.isFinite(c) || c < 0 || c > 1) throw new Error(`Bad byproduct costFactor: ${line}`);
-    out.push({ productId: m[1], quantityPerUnit: q, costFactor: c });
-  }
-  return out;
-}
-
-const lbl = "block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5";
-
-function ManufacturingRecipeContent() {
+function ManufacturingRecipesContent() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-  const [finId, setFinId] = useState("");
-  const [linesText, setLinesText] = useState("");
-  const [byproductsText, setByproductsText] = useState("");
+  const [rows, setRows] = useState<RecipeRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [q, setQ] = useState("");
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
-    setErr(null);
-    const pr = await apiFetch("/api/products");
-    if (!pr.ok) {
-      setErr(t("manufacturing.loadErr"));
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    if (search.trim()) params.set("q", search.trim());
+    const res = await apiFetch(`/api/manufacturing/recipes?${params}`);
+    setLoading(false);
+    if (!res.ok) {
+      setError(t("manufacturing.loadErr"));
       return;
     }
-    const plist = (await pr.json()) as Product[];
-    setProducts(plist);
-    setFinId((prev) => prev || plist[0]?.id || "");
-  }, [token, t]);
+    const data = parsePaginatedList<RecipeRow>(await res.json());
+    setRows(data.items);
+    setTotal(data.total);
+  }, [token, page, pageSize, search, t]);
 
   useEffect(() => {
     if (!ready || !token) return;
     void load();
   }, [load, ready, token]);
 
-  async function saveRecipe(e: React.FormEvent) {
-    e.preventDefault();
-    if (!token || !finId) return;
-    let lines: { componentProductId: string; quantityPerUnit: number }[];
-    let byproducts: { productId: string; quantityPerUnit: number; costFactor?: number }[];
-    try {
-      lines = parseRecipeLines(linesText);
-      byproducts = parseByproducts(byproductsText);
-    } catch (e) {
-      alert(String(e));
-      return;
-    }
-    const res = await apiFetch("/api/manufacturing/recipes", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ finishedProductId: finId, lines, byproducts }),
-    });
+  useEffect(() => {
+    return subscribeListRefresh("manufacturing-recipes", () => void load());
+  }, [load]);
+
+  async function handleDelete(id: string) {
+    if (!confirm(t("manufacturing.deleteRecipeConfirm"))) return;
+    const res = await apiFetch(`/api/manufacturing/recipes/${id}`, { method: "DELETE" });
     if (!res.ok) {
-      alert(await res.text());
+      toast.error(t("common.saveErr"), { description: await res.text() });
       return;
     }
-    alert("OK");
+    toast.success(t("manufacturing.deleteSuccess"));
+    notifyListRefresh("manufacturing-recipes");
+    notifyListRefresh("manufacturing-dashboard");
+    void load();
   }
 
   if (!ready) {
@@ -114,82 +101,136 @@ function ManufacturingRecipeContent() {
   if (!token) return null;
 
   return (
-    <div className="space-y-8 w-full max-w-3xl">
+    <div className="space-y-6">
       <PageHeader
-        title={t("manufacturing.recipes")}
+        title={t("nav.manufacturingRecipes")}
         actions={
-          <Link href="/manufacturing" className={SECONDARY_BUTTON_CLASS}>
-            ← {t("manufacturing.backHub")}
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/manufacturing" className={SECONDARY_BUTTON_CLASS}>
+              ← {t("manufacturing.backHub")}
+            </Link>
+            <button
+              type="button"
+              className={PRIMARY_BUTTON_CLASS}
+              onClick={() => {
+                setEditId(null);
+                setModalOpen(true);
+              }}
+            >
+              <Plus className="mr-1.5 inline h-4 w-4" aria-hidden />
+              {t("manufacturing.newRecipe")}
+            </button>
+          </div>
         }
       />
-      {err && <p className="text-red-600 text-sm">{err}</p>}
 
-      {products.length > 0 && (
-        <div className="md:hidden space-y-3">
-          <div>
-            <p className="text-sm font-semibold text-slate-800 mb-2">{t("manufacturing.mobileListProducts")}</p>
-            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-              {products.map((p) => (
-                <div
-                  key={p.id}
-                  className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-sm text-sm"
-                >
-                  <div className="font-medium text-gray-900">{p.name}</div>
-                  <div className="text-xs text-slate-500 font-mono">{p.sku}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <form
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setPage(1);
+          setSearch(q);
+        }}
+      >
+        <label className="block min-w-[12rem] flex-1">
+          <span className={FORM_LABEL_CLASS}>{t("manufacturing.searchRecipes")}</span>
+          <input
+            type="search"
+            className={FORM_INPUT_CLASS}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t("manufacturing.searchRecipes")}
+          />
+        </label>
+        <button type="submit" className={SECONDARY_BUTTON_CLASS}>
+          {t("common.refresh")}
+        </button>
+      </form>
 
-      <section className="bg-white p-6 shadow-sm rounded-xl border border-slate-100 space-y-4">
-        <form onSubmit={(e) => void saveRecipe(e)} className="space-y-3">
-          <label className="block">
-            <span className={lbl}>{t("manufacturing.finished")}</span>
-            <select value={finId} onChange={(e) => setFinId(e.target.value)} className={inputFieldClass}>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.sku})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className={lbl}>{t("manufacturing.linesJson")}</span>
-            <textarea
-              value={linesText}
-              onChange={(e) => setLinesText(e.target.value)}
-              className={textareaFieldClass}
-              rows={6}
-              placeholder="uuid-component  2.5"
-            />
-          </label>
-          <label className="block">
-            <span className={lbl}>{t("manufacturing.byproductsLines")}</span>
-            <textarea
-              value={byproductsText}
-              onChange={(e) => setByproductsText(e.target.value)}
-              className={textareaFieldClass}
-              rows={4}
-              placeholder="uuid-byproduct 0.2 0.0"
-            />
-          </label>
-          <p className="text-xs text-slate-500">{t("manufacturing.hintRecipe")}</p>
-          <button
-            type="submit"
-            className="bg-action text-white px-4 py-2 rounded-lg hover:bg-action-hover text-sm font-medium"
-          >
-            {t("manufacturing.saveRecipe")}
-          </button>
-        </form>
-      </section>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <div className={DATA_TABLE_VIEWPORT_CLASS}>
+        <table className={`${DATA_TABLE_CLASS} min-w-full`}>
+          <thead>
+            <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
+              <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("manufacturing.recipeName")}</th>
+              <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("manufacturing.targetProduct")}</th>
+              <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("manufacturing.componentCount")}</th>
+              <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("manufacturing.colUpdated")}</th>
+              <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("common.actions")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!loading && rows.length === 0 ? (
+              <tr>
+                <td colSpan={5}>
+                  <EmptyState title={t("manufacturing.noRecipes")} compact />
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => (
+                <tr key={row.id} className={DATA_TABLE_TR_CLASS}>
+                  <td className={DATA_TABLE_TD_CLASS}>{row.name}</td>
+                  <td className={DATA_TABLE_TD_CLASS}>
+                    {row.finishedProduct
+                      ? `${row.finishedProduct.name} (${row.finishedProduct.sku})`
+                      : "—"}
+                  </td>
+                  <td className={DATA_TABLE_TD_CLASS}>{row._count?.lines ?? 0}</td>
+                  <td className={DATA_TABLE_TD_CLASS}>{row.updatedAt.slice(0, 10)}</td>
+                  <td className={`${DATA_TABLE_TD_CLASS} text-right`}>
+                    <div className="flex justify-end gap-1">
+                      <button
+                        type="button"
+                        className="rounded-lg p-2 text-[#2980B9] hover:bg-[#F4F5F7]"
+                        aria-label={t("common.edit")}
+                        onClick={() => {
+                          setEditId(row.id);
+                          setModalOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg p-2 text-red-600 hover:bg-red-50"
+                        aria-label={t("common.delete")}
+                        onClick={() => void handleDelete(row.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <ListPaginationFooter
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        loading={loading}
+        onPageChange={setPage}
+        onPageSizeChange={(ps) => {
+          setPageSize(ps);
+          setPage(1);
+        }}
+      />
+
+      <RecipeModal
+        open={modalOpen}
+        recipeId={editId}
+        onClose={() => setModalOpen(false)}
+        onSaved={() => void load()}
+      />
     </div>
   );
 }
 
-export default function ManufacturingRecipePage() {
+export default function ManufacturingRecipesPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
   if (!ready) {
@@ -202,7 +243,7 @@ export default function ManufacturingRecipePage() {
   if (!token) return null;
   return (
     <SubscriptionPaywall module="manufacturing">
-      <ManufacturingRecipeContent />
+      <ManufacturingRecipesContent />
     </SubscriptionPaywall>
   );
 }

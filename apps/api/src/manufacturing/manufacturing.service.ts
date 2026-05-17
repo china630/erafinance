@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import {
   Decimal,
+  ManufacturingOrderStatus,
   StockMovementReason,
   StockMovementType,
 } from "@erafinance/database";
@@ -19,6 +20,19 @@ import { StockService } from "../stock/stock.service";
 import { ReleaseProductionDto } from "./dto/release-production.dto";
 import { UpsertRecipeDto } from "./dto/upsert-recipe.dto";
 import { roundMoney2 } from "../fixed-assets/decimal-round";
+import { normalizeListPagination } from "../common/list-pagination";
+import { monthRangeUtc } from "../reporting/reporting-period.util";
+
+const recipeDetailInclude = {
+  finishedProduct: { include: { unitOfMeasure: true } },
+  lines: { include: { component: { include: { unitOfMeasure: true } } } },
+  byproducts: { include: { product: { include: { unitOfMeasure: true } } } },
+} as const;
+
+const recipeListInclude = {
+  finishedProduct: { select: { id: true, name: true, sku: true } },
+  _count: { select: { lines: true, byproducts: true } },
+} as const;
 
 @Injectable()
 export class ManufacturingService {
@@ -30,24 +44,68 @@ export class ManufacturingService {
 
   listRecipes(organizationId: string) {
     return this.prisma.productRecipe.findMany({
-      where: { organizationId },
+      where: { organizationId, deletedAt: null },
       include: {
         finishedProduct: true,
         lines: { include: { component: true } },
         byproducts: { include: { product: true } },
       },
-      orderBy: { finishedProduct: { name: "asc" } },
+      orderBy: { name: "asc" },
     });
+  }
+
+  async listRecipesPaginated(
+    organizationId: string,
+    opts?: { page?: number; pageSize?: number; q?: string },
+  ) {
+    const { page, pageSize, skip } = normalizeListPagination(
+      opts?.page,
+      opts?.pageSize,
+      25,
+    );
+    const q = opts?.q?.trim();
+    const where = {
+      organizationId,
+      deletedAt: null,
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" as const } },
+              {
+                finishedProduct: {
+                  name: { contains: q, mode: "insensitive" as const },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+    const [items, total] = await Promise.all([
+      this.prisma.productRecipe.findMany({
+        where,
+        include: recipeListInclude,
+        orderBy: [{ name: "asc" }],
+        skip,
+        take: pageSize,
+      }),
+      this.prisma.productRecipe.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
+  }
+
+  async getRecipeById(organizationId: string, recipeId: string) {
+    const r = await this.prisma.productRecipe.findFirst({
+      where: { id: recipeId, organizationId, deletedAt: null },
+      include: recipeDetailInclude,
+    });
+    if (!r) throw new NotFoundException("Recipe not found");
+    return r;
   }
 
   async getRecipeByFinishedProduct(organizationId: string, finishedProductId: string) {
     const r = await this.prisma.productRecipe.findFirst({
-      where: { organizationId, finishedProductId },
-      include: {
-        lines: { include: { component: true } },
-        byproducts: { include: { product: true } },
-        finishedProduct: true,
-      },
+      where: { organizationId, finishedProductId, deletedAt: null },
+      include: recipeDetailInclude,
     });
     if (!r) throw new NotFoundException("Recipe not found");
     return r;
@@ -93,14 +151,17 @@ export class ManufacturingService {
       throw new BadRequestException("Дублирующийся компонент в рецепте");
     }
 
+    const recipeName = dto.name.trim();
+
     return this.prisma.$transaction(async (tx) => {
       const recipe = await tx.productRecipe.upsert({
         where: { finishedProductId: dto.finishedProductId },
         create: {
           organizationId,
           finishedProductId: dto.finishedProductId,
+          name: recipeName,
         },
-        update: {},
+        update: { name: recipeName },
       });
 
       await tx.productRecipeLine.deleteMany({ where: { recipeId: recipe.id } });
@@ -138,21 +199,202 @@ export class ManufacturingService {
 
       return tx.productRecipe.findFirstOrThrow({
         where: { id: recipe.id },
-        include: {
-          lines: { include: { component: true } },
-          byproducts: { include: { product: true } },
-          finishedProduct: true,
-        },
+        include: recipeDetailInclude,
       });
     });
   }
 
-  async deleteRecipe(organizationId: string, finishedProductId: string) {
+  async deleteRecipe(organizationId: string, recipeId: string) {
     const r = await this.prisma.productRecipe.findFirst({
-      where: { organizationId, finishedProductId },
+      where: { id: recipeId, organizationId, deletedAt: null },
     });
     if (!r) throw new NotFoundException("Recipe not found");
+    const releaseCount = await this.prisma.manufacturingRelease.count({
+      where: { recipeId: r.id, organizationId },
+    });
+    if (releaseCount > 0) {
+      throw new BadRequestException(
+        "Cannot delete recipe with existing manufacturing releases",
+      );
+    }
     await this.prisma.productRecipe.delete({ where: { id: r.id } });
+  }
+
+  /** @deprecated Use deleteRecipe(organizationId, recipeId) */
+  async deleteRecipeByFinishedProduct(organizationId: string, finishedProductId: string) {
+    const r = await this.prisma.productRecipe.findFirst({
+      where: { organizationId, finishedProductId, deletedAt: null },
+    });
+    if (!r) throw new NotFoundException("Recipe not found");
+    return this.deleteRecipe(organizationId, r.id);
+  }
+
+  async listReleases(
+    organizationId: string,
+    opts?: {
+      page?: number;
+      pageSize?: number;
+      period?: string;
+      recipeId?: string;
+      warehouseId?: string;
+    },
+  ) {
+    const { page, pageSize, skip } = normalizeListPagination(
+      opts?.page,
+      opts?.pageSize,
+      25,
+    );
+    const where: {
+      organizationId: string;
+      recipeId?: string;
+      warehouseId?: string;
+      documentDate?: { gte: Date; lte: Date };
+    } = { organizationId };
+
+    if (opts?.recipeId?.trim()) where.recipeId = opts.recipeId.trim();
+    if (opts?.warehouseId?.trim()) where.warehouseId = opts.warehouseId.trim();
+
+    if (opts?.period?.trim()) {
+      const m = /^(\d{4})-(\d{2})$/.exec(opts.period.trim());
+      if (!m) throw new BadRequestException("period must be YYYY-MM");
+      const year = Number(m[1]);
+      const month = Number(m[2]);
+      if (month < 1 || month > 12) {
+        throw new BadRequestException("Invalid month in period");
+      }
+      const { start, end } = monthRangeUtc(year, month);
+      where.documentDate = { gte: start, lte: end };
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.manufacturingRelease.findMany({
+        where,
+        include: {
+          recipe: { select: { id: true, name: true } },
+          finishedProduct: { select: { id: true, name: true, sku: true } },
+          warehouse: { select: { id: true, name: true } },
+        },
+        orderBy: [{ documentDate: "desc" }, { createdAt: "desc" }],
+        skip,
+        take: pageSize,
+      }),
+      this.prisma.manufacturingRelease.count({ where }),
+    ]);
+
+    return {
+      items: items.map((row) => ({
+        id: row.id,
+        documentDate: row.documentDate,
+        quantity: row.quantity.toString(),
+        materialCost: row.materialCost.toString(),
+        recipeId: row.recipeId,
+        recipeName: row.recipe.name,
+        finishedProductId: row.finishedProductId,
+        finishedProductName: row.finishedProduct.name,
+        warehouseId: row.warehouseId,
+        warehouseName: row.warehouse.name,
+        status: "COMPLETED" as const,
+      })),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  async getDashboard(organizationId: string) {
+    const defaultWh = await this.prisma.warehouse.findFirst({
+      where: { organizationId },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const recentRows = await this.prisma.manufacturingRelease.findMany({
+      where: { organizationId },
+      include: {
+        recipe: { select: { id: true, name: true } },
+        finishedProduct: { select: { id: true, name: true } },
+        warehouse: { select: { id: true, name: true } },
+      },
+      orderBy: [{ documentDate: "desc" }, { createdAt: "desc" }],
+      take: 5,
+    });
+
+    const recentReleases = recentRows.map((row) => ({
+      id: row.id,
+      documentDate: row.documentDate,
+      quantity: row.quantity.toString(),
+      materialCost: row.materialCost.toString(),
+      recipeId: row.recipeId,
+      recipeName: row.recipe.name,
+      finishedProductName: row.finishedProduct.name,
+      warehouseName: row.warehouse.name,
+      status: "COMPLETED" as const,
+    }));
+
+    const inventoryAlerts: Array<{
+      productId: string;
+      productName: string;
+      recipeName: string;
+      available: string;
+      needPerUnit: string;
+    }> = [];
+
+    if (defaultWh) {
+      const recipes = await this.prisma.productRecipe.findMany({
+        where: { organizationId, deletedAt: null },
+        include: {
+          lines: { include: { component: { select: { id: true, name: true } } } },
+        },
+      });
+      const seen = new Set<string>();
+
+      for (const recipe of recipes) {
+        for (const line of recipe.lines) {
+          if (seen.has(line.componentProductId)) continue;
+          const wf =
+            line.wasteFactor != null ? new Decimal(line.wasteFactor) : new Decimal(0);
+          const needPerUnit = new Decimal(line.quantityPerUnit).mul(
+            new Decimal(1).add(wf),
+          );
+          const si = await this.prisma.stockItem.findUnique({
+            where: {
+              organizationId_warehouseId_productId: {
+                organizationId,
+                warehouseId: defaultWh.id,
+                productId: line.componentProductId,
+              },
+            },
+          });
+          const avail =
+            si?.quantity != null ? new Decimal(si.quantity) : new Decimal(0);
+          if (avail.lte(0) || avail.lt(needPerUnit)) {
+            seen.add(line.componentProductId);
+            inventoryAlerts.push({
+              productId: line.componentProductId,
+              productName: line.component?.name ?? line.componentProductId,
+              recipeName: recipe.name,
+              available: avail.toString(),
+              needPerUnit: needPerUnit.toString(),
+            });
+            if (inventoryAlerts.length >= 10) break;
+          }
+        }
+        if (inventoryAlerts.length >= 10) break;
+      }
+    }
+
+    const activeCount = await this.prisma.manufacturingOrder.count({
+      where: {
+        organizationId,
+        status: ManufacturingOrderStatus.IN_PROGRESS,
+      },
+    });
+
+    return {
+      activeRuns: { count: activeCount, comingSoon: false },
+      recentReleases,
+      inventoryAlerts,
+      defaultWarehouseId: defaultWh?.id ?? null,
+    };
   }
 
   /** Max whole FG units producible from current stock (virtual stock / BOM feasibility). */
@@ -185,7 +427,7 @@ export class ManufacturingService {
     if (!wh) throw new NotFoundException("Warehouse not found");
 
     const recipe = await this.prisma.productRecipe.findFirst({
-      where: { organizationId, id: recipeId },
+      where: { organizationId, id: recipeId, deletedAt: null },
       include: {
         lines: { include: { component: { select: { id: true, name: true } } } },
         finishedProduct: { select: { id: true, name: true } },
@@ -276,6 +518,7 @@ export class ManufacturingService {
       where: {
         organizationId,
         id: dto.recipeId,
+        deletedAt: null,
       },
       include: { lines: true, byproducts: true, finishedProduct: true },
     });

@@ -4,9 +4,11 @@ import { Pencil } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
+import { parsePaginatedList } from "../../../lib/paginated-list";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { PageHeader } from "../../../components/layout/page-header";
 import { EmptyState } from "../../../components/empty-state";
+import { ListPaginationFooter } from "../../../components/list-pagination-footer";
 import { formatMoneyAzn } from "../../../lib/format-money";
 import {
   CARD_CONTAINER_CLASS,
@@ -24,8 +26,12 @@ import {
   TABLE_ROW_ICON_BTN_CLASS,
 } from "../../../lib/design-system";
 import { JobPositionModal } from "../../../components/hr/job-position-modal";
+import { DepartmentModal } from "../../../components/hr/department-modal";
+import { parseHrEmployeesResponse } from "../../../lib/hr-employees-list";
 
 type DeptFlat = { id: string; name: string; parentId: string | null };
+
+type EmployeeOpt = { id: string; firstName: string; lastName: string };
 
 type JobPositionRow = {
   id: string;
@@ -45,18 +51,25 @@ export default function HrPositionsPage() {
   const { token, ready } = useRequireAuth();
   const [flat, setFlat] = useState<DeptFlat[]>([]);
   const [positions, setPositions] = useState<JobPositionRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [editPosition, setEditPosition] = useState<JobPositionRow | null>(null);
+  const [deptModalOpen, setDeptModalOpen] = useState(false);
+  const [employees, setEmployees] = useState<EmployeeOpt[]>([]);
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     setError(null);
-    const [fl, jp] = await Promise.all([
+    const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    const [fl, jp, em] = await Promise.all([
       apiFetch("/api/hr/departments"),
-      apiFetch("/api/hr/job-positions"),
+      apiFetch(`/api/hr/job-positions?${qs.toString()}`),
+      apiFetch("/api/hr/employees?page=1&pageSize=500"),
     ]);
     if (!fl.ok) {
       setError(`${t("hrStructure.loadErr")}: ${fl.status}`);
@@ -67,11 +80,25 @@ export default function HrPositionsPage() {
     if (!jp.ok) {
       setError((e) => e ?? `${t("hrStructure.loadErr")}: ${jp.status}`);
       setPositions([]);
+      setTotal(0);
     } else {
-      setPositions((await jp.json()) as JobPositionRow[]);
+      const parsed = parsePaginatedList<JobPositionRow>(await jp.json());
+      setPositions(parsed.items);
+      setTotal(parsed.total);
+    }
+    if (em.ok) {
+      const parsedEm = parseHrEmployeesResponse<EmployeeOpt>(await em.json());
+      setEmployees(parsedEm.items);
+    } else {
+      setEmployees([]);
     }
     setLoading(false);
-  }, [token, t]);
+  }, [token, t, page, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -88,7 +115,7 @@ export default function HrPositionsPage() {
   if (!token) return null;
 
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="w-full max-w-none space-y-8">
       <PageHeader
         title={t("hrPositions.title")}
         subtitle={t("hrPositions.subtitle")}
@@ -108,13 +135,9 @@ export default function HrPositionsPage() {
       />
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
-      <section className={`${CARD_CONTAINER_CLASS} p-6`}>
-        <h2 className="text-lg font-semibold text-[#34495E] mb-4">{t("hrPositions.tableTitle")}</h2>
-        {loading && <p className="text-gray-600 text-sm">{t("common.loading")}</p>}
-        {!loading && positions.length === 0 && (
-          <EmptyState title={t("hrStructure.positionsEmpty")} description={t("hrStructure.positionsEmptyHint")} />
-        )}
-        {!loading && positions.length > 0 && (
+      {loading && <p className="text-gray-600 text-sm">{t("common.loading")}</p>}
+      {!loading && (
+        <>
           <div className={DATA_TABLE_VIEWPORT_CLASS}>
             <table className={`${DATA_TABLE_CLASS} min-w-full`}>
               <thead>
@@ -130,7 +153,17 @@ export default function HrPositionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {positions.map((p) => (
+                {positions.length === 0 ? (
+                  <tr className={DATA_TABLE_TR_CLASS}>
+                    <td colSpan={6} className={`${DATA_TABLE_TD_CLASS} py-12 text-center`}>
+                      <EmptyState
+                        title={t("hrStructure.positionsEmpty")}
+                        description={t("hrStructure.positionsEmptyHint")}
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                positions.map((p) => (
                   <tr key={p.id} className={DATA_TABLE_TR_CLASS}>
                     <td className={`${DATA_TABLE_TD_CLASS} font-semibold text-[#34495E]`}>{p.name}</td>
                     <td className={DATA_TABLE_TD_CLASS}>{p.department.name}</td>
@@ -155,12 +188,21 @@ export default function HrPositionsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                ))
+                )}
               </tbody>
             </table>
           </div>
-        )}
-      </section>
+          <ListPaginationFooter
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            className="mt-4"
+          />
+        </>
+      )}
 
       <JobPositionModal
         open={createOpen}
@@ -170,6 +212,7 @@ export default function HrPositionsPage() {
         }}
         departments={flat}
         onCreated={() => void load()}
+        onAddDepartment={() => setDeptModalOpen(true)}
         editingPosition={
           editPosition
             ? {
@@ -182,6 +225,17 @@ export default function HrPositionsPage() {
               }
             : null
         }
+      />
+      <DepartmentModal
+        open={deptModalOpen}
+        onClose={() => setDeptModalOpen(false)}
+        departments={flat}
+        employees={employees}
+        onCreated={() => {
+          setDeptModalOpen(false);
+          void load();
+        }}
+        editingDepartment={null}
       />
     </div>
   );

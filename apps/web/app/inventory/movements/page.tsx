@@ -1,14 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { Package } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
+import { parsePaginatedList } from "../../../lib/paginated-list";
 import { formatMoneyAzn } from "../../../lib/format-money";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { subscribeListRefresh } from "../../../lib/list-refresh-bus";
 import { PageHeader } from "../../../components/layout/page-header";
 import { EmptyState } from "../../../components/empty-state";
+import { ListPaginationFooter } from "../../../components/list-pagination-footer";
 import {
   DATA_TABLE_CLASS,
   DATA_TABLE_HEAD_ROW_CLASS,
@@ -19,6 +22,7 @@ import {
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
   INPUT_BORDERED_CLASS,
+  LINK_ACCENT_CLASS,
   SECONDARY_BUTTON_CLASS,
 } from "../../../lib/design-system";
 
@@ -57,6 +61,9 @@ export default function InventoryMovementsPage() {
   const { token, ready } = useRequireAuth();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [filterWh, setFilterWh] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,7 +77,8 @@ export default function InventoryMovementsPage() {
     setError(null);
     try {
       const q = new URLSearchParams();
-      q.set("take", "500");
+      q.set("page", String(page));
+      q.set("pageSize", String(pageSize));
       if (filterWh) q.set("warehouseId", filterWh);
       const [w, m] = await Promise.all([
         apiFetch("/api/inventory/warehouses"),
@@ -79,12 +87,23 @@ export default function InventoryMovementsPage() {
       if (!w.ok) throw new Error(`warehouses ${w.status}`);
       if (!m.ok) throw new Error(`movements ${m.status}`);
       setWarehouses(await w.json());
-      setMovements(await m.json());
+      const parsed = parsePaginatedList<Movement>(await m.json());
+      setMovements(parsed.items);
+      setTotal(parsed.total);
     } catch (e) {
       setError(String(e));
     }
     setLoading(false);
-  }, [filterWh, token]);
+  }, [filterWh, token, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterWh]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -107,7 +126,18 @@ export default function InventoryMovementsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t("inventory.movementsPageTitle")} />
+      <PageHeader
+        title={t("inventory.movementsPageTitle")}
+        subtitle={
+          <span className="inline leading-relaxed">
+            {t("inventory.movementsVsTransfersLead")}{" "}
+            <Link className={LINK_ACCENT_CLASS} href="/inventory/transfers">
+              {t("inventory.transfersPageTitle")}
+            </Link>{" "}
+            {t("inventory.movementsVsTransfersTail")}
+          </span>
+        }
+      />
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       <div className="flex flex-wrap items-end gap-3">
@@ -132,14 +162,8 @@ export default function InventoryMovementsPage() {
       </div>
 
       {loading && <p className="text-gray-600">{t("common.loading")}</p>}
-      {!loading && movements.length === 0 && !error && (
-        <EmptyState
-          icon={<Package className="h-12 w-12 mx-auto stroke-[1.5] text-[#7F8C8D]" aria-hidden />}
-          title={t("inventory.emptyMovements")}
-          description={t("inventory.emptyMovementsHint")}
-        />
-      )}
-      {!loading && movements.length > 0 && (
+      {!loading && (
+        <>
         <div className={DATA_TABLE_VIEWPORT_CLASS}>
           <table className={`${DATA_TABLE_CLASS} min-w-full`}>
             <thead>
@@ -156,7 +180,25 @@ export default function InventoryMovementsPage() {
               </tr>
             </thead>
             <tbody>
-              {movements.map((m) => (
+              {movements.length === 0 ? (
+                <tr className={DATA_TABLE_TR_CLASS}>
+                  <td colSpan={9} className={`${DATA_TABLE_TD_CLASS} py-12 text-center`}>
+                    {!error ? (
+                      <EmptyState
+                        icon={
+                          <Package
+                            className="mx-auto h-12 w-12 stroke-[1.5] text-[#7F8C8D]"
+                            aria-hidden
+                          />
+                        }
+                        title={t("inventory.emptyMovements")}
+                        description={t("inventory.emptyMovementsHint")}
+                      />
+                    ) : null}
+                  </td>
+                </tr>
+              ) : (
+              movements.map((m) => (
                 <tr key={m.id} className={DATA_TABLE_TR_CLASS}>
                   <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>{rowDate(m)}</td>
                   <td className={DATA_TABLE_TD_CLASS}>{m.warehouse.name}</td>
@@ -172,10 +214,19 @@ export default function InventoryMovementsPage() {
                   <td className={DATA_TABLE_TD_RIGHT_CLASS}>{formatMoneyAzn(m.price)}</td>
                   <td className={DATA_TABLE_TD_CLASS}>{m.invoice?.number ?? "—"}</td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
+        <ListPaginationFooter
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+        </>
       )}
     </div>
   );

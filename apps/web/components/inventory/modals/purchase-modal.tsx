@@ -20,6 +20,7 @@ import { Button } from "../../ui/button";
 import { NumericAmountInput } from "../../ui/numeric-amount-input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../../ui/select";
 import { AsyncCombobox } from "../../ui/async-combobox";
+import { InvoiceDocumentModalLayout } from "../../invoices/invoice-document-modal-layout";
 import { InventoryModalFooter, InventoryModalShell } from "./modal-shell";
 import {
   buildPurchasePayload,
@@ -264,8 +265,8 @@ export function PurchaseModal({
         {isGoods ? (
           <p className="m-0 text-[12px] leading-snug text-[#7F8C8D]">{t("inventory.purchaseReceiptHint")}</p>
         ) : null}
-        <div className="rounded-2xl border border-[#D5DADF] bg-white shadow-sm">
-          <div className="overflow-x-auto">
+        <div className="rounded-lg border border-[#D5DADF] bg-[#F8F9FA] p-2">
+          <div className="max-h-[min(55vh,22rem)] overflow-x-auto overflow-y-auto">
             <table className="w-full min-w-[720px] table-fixed border-collapse text-[13px]">
               <thead className="border-b border-[#D5DADF] bg-[#F8FAFC] text-left text-[#34495E]">
                 <tr>
@@ -413,7 +414,48 @@ export function PurchaseModal({
       }
       footer={<InventoryModalFooter onCancel={onClose} busy={busy} formId={FORM_ID} />}
     >
-      <form id={FORM_ID} className="space-y-5" onSubmit={(e) => void onSubmit(e)}>
+      <form id={FORM_ID} className="flex min-h-0 flex-1 flex-col" onSubmit={(e) => void onSubmit(e)}>
+        <InvoiceDocumentModalLayout
+          footerActions={
+            <div className="space-y-2 rounded-lg border border-[#D5DADF] bg-[#F8F9FA] px-3 py-2">
+              <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[#34495E]">
+                <input
+                  type="checkbox"
+                  checked={pricesIncludeVat}
+                  onChange={(e) => setPricesIncludeVat(e.target.checked)}
+                  className={MODAL_CHECKBOX_CLASS}
+                />
+                <span>{t("inventory.purchasePricesIncludeVat")}</span>
+              </label>
+              <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-[13px] text-[#34495E]">
+                <span>
+                  {t("inventory.purchaseTotalNet")}:{" "}
+                  <strong className="tabular-nums">{totals.net.toFixed(2)}</strong> {currency}
+                </span>
+                <span>
+                  {t("inventory.purchaseTotalVat")}:{" "}
+                  <strong className="tabular-nums">{totals.vat.toFixed(2)}</strong> {currency}
+                </span>
+                <span>
+                  {t("inventory.purchaseTotalGross")}:{" "}
+                  <strong className="tabular-nums">{totals.gross.toFixed(2)}</strong> {currency}
+                </span>
+              </div>
+              {currency !== "AZN" ? (
+                <p className="m-0 text-[12px] text-[#7F8C8D]">
+                  {t("inventory.purchaseFxFooterHint", {
+                    azn: (totals.gross * Number(fxRateToAzn.replace(",", ".")) || 0).toFixed(2),
+                  })}
+                </p>
+              ) : null}
+              {goodsHasRows ? (
+                <p className="m-0 text-[12px] font-medium text-[#2980B9]">
+                  {t("inventory.purchaseReceiptBadgeDraft")}
+                </p>
+              ) : null}
+            </div>
+          }
+        >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <label className="block sm:col-span-2">
             <span className={MODAL_FIELD_LABEL_CLASS}>{t("inventory.purchaseFieldCounterparty")}</span>
@@ -505,42 +547,7 @@ export function PurchaseModal({
           () => setServiceLines((prev) => [...prev, newServiceLine()]),
           "serviceLines",
         )}
-
-        <div className="rounded-lg border border-[#D5DADF] bg-[#F8F9FA] px-4 py-3 space-y-3">
-          <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[#34495E]">
-            <input
-              type="checkbox"
-              checked={pricesIncludeVat}
-              onChange={(e) => setPricesIncludeVat(e.target.checked)}
-              className={`mt-0.5 ${MODAL_CHECKBOX_CLASS}`}
-            />
-            <span>{t("inventory.purchasePricesIncludeVat")}</span>
-          </label>
-          <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2 text-[13px] text-[#34495E]">
-            <span>
-              {t("inventory.purchaseTotalNet")}:{" "}
-              <strong className="tabular-nums">{totals.net.toFixed(2)}</strong> {currency}
-            </span>
-            <span>
-              {t("inventory.purchaseTotalVat")}:{" "}
-              <strong className="tabular-nums">{totals.vat.toFixed(2)}</strong> {currency}
-            </span>
-            <span>
-              {t("inventory.purchaseTotalGross")}:{" "}
-              <strong className="tabular-nums">{totals.gross.toFixed(2)}</strong> {currency}
-            </span>
-          </div>
-          {currency !== "AZN" ? (
-            <p className="m-0 text-[12px] text-[#7F8C8D]">
-              {t("inventory.purchaseFxFooterHint", {
-                azn: (totals.gross * Number(fxRateToAzn.replace(",", ".")) || 0).toFixed(2),
-              })}
-            </p>
-          ) : null}
-          {goodsHasRows ? (
-            <p className="m-0 text-[12px] font-medium text-[#2980B9]">{t("inventory.purchaseReceiptBadgeDraft")}</p>
-          ) : null}
-        </div>
+        </InvoiceDocumentModalLayout>
       </form>
     </InventoryModalShell>
   );

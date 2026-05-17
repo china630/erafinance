@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiFetch } from "../../lib/api-client";
+import { parsePaginatedList } from "../../lib/paginated-list";
 import {
   MODAL_CLOSE_BUTTON_CLASS,
   MODAL_DIALOG_CONTENT_CLASS,
@@ -57,19 +58,33 @@ export function CreateEmployeeModal({
     if (!open) return;
     setLoadErr(null);
     setLoading(true);
-    void apiFetch("/api/hr/job-positions")
-      .then(async (res) => {
-        if (!res.ok) {
-          setLoadErr(`${t("hrStructure.loadErr")}: ${res.status}`);
-          setPositions([]);
-          return;
+    void (async () => {
+      try {
+        const merged: JobPositionOpt[] = [];
+        let p = 1;
+        for (;;) {
+          const res = await apiFetch(`/api/hr/job-positions?page=${p}&pageSize=200`);
+          if (!res.ok) {
+            setLoadErr(`${t("hrStructure.loadErr")}: ${res.status}`);
+            setPositions([]);
+            return;
+          }
+          const data = parsePaginatedList<JobPositionOpt>(await res.json());
+          merged.push(...data.items);
+          if (merged.length >= data.total || data.items.length === 0) break;
+          p += 1;
         }
-        const rows = (await res.json()) as JobPositionOpt[];
-        setPositions(rows);
-        setPositionId((prev) => (prev && rows.some((x) => x.id === prev) ? prev : rows[0]?.id ?? ""));
-      })
-      .catch(() => setLoadErr(t("employees.loadErr")))
-      .finally(() => setLoading(false));
+        setPositions(merged);
+        setPositionId((prev) =>
+          prev && merged.some((x) => x.id === prev) ? prev : merged[0]?.id ?? "",
+        );
+      } catch {
+        setLoadErr(t("employees.loadErr"));
+        setPositions([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [open, t]);
 
   useEffect(() => {

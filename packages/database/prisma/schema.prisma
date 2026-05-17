@@ -84,6 +84,7 @@ model Organization {
   digitalSignatureLogs         DigitalSignatureLog[]
   employees                    Employee[]
   fixedAssetDepreciationMonths FixedAssetDepreciationMonth[]
+  fixedAssetMonthlyUsages      FixedAssetMonthlyUsage[]
   fixedAssets                  FixedAsset[]
   inventoryAdjustments         InventoryAdjustment[]
   inventoryAuditLines          InventoryAuditLine[]
@@ -134,11 +135,15 @@ model Organization {
   overheadDrivers              OverheadDriver[]
   overheadPools                OverheadPool[]
   manufacturingReleases        ManufacturingRelease[]
+  manufacturingOrders          ManufacturingOrder[]
+  manufacturingOrderLines      ManufacturingOrderLine[]
   earlyAccessEvents            EarlyAccessEvent[]
   earlyAccessSignups           EarlyAccessSignup[]
   auditSamples                 AuditSample[]
   auditEngagements             AuditEngagement[]
   auditEngagementInvitesTargets AuditEngagementInvite[] @relation("OrgAuditEngagementInvites")
+  riskAudits                   RiskAudit[]
+  councilVerdicts              CouncilVerdict[]
 
   @@index([ownerId])
   @@index([holdingId, id])
@@ -836,6 +841,8 @@ model PricingModule {
 ///  * Именованный пакет модулей со скидкой (Paket Yaradıcısı). Один bundle может быть помечен как **Trial-пакет** по умолчанию (`isTrialDefault`).
 model PricingBundle {
   id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  /// Stable identifier for trial plan resolution (e.g. TRIAL_3_MONTHS).
+  slug              String?  @unique
   name              String
   discountPercent   Decimal  @default(0) @map("discount_percent") @db.Decimal(5, 2)
   moduleKeys        Json     @map("module_keys")
@@ -847,6 +854,20 @@ model PricingBundle {
 
   @@index([isTrialDefault])
   @@map("pricing_bundles")
+}
+
+/// Marketing copy for public landing page module cards (AZ/RU JSON fields).
+model LandingModuleMarketing {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  moduleSlug   String   @unique @map("module_slug")
+  sortOrder    Int      @default(0) @map("sort_order")
+  names        Json
+  descriptions Json
+  tasks        Json
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_module_marketing")
 }
 
 /// *
@@ -979,6 +1000,7 @@ model Warehouse {
   bins                  WarehouseBin[]
   users                 User[]
   manufacturingReleases ManufacturingRelease[]
+  manufacturingOrders   ManufacturingOrder[]
   organization          Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   deletedAt             DateTime?             @map("deleted_at") @db.Timestamptz(6)
   deletedByUserId       String?               @map("deleted_by_user_id") @db.Uuid
@@ -1380,6 +1402,8 @@ model User {
   locale                        UserLocale                 @default(AZ) @map("locale")
   createdAt                     DateTime                   @default(now()) @map("created_at")
   updatedAt                     DateTime                   @updatedAt @map("updated_at")
+  /// When set, self-service PATCH may not change email (see TZ §2.2).
+  emailVerifiedAt               DateTime?                  @map("email_verified_at") @db.Timestamptz(6)
   /// *
   ///    * Глобальный супер-админ платформы (без привязки к org в JWT).
   isSuperAdmin                  Boolean                    @default(false) @map("is_super_admin")
@@ -1892,9 +1916,60 @@ model ManufacturingRelease {
   finishedGoodsTransaction       Transaction?    @relation("MfgReleaseFgTransaction", fields: [finishedGoodsTransactionId], references: [id], onDelete: SetNull)
   finishedGoodsStockMovement     StockMovement?  @relation("MfgReleaseFgStockMovement", fields: [finishedGoodsStockMovementId], references: [id], onDelete: SetNull)
   overheadAllocations            OverheadAllocation[]
+  manufacturingOrder             ManufacturingOrder?
 
   @@index([organizationId, documentDate])
   @@map("manufacturing_releases")
+}
+
+enum ManufacturingOrderStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model ManufacturingOrder {
+  id                     String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId         String                   @map("organization_id") @db.Uuid
+  recipeId               String                   @map("recipe_id") @db.Uuid
+  warehouseId            String                   @map("warehouse_id") @db.Uuid
+  quantity               Decimal                  @db.Decimal(19, 4)
+  status                 ManufacturingOrderStatus @default(DRAFT)
+  materialCost           Decimal                  @default(0) @map("material_cost") @db.Decimal(19, 4)
+  wipTransactionId       String?                  @map("wip_transaction_id") @db.Uuid
+  startedAt              DateTime?                @map("started_at") @db.Timestamptz(6)
+  completedAt            DateTime?                @map("completed_at") @db.Timestamptz(6)
+  manufacturingReleaseId String?                  @unique @map("manufacturing_release_id") @db.Uuid
+  createdAt              DateTime                 @default(now()) @map("created_at")
+  updatedAt              DateTime                 @updatedAt @map("updated_at")
+  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recipe                 ProductRecipe            @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  warehouse              Warehouse                @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  wipTransaction         Transaction?             @relation("MfgOrderWipTransaction", fields: [wipTransactionId], references: [id], onDelete: SetNull)
+  release                ManufacturingRelease?    @relation(fields: [manufacturingReleaseId], references: [id], onDelete: SetNull)
+  lines                  ManufacturingOrderLine[]
+
+  @@index([organizationId, status], map: "mfg_orders_org_status_idx")
+  @@index([organizationId, createdAt], map: "mfg_orders_org_created_idx")
+  @@map("manufacturing_orders")
+}
+
+model ManufacturingOrderLine {
+  id                   String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId       String             @map("organization_id") @db.Uuid
+  manufacturingOrderId String             @map("manufacturing_order_id") @db.Uuid
+  productId            String             @map("product_id") @db.Uuid
+  quantityRequired     Decimal            @map("quantity_required") @db.Decimal(19, 4)
+  quantityIssued       Decimal            @default(0) @map("quantity_issued") @db.Decimal(19, 4)
+  unitCost             Decimal            @default(0) @map("unit_cost") @db.Decimal(19, 4)
+  lineCost             Decimal            @default(0) @map("line_cost") @db.Decimal(19, 4)
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  order                ManufacturingOrder @relation(fields: [manufacturingOrderId], references: [id], onDelete: Cascade)
+  product              Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([manufacturingOrderId, productId], map: "mfg_order_line_order_product_uidx")
+  @@map("manufacturing_order_lines")
 }
 
 model OverheadDriver {
@@ -2091,6 +2166,7 @@ model Transaction {
   inventoryAuditsPosted        InventoryAudit[]         @relation("InventoryAuditPosting")
   prepaidSchedulesPosted       PrepaidExpenseSchedule[]
   manufacturingReleasesFg      ManufacturingRelease[]   @relation("MfgReleaseFgTransaction")
+  manufacturingOrdersWip       ManufacturingOrder[]     @relation("MfgOrderWipTransaction")
   overheadAllocationsRelease   OverheadAllocation[]     @relation("OverheadAllocReleaseTransaction")
 
   @@index([organizationId, date])
@@ -2235,6 +2311,7 @@ model Product {
   recipeByproducts         ProductRecipeByproduct[]  @relation("RecipeByproductProduct")
   recipeFinished           ProductRecipe?            @relation("RecipeFinishedProduct")
   manufacturingReleases    ManufacturingRelease[]
+  manufacturingOrderLines    ManufacturingOrderLine[]
   organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   unitOfMeasure            UnitOfMeasure?            @relation(fields: [unitOfMeasureCode], references: [code], onDelete: SetNull)
   stockItems               StockItem[]
@@ -2257,11 +2334,14 @@ model ProductRecipe {
   /// *
   ///    * Одна спецификация на продукт (id продукта уникален в системе).
   finishedProductId String                   @unique @map("finished_product_id") @db.Uuid
+  /// Display name for BOM (defaults from finished product on backfill).
+  name              String                   @default("") @map("name")
   createdAt         DateTime                 @default(now()) @map("created_at")
   updatedAt         DateTime                 @updatedAt @map("updated_at")
   lines             ProductRecipeLine[]
   byproducts        ProductRecipeByproduct[]
   manufacturingReleases ManufacturingRelease[]
+  manufacturingOrders   ManufacturingOrder[]
   finishedProduct   Product                  @relation("RecipeFinishedProduct", fields: [finishedProductId], references: [id], onDelete: Cascade)
   organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   deletedAt         DateTime?                @map("deleted_at") @db.Timestamptz(6)
@@ -2337,6 +2417,7 @@ model FixedAsset {
   createdAt          DateTime                      @default(now()) @map("created_at")
   updatedAt          DateTime                      @updatedAt @map("updated_at")
   depreciationMonths FixedAssetDepreciationMonth[]
+  monthlyUsages      FixedAssetMonthlyUsage[]
   organization       Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   deletedAt          DateTime?                     @map("deleted_at") @db.Timestamptz(6)
   deletedByUserId    String?                       @map("deleted_by_user_id") @db.Uuid
@@ -2346,6 +2427,25 @@ model FixedAsset {
   @@index([organizationId, purchaseDate])
   @@index([organizationId, deletedAt], map: "fixed_assets_org_deleted_at_idx")
   @@map("fixed_assets")
+}
+
+/// *
+///  * Planned production units for UNITS_OF_PRODUCTION before monthly depreciation close.
+model FixedAssetMonthlyUsage {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  fixedAssetId   String       @map("fixed_asset_id") @db.Uuid
+  year           Int
+  month          Int
+  periodUnits    Decimal      @map("period_units") @db.Decimal(19, 4)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  fixedAsset     FixedAsset   @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
+
+  @@unique([fixedAssetId, year, month], map: "fixed_asset_monthly_usage_asset_period_uidx")
+  @@index([organizationId, year, month], map: "fixed_asset_monthly_usage_org_period_idx")
+  @@map("fixed_asset_monthly_usage")
 }
 
 /// *
@@ -2844,6 +2944,101 @@ model AuditLogArchive {
   @@index([organizationId, createdAt])
   @@index([entityType, entityId])
   @@map("audit_log_archives")
+}
+
+/// *
+///  * System-generated risk / compliance signal for ERM (compliance_pro). Not the immutable AuditLog.
+model RiskAudit {
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  type           RiskAuditType    @map("type")
+  severity       RiskSeverity     @map("severity")
+  status         RiskAuditStatus  @default(PENDING) @map("status")
+  description    String           @map("description")
+  metadata       Json             @default("{}") @map("metadata")
+  dedupeKey      String           @map("dedupe_key")
+  mitigationNote String?          @map("mitigation_note")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  councilVerdicts CouncilVerdict[]
+
+  @@unique([organizationId, dedupeKey], map: "risk_audits_org_dedupe_uidx")
+  @@index([organizationId, status, severity], map: "risk_audits_org_status_sev_idx")
+  @@index([organizationId, type], map: "risk_audits_org_type_idx")
+  @@map("risk_audits")
+}
+
+/// Multi-agent AI consensus (Council of Elders) for compliance_pro.
+model CouncilVerdict {
+  id                 String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId     String                 @map("organization_id") @db.Uuid
+  riskAuditId        String?                @map("risk_audit_id") @db.Uuid
+  triggerSource      CouncilTriggerSource   @map("trigger_source")
+  targetEntityType   CouncilTargetEntityType @map("target_entity_type")
+  targetEntityId     String?                @map("target_entity_id") @db.Uuid
+  targetEntityLabel  String                 @map("target_entity_label")
+  elderVerdicts      Json                   @default("{}") @map("elder_verdicts")
+  finalScore         Int?                   @map("final_score")
+  finalSeverity      RiskSeverity?          @map("final_severity")
+  summaryAz          String?                @map("summary_az")
+  summaryRu          String?                @map("summary_ru")
+  suggestedAction    String?                @map("suggested_action")
+  status             CouncilVerdictStatus   @default(QUEUED) @map("status")
+  errorMessage       String?                @map("error_message")
+  dedupeKey          String?                @map("dedupe_key")
+  requestedByUserId  String?                @map("requested_by_user_id") @db.Uuid
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  riskAudit          RiskAudit?             @relation(fields: [riskAuditId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, dedupeKey], map: "council_verdicts_org_dedupe_uidx")
+  @@index([organizationId, status], map: "council_verdicts_org_status_idx")
+  @@index([organizationId, riskAuditId], map: "council_verdicts_org_risk_audit_idx")
+  @@map("council_verdicts")
+}
+
+enum CouncilTriggerSource {
+  MANUAL
+  TAX_LIMIT_HIT
+  HIGH_VALUE_TRANSACTION
+  VOEN_RISKY_COUNTERPARTY
+  WEEKLY_CRON
+  PRE_TAX_CRON
+}
+
+enum CouncilTargetEntityType {
+  ORGANIZATION
+  RISK_AUDIT
+  INVOICE
+  CASH_ORDER
+  LEDGER_PERIOD
+}
+
+enum CouncilVerdictStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum RiskAuditType {
+  TAX
+  FRAUD
+  COMPLIANCE
+}
+
+enum RiskSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RiskAuditStatus {
+  PENDING
+  MITIGATED
+  IGNORED
 }
 
 model AbsenceType {

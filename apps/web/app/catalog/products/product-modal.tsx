@@ -24,7 +24,7 @@ type ProductDto = {
   isService?: boolean;
 };
 
-type VatSelect = "18" | "8" | "2" | "0" | "exempt";
+type VatSelect = "unset" | "18" | "8" | "2" | "0" | "exempt";
 
 function vatSelectFromDto(vatRate: unknown): VatSelect {
   const n = Number(String(vatRate ?? 18));
@@ -35,7 +35,7 @@ function vatSelectFromDto(vatRate: unknown): VatSelect {
   return "18";
 }
 
-function vatSelectToApi(v: VatSelect): number {
+function vatSelectToApi(v: Exclude<VatSelect, "unset">): number {
   if (v === "exempt") return -1;
   if (v === "0") return 0;
   if (v === "2") return 2;
@@ -88,7 +88,7 @@ export function ProductModal({
       setName("");
       setSku("");
       setPrice("");
-      setVatSelect("18");
+      setVatSelect("unset");
       setLoadedIsService(false);
       return;
     }
@@ -118,6 +118,11 @@ export function ProductModal({
     const p = Number(String(price).replace(",", "."));
     if (!name.trim() || !Number.isFinite(p)) {
       toast.error(t("common.fillRequired"));
+      return;
+    }
+
+    if (vatSelect === "unset") {
+      toast.error(t("products.vatRequired"));
       return;
     }
 
@@ -217,6 +222,9 @@ export function ProductModal({
             >
               <SelectTrigger className="" />
               <SelectContent>
+                <SelectItem value="unset" disabled>
+                  {t("products.vatPlaceholder")}
+                </SelectItem>
                 <SelectItem value="18">{t("products.vatOption18")}</SelectItem>
                 <SelectItem value="8">{t("products.vatOption8")}</SelectItem>
                 <SelectItem value="2">{t("products.vatOption2")}</SelectItem>

@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -45,8 +47,12 @@ export class PsaController {
     UserRole.DIRECTOR,
   )
   @ApiOperation({ summary: "List PSA projects" })
-  listProjects(@OrganizationId() organizationId: string) {
-    return this.psa.listProjects(organizationId);
+  listProjects(
+    @OrganizationId() organizationId: string,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query("pageSize", new DefaultValuePipe(25), ParseIntPipe) pageSize: number,
+  ) {
+    return this.psa.listProjects(organizationId, { page, pageSize });
   }
 
   @Post("projects")

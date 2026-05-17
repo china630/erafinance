@@ -1,13 +1,14 @@
 "use client";
 
 import { Building2, Clock, GitMerge, Landmark, Loader2, Plus, Search, Wallet, X } from "lucide-react";
-import { BankStatementImportModal, BankingCreateAccountModal } from "./banking-modals";
+import { BankStatementImportModal } from "./banking-modals";
 import { InternalTransferModal } from "./internal-transfer-modal";
 import { filterNasBankLedgerAccounts, NasBankAccountSelect, type NasBankAccountOption } from "./nas-bank-account-select";
 import { toast } from "sonner";
 import { PageHeader } from "../../components/layout/page-header";
 import { EmptyState } from "../../components/empty-state";
-import { useCallback, useEffect, useState } from "react";
+import { ListPaginationFooter } from "../../components/list-pagination-footer";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../lib/api-client";
 import { formatMoneyAzn } from "../../lib/format-money";
@@ -39,6 +40,7 @@ import { Button } from "../../components/ui/button";
 import { Dialog, DialogContent, DialogHeader } from "@erafinance/ui";
 import { ledgerQueryParam, useLedger } from "../../lib/ledger-context";
 import { useRequireAuth } from "../../lib/use-require-auth";
+import { OrganizationBankAccountModal } from "../../components/settings/organization-bank-account-modal";
 import { SubscriptionPaywall } from "../../components/subscription-paywall";
 
 type AccountSegment = "CASH" | "BANK";
@@ -251,7 +253,7 @@ function BankingQuickExpenseModal({
                 >
                   {cfItems.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.code} — {c.name}
+                      {c.code} вЂ” {c.name}
                     </option>
                   ))}
                 </select>
@@ -308,12 +310,14 @@ function BankingQuickExpenseModal({
         </form>
       </DialogContent>
       {createAccOpen ? (
-        <BankingCreateAccountModal
+        <OrganizationBankAccountModal
+          open={createAccOpen}
           onClose={() => setCreateAccOpen(false)}
-          onCreated={(newCode) => {
+          onSaved={() => {
             setCreateAccOpen(false);
-            void loadBankAccounts(newCode);
+            void loadBankAccounts();
           }}
+          mode="create"
         />
       ) : null}
     </Dialog>
@@ -322,7 +326,7 @@ function BankingQuickExpenseModal({
 
 function formatBalanceLine(amount: string, currency: string): string {
   const n = Number(amount);
-  if (Number.isNaN(n)) return "—";
+  if (Number.isNaN(n)) return "вЂ”";
   if (currency === "AZN") return formatMoneyAzn(n);
   const s = new Intl.NumberFormat("az-AZ", {
     minimumFractionDigits: 2,
@@ -359,7 +363,7 @@ function defaultYearMonth(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-/** `ym` = `YYYY-MM` (локальный календарь). */
+/** `ym` = `YYYY-MM` (Р»РѕРєР°Р»СЊРЅС‹Р№ РєР°Р»РµРЅРґР°СЂСЊ). */
 function monthDateRange(ym: string): { from: string; to: string } {
   const parts = ym.split("-");
   const y = Number(parts[0]);
@@ -375,7 +379,7 @@ function CashAccountCards({
   segmentFilter = "ALL",
 }: {
   refreshKey: number;
-  /** На странице «Банк» показываем только банковские счета; касса — в разделе Kassa. */
+  /** РќР° СЃС‚СЂР°РЅРёС†Рµ В«Р‘Р°РЅРєВ» РїРѕРєР°Р·С‹РІР°РµРј С‚РѕР»СЊРєРѕ Р±Р°РЅРєРѕРІСЃРєРёРµ СЃС‡РµС‚Р°; РєР°СЃСЃР° вЂ” РІ СЂР°Р·РґРµР»Рµ Kassa. */
   segmentFilter?: "ALL" | "BANK" | "CASH";
 }) {
   const { t } = useTranslation();
@@ -472,7 +476,7 @@ function CashAccountCards({
                     </p>
                     <p className="m-0 mt-1 text-xs text-slate-500">
                       {segTitle}
-                      {acc.maskedNumber ? ` · ${acc.maskedNumber}` : ""}
+                      {acc.maskedNumber ? ` В· ${acc.maskedNumber}` : ""}
                     </p>
                   </div>
                 </div>
@@ -493,12 +497,14 @@ function CashAccountCards({
         </div>
       )}
       {createBankOpen ? (
-        <BankingCreateAccountModal
+        <OrganizationBankAccountModal
+          open={createBankOpen}
           onClose={() => setCreateBankOpen(false)}
-          onCreated={() => {
+          onSaved={() => {
             setCreateBankOpen(false);
             void load();
           }}
+          mode="create"
         />
       ) : null}
     </section>
@@ -526,6 +532,9 @@ function BankingUnifiedRegistry({
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
   const [lines, setLines] = useState<BankLine[]>([]);
+  const [linesTotal, setLinesTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [drafts, setDrafts] = useState<OutboundDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -533,9 +542,14 @@ function BankingUnifiedRegistry({
     Record<string, Candidate[] | "loading" | "error">
   >({});
 
+  useLayoutEffect(() => {
+    setPage(1);
+  }, [yearMonth]);
+
   const load = useCallback(async () => {
     if (!token) {
       setLines([]);
+      setLinesTotal(0);
       setDrafts([]);
       setLoading(false);
       return;
@@ -543,7 +557,7 @@ function BankingUnifiedRegistry({
     setLoading(true);
     setError(null);
     const { from, to } = monthDateRange(yearMonth);
-    const lineQuery = `channel=BANK&bankOnly=true&valueDateFrom=${encodeURIComponent(from)}&valueDateTo=${encodeURIComponent(to)}`;
+    const lineQuery = `channel=BANK&bankOnly=true&valueDateFrom=${encodeURIComponent(from)}&valueDateTo=${encodeURIComponent(to)}&page=${encodeURIComponent(String(page))}&pageSize=${encodeURIComponent(String(pageSize))}`;
     const [lineRes, draftRes] = await Promise.all([
       apiFetch(`/api/banking/lines?${lineQuery}`),
       apiFetch("/api/banking/payment-drafts?status=PENDING"),
@@ -553,8 +567,16 @@ function BankingUnifiedRegistry({
       toast.error(t("banking.loadErr"), { description: detail });
       setError(detail);
       setLines([]);
+      setLinesTotal(0);
     } else {
-      setLines((await lineRes.json()) as BankLine[]);
+      const body = (await lineRes.json()) as {
+        items: BankLine[];
+        total: number;
+        page: number;
+        pageSize: number;
+      };
+      setLines(Array.isArray(body.items) ? body.items : []);
+      setLinesTotal(typeof body.total === "number" ? body.total : 0);
     }
     if (draftRes.ok) {
       setDrafts((await draftRes.json()) as OutboundDraft[]);
@@ -562,7 +584,7 @@ function BankingUnifiedRegistry({
       setDrafts([]);
     }
     setLoading(false);
-  }, [token, t, yearMonth]);
+  }, [token, t, yearMonth, page, pageSize]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -601,7 +623,12 @@ function BankingUnifiedRegistry({
     await load();
   }
 
-  const hasAny = drafts.length > 0 || lines.length > 0;
+  const hasAny = drafts.length > 0 || linesTotal > 0;
+  const totalPages = Math.max(1, Math.ceil(linesTotal / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   return (
     <section className={`space-y-4 ${disabled ? "pointer-events-none opacity-60" : ""}`}>
@@ -617,9 +644,9 @@ function BankingUnifiedRegistry({
         <p className="text-[#7F8C8D] text-[13px] m-0">{t("banking.unifiedTableEmpty")}</p>
       ) : null}
       {!loading && !error && hasAny ? (
-        <div className={DATA_TABLE_VIEWPORT_CLASS}>
+        <>
           {syncStatus ? (
-            <div className="mb-2 flex justify-end text-[11px] text-slate-500">
+            <div className="flex justify-end text-[11px] text-slate-500">
               <span className="text-right">
                 {t("banking.lastSync")}:{" "}
                 {syncStatus.lastSyncAt
@@ -634,7 +661,8 @@ function BankingUnifiedRegistry({
               </span>
             </div>
           ) : null}
-          <table className={`${DATA_TABLE_CLASS} w-full`}>
+          <div className={DATA_TABLE_VIEWPORT_CLASS}>
+            <table className={`${DATA_TABLE_CLASS} w-full`}>
             <thead>
               <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
                 <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("banking.thDate")}</th>
@@ -680,7 +708,7 @@ function BankingUnifiedRegistry({
                     </td>
                     <td className={`${DATA_TABLE_TD_CLASS} max-w-md`}>{r.purpose}</td>
                     <td className={`${DATA_TABLE_TD_RIGHT_CLASS} font-medium text-rose-700`}>
-                      {t("banking.expense")} · {formatMoneyAzn(Number(r.amount))} {r.currency}
+                      {t("banking.expense")} В· {formatMoneyAzn(Number(r.amount))} {r.currency}
                     </td>
                     <td className={DATA_TABLE_TD_CENTER_CLASS}>
                       <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-950">
@@ -690,7 +718,7 @@ function BankingUnifiedRegistry({
                         <div className="mt-1 text-xs text-rose-700">{r.rejectionReason}</div>
                       ) : null}
                     </td>
-                    <td className={DATA_TABLE_TD_CLASS}>—</td>
+                    <td className={DATA_TABLE_TD_CLASS}>вЂ”</td>
                   </tr>
                 ))
               )}
@@ -699,7 +727,7 @@ function BankingUnifiedRegistry({
                   colSpan={7}
                   className="py-2.5 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700"
                 >
-                  {t("banking.historySectionTitle")} · {yearMonth}
+                  {t("banking.historySectionTitle")} В· {yearMonth}
                 </td>
               </tr>
               {lines.length === 0 ? (
@@ -720,7 +748,7 @@ function BankingUnifiedRegistry({
                   return (
                     <tr key={r.id} className={`${DATA_TABLE_TR_CLASS} align-top`}>
                       <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>
-                        {r.valueDate ? String(r.valueDate).slice(0, 10) : "—"}
+                        {r.valueDate ? String(r.valueDate).slice(0, 10) : "вЂ”"}
                       </td>
                       <td className={DATA_TABLE_TD_CLASS}>
                         <span className="inline-flex rounded-lg bg-[#EBEDF0] px-2 py-0.5 text-xs font-medium text-[#34495E]">
@@ -733,7 +761,7 @@ function BankingUnifiedRegistry({
                             <Building2 className="h-4 w-4" aria-hidden />
                           </span>
                           <span className="break-words font-mono tabular-nums text-[#34495E]">
-                            {r.counterpartyTaxId ?? "—"}
+                            {r.counterpartyTaxId ?? "вЂ”"}
                           </span>
                         </div>
                       </td>
@@ -746,7 +774,7 @@ function BankingUnifiedRegistry({
                         }`}
                       >
                         <span className="block">
-                          {isIn ? t("banking.income") : t("banking.expense")} · {formatMoneyAzn(r.amount)}
+                          {isIn ? t("banking.income") : t("banking.expense")} В· {formatMoneyAzn(r.amount)}
                         </span>
                       </td>
                       <td className={DATA_TABLE_TD_CENTER_CLASS}>
@@ -791,7 +819,7 @@ function BankingUnifiedRegistry({
                               (candidatesByLine[r.id] as Candidate[]).map((c) => (
                                 <div key={c.id} className="mt-1 flex flex-wrap items-center justify-end gap-1">
                                   <span className="min-w-0 flex-1 text-right text-[13px] text-[#34495E]">
-                                    {c.number} · {c.counterparty.name} · {formatMoneyAzn(c.totalAmount)}
+                                    {c.number} В· {c.counterparty.name} В· {formatMoneyAzn(c.totalAmount)}
                                   </span>
                                   <button
                                     type="button"
@@ -812,7 +840,15 @@ function BankingUnifiedRegistry({
               )}
             </tbody>
           </table>
-        </div>
+          </div>
+          <ListPaginationFooter
+            page={page}
+            pageSize={pageSize}
+            total={linesTotal}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        </>
       ) : null}
     </section>
   );
@@ -900,21 +936,23 @@ export default function BankingPage() {
       <div className="space-y-10 max-w-6xl mx-auto">
         <PageHeader
           title={t("banking.title")}
+          leading={
+            <div className="flex h-8 items-center gap-2">
+              <span className="shrink-0 text-sm leading-none text-slate-700">
+                {t("banking.monthPickerToolbarLabel")}
+              </span>
+              <input
+                type="month"
+                value={yearMonth}
+                disabled={syncFullBusy}
+                onChange={(e) => setYearMonth(e.target.value)}
+                className={TOOLBAR_MONTH_INPUT_CLASS}
+                aria-label={t("banking.monthPickerLabel")}
+              />
+            </div>
+          }
           actions={
             <>
-              <div className="flex h-8 items-center gap-2">
-                <span className="shrink-0 text-sm leading-none text-slate-700">
-                  {t("banking.monthPickerToolbarLabel")}
-                </span>
-                <input
-                  type="month"
-                  value={yearMonth}
-                  disabled={syncFullBusy}
-                  onChange={(e) => setYearMonth(e.target.value)}
-                  className={TOOLBAR_MONTH_INPUT_CLASS}
-                  aria-label={t("banking.monthPickerLabel")}
-                />
-              </div>
               <button
                 type="button"
                 disabled={syncFullBusy}
@@ -948,7 +986,7 @@ export default function BankingPage() {
               </button>
               <details className="relative">
                 <summary className={`${SECONDARY_BUTTON_CLASS} cursor-pointer list-none`}>
-                  {t("banking.transfer.openAction")}
+                  {t("banking.transfer.operationsMenu")}
                 </summary>
                 <div className="absolute right-0 z-20 mt-1 min-w-[14rem] rounded-xl border border-[#D5DADF] bg-white p-1 shadow-lg">
                   <button
@@ -989,7 +1027,7 @@ export default function BankingPage() {
                 disabled={syncFullBusy}
                 onClick={() => setCreateAccountOpen(true)}
               >
-                {t("banking.addAccount")}
+                {t("banking.addNewBankAccountCta")}
               </button>
             </>
           }
@@ -1018,12 +1056,14 @@ export default function BankingPage() {
           <BankingQuickExpenseModal onClose={() => setQuickExpenseOpen(false)} onDone={bump} />
         ) : null}
         {createAccountOpen ? (
-          <BankingCreateAccountModal
+          <OrganizationBankAccountModal
+            open={createAccountOpen}
             onClose={() => setCreateAccountOpen(false)}
-            onCreated={() => {
+            onSaved={() => {
               setCreateAccountOpen(false);
               bump();
             }}
+            mode="create"
           />
         ) : null}
         <BankStatementImportModal
@@ -1038,6 +1078,7 @@ export default function BankingPage() {
         <InternalTransferModal
           open={transferOpen}
           initialMode={transferMode}
+          hideModeTabs
           onClose={() => setTransferOpen(false)}
           onDone={() => {
             setTransferOpen(false);

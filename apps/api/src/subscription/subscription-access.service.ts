@@ -58,6 +58,12 @@ export type OrganizationModuleEntitlements = {
   tradePro: boolean;
   /** Paid Audit Hub (timeline, sampling, bulk export, backdating). */
   auditHub: boolean;
+  /** Risk & Compliance (ERM): automated risk alerts and dashboard. */
+  compliancePro: boolean;
+  industryRetailEcom: boolean;
+  industryLogisticsCustoms: boolean;
+  industryConstruction: boolean;
+  industryCrmWhatsapp: boolean;
 };
 
 /** v8.1: снимок поля custom_config (конструктор тарифа). */
@@ -103,6 +109,11 @@ function entitlementsFromConstructorModules(
     taxPro: has("tax_pro"),
     tradePro: has("trade_pro"),
     auditHub: has("audit_hub"),
+    compliancePro: has("compliance_pro"),
+    industryRetailEcom: has("industry_retail_ecom"),
+    industryLogisticsCustoms: has("industry_logistics_customs"),
+    industryConstruction: has("industry_construction"),
+    industryCrmWhatsapp: has("industry_crm_whatsapp"),
   };
 }
 
@@ -141,6 +152,11 @@ function emptyOrganizationSnapshot(): {
       taxPro: false,
       tradePro: false,
       auditHub: false,
+      compliancePro: false,
+      industryRetailEcom: false,
+      industryLogisticsCustoms: false,
+      industryConstruction: false,
+      industryCrmWhatsapp: false,
     },
     expiresAt: null,
     isTrial: false,
@@ -173,6 +189,11 @@ function computeEntitlementsLegacy(sub: {
     taxPro: has("tax_pro"),
     tradePro: has("trade_pro"),
     auditHub: has("audit_hub"),
+    compliancePro: has("compliance_pro"),
+    industryRetailEcom: false,
+    industryLogisticsCustoms: false,
+    industryConstruction: false,
+    industryCrmWhatsapp: false,
   };
 }
 
@@ -199,6 +220,11 @@ function computeEntitlements(sub: {
       taxPro: true,
       tradePro: true,
       auditHub: true,
+      compliancePro: true,
+      industryRetailEcom: false,
+      industryLogisticsCustoms: false,
+      industryConstruction: false,
+      industryCrmWhatsapp: false,
     };
   }
   const customList = parseCustomModules(safe.customConfig);
@@ -238,6 +264,16 @@ function isAllowedByConstructorModules(
       return has("trade_pro");
     case "audit_hub":
       return has("audit_hub");
+    case "compliance_pro":
+      return has("compliance_pro");
+    case "industry_retail_ecom":
+      return has("industry_retail_ecom");
+    case "industry_logistics_customs":
+      return has("industry_logistics_customs");
+    case "industry_construction":
+      return has("industry_construction");
+    case "industry_crm_whatsapp":
+      return has("industry_crm_whatsapp");
     case "recovery_pro":
       return has("recovery_pro");
     default:

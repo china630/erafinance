@@ -52,4 +52,8 @@ export class UpdateSubscriptionModulesDto {
   @IsOptional()
   @IsBoolean()
   audit_hub?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  compliance_pro?: boolean;
 }

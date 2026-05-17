@@ -11,6 +11,7 @@ import {
 } from "@erafinance/database";
 import { InvoicesService } from "../invoices/invoices.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { normalizeListPagination } from "../common/list-pagination";
 import {
   dateToIsoYmdUtc,
   parseIsoDateOnly,
@@ -37,15 +38,30 @@ export class PsaService {
     private readonly invoices: InvoicesService,
   ) {}
 
-  listProjects(organizationId: string) {
-    return this.prisma.psaProject.findMany({
-      where: { organizationId },
-      orderBy: [{ code: "asc" }],
-      include: {
-        counterparty: { select: { id: true, nameCipher: true } },
-        _count: { select: { timeEntries: true, tasks: true } },
-      },
-    });
+  async listProjects(
+    organizationId: string,
+    opts?: { page?: number; pageSize?: number },
+  ) {
+    const { page, pageSize, skip } = normalizeListPagination(
+      opts?.page,
+      opts?.pageSize,
+      25,
+    );
+    const where = { organizationId };
+    const [items, total] = await Promise.all([
+      this.prisma.psaProject.findMany({
+        where,
+        orderBy: [{ code: "asc" }],
+        skip,
+        take: pageSize,
+        include: {
+          counterparty: { select: { id: true, nameCipher: true } },
+          _count: { select: { timeEntries: true, tasks: true } },
+        },
+      }),
+      this.prisma.psaProject.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
   }
 
   async createProject(organizationId: string, dto: CreatePsaProjectDto) {

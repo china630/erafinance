@@ -105,23 +105,26 @@ export class HoldingsService {
     ownerUserId: string,
     holdingId: string,
     organizationId: string,
-  ) {
+  ): Promise<{ organizationId: string; holdingId: string }> {
     await this.assertHoldingOwner(ownerUserId, holdingId);
     await this.assertUserIsOrganizationOwner(ownerUserId, organizationId);
-    return this.prisma.organization.update({
+    await this.prisma.organization.update({
       where: { id: organizationId },
       data: { holding: { connect: { id: holdingId } } },
+      select: { id: true },
     });
+    return { organizationId, holdingId };
   }
 
   async removeOrganizationFromHolding(
     ownerUserId: string,
     holdingId: string,
     organizationId: string,
-  ) {
+  ): Promise<{ organizationId: string; holdingId: null }> {
     await this.assertHoldingOwner(ownerUserId, holdingId);
     const org = await this.prisma.organization.findFirst({
       where: { id: organizationId, holdingId },
+      select: { id: true },
     });
     if (!org) {
       throw new BadRequestException(
@@ -129,10 +132,12 @@ export class HoldingsService {
       );
     }
     await this.assertUserIsOrganizationOwner(ownerUserId, organizationId);
-    return this.prisma.organization.update({
+    await this.prisma.organization.update({
       where: { id: organizationId },
       data: { holding: { disconnect: true } },
+      select: { id: true },
     });
+    return { organizationId, holdingId: null };
   }
 
   async listMembers(ownerUserId: string, holdingId: string) {

@@ -23,19 +23,24 @@ export default async function RootLayout({
   const pathname = headerStore.get("x-erafinance-pathname") ?? "";
   const portalPath = pathname.startsWith("/portal");
   const publicPath =
+    pathname === "/" ||
+    pathname === "/home" ||
     pathname === "/login" ||
     pathname === "/register" ||
     pathname === "/register-org" ||
     pathname === "/help" ||
+    pathname === "/pricing" ||
     pathname.startsWith("/verify/") ||
     pathname.startsWith("/dispute/") ||
     portalPath;
-  /** Portal, email verify, dispute counter-claim, and help — no `AppShell` chrome. */
+  /** Portal, email verify, dispute, help, pricing, marketing landing — no `AppShell` chrome. */
   const barePublicLayout =
     portalPath ||
     pathname.startsWith("/verify/") ||
     pathname.startsWith("/dispute/") ||
-    pathname === "/help";
+    pathname === "/help" ||
+    pathname === "/pricing" ||
+    pathname === "/";
 
   return (
     <html lang="az" suppressHydrationWarning>

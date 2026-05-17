@@ -1,12 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { apiFetch } from "../../../lib/api-client";
+import { parsePaginatedList } from "../../../lib/paginated-list";
+import { notifyListRefresh, subscribeListRefresh } from "../../../lib/list-refresh-bus";
+import { useRequireAuth } from "../../../lib/use-require-auth";
+import { PageHeader } from "../../../components/layout/page-header";
+import { ListPaginationFooter } from "../../../components/list-pagination-footer";
+import { PhysicalAdjustmentModal } from "../../../components/inventory/modals/physical-adjustment-modal";
+import { EmptyState } from "../../../components/empty-state";
 import {
-  CARD_CONTAINER_CLASS,
+  DATA_TABLE_ACTIONS_TD_CLASS,
+  DATA_TABLE_ACTIONS_TH_CLASS,
   DATA_TABLE_CLASS,
   DATA_TABLE_HEAD_ROW_CLASS,
   DATA_TABLE_TD_CLASS,
@@ -15,333 +23,205 @@ import {
   DATA_TABLE_TH_RIGHT_CLASS,
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
-  INPUT_BORDERED_CLASS,
-  MODAL_INPUT_NUMERIC_CLASS,
+  LINK_ACCENT_CLASS,
   PRIMARY_BUTTON_CLASS,
   SECONDARY_BUTTON_CLASS,
-  TABLE_ROW_ICON_BTN_CLASS,
 } from "../../../lib/design-system";
-import { useRequireAuth } from "../../../lib/use-require-auth";
-import { PageHeader } from "../../../components/layout/page-header";
 
-type Warehouse = { id: string; name: string };
-type Product = { id: string; name: string; sku: string; isService?: boolean };
-type StockRow = {
-  quantity: unknown;
-  product: Product;
+type PhysicalRow = {
+  id: string;
+  date: string;
+  status: string;
+  docType: string;
+  warehouse?: { id: string; name: string } | null;
+  _count?: { lines: number };
 };
-
-type Line = { productId: string; actualQty: string };
-
-const DOC_TYPES = ["WRITE_OFF", "SURPLUS"] as const;
 
 export default function InventoryPhysicalPage() {
   const { t } = useTranslation();
   const { token, ready } = useRequireAuth();
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [stockRows, setStockRows] = useState<StockRow[]>([]);
-  const [warehouseId, setWarehouseId] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [docType, setDocType] = useState<(typeof DOC_TYPES)[number]>("WRITE_OFF");
-  const [reason, setReason] = useState("");
-  const [lines, setLines] = useState<Line[]>([{ productId: "", actualQty: "0" }]);
-  const [busy, setBusy] = useState(false);
-  const [draftId, setDraftId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [rows, setRows] = useState<PhysicalRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [postBusyId, setPostBusyId] = useState<string | null>(null);
 
-  const productGoods = useMemo(
-    () => products.filter((p) => !p.isService),
-    [products],
-  );
+  const load = useCallback(async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    const res = await apiFetch(`/api/inventory/physical-adjustments?${qs.toString()}`);
+    if (!res.ok) {
+      setError(`${t("inventory.loadErr")}: ${res.status}`);
+      setRows([]);
+      setTotal(0);
+    } else {
+      const parsed = parsePaginatedList<PhysicalRow>(await res.json());
+      setRows(parsed.items);
+      setTotal(parsed.total);
+    }
+    setLoading(false);
+  }, [token, t, page, pageSize]);
 
-  const bookByProduct = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const r of stockRows) {
-      m.set(r.product.id, Number(r.quantity));
-    }
-    return m;
-  }, [stockRows]);
-
-  const loadWarehousesProducts = useCallback(async () => {
-    if (!token) return;
-    const [w, p] = await Promise.all([
-      apiFetch("/api/inventory/warehouses"),
-      apiFetch("/api/products"),
-    ]);
-    if (w.ok) {
-      const list = (await w.json()) as Warehouse[];
-      setWarehouses(list);
-      setWarehouseId((prev) => (prev && list.some((x) => x.id === prev) ? prev : list[0]?.id ?? ""));
-    }
-    if (p.ok) {
-      setProducts((await p.json()) as Product[]);
-    }
-  }, [token]);
-
-  const loadStock = useCallback(async () => {
-    if (!token || !warehouseId) return;
-    const res = await apiFetch(
-      `/api/inventory/stock?warehouseId=${encodeURIComponent(warehouseId)}`,
-    );
-    if (res.ok) {
-      const rows = (await res.json()) as StockRow[];
-      setStockRows(rows);
-    }
-  }, [token, warehouseId]);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     if (!ready || !token) return;
-    void loadWarehousesProducts();
-  }, [loadWarehousesProducts, ready, token]);
+    void load();
+  }, [load, ready, token]);
 
   useEffect(() => {
-    if (!warehouseId) return;
-    void loadStock();
-  }, [loadStock, warehouseId]);
+    if (!ready || !token) return;
+    return subscribeListRefresh("inventory-physical", () => void load());
+  }, [load, ready, token]);
 
-  function addLine() {
-    const first = productGoods[0]?.id ?? "";
-    setLines((prev) => [...prev, { productId: first, actualQty: "0" }]);
-  }
-
-  function removeLine(i: number) {
-    setLines((prev) => prev.filter((_, j) => j !== i));
-  }
-
-  function updateLine(i: number, patch: Partial<Line>) {
-    setLines((prev) => prev.map((row, j) => (j === i ? { ...row, ...patch } : row)));
-  }
-
-  async function onSaveDraft(e: FormEvent) {
-    e.preventDefault();
-    setMessage(null);
-    if (!token || !warehouseId) {
-      alert(t("inventory.physicalNeedWh"));
-      return;
-    }
-    const payloadLines: { productId: string; actualQuantity: number; unitCost?: number }[] =
-      [];
-    for (const row of lines) {
-      const q = Number(row.actualQty);
-      if (!row.productId || !Number.isFinite(q) || q < 0) continue;
-      payloadLines.push({ productId: row.productId, actualQuantity: q });
-    }
-    if (payloadLines.length === 0) {
-      alert(t("inventory.physicalNeedLines"));
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await apiFetch("/api/inventory/physical-adjustments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          warehouseId,
-          date,
-          docType,
-          reason: reason.trim() || undefined,
-          lines: payloadLines,
-        }),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        setMessage(text.slice(0, 400));
-        return;
-      }
-      const created = (await res.json()) as { id: string };
-      setDraftId(created.id);
-      setMessage(t("inventory.physicalDraftOk"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onPost() {
-    if (!token || !draftId) return;
-    setBusy(true);
-    setMessage(null);
+  async function postDraft(id: string) {
+    if (!token) return;
+    setPostBusyId(id);
     try {
       const res = await apiFetch(
-        `/api/inventory/physical-adjustments/${encodeURIComponent(draftId)}/post`,
+        `/api/inventory/physical-adjustments/${encodeURIComponent(id)}/post`,
         { method: "POST" },
       );
       if (!res.ok) {
-        const text = await res.text();
-        setMessage(text.slice(0, 400));
+        toast.error(await res.text());
         return;
       }
-      setMessage(t("inventory.physicalPostedOk"));
-      setDraftId(null);
-      void loadStock();
+      toast.success(t("inventory.physicalPostedOk"));
+      void load();
     } finally {
-      setBusy(false);
+      setPostBusyId(null);
     }
   }
 
+  if (!ready) {
+    return (
+      <div className="text-gray-600">
+        <p>{t("common.loading")}</p>
+      </div>
+    );
+  }
+  if (!token) return null;
+
   return (
-    <div className="mx-auto max-w-5xl p-4 md:p-6">
+    <div className="w-full space-y-6">
       <PageHeader
         title={t("inventory.physicalTitle")}
-        subtitle={t("inventory.physicalHint")}
+        subtitle={
+          <span className="text-[#7F8C8D]">
+            {t("inventory.physicalHint")}{" "}
+            <Link href="/inventory/audits" className={LINK_ACCENT_CLASS}>
+              {t("inventory.physicalVsAuditLink")}
+            </Link>
+          </span>
+        }
         actions={
-          <Link href="/inventory" className={SECONDARY_BUTTON_CLASS}>
-            ← {t("inventory.backList")}
-          </Link>
+          <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={() => setModalOpen(true)}>
+            + {t("inventory.physicalNewBtn")}
+          </button>
         }
       />
 
-      <form onSubmit={onSaveDraft} className={`mt-6 ${CARD_CONTAINER_CLASS} p-4 md:p-5`}>
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="flex flex-col gap-1 text-[13px]">
-            <span className="font-medium text-[#34495E]">{t("inventory.whSelect")}</span>
-            <select
-              className={INPUT_BORDERED_CLASS}
-              value={warehouseId}
-              onChange={(e) => setWarehouseId(e.target.value)}
-              required
-            >
-              <option value="">{t("inventory.transferPickProduct")}</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-[13px]">
-            <span className="font-medium text-[#34495E]">{t("inventory.physicalDocDate")}</span>
-            <input
-              type="date"
-              className={INPUT_BORDERED_CLASS}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              required
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[13px]">
-            <span className="font-medium text-[#34495E]">{t("inventory.physicalDocType")}</span>
-            <select
-              className={INPUT_BORDERED_CLASS}
-              value={docType}
-              onChange={(e) => setDocType(e.target.value as (typeof DOC_TYPES)[number])}
-            >
-              {DOC_TYPES.map((d) => (
-                <option key={d} value={d}>
-                  {t(`inventory.physicalDocType_${d}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-[13px] md:col-span-2">
-            <span className="font-medium text-[#34495E]">{t("inventory.physicalReason")}</span>
-            <input
-              type="text"
-              className={INPUT_BORDERED_CLASS}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder={t("inventory.physicalReasonPh")}
-            />
-          </label>
-        </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {loading && <p className="text-gray-600">{t("common.loading")}</p>}
 
-        <div className="mt-6 flex items-center justify-between gap-2">
-          <span className="text-[13px] font-semibold text-[#34495E]">{t("inventory.physicalLines")}</span>
-          <button type="button" className={SECONDARY_BUTTON_CLASS} onClick={addLine}>
-            + {t("inventory.transferAddLine")}
-          </button>
-        </div>
-
-        <div className={DATA_TABLE_VIEWPORT_CLASS}>
-          <table className={`${DATA_TABLE_CLASS} w-full min-w-[640px] border-collapse`}>
-            <thead>
-              <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
-                <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("inventory.thProduct")}</th>
-                <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("inventory.physicalBookQty")}</th>
-                <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("inventory.physicalActualQty")}</th>
-                <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("inventory.physicalDelta")}</th>
-                <th className={`${DATA_TABLE_TH_RIGHT_CLASS} w-12 min-w-[3rem]`} />
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((row, i) => {
-                const book = bookByProduct.get(row.productId);
-                const bookN = book != null && Number.isFinite(book) ? book : null;
-                const act = Number(row.actualQty);
-                const delta =
-                  row.productId && Number.isFinite(act) && bookN != null ? act - bookN : null;
-                return (
-                  <tr key={i} className={DATA_TABLE_TR_CLASS}>
-                    <td className={DATA_TABLE_TD_CLASS}>
-                      <select
-                        className={`${INPUT_BORDERED_CLASS} w-full max-w-xs`}
-                        value={row.productId}
-                        onChange={(e) => updateLine(i, { productId: e.target.value })}
-                      >
-                        <option value="">{t("inventory.transferPickProduct")}</option>
-                        {productGoods.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.sku})
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className={DATA_TABLE_TD_RIGHT_CLASS}>
-                      {row.productId ? (bookN != null ? bookN : "0") : "—"}
-                    </td>
-                    <td className={`${DATA_TABLE_TD_RIGHT_CLASS} max-w-[9rem]`}>
-                      <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        className={`${MODAL_INPUT_NUMERIC_CLASS} w-full max-w-[8rem] ml-auto`}
-                        value={row.actualQty}
-                        onChange={(e) => updateLine(i, { actualQty: e.target.value })}
-                      />
-                    </td>
-                    <td className={`${DATA_TABLE_TD_RIGHT_CLASS} font-semibold`}>
-                      {delta != null && Number.isFinite(delta) ? delta : "—"}
-                    </td>
-                    <td className={`${DATA_TABLE_TD_CLASS} w-12 min-w-[3rem]`}>
-                      {lines.length > 1 ? (
-                        <div className="flex justify-end">
+      {!loading && (
+        <>
+          <div className={DATA_TABLE_VIEWPORT_CLASS}>
+            <table className={`${DATA_TABLE_CLASS} min-w-full`}>
+              <thead>
+                <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
+                  <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("inventory.physicalRegistryDate")}</th>
+                  <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("inventory.thWh")}</th>
+                  <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("inventory.physicalRegistryType")}</th>
+                  <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("inventory.physicalRegistryStatus")}</th>
+                  <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("inventory.physicalRegistryLines")}</th>
+                  <th className={DATA_TABLE_ACTIONS_TH_CLASS}>{t("inventory.physicalRegistryActions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr className={DATA_TABLE_TR_CLASS}>
+                    <td colSpan={6} className={`${DATA_TABLE_TD_CLASS} py-12 text-center`}>
+                      <EmptyState
+                        title={t("inventory.physicalTitle")}
+                        description={t("inventory.physicalHint")}
+                        action={
                           <button
                             type="button"
-                            className={TABLE_ROW_ICON_BTN_CLASS}
-                            title={t("employees.remove")}
-                            onClick={() => removeLine(i)}
+                            className={PRIMARY_BUTTON_CLASS}
+                            onClick={() => setModalOpen(true)}
                           >
-                            <Trash2 className="h-4 w-4 text-[#E74C3C]" aria-hidden />
+                            + {t("inventory.physicalNewBtn")}
                           </button>
-                        </div>
-                      ) : null}
+                        }
+                      />
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  rows.map((r) => (
+                    <tr key={r.id} className={DATA_TABLE_TR_CLASS}>
+                      <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>
+                        {typeof r.date === "string" ? r.date.slice(0, 10) : "—"}
+                      </td>
+                      <td className={DATA_TABLE_TD_CLASS}>{r.warehouse?.name ?? "—"}</td>
+                      <td className={DATA_TABLE_TD_CLASS}>
+                        {t(`inventory.physicalDocType_${r.docType}`, { defaultValue: r.docType })}
+                      </td>
+                      <td className={DATA_TABLE_TD_CLASS}>
+                        {r.status === "POSTED"
+                          ? t("inventory.physicalStatusPosted")
+                          : t("inventory.physicalStatusDraft")}
+                      </td>
+                      <td className={DATA_TABLE_TD_RIGHT_CLASS}>{r._count?.lines ?? "—"}</td>
+                      <td className={DATA_TABLE_ACTIONS_TD_CLASS}>
+                        {r.status === "DRAFT" ? (
+                          <button
+                            type="button"
+                            className={SECONDARY_BUTTON_CLASS}
+                            disabled={postBusyId === r.id}
+                            onClick={() => void postDraft(r.id)}
+                          >
+                            {postBusyId === r.id ? "…" : t("inventory.physicalPost")}
+                          </button>
+                        ) : (
+                          <span className="text-[#7F8C8D]">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <ListPaginationFooter
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        </>
+      )}
 
-        <p className="mt-3 text-xs text-slate-500">{t("inventory.physicalDeltaNote")}</p>
-
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <button type="submit" className={PRIMARY_BUTTON_CLASS} disabled={busy}>
-            {busy ? "…" : t("inventory.physicalSaveDraft")}
-          </button>
-          {draftId ? (
-            <button type="button" className={PRIMARY_BUTTON_CLASS} disabled={busy} onClick={onPost}>
-              {busy ? "…" : t("inventory.physicalPost")}
-            </button>
-          ) : null}
-        </div>
-      </form>
-
-      {message ? (
-        <pre className="mt-4 whitespace-pre-wrap rounded border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-          {message}
-        </pre>
-      ) : null}
+      <PhysicalAdjustmentModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSaved={() => {
+          notifyListRefresh("inventory-physical");
+          void load();
+        }}
+      />
     </div>
   );
 }

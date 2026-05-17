@@ -8,8 +8,10 @@ import {
   subscribeListRefresh,
 } from "../../../lib/list-refresh-bus";
 import { InventoryAuditCreateFlow } from "../../../components/inventory/inventory-audit-create-flow";
+import { ListPaginationFooter } from "../../../components/list-pagination-footer";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../../lib/api-client";
+import { parsePaginatedList } from "../../../lib/paginated-list";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { ClipboardList, Eye, X } from "lucide-react";
 import { PageHeader } from "../../../components/layout/page-header";
@@ -31,7 +33,6 @@ import {
   DATA_TABLE_TR_CLASS,
   DATA_TABLE_VIEWPORT_CLASS,
   PRIMARY_BUTTON_CLASS,
-  SECONDARY_BUTTON_CLASS,
   TABLE_ROW_ICON_BTN_CLASS,
 } from "../../../lib/design-system";
 
@@ -48,6 +49,9 @@ export default function InventoryAuditsHistoryPage() {
   const router = useRouter();
   const { token, ready } = useRequireAuth();
   const [rows, setRows] = useState<AuditRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [auditCreateOpen, setAuditCreateOpen] = useState(false);
@@ -60,15 +64,24 @@ export default function InventoryAuditsHistoryPage() {
     }
     setLoading(true);
     setError(null);
-    const res = await apiFetch("/api/inventory/audits");
+    const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    const res = await apiFetch(`/api/inventory/audits?${qs.toString()}`);
     if (!res.ok) {
       setError(`${t("inventory.loadErr")}: ${res.status}`);
       setRows([]);
+      setTotal(0);
     } else {
-      setRows((await res.json()) as AuditRow[]);
+      const parsed = parsePaginatedList<AuditRow>(await res.json());
+      setRows(parsed.items);
+      setTotal(parsed.total);
     }
     setLoading(false);
-  }, [token, t]);
+  }, [token, t, page, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -100,103 +113,114 @@ export default function InventoryAuditsHistoryPage() {
   if (!token) return null;
 
   return (
-    <div className="space-y-8 max-w-5xl">
+    <div className="w-full space-y-6">
       <PageHeader
         title={t("inventory.auditHistoryTitle")}
         subtitle={t("inventory.auditHistoryLead")}
         actions={
-          <>
-            <button
-              type="button"
-              onClick={() => openAuditCreate()}
-              className={SECONDARY_BUTTON_CLASS}
-            >
-              {t("inventory.auditNav")}
-            </button>
-            <Link href="/inventory" className={SECONDARY_BUTTON_CLASS}>
-              {t("inventory.auditBack")}
-            </Link>
-          </>
+          <button type="button" onClick={() => openAuditCreate()} className={PRIMARY_BUTTON_CLASS}>
+            + {t("inventory.auditNewInventoryBtn")}
+          </button>
         }
       />
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
       {loading && <p className="text-gray-600">{t("common.loading")}</p>}
 
-      {!loading && rows.length === 0 && !error && (
-        <EmptyState
-          icon={
-            <ClipboardList className="h-12 w-12 mx-auto stroke-[1.5] text-[#7F8C8D]" aria-hidden />
-          }
-          title={t("inventory.auditHistoryEmpty")}
-          description={t("inventory.auditHistoryEmptyHint")}
-          action={
-            <button type="button" onClick={() => openAuditCreate()} className={PRIMARY_BUTTON_CLASS}>
-              {t("inventory.auditNewInventoryBtn")}
-            </button>
-          }
-        />
-      )}
-
-      {!loading && rows.length > 0 && (
-        <div className={DATA_TABLE_VIEWPORT_CLASS}>
-          <table className={`${DATA_TABLE_CLASS} min-w-full`}>
-            <thead>
-              <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
-                <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("inventory.auditThDateDoc")}</th>
-                <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("inventory.thWh")}</th>
-                <th className={DATA_TABLE_TH_CENTER_CLASS}>{t("inventory.auditThStatus")}</th>
-                <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("inventory.auditThCreated")}</th>
-                <th className={DATA_TABLE_ACTIONS_TH_CLASS}>{t("inventory.auditThOpen")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className={DATA_TABLE_TR_CLASS}>
-                  <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>
-                    {typeof r.date === "string" ? r.date.slice(0, 10) : "—"}
-                  </td>
-                  <td className={`${DATA_TABLE_TD_CLASS} whitespace-nowrap`}>
-                    {r.warehouse?.name ?? "—"}
-                  </td>
-                  <td className={`${DATA_TABLE_TD_CENTER_CLASS} whitespace-nowrap`}>
-                    {r.status === "COMPLETED"
-                      ? t("inventory.auditStatusCompleted")
-                      : r.status === "DRAFT"
-                        ? t("inventory.auditStatusDraft")
-                        : r.status === "COUNTING"
-                          ? t("inventory.auditStatusCounting")
-                          : r.status === "REVIEW"
-                            ? t("inventory.auditStatusReview")
-                            : r.status === "CANCELLED"
-                              ? t("inventory.auditStatusCancelled")
-                              : r.status}
-                  </td>
-                  <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>
-                    {r.createdAt?.slice(0, 19)?.replace("T", " ") ?? "—"}
-                  </td>
-                  <td className={DATA_TABLE_ACTIONS_TD_CLASS}>
-                    <div className="flex items-center justify-end gap-1">
-                      <Link
-                        href={`/inventory/audits/${r.id}`}
-                        className={TABLE_ROW_ICON_BTN_CLASS}
-                        title={t("inventory.auditOpen")}
-                      >
-                        <Eye className="h-4 w-4 text-[#2980B9]" aria-hidden />
-                      </Link>
-                    </div>
-                  </td>
+      {!loading && (
+        <>
+          <div className={DATA_TABLE_VIEWPORT_CLASS}>
+            <table className={`${DATA_TABLE_CLASS} min-w-full`}>
+              <thead>
+                <tr className={DATA_TABLE_HEAD_ROW_CLASS}>
+                  <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("inventory.auditThDateDoc")}</th>
+                  <th className={DATA_TABLE_TH_LEFT_CLASS}>{t("inventory.thWh")}</th>
+                  <th className={DATA_TABLE_TH_CENTER_CLASS}>{t("inventory.auditThStatus")}</th>
+                  <th className={DATA_TABLE_TH_RIGHT_CLASS}>{t("inventory.auditThCreated")}</th>
+                  <th className={DATA_TABLE_ACTIONS_TH_CLASS}>{t("inventory.auditThOpen")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr className={DATA_TABLE_TR_CLASS}>
+                    <td colSpan={5} className={`${DATA_TABLE_TD_CLASS} py-12 text-center`}>
+                      <EmptyState
+                        icon={
+                          <ClipboardList
+                            className="mx-auto h-12 w-12 stroke-[1.5] text-[#7F8C8D]"
+                            aria-hidden
+                          />
+                        }
+                        title={t("inventory.auditHistoryEmpty")}
+                        description={t("inventory.auditHistoryEmptyHint")}
+                        action={
+                          <button
+                            type="button"
+                            onClick={() => openAuditCreate()}
+                            className={PRIMARY_BUTTON_CLASS}
+                          >
+                            {t("inventory.auditNewInventoryBtn")}
+                          </button>
+                        }
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((r) => (
+                    <tr key={r.id} className={DATA_TABLE_TR_CLASS}>
+                      <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>
+                        {typeof r.date === "string" ? r.date.slice(0, 10) : "—"}
+                      </td>
+                      <td className={`${DATA_TABLE_TD_CLASS} whitespace-nowrap`}>
+                        {r.warehouse?.name ?? "—"}
+                      </td>
+                      <td className={`${DATA_TABLE_TD_CENTER_CLASS} whitespace-nowrap`}>
+                        {r.status === "COMPLETED"
+                          ? t("inventory.auditStatusCompleted")
+                          : r.status === "DRAFT"
+                            ? t("inventory.auditStatusDraft")
+                            : r.status === "COUNTING"
+                              ? t("inventory.auditStatusCounting")
+                              : r.status === "REVIEW"
+                                ? t("inventory.auditStatusReview")
+                                : r.status === "CANCELLED"
+                                  ? t("inventory.auditStatusCancelled")
+                                  : r.status}
+                      </td>
+                      <td className={`${DATA_TABLE_TD_RIGHT_CLASS} whitespace-nowrap`}>
+                        {r.createdAt?.slice(0, 19)?.replace("T", " ") ?? "—"}
+                      </td>
+                      <td className={DATA_TABLE_ACTIONS_TD_CLASS}>
+                        <div className="flex items-center justify-end gap-1">
+                          <Link
+                            href={`/inventory/audits/${r.id}`}
+                            className={TABLE_ROW_ICON_BTN_CLASS}
+                            title={t("inventory.auditOpen")}
+                          >
+                            <Eye className="h-4 w-4 text-[#2980B9]" aria-hidden />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <ListPaginationFooter
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        </>
       )}
 
       {auditCreateOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div
-            className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-5xl`}
+            className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-lg`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="inventory-audit-create-modal-title"
@@ -221,11 +245,13 @@ export default function InventoryAuditsHistoryPage() {
             <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
               <InventoryAuditCreateFlow
                 key={auditFlowKey}
-                onNavigateToHistory={() => closeAuditCreate()}
-                onBackToInventory={() => {
-                  setAuditCreateOpen(false);
-                  router.push("/inventory");
+                compactForModal
+                onAuditStarted={(auditId) => {
+                  closeAuditCreate();
+                  router.push(`/inventory/audits/${auditId}`);
                 }}
+                onNavigateToHistory={() => closeAuditCreate()}
+                onBackToInventory={() => closeAuditCreate()}
               />
             </div>
           </div>

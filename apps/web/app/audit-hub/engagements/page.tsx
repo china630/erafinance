@@ -135,7 +135,7 @@ export default function AuditHubEngagementsPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-[#D5DADF] bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-[#34495E]">{t("auditHub.engagementsListTitle")}</h2>
         {err ? <p className="mt-2 text-xs text-red-600">{err}</p> : null}
         {list.length === 0 ? (
@@ -144,10 +144,10 @@ export default function AuditHubEngagementsPage() {
           <ul className="mt-2 space-y-2 text-xs">
             {list.map((row) => (
               <li key={row.id} className="rounded border border-[#F3F4F6] px-3 py-2">
-                <div className="font-medium text-[#2C3E50]">
+                <div className="font-medium text-[#34495E]">
                   <Link
                     href={`/audit-hub/engagements/${encodeURIComponent(row.id)}`}
-                    className="text-[#3498DB] hover:underline"
+                    className="text-[#2980B9] hover:underline"
                   >
                     {row.title}
                   </Link>
@@ -161,7 +161,7 @@ export default function AuditHubEngagementsPage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-[#D5DADF] bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-[#34495E]">{t("auditHub.engagementsCreateTitle")}</h2>
         <div className="mt-2 space-y-2">
           <input
@@ -196,7 +196,7 @@ export default function AuditHubEngagementsPage() {
       </section>
 
       {canAdminInvites ? (
-        <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <section className="rounded-xl border border-[#D5DADF] bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-[#34495E]">{t("auditHub.engagementsInvitesTitle")}</h2>
           <p className="mt-1 text-xs text-[#7F8C8D]">{t("auditHub.engagementsInvitesHint")}</p>
           {lastToken ? (

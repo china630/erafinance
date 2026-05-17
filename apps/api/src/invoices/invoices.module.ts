@@ -1,4 +1,5 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
+import { ComplianceModule } from "../compliance/compliance.module";
 import { AccountingModule } from "../accounting/accounting.module";
 import { InventoryModule } from "../inventory/inventory.module";
 import { IntegrationsModule } from "../integrations/integrations.module";
@@ -18,6 +19,7 @@ import { PublicInvoiceController } from "./public-invoice.controller";
     IntegrationsModule,
     KassaModule,
     SignatureModule,
+    forwardRef(() => ComplianceModule),
   ],
   controllers: [
     InvoicesController,

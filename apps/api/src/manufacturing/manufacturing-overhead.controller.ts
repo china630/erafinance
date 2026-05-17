@@ -24,6 +24,7 @@ import { ModuleEntitlement } from "../subscription/subscription.constants";
 import { CreateOverheadDriverDto } from "./dto/create-overhead-driver.dto";
 import { CreateOverheadPoolDto } from "./dto/create-overhead-pool.dto";
 import { UpdateOverheadDriverDto } from "./dto/update-overhead-driver.dto";
+import { AllocateOverheadBatchDto } from "./dto/allocate-overhead-batch.dto";
 import { ManufacturingOverheadService } from "./manufacturing-overhead.service";
 
 @ApiTags("manufacturing-overhead")
@@ -33,6 +34,32 @@ import { ManufacturingOverheadService } from "./manufacturing-overhead.service";
 @RequiresModule(ModuleEntitlement.MANUFACTURING)
 export class ManufacturingOverheadController {
   constructor(private readonly overhead: ManufacturingOverheadService) {}
+
+  @Get("period-summary")
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({
+    summary:
+      "Period summary: releases, allocations, suggested overhead from account 741 debits",
+  })
+  periodSummary(
+    @OrganizationId() organizationId: string,
+    @Query("period") period: string,
+  ) {
+    return this.overhead.getPeriodSummary(organizationId, period);
+  }
+
+  @Post("allocate-batch")
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)
+  @ApiOperation({
+    summary:
+      "Create/update pool for period and allocate to selected releases (QUANTITY or MATERIAL_COST)",
+  })
+  allocateBatch(
+    @OrganizationId() organizationId: string,
+    @Body() dto: AllocateOverheadBatchDto,
+  ) {
+    return this.overhead.allocateBatch(organizationId, dto);
+  }
 
   @Get("drivers")
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT)

@@ -1,10 +1,12 @@
-import { Controller, Get, Query } from "@nestjs/common";
+import { Controller, Get, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { VoenIntegrityGuard } from "../auth/guards/voen-integrity.guard";
 import { OrganizationId } from "../common/org-id.decorator";
 import { TaxService } from "./tax.service";
 
 @ApiTags("tax")
 @ApiBearerAuth("bearer")
+@UseGuards(VoenIntegrityGuard)
 @Controller("tax")
 export class TaxController {
   constructor(private readonly tax: TaxService) {}
