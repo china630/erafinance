@@ -21,6 +21,167 @@
 - На сервере открыт только нужный внешний порт (обычно 80/443); Postgres/Redis наружу не публикуем.
 - После **каждого** деплоя с новым кодом фронта: не забыть шаг **синхронизации переводов в БД** (§7.3) — иначе **`GET /api/public/translations`** и кэш i18n могут расходиться с бандлом **`resources.ts`** (на клиенте язык UI — только **ru** / **az**, при неопределённом коде — **az**; см. PRD §7.6.1, TZ §17).
 - Если **прод** — **greenfield со сносом БД** (пустая база / новый том, данных переносить не нужно), используйте **п. 7.0.1 (A)** — без baseline/`migrate resolve`; далее миграции + i18n + `db:prod-init` как обычно.
+- **Переезд на DigitalOcean с пустой БД** (без восстановления дампа со старого сервера): начните с **п. 0.1**, затем разделы 1–9.
+
+---
+
+## 0.1. Переезд на DigitalOcean (greenfield — БД с нуля)
+
+Этот раздел — для сценария, когда вы **намеренно не переносите** бизнес-данные со старого хоста: новый инстанс Postgres (или новый Docker-том) и **пустая** база с именем **`erafinance`** (как в `env.production.example`, `.env.example` и дефолтах `docker-compose.prod.yml`). Данные со старого сервера с другим именем БД или старой историей миграций в новый инстанс **не заливаем**.
+
+**Не восстанавливайте** старый `pg_dump` в новую базу, если не идёте по п. **7.0.1 (C)** (сохранение данных + baseline). Дамп со старой схемой/историей миграций конфликтует с единственной squashed-миграцией `20260520120000_squashed_schema`.
+
+### 0.1.1. Целевая архитектура на DigitalOcean
+
+| Компонент | Рекомендация (MVP) | Усиление (позже) |
+|-----------|-------------------|------------------|
+| Регион | **FRA1** или **AMS3** (EU; TZ §1.4, §1.6) | Тот же |
+| API + Web + воркеры BullMQ | **Droplet** Ubuntu 24.04, Docker Compose (`docker-compose.prod.yml`) | Отдельный worker-droplet при росте нагрузки |
+| PostgreSQL 16 | Контейнер `db`, том `pgdata` | **Managed Database for PostgreSQL** (приватный hostname в VPC) |
+| Redis 7 | Контейнер `redis` | **Managed Redis** (`noeviction`, только VPC) |
+| Файлы | `STORAGE_DRIVER=local` | **Spaces** (S3-совместимое; п. 0.1.6) |
+| HTTPS | **Caddy** или Nginx на дроплете → `127.0.0.1:3000` | По желанию **Cloudflare** спереди |
+| DNS | **A** на публичный IPv4 дроплета (или Floating IP) | То же |
+
+Сеть (TZ §1.6): Postgres и Redis **не** публикуются в интернет. На дроплете не открывайте **5432** / **6379** наружу (не задавайте `POSTGRES_PUBLISH_PORT` / `REDIS_PUBLISH_PORT` без файрвола; используйте **Cloud Firewall** DO + `ufw`).
+
+### 0.1.2. Имя БД и учётная запись: `erafinance`
+
+Стандарт для prod и локальной разработки (шаблоны в репозитории):
+
+```bash
+POSTGRES_USER=erafinance
+POSTGRES_DB=erafinance
+```
+
+`DATABASE_URL` в `.env` на дроплете должен совпадать с этими значениями (Compose собирает URL для `api` из `POSTGRES_*` автоматически).
+
+Если на дроплете уже есть **старый том** Postgres, созданный с **другим** `POSTGRES_DB`, внутри тома останется прежняя база — смена только переменных в `.env` **не переименует** данные. Для greenfield: **`docker compose … down -v`** (удаление тома `pgdata`) или новый пустой Managed DB с именем **`erafinance`**.
+
+### 0.1.3. Чеклист перед переездом (со старого хоста)
+
+| Шаг | Действие |
+|-----|----------|
+| 1 | Согласовать **окно обслуживания** (maintenance, п. 7.0). |
+| 2 | Сохранить **секреты**, которые нужны на новом месте: SMTP, Spaces/S3, ключи интеграций; JWT — лучше **новые** на greenfield. |
+| 3 | Зафиксировать **публичный URL** для `CORS_ORIGINS` и DNS. |
+| 4 | На коммите релиза: `npm run build` (`i18n:audit`). При правках `resources.ts`: `npm run i18n:catalog` + коммит `i18n-default-catalog-data.json`. |
+| 5 | По желанию: финальный бэкап на старом хосте (`scripts/backup-db.sh`) **только в архив**, не для заливки в новую пустую БД. |
+
+### 0.1.4. Создание ресурсов в DigitalOcean
+
+1. **Project** (по желанию): дроплет, БД, bucket.
+2. **VPC** в **FRA1** или **AMS3**.
+3. **Droplet**: Ubuntu **24.04**, для пилота часто хватает **2 vCPU / 4 GB**, SSH-ключ, мониторинг.
+4. **Cloud Firewall**: вход **22** (с вашего IP), **80**, **443**; **запрет** **5432**, **6379**, **4000** с `0.0.0.0/0`.
+5. **Floating IP** (опционально) — до переключения DNS.
+6. **DNS**: TTL **300** за сутки до cutover; **A** на IP дроплета.
+7. **Spaces** (если S3): bucket рядом с регионом; access keys; endpoint вида `https://fra1.digitaloceanspaces.com`.
+
+Managed Postgres/Redis вместо контейнеров — тот же VPC, trusted source = дроплет. Подключение внешнего `DATABASE_URL` потребует override Compose (в стандартном `docker-compose.prod.yml` БД — сервис `db`). Ниже — путь MVP с контейнером `db`.
+
+### 0.1.5. Порядок команд на новом дроплете (greenfield)
+
+Подставьте: `YOUR_GIT_URL`, `your-domain.tld`, секреты.
+
+```bash
+# --- 1) ОС + Docker (см. раздел 2) ---
+ssh root@IP_ДРОПЛЕТА
+# ... установка Docker по разделу 2 ...
+
+# --- 2) Каталог приложения ---
+sudo mkdir -p /opt/erafinance_erp
+sudo chown "$USER":"$USER" /opt/erafinance_erp
+cd /opt/erafinance_erp
+git clone YOUR_GIT_URL .
+git checkout main   # или тег релиза
+
+# --- 3) Production .env ---
+cp env.production.example .env
+nano .env
+```
+
+**Минимум в `.env`:**
+
+| Переменная | Примечание |
+|------------|------------|
+| `COMPOSE_PROJECT_NAME` | `erafinance_prod` |
+| `POSTGRES_USER` | `erafinance` |
+| `POSTGRES_DB` | `erafinance` |
+| `POSTGRES_PASSWORD` | надёжный пароль |
+| `REDIS_URL` | `redis://redis:6379` |
+| `JWT_SECRET`, `JWT_REFRESH_SECRET` | новые длинные значения |
+| `CORS_ORIGINS` | `https://your-domain.tld` |
+| `NEXT_PUBLIC_API_URL` | `http://api:4000` (внутри Compose) |
+| `STORAGE_DRIVER` | `s3` + Spaces или `local` |
+
+```bash
+# --- 4) Каталог файлов (если local storage) ---
+sudo mkdir -p /var/lib/erafinance/storage
+sudo chown 1001:1001 /var/lib/erafinance/storage
+
+# --- 5) Maintenance + пустой том Postgres ---
+# В .env: MAINTENANCE_MODE=1
+docker compose -f docker-compose.prod.yml up -d --build
+
+# Первый запуск ИЛИ смена имени БД — пустой том:
+# ВНИМАНИЕ: удаляет все данные в томе pgdata
+docker compose -f docker-compose.prod.yml down
+docker volume rm erafinance_prod_pgdata 2>/dev/null || docker volume ls | grep pgdata
+
+docker compose -f docker-compose.prod.yml up -d db redis
+docker compose -f docker-compose.prod.yml up -d --build
+
+# --- 6) Схема + платформа (п. 7.0.1 A) ---
+docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
+docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune
+docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
+
+# --- 7) HTTPS (раздел 8) ---
+# --- 8) Проверки (раздел 9) ---
+# Убрать MAINTENANCE_MODE из .env:
+docker compose -f docker-compose.prod.yml up -d web
+```
+
+Платформенные пользователи создаются через `db:seed` / `db:prod-init` по правилам репозитория. Отдельный хеш super-admin: `npm run docker-init:super-admin-hash` из корня (с корректным `DATABASE_URL`).
+
+### 0.1.6. DigitalOcean Spaces (хранилище файлов)
+
+В `.env` для `api`:
+
+```bash
+STORAGE_DRIVER=s3
+S3_ENDPOINT=https://fra1.digitaloceanspaces.com
+S3_REGION=fra1
+S3_BUCKET=имя-bucket
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+```
+
+Пересборка образа **не** нужна — после правки `.env`:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d api
+```
+
+### 0.1.7. Обновления после запуска
+
+| Тип изменения | Команда |
+|---------------|---------|
+| Только код/образы | `bash scripts/deploy-prod-code.sh` |
+| Новые миграции Prisma | `bash scripts/deploy-prod-db-migrate.sh` (с бэкапом) |
+| Только i18n | `docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune` |
+
+Настройте cron для `scripts/backup-db.sh`, копии храните вне дроплета. См. `DR_RUNBOOK.md`.
+
+### 0.1.8. Связанные документы
+
+| Документ | Назначение |
+|----------|------------|
+| `PRE-RELEASE-CHECKLIST.md` | Сборка, i18n, smoke перед релизом |
+| `DR_RUNBOOK.md` | Бэкапы и восстановление |
+| `../launch/STAGE_B_INFRASTRUCTURE.md` | Инфра, шаги 34–65 |
+| `TZ.md` §1.4–1.7, §1.6 | VPC, Redis, регион |
 
 ---
 

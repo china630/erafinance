@@ -38,20 +38,26 @@ export class BillingGlobalTierLegacyPricesDto {
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
-  @Min(0.01)
-  STARTER!: number;
+  @Min(0)
+  TIER_0!: number;
 
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
   @Min(0.01)
-  BUSINESS!: number;
+  TIER_1!: number;
 
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
   @Min(0.01)
-  ENTERPRISE!: number;
+  TIER_2!: number;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  TIER_3!: number;
 }
 
 export class PatchBillingGlobalLimitsDto {

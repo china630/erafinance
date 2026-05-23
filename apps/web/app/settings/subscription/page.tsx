@@ -53,24 +53,45 @@ type PlatformInvoiceRow = {
   createdAt: string;
 };
 
-type BillingCatalogModule = {
+type MarketplaceBundle = {
   id: string;
+  name: string;
+  discountPercent: number;
+  moduleKeys: string[];
+  listPriceAzn: number;
+  discountedPriceAzn: number;
+  active: boolean;
+  pendingDeactivation: boolean;
+  incrementalPriceAzn: number;
+};
+
+type MarketplaceModule = {
   key: string;
   name: string;
   pricePerMonth: number;
-  sortOrder: number;
+  active: boolean;
+  coveredByBundle: boolean;
+  coveredByBundleName: string | null;
+  pendingDeactivation: boolean;
+  billableStandalone: boolean;
 };
 
-type BillingCatalog = {
+type MarketplacePremium = {
+  key: string;
+  monthlyAzn: number;
+  activated: boolean;
+  trialLocked: boolean;
+};
+
+type MarketplaceSnapshot = {
   currency: string;
   foundationMonthlyAzn: number;
-  modules: BillingCatalogModule[];
-};
-
-type ModuleStateRow = {
-  moduleKey: string;
-  activatedAt: string;
-  pendingDeactivation: boolean;
+  bundles: MarketplaceBundle[];
+  modules: MarketplaceModule[];
+  premiumModules: MarketplacePremium[];
+  allocation: { totalModulesAzn: number };
+  monthlyTotalAzn: number;
+  isTrial: boolean;
 };
 
 function isModuleActiveInSubscription(
@@ -86,10 +107,8 @@ function isModuleActiveInSubscription(
 function moduleIcon(key: string) {
   const common = "h-5 w-5 shrink-0 text-[#2980B9]";
   switch (key) {
-    case "kassa_pro":
+    case "cash_bank_pro":
       return <Wallet className={common} aria-hidden />;
-    case "banking_pro":
-      return <Landmark className={common} aria-hidden />;
     case "inventory":
       return <Package className={common} aria-hidden />;
     case "manufacturing":
@@ -168,9 +187,13 @@ export default function SubscriptionSettingsPage() {
     fetchError,
     refetch,
   } = useSubscription();
-  const [catalog, setCatalog] = useState<BillingCatalog | null>(null);
-  const [catalogErr, setCatalogErr] = useState<string | null>(null);
+  const [marketplace, setMarketplace] = useState<MarketplaceSnapshot | null>(
+    null,
+  );
+  const [marketplaceErr, setMarketplaceErr] = useState<string | null>(null);
   const [moduleBusyKey, setModuleBusyKey] = useState<string | null>(null);
+  const [bundleBusyId, setBundleBusyId] = useState<string | null>(null);
+  const [premiumBusy, setPremiumBusy] = useState(false);
   const [payBusy, setPayBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -183,14 +206,23 @@ export default function SubscriptionSettingsPage() {
   const [consentModal, setConsentModal] = useState<
     | null
     | {
+        kind: "module";
         mode: "enable" | "disable";
         moduleKey: string;
         monthlyAzn: string;
       }
+    | {
+        kind: "bundle";
+        mode: "enable" | "disable";
+        bundleId: string;
+        bundleName: string;
+        monthlyAzn: string;
+      }
   >(null);
-  const [moduleStates, setModuleStates] = useState<Record<string, ModuleStateRow>>(
-    {},
-  );
+  const [premiumModalOpen, setPremiumModalOpen] = useState(false);
+  const [premiumSelection, setPremiumSelection] = useState<string[]>([]);
+  const [premiumConfirmCommercial, setPremiumConfirmCommercial] =
+    useState(false);
 
   const locale = intlLocaleRuAz(i18n.language);
 
@@ -231,45 +263,24 @@ export default function SubscriptionSettingsPage() {
     };
   }, [token, user?.role]);
 
-  useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
-    void (async () => {
-      setCatalogErr(null);
-      const res = await apiFetch("/api/billing/catalog");
-      if (cancelled) return;
-      if (!res.ok) {
-        setCatalogErr(await res.text());
-        setCatalog(null);
-        return;
-      }
-      setCatalog((await res.json()) as BillingCatalog);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
-
-  useEffect(() => {
+  const loadMarketplace = useCallback(async () => {
     if (!token || !canAccessBilling(user?.role ?? undefined)) {
-      setModuleStates({});
+      setMarketplace(null);
       return;
     }
-    let cancelled = false;
-    void (async () => {
-      const res = await apiFetch("/api/billing/module-states");
-      if (cancelled || !res.ok) return;
-      const data = (await res.json()) as { items?: ModuleStateRow[] };
-      const next: Record<string, ModuleStateRow> = {};
-      for (const row of data.items ?? []) {
-        next[row.moduleKey] = row;
-      }
-      setModuleStates(next);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [token, user?.role, organizationId]);
+    setMarketplaceErr(null);
+    const res = await apiFetch("/api/billing/marketplace");
+    if (!res.ok) {
+      setMarketplaceErr(await res.text());
+      setMarketplace(null);
+      return;
+    }
+    setMarketplace((await res.json()) as MarketplaceSnapshot);
+  }, [token, user?.role]);
+
+  useEffect(() => {
+    void loadMarketplace();
+  }, [loadMarketplace, organizationId]);
 
   const expiresLabel = useMemo(() => {
     if (!effectiveSnapshot?.expiresAt)
@@ -286,89 +297,154 @@ export default function SubscriptionSettingsPage() {
   }, [effectiveSnapshot?.expiresAt, locale, t]);
 
   const activeModules = effectiveSnapshot?.activeModules ?? [];
-  const isEnterprise = effectiveSnapshot?.tier === "ENTERPRISE";
+  const isTIER_3 = effectiveSnapshot?.tier === "TIER_3";
   const readOnlySub = Boolean(effectiveSnapshot?.readOnly);
 
   const monthlyTotalAzn = useMemo(() => {
-    if (!catalog || !effectiveSnapshot) return null;
-    let sum = catalog.foundationMonthlyAzn;
-    if (isEnterprise) {
-      for (const m of catalog.modules) {
-        sum += m.pricePerMonth;
-      }
-      return sum;
-    }
-    for (const m of catalog.modules) {
-      if (isModuleActiveInSubscription(activeModules, m.key)) {
-        sum += m.pricePerMonth;
-      }
-    }
-    return sum;
-  }, [catalog, effectiveSnapshot, activeModules, isEnterprise]);
+    if (marketplace) return marketplace.monthlyTotalAzn;
+    return null;
+  }, [marketplace]);
 
   const isModuleOn = useCallback(
-    (key: string) => {
-      if (isEnterprise) return true;
-      return isModuleActiveInSubscription(activeModules, key);
+    (mod: MarketplaceModule) => {
+      if (isTIER_3) return true;
+      return mod.active;
     },
-    [isEnterprise, activeModules],
+    [isTIER_3],
   );
 
-  const onToggleModule = async (moduleKey: string, next: boolean) => {
-    if (!token || isEnterprise || readOnlySub) return;
+  const onToggleModule = (mod: MarketplaceModule, next: boolean) => {
+    if (!token || isTIER_3 || readOnlySub) return;
+    if (mod.coveredByBundle && next) {
+      toast.message(
+        t("subscriptionSettings.moduleInBundleHint", {
+          bundle: mod.coveredByBundleName ?? "",
+        }),
+      );
+      return;
+    }
     setErr(null);
     setMsg(null);
-    const mod = catalog?.modules.find((m) => m.key === moduleKey);
     setConsentModal({
+      kind: "module",
       mode: next ? "enable" : "disable",
-      moduleKey,
-      monthlyAzn: mod ? mod.pricePerMonth.toFixed(2) : "0.00",
+      moduleKey: mod.key,
+      monthlyAzn: mod.pricePerMonth.toFixed(2),
     });
   };
 
-  const confirmToggleModule = async () => {
+  const onToggleBundle = (b: MarketplaceBundle, next: boolean) => {
+    if (!token || isTIER_3 || readOnlySub) return;
+    setErr(null);
+    setMsg(null);
+    const monthly =
+      next && b.incrementalPriceAzn > 0
+        ? b.incrementalPriceAzn
+        : b.discountedPriceAzn;
+    setConsentModal({
+      kind: "bundle",
+      mode: next ? "enable" : "disable",
+      bundleId: b.id,
+      bundleName: b.name,
+      monthlyAzn: monthly.toFixed(2),
+    });
+  };
+
+  const confirmConsent = async () => {
     if (!consentModal || !token) return;
     const next = consentModal.mode === "enable";
-    const moduleKey = consentModal.moduleKey;
-    setModuleBusyKey(moduleKey);
+    if (consentModal.kind === "module") {
+      const moduleKey = consentModal.moduleKey;
+      setModuleBusyKey(moduleKey);
+      setConsentModal(null);
+      try {
+        const res = await apiFetch("/api/billing/toggle-module", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ moduleKey, enabled: next }),
+        });
+        const data = (await res.json()) as { note?: string };
+        if (!res.ok) {
+          setErr(
+            typeof data === "object" ? JSON.stringify(data) : await res.text(),
+          );
+          return;
+        }
+        toast.message(
+          next
+            ? t("subscriptionSettings.modulesUpdated")
+            : data.note === "cancellation_scheduled_end_of_month"
+              ? t("billing.subscription.disableScheduled")
+              : t("subscriptionSettings.modulesUpdated"),
+        );
+        await refetch();
+        await loadMarketplace();
+      } finally {
+        setModuleBusyKey(null);
+      }
+      return;
+    }
+
+    const bundleId = consentModal.bundleId;
+    setBundleBusyId(bundleId);
     setConsentModal(null);
     try {
-      const res = await apiFetch("/api/billing/toggle-module", {
+      const res = await apiFetch("/api/billing/toggle-bundle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ moduleKey, enabled: next }),
+        body: JSON.stringify({ bundleId, enabled: next }),
       });
-      const data = (await res.json()) as {
-        note?: string;
-        skipped?: boolean;
-      };
+      const data = (await res.json()) as { note?: string };
       if (!res.ok) {
         setErr(
           typeof data === "object" ? JSON.stringify(data) : await res.text(),
         );
         return;
       }
-      if (next) {
-        toast.success(t("subscriptionSettings.modulesUpdated"));
-      } else {
-        toast.message(
-          data.note === "cancellation_scheduled_end_of_month"
-            ? t("billing.subscription.disableScheduled")
-            : t("subscriptionSettings.modulesUpdated"),
-        );
-      }
+      toast.message(
+        next
+          ? t("subscriptionSettings.bundleUpdated")
+          : data.note === "bundle_cancellation_scheduled_end_of_month"
+            ? t("subscriptionSettings.bundleDisableScheduled")
+            : t("subscriptionSettings.bundleUpdated"),
+      );
       await refetch();
-      const statesRes = await apiFetch("/api/billing/module-states");
-      if (statesRes.ok) {
-        const states = (await statesRes.json()) as { items?: ModuleStateRow[] };
-        const nextState: Record<string, ModuleStateRow> = {};
-        for (const row of states.items ?? []) {
-          nextState[row.moduleKey] = row;
-        }
-        setModuleStates(nextState);
-      }
+      await loadMarketplace();
     } finally {
-      setModuleBusyKey(null);
+      setBundleBusyId(null);
+    }
+  };
+
+  const onActivatePremium = async () => {
+    if (!token || premiumSelection.length === 0 || !premiumConfirmCommercial) {
+      return;
+    }
+    setPremiumBusy(true);
+    setErr(null);
+    try {
+      const res = await apiFetch("/api/billing/activate-premium", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          modules: premiumSelection,
+          confirmCommercialStatus: true,
+        }),
+      });
+      const data = (await res.json()) as { message?: string };
+      if (!res.ok) {
+        setErr(
+          typeof data === "object" ? JSON.stringify(data) : await res.text(),
+        );
+        return;
+      }
+      toast.success(t("subscriptionSettings.premiumActivated"));
+      setPremiumModalOpen(false);
+      setPremiumSelection([]);
+      setPremiumConfirmCommercial(false);
+      await refetch();
+      await loadMarketplace();
+    } finally {
+      setPremiumBusy(false);
     }
   };
 
@@ -465,7 +541,7 @@ export default function SubscriptionSettingsPage() {
     );
   }
 
-  const switchDisabled = readOnlySub || isEnterprise;
+  const switchDisabled = readOnlySub || isTIER_3;
 
   return (
     <div className="relative z-10 max-w-4xl space-y-6">
@@ -660,10 +736,89 @@ export default function SubscriptionSettingsPage() {
           {t("subscriptionSettings.readOnlyModules")}
         </p>
       )}
-      {isEnterprise && (
+      {isTIER_3 && (
         <p className="text-[13px] text-[#34495E] bg-[#EBEDF0] border border-[#D5DADF] rounded-lg px-3 py-2">
           {t("subscriptionSettings.enterpriseAllModules")}
         </p>
+      )}
+
+      {marketplace && marketplace.bundles.length > 0 && (
+        <section className={`${CARD_CONTAINER_CLASS} p-6 space-y-4`}>
+          <div>
+            <h2 className="text-lg font-semibold text-[#34495E]">
+              {t("subscriptionSettings.packagesTitle")}
+            </h2>
+            <p className="text-[13px] text-[#7F8C8D] mt-1">
+              {t("subscriptionSettings.packagesHint")}
+            </p>
+          </div>
+          <ul className="divide-y divide-[#EBEDF0] rounded-2xl border border-[#D5DADF] bg-white">
+            {marketplace.bundles.map((b) => {
+              const busy = bundleBusyId === b.id;
+              return (
+                <li
+                  key={b.id}
+                  className="flex items-center justify-between gap-4 px-4 py-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-medium text-[#34495E]">
+                      {b.name}
+                    </div>
+                    <p className="text-[12px] text-[#7F8C8D] mt-0.5">
+                      {b.moduleKeys.join(", ")}
+                    </p>
+                    {b.pendingDeactivation && (
+                      <div className="mt-1 inline-flex rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                        {t("subscriptionSettings.pendingDeactivationBadge")}
+                      </div>
+                    )}
+                    <div className="text-[12px] text-[#7F8C8D] mt-0.5 tabular-nums">
+                      {b.discountPercent > 0 && (
+                        <span className="line-through mr-2">
+                          {b.listPriceAzn.toFixed(2)}
+                        </span>
+                      )}
+                      <span className="text-[#2980B9] font-medium">
+                        {b.discountedPriceAzn.toFixed(2)} AZN
+                      </span>{" "}
+                      / {t("subscriptionSettings.perMonth")}
+                      {!b.active && b.incrementalPriceAzn > 0 && (
+                        <span className="ml-2 text-emerald-800">
+                          (+{b.incrementalPriceAzn.toFixed(2)}{" "}
+                          {t("subscriptionSettings.incrementalLabel")})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={b.active}
+                    aria-label={b.name}
+                    disabled={switchDisabled || busy}
+                    onClick={() => onToggleBundle(b, !b.active)}
+                    className={[
+                      "relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-[#2980B9] focus:ring-offset-1",
+                      b.active
+                        ? "border-[#2980B9] bg-[#2980B9]"
+                        : "border-[#D5DADF] bg-[#EBEDF0]",
+                      switchDisabled || busy
+                        ? "opacity-50 cursor-not-allowed"
+                        : "",
+                    ].join(" ")}
+                  >
+                    <span
+                      className={[
+                        "pointer-events-none inline-block h-6 w-6 rounded-full bg-white shadow transition-transform",
+                        b.active ? "translate-x-7" : "translate-x-1",
+                      ].join(" ")}
+                    />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
 
       <section className={`${CARD_CONTAINER_CLASS} p-6 space-y-4`}>
@@ -672,24 +827,26 @@ export default function SubscriptionSettingsPage() {
             {t("subscriptionSettings.modulesTitle")}
           </h2>
           <p className="text-[13px] text-[#7F8C8D] mt-1">
-            {t("subscriptionSettings.modulesHint")}
+            {t("subscriptionSettings.modulesHintDedup")}
           </p>
         </div>
-        {catalogErr && (
-          <p className="text-[13px] text-red-700">{catalogErr}</p>
+        {marketplaceErr && (
+          <p className="text-[13px] text-red-700">{marketplaceErr}</p>
         )}
-        {!catalog && !catalogErr && (
+        {!marketplace && !marketplaceErr && (
           <p className="text-[13px] text-[#7F8C8D]">{t("common.loading")}</p>
         )}
-        {catalog && (
+        {marketplace && (
           <ul className="divide-y divide-[#EBEDF0] rounded-2xl border border-[#D5DADF] bg-white">
-            {catalog.modules.map((mod) => {
-              const on = isModuleOn(mod.key);
+            {marketplace.modules.map((mod) => {
+              const on = isModuleOn(mod);
               const busy = moduleBusyKey === mod.key;
-              const pending = moduleStates[mod.key]?.pendingDeactivation === true;
+              const pending = mod.pendingDeactivation;
+              const moduleSwitchDisabled =
+                switchDisabled || mod.coveredByBundle;
               return (
                 <li
-                  key={mod.id}
+                  key={mod.key}
                   className="flex items-center justify-between gap-4 px-4 py-3"
                 >
                   <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -703,9 +860,21 @@ export default function SubscriptionSettingsPage() {
                           {t("subscriptionSettings.pendingDeactivationBadge")}
                         </div>
                       )}
+                      {mod.coveredByBundle && (
+                        <div className="mt-1 inline-flex rounded-lg border border-[#2980B9]/30 bg-[#EBF5FB] px-2 py-0.5 text-[11px] font-semibold text-[#2980B9]">
+                          {t("subscriptionSettings.inPackageBadge", {
+                            name: mod.coveredByBundleName ?? "",
+                          })}
+                        </div>
+                      )}
                       <div className="text-[12px] text-[#7F8C8D] mt-0.5 tabular-nums">
                         +{mod.pricePerMonth.toFixed(2)} AZN /{" "}
                         {t("subscriptionSettings.perMonth")}
+                        {mod.coveredByBundle && (
+                          <span className="ml-1 text-emerald-800">
+                            ({t("subscriptionSettings.notBilledTwice")})
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -714,14 +883,14 @@ export default function SubscriptionSettingsPage() {
                     role="switch"
                     aria-checked={on}
                     aria-label={pricingModuleLabel(mod.key, mod.name, t)}
-                    disabled={switchDisabled || busy}
-                    onClick={() => void onToggleModule(mod.key, !on)}
+                    disabled={moduleSwitchDisabled || busy}
+                    onClick={() => onToggleModule(mod, !on)}
                     className={[
                       "relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-[#2980B9] focus:ring-offset-1",
                       on
                         ? "border-[#2980B9] bg-[#2980B9]"
                         : "border-[#D5DADF] bg-[#EBEDF0]",
-                      switchDisabled || busy
+                      moduleSwitchDisabled || busy
                         ? "opacity-50 cursor-not-allowed"
                         : "",
                     ].join(" ")}
@@ -740,7 +909,71 @@ export default function SubscriptionSettingsPage() {
         )}
       </section>
 
-      {catalog && monthlyTotalAzn != null && (
+      {marketplace && marketplace.premiumModules.length > 0 && (
+        <section className={`${CARD_CONTAINER_CLASS} p-6 space-y-4`}>
+          <h2 className="text-lg font-semibold text-[#34495E]">
+            {t("subscriptionSettings.premiumTitle")}
+          </h2>
+          <p className="text-[13px] text-[#7F8C8D]">
+            {t("subscriptionSettings.premiumHint")}
+          </p>
+          <ul className="divide-y divide-[#EBEDF0] rounded-2xl border border-[#D5DADF] bg-white">
+            {marketplace.premiumModules.map((p) => (
+              <li
+                key={p.key}
+                className="flex items-center justify-between gap-4 px-4 py-3"
+              >
+                <div>
+                  <div className="text-[13px] font-medium text-[#34495E]">
+                    {pricingModuleLabel(p.key, p.key, t)}
+                  </div>
+                  <div className="text-[12px] text-[#7F8C8D] tabular-nums">
+                    {p.monthlyAzn.toFixed(2)} AZN /{" "}
+                    {t("subscriptionSettings.perMonth")}
+                  </div>
+                  {p.trialLocked && !p.activated && (
+                    <p className="text-[11px] text-amber-900 mt-1">
+                      {t("subscriptionSettings.premiumTrialLocked")}
+                    </p>
+                  )}
+                </div>
+                <span
+                  className={[
+                    "text-[11px] font-semibold uppercase px-2 py-0.5 rounded-lg",
+                    p.activated
+                      ? "bg-emerald-50 text-emerald-900 border border-emerald-200"
+                      : "bg-[#EBEDF0] text-[#7F8C8D]",
+                  ].join(" ")}
+                >
+                  {p.activated
+                    ? t("subscriptionSettings.premiumActive")
+                    : t("subscriptionSettings.premiumInactive")}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {marketplace.premiumModules.some((p) => p.trialLocked && !p.activated) && (
+            <button
+              type="button"
+              className={PRIMARY_BUTTON_CLASS}
+              disabled={readOnlySub || premiumBusy}
+              onClick={() => {
+                setPremiumSelection(
+                  marketplace.premiumModules
+                    .filter((p) => !p.activated)
+                    .map((p) => p.key),
+                );
+                setPremiumConfirmCommercial(false);
+                setPremiumModalOpen(true);
+              }}
+            >
+              {t("subscriptionSettings.premiumActivateCta")}
+            </button>
+          )}
+        </section>
+      )}
+
+      {marketplace && monthlyTotalAzn != null && (
         <section
           className={`${CARD_CONTAINER_CLASS} p-6 space-y-4 border-[#2980B9]/25 bg-white`}
         >
@@ -754,18 +987,15 @@ export default function SubscriptionSettingsPage() {
                 {t("subscriptionSettings.totalBase")}
               </dt>
               <dd className="tabular-nums font-medium text-[#34495E]">
-                {catalog.foundationMonthlyAzn.toFixed(2)} AZN
+                {marketplace.foundationMonthlyAzn.toFixed(2)} AZN
               </dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-[#7F8C8D] text-[13px]">
-                {t("subscriptionSettings.totalModules")}
+                {t("subscriptionSettings.totalModulesAndPackages")}
               </dt>
               <dd className="tabular-nums font-medium text-[#34495E]">
-                {(
-                  monthlyTotalAzn - catalog.foundationMonthlyAzn
-                ).toFixed(2)}{" "}
-                AZN
+                {marketplace.allocation.totalModulesAzn.toFixed(2)} AZN
               </dd>
             </div>
             <div className="flex justify-between gap-4 border-t border-[#EBEDF0] pt-3 mt-1">
@@ -808,9 +1038,17 @@ export default function SubscriptionSettingsPage() {
           <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`}>
             <header className="flex shrink-0 items-start justify-between gap-3">
               <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
-                {consentModal.mode === "enable"
-                  ? t("subscriptionSettings.consentEnableTitle")
-                  : t("subscriptionSettings.consentDisableTitle")}
+                {consentModal.kind === "bundle"
+                  ? consentModal.mode === "enable"
+                    ? t("subscriptionSettings.consentBundleEnableTitle", {
+                        name: consentModal.bundleName,
+                      })
+                    : t("subscriptionSettings.consentBundleDisableTitle", {
+                        name: consentModal.bundleName,
+                      })
+                  : consentModal.mode === "enable"
+                    ? t("subscriptionSettings.consentEnableTitle")
+                    : t("subscriptionSettings.consentDisableTitle")}
               </h3>
               <Button
                 type="button"
@@ -833,8 +1071,90 @@ export default function SubscriptionSettingsPage() {
               <Button type="button" variant="outline" className={MODAL_FOOTER_BUTTON_CLASS} onClick={() => setConsentModal(null)}>
                 {t("common.cancel")}
               </Button>
-              <Button type="button" variant="primary" className={MODAL_FOOTER_BUTTON_CLASS} onClick={() => void confirmToggleModule()}>
+              <Button type="button" variant="primary" className={MODAL_FOOTER_BUTTON_CLASS} onClick={() => void confirmConsent()}>
                 {t("subscriptionSettings.consentConfirm")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {premiumModalOpen && marketplace && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`}>
+            <header className="flex shrink-0 items-start justify-between gap-3">
+              <h3 className="m-0 min-w-0 flex-1 pr-2 text-lg font-semibold leading-snug text-[#34495E]">
+                {t("subscriptionSettings.premiumModalTitle")}
+              </h3>
+              <Button
+                type="button"
+                variant="ghost"
+                className={MODAL_CLOSE_BUTTON_CLASS}
+                onClick={() => setPremiumModalOpen(false)}
+                aria-label={t("common.close")}
+              >
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+              </Button>
+            </header>
+            <p className="m-0 mt-4 text-[13px] text-[#7F8C8D]">
+              {t("subscriptionSettings.premiumModalHint")}
+            </p>
+            <ul className="mt-4 space-y-2">
+              {marketplace.premiumModules
+                .filter((p) => !p.activated)
+                .map((p) => (
+                  <li key={p.key}>
+                    <label className="flex items-center gap-2 text-[13px] text-[#34495E]">
+                      <input
+                        type="checkbox"
+                        checked={premiumSelection.includes(p.key)}
+                        onChange={(e) => {
+                          setPremiumSelection((prev) =>
+                            e.target.checked
+                              ? [...prev, p.key]
+                              : prev.filter((k) => k !== p.key),
+                          );
+                        }}
+                      />
+                      {pricingModuleLabel(p.key, p.key, t)} —{" "}
+                      {p.monthlyAzn.toFixed(2)} AZN
+                    </label>
+                  </li>
+                ))}
+            </ul>
+            <label className="mt-4 flex items-start gap-2 text-[13px] text-[#34495E]">
+              <input
+                type="checkbox"
+                checked={premiumConfirmCommercial}
+                onChange={(e) => setPremiumConfirmCommercial(e.target.checked)}
+              />
+              {t("subscriptionSettings.premiumCommercialConfirm")}
+            </label>
+            <div className={MODAL_FOOTER_ACTIONS_CLASS}>
+              <Button
+                type="button"
+                variant="outline"
+                className={MODAL_FOOTER_BUTTON_CLASS}
+                onClick={() => setPremiumModalOpen(false)}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                className={MODAL_FOOTER_BUTTON_CLASS}
+                disabled={
+                  premiumBusy ||
+                  premiumSelection.length === 0 ||
+                  !premiumConfirmCommercial
+                }
+                onClick={() => void onActivatePremium()}
+              >
+                {t("subscriptionSettings.premiumActivateCta")}
               </Button>
             </div>
           </div>
@@ -843,3 +1163,4 @@ export default function SubscriptionSettingsPage() {
     </div>
   );
 }
+

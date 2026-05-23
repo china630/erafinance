@@ -1,34 +1,46 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { PRICING_MODULE_CASH_BANK_PRO } from "./pricing-module-keys";
 
 export type PricingModuleSeedRow = {
   key: string;
   name: string;
   pricePerMonth: number;
   sortOrder: number;
+  isPremium?: boolean;
 };
 
 /**
- * Единственный источник дефолтов для `pricing_modules` (v12.4).
- * Цифры согласованы с legacy `pricing` (MODULE): 15, 19, 25, 39, 19, 29 AZN/мес.;
- * подмножество {29, 19, 15, 25} — IFRS, Banking, Kassa, Warehouse.
+ * Canonical defaults for `pricing_modules` — synced with Super-Admin catalog (2026-05).
+ * Premium flag: `isPremium` (Super-Admin + billing gates).
+ * Cash + bank: single module `cash_bank_pro` (replaces kassa_pro + banking_pro).
  */
 export const PRICING_MODULE_SEED_DEFAULTS: ReadonlyArray<PricingModuleSeedRow> = [
-  { key: "kassa_pro", name: "Kassa Pro", pricePerMonth: 39, sortOrder: 0 },
-  { key: "banking_pro", name: "Banking Pro", pricePerMonth: 19, sortOrder: 1 },
-  { key: "tax_pro", name: "Tax Pro", pricePerMonth: 19, sortOrder: 2 },
-  { key: "trade_pro", name: "Trade Pro", pricePerMonth: 19, sortOrder: 3 },
-  { key: "inventory", name: "Warehouse", pricePerMonth: 9, sortOrder: 4 },
-  { key: "manufacturing", name: "Manufacturing", pricePerMonth: 9, sortOrder: 5 },
-  { key: "hr_full", name: "HR", pricePerMonth: 19, sortOrder: 6 },
-  { key: "ifrs_mapping", name: "IFRS", pricePerMonth: 9, sortOrder: 7 },
-  { key: "audit_hub", name: "Audit Hub", pricePerMonth: 29, sortOrder: 8 },
-  { key: "compliance_pro", name: "Risk & Compliance (ERM)", pricePerMonth: 24, sortOrder: 10 },
+  {
+    key: PRICING_MODULE_CASH_BANK_PRO,
+    name: "Cash & Bank Pro",
+    pricePerMonth: 38,
+    sortOrder: 0,
+    isPremium: false,
+  },
+  { key: "inventory", name: "Warehouse", pricePerMonth: 19, sortOrder: 1 },
+  { key: "manufacturing", name: "Manufacturing", pricePerMonth: 19, sortOrder: 2 },
+  { key: "hr_full", name: "HR", pricePerMonth: 19, sortOrder: 3 },
+  { key: "ifrs_mapping", name: "IFRS", pricePerMonth: 19, sortOrder: 4 },
+  { key: "tax_pro", name: "Tax Pro", pricePerMonth: 19, sortOrder: 10, isPremium: true },
+  { key: "trade_pro", name: "Trade Pro", pricePerMonth: 19, sortOrder: 11, isPremium: true },
+  { key: "audit_hub", name: "Audit Hub", pricePerMonth: 99, sortOrder: 12, isPremium: true },
+  {
+    key: "compliance_pro",
+    name: "Risk & Compliance (ERM)",
+    pricePerMonth: 99,
+    sortOrder: 13,
+    isPremium: true,
+  },
 ];
 
 /**
- * Первичное наполнение `pricing_modules`, если таблица пуста (как при `prisma db seed`).
- * Не перезаписывает существующие строки — приоритет у данных в БД.
+ * Seeds `pricing_modules` only when the table is empty (existing DB rows win).
  */
 export async function seedPricingModuleIfEmpty(prisma: PrismaClient): Promise<void> {
   const n = await prisma.pricingModule.count();
@@ -40,6 +52,7 @@ export async function seedPricingModuleIfEmpty(prisma: PrismaClient): Promise<vo
         name: m.name,
         pricePerMonth: new Prisma.Decimal(m.pricePerMonth),
         sortOrder: m.sortOrder,
+        isPremium: m.isPremium ?? false,
       },
     });
   }

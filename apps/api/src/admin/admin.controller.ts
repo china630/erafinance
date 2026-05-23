@@ -40,6 +40,9 @@ import { PatchOcrJobsPerOrgMonthDto } from "./dto/patch-ocr-jobs-per-org-month.d
 import { PatchQuotaUnitPricingDto } from "./dto/patch-quota-unit-pricing.dto";
 import { PatchYearlyDiscountDto } from "./dto/patch-yearly-discount.dto";
 import { SetBillingPriceDto } from "./dto/set-billing-price.dto";
+import { PatchMeterUnitPricingDto } from "./dto/patch-meter-unit-pricing.dto";
+import { PatchTierSpendCeilingsDto } from "./dto/patch-tier-spend-ceilings.dto";
+import { SetBillingQuotasMatrixDto } from "./dto/set-billing-quotas-matrix.dto";
 import { SetTierQuotasDto } from "./dto/set-tier-quotas.dto";
 import { TranslationUpsertDto } from "./dto/translation-upsert.dto";
 import { UpsertChartTemplateEntryDto } from "./dto/upsert-chart-template-entry.dto";
@@ -136,6 +139,26 @@ export class AdminController {
   @ApiOperation({ summary: "Установить квоты тарифа" })
   setQuotas(@Body() dto: SetTierQuotasDto) {
     return this.admin.setTierQuotas(dto);
+  }
+
+  @Patch("config/billing/quotas-matrix")
+  @ApiOperation({
+    summary: "@deprecated Legacy cap matrix — prefer meter-unit-pricing + tier-spend-ceilings",
+  })
+  setQuotasMatrix(@Body() dto: SetBillingQuotasMatrixDto) {
+    return this.admin.setBillingQuotasMatrix(dto);
+  }
+
+  @Patch("config/billing/meter-unit-pricing")
+  @ApiOperation({ summary: "Spend-tier meter unit prices (AZN)" })
+  patchMeterUnitPricing(@Body() dto: PatchMeterUnitPricingDto) {
+    return this.admin.patchMeterUnitPricing(dto);
+  }
+
+  @Patch("config/billing/tier-spend-ceilings")
+  @ApiOperation({ summary: "Monthly spend ceiling per TariffTier (AZN, Baku month)" })
+  patchTierSpendCeilings(@Body() dto: PatchTierSpendCeilingsDto) {
+    return this.admin.patchTierSpendCeilings(dto);
   }
 
   @Patch("config/billing/foundation")

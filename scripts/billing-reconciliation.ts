@@ -7,7 +7,7 @@
  *   npx tsx scripts/billing-reconciliation.ts
  *   npx tsx scripts/billing-reconciliation.ts --period=2026-04
  */
-import { Prisma, SubscriptionInvoiceStatus, SubscriptionTier } from "@prisma/client";
+import { Prisma, SubscriptionInvoiceStatus, TariffTier } from "@prisma/client";
 import { createPrismaClient, closePrismaPool } from "../packages/database/prisma/prisma-client";
 
 const Decimal = Prisma.Decimal;
@@ -112,7 +112,7 @@ async function main() {
     where: {
       subscription: {
         is: {
-          tier: { not: SubscriptionTier.ENTERPRISE },
+          currentTier: { not: TariffTier.TIER_3 },
           isTrial: false,
         },
       },
@@ -138,7 +138,7 @@ async function main() {
 
   if (issues === 0) {
     console.log(
-      `[billing-reconciliation] OK — no mismatches for ${orgs.length} org(s) scanned (non-ENTERPRISE, non-trial).`,
+      `[billing-reconciliation] OK — no mismatches for ${orgs.length} org(s) scanned (non-TIER_4, non-trial).`,
     );
   } else {
     console.error(

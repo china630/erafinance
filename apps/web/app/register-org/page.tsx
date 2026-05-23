@@ -57,7 +57,7 @@ export default function RegisterOrgPage() {
       router.replace("/companies");
       return;
     }
-    router.replace("/");
+    router.replace("/home");
   }, [ready, token, user, router]);
 
   useEffect(() => {

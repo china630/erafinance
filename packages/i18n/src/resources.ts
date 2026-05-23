@@ -1,3 +1,5 @@
+import { landingPageCopyByLocale } from "./landing-copy";
+
 export const resources = {
   ru: {
     translation: {
@@ -38,16 +40,7 @@ export const resources = {
         title: "ERA Finance | Бюджет и Учет",
         description: "SaaS учёт для бизнеса в Азербайджане",
       },
-      landing: {
-        heroTitle: "ERA Finance — попробуйте бесплатно: 3 месяца, 0 AZN",
-        heroSubtitle:
-          "Полный операционный контур для бизнеса в Азербайджане: учёт, склад, производство, касса и банк — без оплаты в течение пробного периода.",
-        disclaimer:
-          "Модули с ИИ и гос. интеграциями (налоги, таможня, compliance) оплачиваются отдельно после trial.",
-        ctaRegister: "Зарегистрировать компанию",
-        ctaPricing: "Тарифы",
-        navPricing: "Тарифы",
-      },
+      landing: landingPageCopyByLocale.ru,
       language: "Язык",
       az: "AZ",
       ru: "RU",
@@ -642,8 +635,7 @@ export const resources = {
       },
       /** Localized catalog labels; API still returns canonical `name` as fallback (see `pricingModuleLabel`). */
       pricingModule: {
-        kassa_pro: "Касса и POS Pro",
-        banking_pro: "Банкинг Pro",
+        cash_bank_pro: "Касса и банк Pro",
         tax_pro: "Налоги и e-Taxes Pro",
         trade_pro: "Внешняя торговля Pro",
         inventory: "Склад",
@@ -934,6 +926,15 @@ export const resources = {
         billingFoundationHint:
           "Базовая подписка: главная панель, учёт и контрагенты — без дополнительных модулей.",
         billingModuleCatalogTitle: "Дополнительные модули",
+        billingMainModulesTitle: "Основные модули",
+        billingMainModulesHint:
+          "Стандартные add-on модули (касса/банк, склад, HR и т.д.). Переключатель Premium переносит модуль в секцию ниже.",
+        billingPremiumModulesTitle: "Premium-модули",
+        billingPremiumModulesHint:
+          "Премиум add-on: trial shield, активация после Tier 1+ (`activate-premium`). Цены и флаг Premium сохраняются одной кнопкой «Сохранить».",
+        billingPremiumEmpty: "Нет модулей с флагом Premium. Включите переключатель Premium у основного модуля.",
+        billingColPremium: "Premium",
+        billingPremiumBadge: "Premium",
         billingQuotaTitle: "Квоты и годовая скидка",
         billingTierPricesTitle: "Абонплата по тарифу (AZN/мес.)",
         billingOcrJobsLimit:
@@ -966,19 +967,40 @@ export const resources = {
         billingBundleEdit: "Изменить",
         billingTabTrial: "Trial-пакет",
         billingTabReferrals: "Рефералы",
-        tierQuotasTitle: "Квоты по тарифам",
+        tierQuotasTitle: "Spend-tier: meter и потолки расхода",
         tierQuotasHint:
-          "Для каждого tier: целое ≥ 0 или пусто = безлимит (null). Сохранение — отдельно по каждому tier.",
+          "Unit-цены начисляются по использованию; потолок tier — лимит накопленного расхода за Baku-месяц (как на /pricing).",
         tierQuotasSave: "Сохранить квоты",
-        tierQuotaFieldEmployees: "Сотрудники (max)",
+        tierQuotasMatrixSave: "Сохранить матрицу и абонплату tier",
+        billingMatrixMetricColumn: "Ресурс",
+        billingQuotasGlobalHint:
+          "Годовая скидка при годовой оплате и лимит OCR-задач на организацию (Trade Pro).",
+        spendTierUnitPricesTitle: "Unit-цены (AZN)",
+        spendTierCeilingsTitle: "Потолки расхода за месяц (AZN)",
+        meterUserMonth: "Пользователь / месяц",
+        meterInvoiceMonth: "Инвойс / месяц (Baku)",
+        meterGbMonth: "ГБ / месяц",
+        meterWhatsapp: "WhatsApp-алерт",
+        meterOcrPage: "Страница OCR",
+        spendTierCeilingTier: "{{tier}} — потолок",
+        spendTierInvalidMeter: "Проверьте unit-цены (неотрицательные числа).",
+        spendTierInvalidCeiling: "Проверьте потолки tier (неотрицательные числа).",
+        billingSaveQuotasPage: "Сохранить настройки биллинга",
+        billingSaving: "Сохранение…",
+        tierQuotaFieldEmployees: "Пользователи (seats)",
         tierQuotaFieldInvoicesMonth: "Инвойсы за UTC-месяц (max)",
         tierQuotaFieldStorageGb: "Хранилище, ГБ (max)",
-        billingQuotasSectionsTitle: "Платформа: база, цены tier, лимиты",
+        tierQuotaFieldWhatsapp: "WhatsApp / мес.",
+        tierQuotaFieldOcrPages: "AI-OCR страниц / мес.",
+        tierQuotaFieldWorkspaces: "Рабочие пространства",
+        billingQuotasSectionsTitle: "Платформа",
         billingSaveFoundation: "Сохранить базу (Foundation)",
         billingSaveGlobalLimits: "Сохранить цены tier, OCR, скидку и unit pricing",
         trialEditorTitle: "Trial-пакет (bundle)",
         trialEditorHint:
-          "Выберите пакет из конструктора, длительность в днях и при необходимости JSON квот (override).",
+          "Набор модулей, выдаваемых новой организации на trial. Premium (tax/trade/compliance) в trial не входят.",
+        trialEditorSpendTierNote:
+          "Длительность trial: 3 календарных месяца (Asia/Baku), ERA Core без абонплаты. Unit-цены и потолки tier настраиваются в разделе «Квоты»; meter в trial начисляется.",
         trialBundleSelect: "Пакет",
         trialDurationDays: "Длительность trial (дней)",
         trialQuotasJson: "Trial quotas (JSON)",
@@ -2982,6 +3004,36 @@ export const resources = {
         modulesTitle: "Модули",
         modulesHint:
           "Включайте только те модули, которые нужны — сумма пересчитывается автоматически.",
+        modulesHintDedup:
+          "Модули по отдельности или в пакете. Если модуль уже в активном пакете, он не тарифицируется второй раз.",
+        packagesTitle: "Пакеты модулей",
+        packagesHint:
+          "Скидка на набор модулей. Пересечения с другими пакетами и отдельными модулями учитываются в итоге.",
+        incrementalLabel: "к итогу",
+        inPackageBadge: "В пакете «{{name}}»",
+        notBilledTwice: "не дублируется в счёте",
+        moduleInBundleHint:
+          "Модуль уже включён в пакет «{{bundle}}». Отключите пакет, чтобы управлять модулем отдельно.",
+        bundleUpdated: "Пакет обновлён.",
+        bundleDisableScheduled: "Пакет отключится с 1-го числа следующего месяца.",
+        consentBundleEnableTitle: "Подключение пакета «{{name}}»",
+        consentBundleDisableTitle: "Отключение пакета «{{name}}»",
+        totalModulesAndPackages: "Модули и пакеты (без дублей)",
+        totalDedupHint:
+          "Итог без двойной оплаты: каждый модуль учитывается один раз — в пакете или отдельно.",
+        premiumTitle: "Премиум-модули",
+        premiumHint:
+          "Госуслуги и compliance вне trial. Требуется подтверждение коммерческого статуса.",
+        premiumTrialLocked: "Недоступно в trial без коммерческой активации.",
+        premiumActive: "Активен",
+        premiumInactive: "Не активен",
+        premiumActivateCta: "Активировать премиум",
+        premiumModalTitle: "Коммерческая активация премиум",
+        premiumModalHint:
+          "Выберите модули и подтвердите переход на коммерческий учёт (post-paid).",
+        premiumCommercialConfirm:
+          "Подтверждаю коммерческий статус организации и согласие на тарификацию выбранных модулей.",
+        premiumActivated: "Премиум-модули активированы.",
         modules: {
           tax_pro: {
             title: "Tax Pro",
@@ -3177,9 +3229,15 @@ export const resources = {
         quotaTitle: "Лимит тарифа",
         quotaBody:
           "Достигнут лимит по текущему тарифу. Увеличьте квоту или перейдите на более высокий план.",
+        creditHardLockTitle: "Кредитный лимит исчерпан",
+        creditHardLockBody:
+          "Накопленный post-paid баланс или порог долга достигнут. Оплатите счёт, чтобы снова создавать документы и отправлять уведомления.",
+        usageCapTitle: "Лимит использования",
+        usageCapBody:
+          "Исчерпан месячный лимит WhatsApp или OCR для вашего Credit Tier. Оплатите счёт или дождитесь нового биллинг-периода.",
         previewTitle: "Сумма к оплате перед апгрейдом",
         previewBody:
-          "При переходе с {{currentTier}} на ENTERPRISE сейчас к оплате: {{amount}} AZN (до конца периода: {{daysRemaining}} дн.).",
+          "При переходе с {{currentTier}} на TIER_3 сейчас к оплате: {{amount}} AZN (до конца периода: {{daysRemaining}} дн.).",
         subscribe: "Перейти к подписке",
         openSubscription: "Настройки подписки",
         close: "Закрыть",
@@ -3479,16 +3537,7 @@ export const resources = {
         title: "ERA Finance | Büdcə və uçot",
         description: "Azərbaycanda biznes üçün SaaS uçot",
       },
-      landing: {
-        heroTitle: "ERA Finance — 3 ay tam pulsuz!",
-        heroSubtitle:
-          "Azərbaycanda biznes üçün tam əməliyyat konturu: uçot, anbar, istehsalat, kassa və bank — sınaq müddətində ödənişsiz.",
-        disclaimer:
-          "Süni intellekt və dövlət inteqrasiyaları (vergi, gömrük, compliance) trial-dan sonra ayrıca ödənilir.",
-        ctaRegister: "Şirkəti qeydiyyatdan keçirin",
-        ctaPricing: "Tariflər",
-        navPricing: "Tariflər",
-      },
+      landing: landingPageCopyByLocale.az,
       language: "Dil",
       az: "AZ",
       ru: "RU",
@@ -4082,8 +4131,7 @@ export const resources = {
       },
       /** Kataloq adları; API-dən gələn `name` ehtiyat kimi qalır (`pricingModuleLabel`). */
       pricingModule: {
-        kassa_pro: "Kassa və POS Pro",
-        banking_pro: "Bankinq Pro",
+        cash_bank_pro: "Kassa və bank Pro",
         tax_pro: "Vergi və e-Taxes Pro",
         trade_pro: "Xarici ticarət Pro",
         inventory: "Anbar",
@@ -4374,6 +4422,15 @@ export const resources = {
         billingFoundationHint:
           "Əsas abunə: əsas panel, uçot və tərəfdaşlar — əlavə modullar olmadan.",
         billingModuleCatalogTitle: "Əlavə modullar",
+        billingMainModulesTitle: "Əsas modullar",
+        billingMainModulesHint:
+          "Standart əlavə modullar (kassa/bank, anbar, HR və s.). Premium keçidi modulu aşağıdakı bölməyə köçürür.",
+        billingPremiumModulesTitle: "Premium modullar",
+        billingPremiumModulesHint:
+          "Premium əlavə: trial shield, Tier 1+ sonrası aktivləşmə. Qiymət və Premium bayrağı «Saxla» ilə birlikdə yazılır.",
+        billingPremiumEmpty: "Premium modul yoxdur. Əsas modulda Premium keçidini aktivləşdirin.",
+        billingColPremium: "Premium",
+        billingPremiumBadge: "Premium",
         billingQuotaTitle: "Kvotalar və illik endirim",
         billingTierPricesTitle: "Tarif üzrə abonə haqqı (AZN/ay)",
         billingOcrJobsLimit:
@@ -4406,19 +4463,40 @@ export const resources = {
         billingBundleEdit: "Redaktə",
         billingTabTrial: "Trial paket",
         billingTabReferrals: "Referrallar",
-        tierQuotasTitle: "Tarif kotları",
+        tierQuotasTitle: "Spend-tier: meter və xərc tavanları",
         tierQuotasHint:
-          "Hər tier üçün: tam ədəd ≥ 0 və ya boş = limitsiz (null). Saxlama — hər tier ayrıca.",
+          "Unit qiymətlər istifadəyə görə hesablanır; tier tavanı — Bakı ayı üzrə yığılmış xərc limiti (/pricing ilə eyni).",
         tierQuotasSave: "Kotları saxla",
-        tierQuotaFieldEmployees: "İşçilər (max)",
+        tierQuotasMatrixSave: "Matrisi və tier abonəni saxla",
+        billingMatrixMetricColumn: "Resurs",
+        billingQuotasGlobalHint:
+          "İllik endirim və OCR tapşırıqları limiti (Trade Pro).",
+        spendTierUnitPricesTitle: "Unit qiymətlər (AZN)",
+        spendTierCeilingsTitle: "Aylıq xərc tavanları (AZN)",
+        meterUserMonth: "İstifadəçi / ay",
+        meterInvoiceMonth: "Hesab / ay (Baku)",
+        meterGbMonth: "GB / ay",
+        meterWhatsapp: "WhatsApp xəbərdarlığı",
+        meterOcrPage: "OCR səhifə",
+        spendTierCeilingTier: "{{tier}} — tavan",
+        spendTierInvalidMeter: "Unit qiymətləri yoxlayın (mənfi olmayan ədədlər).",
+        spendTierInvalidCeiling: "Tier tavanlarını yoxlayın (mənfi olmayan ədədlər).",
+        billingSaveQuotasPage: "Billing parametrlərini saxla",
+        billingSaving: "Saxlanılır…",
+        tierQuotaFieldEmployees: "İstifadəçilər (oturacaq)",
         tierQuotaFieldInvoicesMonth: "Hesab-fakturalar, UTC ayı (max)",
         tierQuotaFieldStorageGb: "Saxlama, GB (max)",
-        billingQuotasSectionsTitle: "Platforma: baza, tier qiymətləri, limitlər",
+        tierQuotaFieldWhatsapp: "WhatsApp / ay",
+        tierQuotaFieldOcrPages: "AI-OCR səhifə / ay",
+        tierQuotaFieldWorkspaces: "İş məkanları",
+        billingQuotasSectionsTitle: "Platforma",
         billingSaveFoundation: "Bazanı saxla (Foundation)",
         billingSaveGlobalLimits: "Tier qiymətləri, OCR, endirim və unit pricing saxla",
         trialEditorTitle: "Trial paket (bundle)",
         trialEditorHint:
-          "Konstruktordan paket seçin, müddət (gün) və lazım olsa kotların JSON override-u.",
+          "Yeni təşkilata trial zamanı verilən modul dəsti. Premium (tax/trade/compliance) trial-a daxil deyil.",
+        trialEditorSpendTierNote:
+          "Trial müddəti: 3 təqvim ayı (Asia/Baku), ERA Core abunə ödənişi yoxdur. Unit qiymətlər və tier tavanları «Kotalar» bölməsindədir; trial-da meter hesablanır.",
         trialBundleSelect: "Paket",
         trialDurationDays: "Trial müddəti (gün)",
         trialQuotasJson: "Trial quotas (JSON)",
@@ -6430,6 +6508,38 @@ export const resources = {
         modulesTitle: "Modullar",
         modulesHint:
           "Yalnız ehtiyacı olan modulları qoşun — məbləğ avtomatik hesablanır.",
+        modulesHintDedup:
+          "Modullar ayrıca və ya paketlə. Paketdə olan modul ikinci dəfə tarifləşdirilmir.",
+        packagesTitle: "Modul paketləri",
+        packagesHint:
+          "Modul dəstinə endirim. Digər paket və ayrıca modullarla kəsişmə ümumi məbləğdə nəzərə alınır.",
+        incrementalLabel: "ümumiyə",
+        inPackageBadge: "«{{name}}» paketində",
+        notBilledTwice: "hesabda təkrarlanmır",
+        moduleInBundleHint:
+          "Modul artıq «{{bundle}}» paketindədir. Ayrıca idarə üçün paketi söndürün.",
+        bundleUpdated: "Paket yeniləndi.",
+        bundleDisableScheduled:
+          "Paket növbəti ayın 1-dən söndürüləcək.",
+        consentBundleEnableTitle: "«{{name}}» paketini qoşma",
+        consentBundleDisableTitle: "«{{name}}» paketini söndürmə",
+        totalModulesAndPackages: "Modullar və paketlər (təkrarsız)",
+        totalDedupHint:
+          "Hər modul bir dəfə sayılır — paketdə və ya ayrıca; ikiqat ödəniş yoxdur.",
+        premiumTitle: "Premium modullar",
+        premiumHint:
+          "Trial xaricində dövlət və compliance modulları. Kommersiya təsdiqi tələb olunur.",
+        premiumTrialLocked:
+          "Trialda kommersiya aktivləşməsi olmadan əlçatan deyil.",
+        premiumActive: "Aktiv",
+        premiumInactive: "Aktiv deyil",
+        premiumActivateCta: "Premiumu aktivləşdir",
+        premiumModalTitle: "Premiumun kommersiya aktivləşməsi",
+        premiumModalHint:
+          "Modulları seçin və kommersiya uçotuna (post-paid) keçidi təsdiqləyin.",
+        premiumCommercialConfirm:
+          "Təşkilatın kommersiya statusunu və seçilmiş modulların tarifləşdirilməsini təsdiq edirəm.",
+        premiumActivated: "Premium modullar aktivləşdirildi.",
         modules: {
           tax_pro: {
             title: "Tax Pro",
@@ -6626,9 +6736,15 @@ export const resources = {
         quotaTitle: "Tarif limiti",
         quotaBody:
           "Cari tarif üzrə limit dolub. Kotanı artırın və ya daha yüksək plana keçin.",
+        creditHardLockTitle: "Kredit limiti dolub",
+        creditHardLockBody:
+          "Post-paid balans və ya borc həddi çatıb. Sənədlər və bildirişlər üçün hesabı ödəyin.",
+        usageCapTitle: "İstifadə limiti",
+        usageCapBody:
+          "Credit Tier üzrə aylıq WhatsApp və ya OCR limiti bitib. Hesabı ödəyin və ya yeni billing dövrünü gözləyin.",
         previewTitle: "Upgrade öncəsi ödəniş məbləği",
         previewBody:
-          "{{currentTier}} tarifindən ENTERPRISE tarifinə keçiddə indi ödəniş: {{amount}} AZN (dövr sonuna {{daysRemaining}} gün qalıb).",
+          "{{currentTier}} tarifindən TIER_3 tarifinə keçiddə indi ödəniş: {{amount}} AZN (dövr sonuna {{daysRemaining}} gün qalıb).",
         subscribe: "Abunəliyə keç",
         openSubscription: "Abunəlik parametrləri",
         close: "Bağla",

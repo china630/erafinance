@@ -8,7 +8,7 @@ import {
   PaymentOrderStatus,
   Prisma,
   SubscriptionInvoiceStatus,
-  SubscriptionTier,
+  TariffTier,
   UserRole,
 } from "@erafinance/database";
 import PDFDocument from "pdfkit";
@@ -174,7 +174,7 @@ export class BillingPlatformService {
       organizationId: string;
       name: string;
       taxId: string;
-      tier: SubscriptionTier;
+      tier: TariffTier;
       ownerIdMatches: boolean;
       monthlyEstimateAzn: string;
       activeModules: string[];
@@ -185,7 +185,7 @@ export class BillingPlatformService {
     for (const o of orgs) {
       const snap = await this.subscriptionAccess.getOrganizationSnapshot(o.id);
       const active = snap.activeModules;
-      const isEnterprise = snap.tier === SubscriptionTier.ENTERPRISE;
+      const isEnterprise = snap.tier === TariffTier.TIER_3;
 
       let monthly = catalog.basePrice;
       for (const m of catalog.modules) {
@@ -226,7 +226,7 @@ export class BillingPlatformService {
     );
     const catalog = await this.pricing.getConstructorData();
     const active = snap.activeModules;
-    const isEnterprise = snap.tier === SubscriptionTier.ENTERPRISE;
+    const isEnterprise = snap.tier === TariffTier.TIER_3;
     let monthly = catalog.basePrice;
     for (const m of catalog.modules) {
       const on = isEnterprise || isModuleActiveInSubscription(active, m.key);
@@ -420,3 +420,4 @@ export class BillingPlatformService {
     });
   }
 }
+

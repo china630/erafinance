@@ -26,9 +26,11 @@ export const ModuleEntitlement = {
   FIXED_ASSETS: "fixed_assets",
   /** NAS ↔ IFRS mapping — ENTERPRISE или модуль ifrs */
   IFRS_MAPPING: "ifrs_mapping",
-  /** Direct Banking API, реестр — slug `banking_pro` */
+  /** Kassa + banking (single commercial module). */
+  CASH_BANK_PRO: "cash_bank_pro",
+  /** @deprecated Alias for guards — same entitlement as `cash_bank_pro`. */
   BANKING_PRO: "banking_pro",
-  /** Касса KMO/KXO, журнал, авансы — v8.2 (конструктор; ENTERPRISE — полный доступ) */
+  /** @deprecated Alias for guards — same entitlement as `cash_bank_pro`. */
   KASSA_PRO: "kassa_pro",
   /** Расширенный HR (полный пакет) — v8.1 конструктор */
   HR_FULL: "hr_full",

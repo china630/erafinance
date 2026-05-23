@@ -3,7 +3,7 @@ import {
   CounterpartyLegalForm,
   OrganizationKind,
   Prisma,
-  SubscriptionTier,
+  TariffTier,
   UserRole,
 } from "@prisma/client";
 import { provisionNasAccountsForOrganization } from "../../lib/chart/chart-seed";
@@ -148,7 +148,7 @@ async function ensureDemoSubscription(
     where: { organizationId },
     create: {
       organizationId,
-      tier: SubscriptionTier.ENTERPRISE,
+      currentTier: TariffTier.TIER_3,
       activeModules: modules,
       isTrial: false,
       isBlocked: false,
@@ -156,7 +156,7 @@ async function ensureDemoSubscription(
       customConfig: { modules } as Prisma.InputJsonValue,
     },
     update: {
-      tier: SubscriptionTier.ENTERPRISE,
+      currentTier: TariffTier.TIER_3,
       activeModules: modules,
       isBlocked: false,
       expiresAt: new Date("2099-12-31T23:59:59.000Z"),

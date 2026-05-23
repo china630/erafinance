@@ -6,7 +6,7 @@ import {
   Min,
   ValidateNested,
 } from "class-validator";
-import { SubscriptionTier } from "@erafinance/database";
+import { TariffTier } from "@erafinance/database";
 
 export class TierQuotasDto {
   @IsOptional()
@@ -26,13 +26,32 @@ export class TierQuotasDto {
   @IsInt()
   @Min(0)
   maxStorageGb?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maxWhatsappAlertsPerMonth?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maxOcrPagesPerMonth?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maxWorkspaces?: number | null;
 }
 
 export class SetTierQuotasDto {
-  @IsEnum(SubscriptionTier)
-  tier!: SubscriptionTier;
+  @IsEnum(TariffTier)
+  tier!: TariffTier;
 
   @ValidateNested()
   @Type(() => TierQuotasDto)
   quotas!: TierQuotasDto;
 }
+

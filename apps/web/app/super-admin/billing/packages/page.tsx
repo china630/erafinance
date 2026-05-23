@@ -27,19 +27,6 @@ import { useBilling } from "../billing-context";
 
 type BundleModalMode = "create" | "edit" | null;
 
-function trialQuotasFromBundle(
-  tq: Record<string, unknown> | null | undefined,
-): { maxE: string; maxI: string; maxS: string } {
-  if (!tq || typeof tq !== "object") {
-    return { maxE: "", maxI: "", maxS: "" };
-  }
-  return {
-    maxE: String((tq as { maxEmployees?: unknown }).maxEmployees ?? ""),
-    maxI: String((tq as { maxInvoicesPerMonth?: unknown }).maxInvoicesPerMonth ?? ""),
-    maxS: String((tq as { maxStorageGb?: unknown }).maxStorageGb ?? ""),
-  };
-}
-
 export default function SuperAdminBillingPackagesPage() {
   const { t } = useTranslation();
   const {
@@ -57,10 +44,6 @@ export default function SuperAdminBillingPackagesPage() {
   const [bundleDisc, setBundleDisc] = useState("0");
   const [bundleMods, setBundleMods] = useState<Record<string, boolean>>({});
   const [trialDefault, setTrialDefault] = useState(false);
-  const [trialDays, setTrialDays] = useState("90");
-  const [trialMaxE, setTrialMaxE] = useState("");
-  const [trialMaxI, setTrialMaxI] = useState("");
-  const [trialMaxS, setTrialMaxS] = useState("");
 
   useEffect(() => {
     if (!billing?.pricingModules) return;
@@ -83,10 +66,6 @@ export default function SuperAdminBillingPackagesPage() {
     for (const m of billing.pricingModules) o[m.key] = false;
     setBundleMods(o);
     setTrialDefault(false);
-    setTrialDays("90");
-    setTrialMaxE("");
-    setTrialMaxI("");
-    setTrialMaxS("");
   };
 
   const openEdit = (id: string) => {
@@ -103,45 +82,14 @@ export default function SuperAdminBillingPackagesPage() {
     }
     setBundleMods(o);
     setTrialDefault(Boolean(b.isTrialDefault));
-    setTrialDays(String(b.trialDurationDays ?? 90));
-    const tq = trialQuotasFromBundle(
-      b.trialQuotas && typeof b.trialQuotas === "object"
-        ? (b.trialQuotas as Record<string, unknown>)
-        : undefined,
-    );
-    setTrialMaxE(tq.maxE);
-    setTrialMaxI(tq.maxI);
-    setTrialMaxS(tq.maxS);
   };
 
-  const buildTrialPayload = (): {
-    isTrialDefault?: boolean;
-    trialDurationDays?: number;
-    trialQuotas?: Record<string, unknown> | null;
-  } => {
-    const days = Number.parseInt(trialDays, 10);
-    const trialQuotas: Record<string, unknown> = {};
-    const e = trialMaxE.trim();
-    const i = trialMaxI.trim();
-    const s = trialMaxS.trim();
-    if (e !== "") {
-      const v = Number.parseInt(e, 10);
-      if (Number.isFinite(v)) trialQuotas.maxEmployees = v;
-    }
-    if (i !== "") {
-      const v = Number.parseInt(i, 10);
-      if (Number.isFinite(v)) trialQuotas.maxInvoicesPerMonth = v;
-    }
-    if (s !== "") {
-      const v = Number.parseInt(s, 10);
-      if (Number.isFinite(v)) trialQuotas.maxStorageGb = v;
-    }
-    return {
-      isTrialDefault: trialDefault,
-      trialDurationDays: Number.isFinite(days) && days >= 1 ? days : undefined,
-      trialQuotas: Object.keys(trialQuotas).length > 0 ? trialQuotas : null,
-    };
-  };
+  /** Spend-tier: trial length is fixed in platform code (3 Baku calendar months). */
+  const buildTrialPayload = () => ({
+    isTrialDefault: trialDefault,
+    trialDurationDays: null,
+    trialQuotas: null,
+  });
 
   const saveBundle = async () => {
     if (!billing) return;
@@ -444,46 +392,9 @@ export default function SuperAdminBillingPackagesPage() {
                 />
                 <span>{t("superAdmin.trialIsDefault")}</span>
               </label>
-              <label className={`${MODAL_FIELD_LABEL_CLASS} mt-3`}>
-                {t("superAdmin.trialDurationDays")}
-                <input
-                  type="number"
-                  min={1}
-                  max={3650}
-                  className={`mt-1 block w-full max-w-xs ${MODAL_INPUT_NUMERIC_CLASS}`}
-                  value={trialDays}
-                  onChange={(e) => setTrialDays(e.target.value)}
-                />
-              </label>
-              <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <label className={MODAL_FIELD_LABEL_CLASS}>
-                  {t("superAdmin.trialQuotaMaxEmployees")}
-                  <input
-                    className={`mt-1 block w-full ${MODAL_INPUT_NUMERIC_CLASS}`}
-                    value={trialMaxE}
-                    onChange={(e) => setTrialMaxE(e.target.value)}
-                    inputMode="numeric"
-                  />
-                </label>
-                <label className={MODAL_FIELD_LABEL_CLASS}>
-                  {t("superAdmin.trialQuotaMaxInvoices")}
-                  <input
-                    className={`mt-1 block w-full ${MODAL_INPUT_NUMERIC_CLASS}`}
-                    value={trialMaxI}
-                    onChange={(e) => setTrialMaxI(e.target.value)}
-                    inputMode="numeric"
-                  />
-                </label>
-                <label className={MODAL_FIELD_LABEL_CLASS}>
-                  {t("superAdmin.trialQuotaMaxStorageGb")}
-                  <input
-                    className={`mt-1 block w-full ${MODAL_INPUT_NUMERIC_CLASS}`}
-                    value={trialMaxS}
-                    onChange={(e) => setTrialMaxS(e.target.value)}
-                    inputMode="numeric"
-                  />
-                </label>
-              </div>
+              <p className="mt-2 text-[13px] leading-relaxed text-[#34495E]">
+                {t("superAdmin.trialEditorSpendTierNote")}
+              </p>
             </div>
             </div>
             <div className={`${MODAL_FOOTER_ACTIONS_CLASS} shrink-0`}>

@@ -3,7 +3,7 @@ import { IsBoolean, IsString, MinLength } from "class-validator";
 
 export class ToggleModuleDto {
   @ApiProperty({
-    example: "kassa_pro",
+    example: "cash_bank_pro",
     description: "Ключ модуля из каталога `pricing_modules`",
   })
   @IsString()

@@ -21,6 +21,14 @@ export {
   type ChartOfAccountsFile,
 } from "./dist/lib/chart/chart-seed";
 export {
+  PRICING_MODULE_CASH_BANK_PRO,
+  LEGACY_CASH_BANK_MODULE_KEYS,
+  hasCashBankModuleInList,
+  normalizeCashBankActiveModules,
+  isLegacyCashBankModuleKey,
+  type LegacyCashBankModuleKey,
+} from "./dist/lib/core/pricing-module-keys";
+export {
   PRICING_MODULE_SEED_DEFAULTS,
   seedPricingModuleIfEmpty,
   type PricingModuleSeedRow,

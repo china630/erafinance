@@ -12,7 +12,7 @@ import {
 import { apiFetch } from "./api-client";
 import { useAuth } from "./auth-context";
 
-export type SubscriptionTier = "STARTER" | "BUSINESS" | "ENTERPRISE";
+export type SubscriptionTier = "TIER_1" | "TIER_2" | "TIER_3";
 
 export type SubscriptionSnapshot = {
   tier: SubscriptionTier;
@@ -104,13 +104,13 @@ const FRONTEND_SUBSCRIPTION_BYPASS_EMAILS = new Set([
 
 function enterpriseBypassSnapshot(): SubscriptionSnapshot {
   return {
-    tier: "ENTERPRISE",
+    tier: "TIER_3",
     activeModules: [
       "production",
       "manufacturing",
       "fixed_assets",
       "ifrs",
-      "banking_pro",
+      "cash_bank_pro",
       "hr_full",
       "tax_pro",
       "trade_pro",
@@ -203,7 +203,7 @@ export function hasSubscriptionModuleAccess(
     return true;
   }
   if (!snap) return false;
-  if (snap.tier === "ENTERPRISE") return true;
+  if (snap.tier === "TIER_3") return true;
   switch (module) {
     case "manufacturing":
       return snap.modules.manufacturing;

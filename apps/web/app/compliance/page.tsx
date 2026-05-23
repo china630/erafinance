@@ -55,7 +55,7 @@ export default function ComplianceDashboardPage() {
   const moduleLocked =
     subReady &&
     snapshot &&
-    tier !== "ENTERPRISE" &&
+    tier !== "TIER_3" &&
     !snapshot.modules.compliancePro;
 
   const canPatch =
@@ -387,3 +387,4 @@ export default function ComplianceDashboardPage() {
     </div>
   );
 }
+

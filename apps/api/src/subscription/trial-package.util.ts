@@ -1,6 +1,10 @@
 import type { Prisma } from "@erafinance/database";
+import {
+  normalizeCashBankActiveModules,
+  PRICING_MODULE_CASH_BANK_PRO,
+} from "@erafinance/database";
 
-/** Default trial length when `PricingBundle.trialDurationDays` is unset. */
+/** @deprecated Always use {@link computeTrialExpiresAtBaku} with 3 calendar months. */
 export const DEFAULT_TRIAL_DURATION_DAYS = 90;
 
 export const TRIAL_3_MONTHS_SLUG = "TRIAL_3_MONTHS";
@@ -22,8 +26,7 @@ export const DEFAULT_TRIAL_MODULE_SLUGS: readonly string[] = [
   "production",
   "manufacturing",
   "fixed_assets",
-  "banking_pro",
-  "kassa_pro",
+  PRICING_MODULE_CASH_BANK_PRO,
   "inventory",
   "hr_full",
   "audit_hub",
@@ -120,21 +123,13 @@ export async function resolveNewOrganizationTrialSubscription(
     });
   }
 
-  const days =
-    bundle?.trialDurationDays != null && bundle.trialDurationDays > 0
-      ? bundle.trialDurationDays
-      : DEFAULT_TRIAL_DURATION_DAYS;
-
-  const expiresAt =
-    bundle?.slug === TRIAL_3_MONTHS_SLUG || days === 90
-      ? computeTrialExpiresAtBaku(signupAt, 3)
-      : computeTrialExpiresAtUtc(signupAt, days);
+  const expiresAt = computeTrialExpiresAtBaku(signupAt, 3);
 
   let moduleKeys = asStringArray(bundle?.moduleKeys);
   if (moduleKeys.length === 0) {
     moduleKeys = [...DEFAULT_TRIAL_MODULE_SLUGS];
   }
-  moduleKeys = filterTrialModules(moduleKeys);
+  moduleKeys = normalizeCashBankActiveModules(filterTrialModules(moduleKeys));
 
   const trialPackageId = bundle?.id ?? "default";
   const trialPlanSlug =

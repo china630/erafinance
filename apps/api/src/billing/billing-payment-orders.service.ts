@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import {
   PaymentOrderStatus,
-  SubscriptionTier,
+  TariffTier,
   UserRole,
 } from "@erafinance/database";
 import PDFDocument from "pdfkit";
@@ -121,7 +121,7 @@ export class BillingPaymentOrdersService {
     );
     const catalog = await this.pricing.getConstructorData();
     const active = snap.activeModules;
-    const isEnterprise = snap.tier === SubscriptionTier.ENTERPRISE;
+    const isEnterprise = snap.tier === TariffTier.TIER_3;
 
     const lines: Array<{ label: string; amount: number }> = [];
     lines.push({
@@ -216,3 +216,4 @@ export class BillingPaymentOrdersService {
     });
   }
 }
+

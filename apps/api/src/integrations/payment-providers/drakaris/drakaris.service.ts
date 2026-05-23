@@ -8,7 +8,7 @@ import { ConfigService } from "@nestjs/config";
 import {
   PaymentOrderStatus,
   Prisma,
-  SubscriptionTier,
+  TariffTier,
 } from "@erafinance/database";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { SystemConfigService } from "../../../system-config/system-config.service";
@@ -83,7 +83,7 @@ export class DrakarisService {
             lastNameCipher: true,
           },
         },
-        subscription: { select: { tier: true } },
+        subscription: { select: { currentTier: true } },
       },
     });
   }
@@ -202,7 +202,7 @@ export class DrakarisService {
 
     const amountAzn = new Prisma.Decimal(amountNum).div(new Prisma.Decimal(100));
 
-    const tier = org.subscription?.tier ?? SubscriptionTier.STARTER;
+    const tier = org.subscription?.currentTier ?? TariffTier.TIER_1;
     const monthlyPrice = await this.systemConfig.getBillingPriceAzn(tier);
     const months = Math.max(
       1,
@@ -267,3 +267,4 @@ export class DrakarisService {
     };
   }
 }
+

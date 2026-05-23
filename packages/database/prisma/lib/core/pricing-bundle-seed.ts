@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { PRICING_MODULE_CASH_BANK_PRO } from "./pricing-module-keys";
 
 export type PricingBundleSeedRow = {
   name: string;
@@ -9,23 +10,23 @@ export type PricingBundleSeedRow = {
 
 /**
  * Starter rows for `pricing_bundles` (Paket konstruktoru / Super-Admin «Пакеты»).
- * Applied only when the table is empty — same contract as {@link seedPricingModuleIfEmpty}.
+ * Synced with production-like catalog; trial bundle is {@link seedTrial3MonthsBundle}.
  */
 export const PRICING_BUNDLE_SEED_DEFAULTS: ReadonlyArray<PricingBundleSeedRow> = [
   {
     name: "Cash & warehouse",
-    discountPercent: 10,
-    moduleKeys: ["banking_pro", "kassa_pro", "inventory"],
+    discountPercent: 15,
+    moduleKeys: [PRICING_MODULE_CASH_BANK_PRO, "inventory"],
   },
   {
     name: "HR & IFRS",
-    discountPercent: 12,
+    discountPercent: 10,
     moduleKeys: ["hr_full", "ifrs_mapping"],
   },
   {
     name: "Trade & operations",
-    discountPercent: 15,
-    moduleKeys: ["trade_pro", "inventory", "manufacturing"],
+    discountPercent: 20,
+    moduleKeys: ["inventory", "manufacturing"],
   },
 ];
 

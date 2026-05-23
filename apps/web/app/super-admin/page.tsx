@@ -245,9 +245,9 @@ export default function SuperAdminPage() {
   } | null>(null);
   const [eaLoading, setEaLoading] = useState(false);
   const [subModalOrg, setSubModalOrg] = useState<OrgRow | null>(null);
-  const [subTier, setSubTier] = useState<"STARTER" | "BUSINESS" | "ENTERPRISE">(
-    "STARTER",
-  );
+  const [subTier, setSubTier] = useState<
+    "TIER_1" | "TIER_2" | "TIER_3"
+  >("TIER_1");
   const [subExpires, setSubExpires] = useState("");
   const [subBlocked, setSubBlocked] = useState(false);
   const [subPreset, setSubPreset] = useState<Record<string, boolean>>({});
@@ -401,13 +401,12 @@ export default function SuperAdminPage() {
   const openSubModal = useCallback((o: OrgRow) => {
     setSubModalOrg(o);
     const sub = o.subscription;
+    const raw = sub?.tier;
     const tier =
-      sub?.tier === "BUSINESS" || sub?.tier === "ENTERPRISE"
-        ? sub.tier
-        : "STARTER";
+      raw === "TIER_2" || raw === "TIER_3" ? raw : "TIER_1";
     setSubTier(tier);
     let exp = isoToDateInputValue(sub?.expiresAt);
-    if (!exp && tier === "ENTERPRISE") {
+    if (!exp && tier === "TIER_3") {
       exp = addOneYearFromTodayDateInput();
     }
     setSubExpires(exp);
@@ -1360,14 +1359,14 @@ export default function SuperAdminPage() {
                   onChange={(e) => {
                     const v = e.target.value as typeof subTier;
                     setSubTier(v);
-                    if (v === "ENTERPRISE" && subExpires.trim() === "") {
+                    if (v === "TIER_3" && subExpires.trim() === "") {
                       setSubExpires(addOneYearFromTodayDateInput());
                     }
                   }}
                 >
-                  <option value="STARTER">STARTER</option>
-                  <option value="BUSINESS">BUSINESS</option>
-                  <option value="ENTERPRISE">ENTERPRISE</option>
+                  <option value="TIER_1">TIER_1</option>
+                  <option value="TIER_2">TIER_2</option>
+                  <option value="TIER_3">TIER_3</option>
                 </select>
               </label>
               <label className={MODAL_FIELD_LABEL_CLASS}>

@@ -4,8 +4,10 @@ export type QuotaKind =
   | "maxEmployees"
   | "maxInvoicesPerMonth"
   | "maxStorageGb"
+  | "maxOcrPagesPerMonth"
   | "maxOcrJobsPerMonth"
-  | "whatsappOutboundMessages";
+  | "whatsappOutboundMessages"
+  | "maxWorkspaces";
 
 export type QuotaExceededBody = {
   /** HTTP 402 — см. PRD §7.12.3.1 / TZ §14.8.7 */
@@ -38,10 +40,20 @@ function messages(
         az: `Yaddaş limiti dolub (~${current} GB / ${limit} GB). Daha yüksək tarifə keçin.`,
         ru: `Достигнут лимит хранилища (~${current} GB из ${limit} GB). Перейдите на более высокий тариф.`,
       };
+    case "maxOcrPagesPerMonth":
+      return {
+        az: `Bu ay üçün OCR səhifə limiti dolub (${current}/${limit}). Növbəti ay və ya daha yüksək tarif.`,
+        ru: `Достигнут лимит OCR-страниц за текущий месяц (${current}/${limit}). Дождитесь следующего месяца или смените тариф.`,
+      };
     case "maxOcrJobsPerMonth":
       return {
-        az: `Bu ay üçün OCR sorğularının limiti dolub (${current}/${limit}). Növbəti ay və ya ENTERPRISE.`,
+        az: `Bu ay üçün OCR sorğularının limiti dolub (${current}/${limit}). Növbəti ay və ya daha yüksək tarif.`,
         ru: `Достигнут лимит OCR-запросов за текущий месяц (${current}/${limit}). Дождитесь следующего месяца или смените тариф.`,
+      };
+    case "maxWorkspaces":
+      return {
+        az: `İş sahəsi limiti dolub (${current}/${limit}). Daha yüksək tarifə keçin.`,
+        ru: `Достигнут лимит рабочих пространств (${current}/${limit}). Перейдите на более высокий тариф.`,
       };
     case "whatsappOutboundMessages":
       return {

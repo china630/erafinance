@@ -1,5 +1,5 @@
 import { ForbiddenException } from "@nestjs/common";
-import { SubscriptionTier } from "@erafinance/database";
+import { TariffTier } from "@erafinance/database";
 import { SubscriptionAccessService } from "./subscription-access.service";
 
 describe("SubscriptionAccessService (assertModuleAccess trial)", () => {
@@ -10,13 +10,13 @@ describe("SubscriptionAccessService (assertModuleAccess trial)", () => {
     expiresAt: Date | null;
     customConfig: unknown;
     activeModules?: unknown;
-    tier?: SubscriptionTier;
+    tier?: TariffTier;
   }) {
     const prisma = {
       organizationSubscription: {
         findUnique: jest.fn().mockResolvedValue({
           organizationId: orgId,
-          tier: sub.tier ?? SubscriptionTier.STARTER,
+          tier: sub.tier ?? TariffTier.TIER_1,
           activeModules: sub.activeModules ?? [],
           isTrial: sub.isTrial,
           expiresAt: sub.expiresAt,
@@ -27,7 +27,11 @@ describe("SubscriptionAccessService (assertModuleAccess trial)", () => {
         findUnique: jest.fn().mockResolvedValue(null),
       },
     } as never;
-    return new SubscriptionAccessService(prisma);
+    const pricing = {
+      isPremiumModuleKey: (key: string) =>
+        ["tax_pro", "trade_pro", "compliance_pro", "audit_hub"].includes(key),
+    } as never;
+    return new SubscriptionAccessService(prisma, pricing);
   }
 
   it("allows a module listed in trial customConfig.modules while trial is active", async () => {
@@ -37,7 +41,7 @@ describe("SubscriptionAccessService (assertModuleAccess trial)", () => {
       expiresAt: future,
       customConfig: { modules: ["fixed_assets", "inventory"] },
       activeModules: [],
-      tier: SubscriptionTier.STARTER,
+      tier: TariffTier.TIER_1,
     });
     await expect(svc.assertModuleAccess(orgId, "fixed_assets")).resolves.toBeUndefined();
   });
@@ -49,7 +53,7 @@ describe("SubscriptionAccessService (assertModuleAccess trial)", () => {
       expiresAt: future,
       customConfig: { modules: ["fixed_assets"] },
       activeModules: [],
-      tier: SubscriptionTier.STARTER,
+      tier: TariffTier.TIER_1,
     });
     await expect(svc.assertModuleAccess(orgId, "tax_pro")).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -63,10 +67,11 @@ describe("SubscriptionAccessService (assertModuleAccess trial)", () => {
       expiresAt: past,
       customConfig: { modules: ["fixed_assets"] },
       activeModules: [],
-      tier: SubscriptionTier.STARTER,
+      tier: TariffTier.TIER_1,
     });
     await expect(svc.assertModuleAccess(orgId, "fixed_assets")).rejects.toMatchObject({
       response: expect.objectContaining({ code: "MODULE_NOT_ENTITLED" }),
     });
   });
 });
+

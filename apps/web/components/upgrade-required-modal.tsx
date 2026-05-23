@@ -15,7 +15,7 @@ import {
 } from "../lib/design-system";
 import { Button } from "./ui/button";
 
-type ModalReason = "quota" | "read_only";
+type ModalReason = "quota" | "read_only" | "credit_lock" | "usage_cap";
 type CustomUpgradeDetail = {
   title?: string;
   body?: string;
@@ -40,8 +40,22 @@ export function UpgradePlanModalHost() {
 
   const onQuota = useCallback((ev: Event) => {
     const ce = ev as CustomEvent<unknown>;
-    setQuotaDetail(ce.detail ?? null);
-    setReason("quota");
+    const detail = ce.detail ?? null;
+    setQuotaDetail(detail);
+    const code =
+      detail &&
+      typeof detail === "object" &&
+      "code" in detail &&
+      typeof (detail as { code?: string }).code === "string"
+        ? (detail as { code: string }).code
+        : undefined;
+    if (code === "CREDIT_HARD_LOCK") {
+      setReason("credit_lock");
+    } else if (code === "USAGE_CAP_EXCEEDED") {
+      setReason("usage_cap");
+    } else {
+      setReason("quota");
+    }
     setOpen(true);
   }, []);
 
@@ -72,7 +86,7 @@ export function UpgradePlanModalHost() {
     if (!open) return;
     let cancelled = false;
     void (async () => {
-      const res = await apiFetch("/api/billing/upgrade-preview?newTier=ENTERPRISE");
+      const res = await apiFetch("/api/billing/upgrade-preview?newTier=TIER_3");
       if (cancelled || !res.ok) {
         if (!cancelled) setPreview(null);
         return;
@@ -100,8 +114,22 @@ export function UpgradePlanModalHost() {
       : null;
 
   const body =
-    reason === "quota" ? quotaMsg || t("upgradeModal.quotaBody") : t("upgradeModal.body");
-  const title = custom?.title?.trim() || (reason === "quota" ? t("upgradeModal.quotaTitle") : t("upgradeModal.title"));
+    reason === "credit_lock"
+      ? quotaMsg || t("upgradeModal.creditHardLockBody")
+      : reason === "usage_cap"
+        ? quotaMsg || t("upgradeModal.usageCapBody")
+        : reason === "quota"
+          ? quotaMsg || t("upgradeModal.quotaBody")
+          : t("upgradeModal.body");
+  const title =
+    custom?.title?.trim() ||
+    (reason === "credit_lock"
+      ? t("upgradeModal.creditHardLockTitle")
+      : reason === "usage_cap"
+        ? t("upgradeModal.usageCapTitle")
+        : reason === "quota"
+          ? t("upgradeModal.quotaTitle")
+          : t("upgradeModal.title"));
   const text = custom?.body?.trim() || body;
 
   return (

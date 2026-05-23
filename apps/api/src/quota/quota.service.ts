@@ -1,47 +1,13 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { SubscriptionTier } from "@erafinance/database";
+import { TariffTier } from "@erafinance/database";
+import { BillingMeterService } from "../billing/billing-meter.service";
+import { bakuMonthBounds, billingPeriodKeyBaku } from "../billing/baku-billing.util";
+import { TARIFF_TIER_LIMITS } from "../billing/tariff-limits";
 import { resolveOrganizationUuid } from "../common/organization-id.util";
 import type { TierQuotas } from "../constants/quotas";
 import { PrismaService } from "../prisma/prisma.service";
 import { SystemConfigService } from "../system-config/system-config.service";
 import { QuotaExceededException } from "./quota-exceeded.exception";
-
-function mergeTrialQuotasInto(
-  base: TierQuotas,
-  sub: {
-    isTrial: boolean;
-    expiresAt: Date | null;
-    customConfig: unknown;
-  } | null,
-): TierQuotas {
-  if (!sub?.isTrial || !sub.expiresAt) return base;
-  if (sub.expiresAt.getTime() < Date.now()) return base;
-  if (sub.customConfig == null || typeof sub.customConfig !== "object") {
-    return base;
-  }
-  const tq = (sub.customConfig as { trialQuotas?: unknown }).trialQuotas;
-  if (tq == null || typeof tq !== "object") return base;
-  const o = tq as Record<string, unknown>;
-  const out: TierQuotas = { ...base };
-  for (const key of [
-    "maxEmployees",
-    "maxInvoicesPerMonth",
-    "maxStorageGb",
-  ] as const) {
-    const v = o[key];
-    if (v === null) out[key] = null;
-    else if (typeof v === "number" && Number.isFinite(v)) out[key] = v;
-  }
-  return out;
-}
-
-function utcMonthBoundsUtc(now = new Date()): { from: Date; to: Date } {
-  const y = now.getUTCFullYear();
-  const m = now.getUTCMonth();
-  const from = new Date(Date.UTC(y, m, 1, 0, 0, 0, 0));
-  const to = new Date(Date.UTC(y, m + 1, 0, 23, 59, 59, 999));
-  return { from, to };
-}
 
 @Injectable()
 export class QuotaService {
@@ -50,295 +16,180 @@ export class QuotaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly systemConfig: SystemConfigService,
+    private readonly billingMeter: BillingMeterService,
   ) {}
 
-  private async getTier(organizationId: string): Promise<SubscriptionTier> {
+  private async getSubscriptionTier(organizationId: string): Promise<TariffTier> {
     const orgId = resolveOrganizationUuid(organizationId);
-    if (!orgId) {
-      this.logger.warn(
-        `getTier: unresolved organizationId="${organizationId}" — using STARTER quotas`,
-      );
-      return SubscriptionTier.STARTER;
-    }
+    if (!orgId) return TariffTier.TIER_0;
     const sub = await this.prisma.organizationSubscription.findUnique({
       where: { organizationId: orgId },
-      select: { tier: true },
+      select: { currentTier: true },
     });
-    if (!sub) {
-      this.logger.warn(
-        `getTier: no OrganizationSubscription row for org ${orgId} — using STARTER quotas (dev / lazy billing)`,
-      );
-      return SubscriptionTier.STARTER;
-    }
-    return sub.tier;
-  }
-
-  private async quotasForTier(tier: SubscriptionTier) {
-    return this.systemConfig.getTierQuotas(tier);
-  }
-
-  private async quotasForOrganization(orgId: string | null): Promise<TierQuotas> {
-    if (!orgId) {
-      return this.systemConfig.getTierQuotas(SubscriptionTier.STARTER);
-    }
-    const sub = await this.prisma.organizationSubscription.findUnique({
-      where: { organizationId: orgId },
-      select: { tier: true, isTrial: true, expiresAt: true, customConfig: true },
-    });
-    const tier = sub?.tier ?? SubscriptionTier.STARTER;
-    const base = await this.quotasForTier(tier);
-    return mergeTrialQuotasInto(base, sub);
+    return sub?.currentTier ?? TariffTier.TIER_0;
   }
 
   async assertEmployeeQuota(organizationId: string): Promise<void> {
-    const orgId = resolveOrganizationUuid(organizationId);
-    if (!orgId) {
-      return;
-    }
-    const { maxEmployees } = await this.quotasForOrganization(orgId);
-    if (maxEmployees == null) return;
-
-    const current = await this.prisma.employee.count({
-      where: { organizationId: orgId },
-    });
-    if (current >= maxEmployees) {
-      throw new QuotaExceededException("maxEmployees", maxEmployees, current);
-    }
+    await this.billingMeter.assertBillingNotHardBlocked(organizationId);
   }
 
   async assertStorageQuota(
     organizationId: string,
     additionalBytes: number,
   ): Promise<void> {
-    const orgId = resolveOrganizationUuid(organizationId);
-    if (!orgId) {
-      return;
-    }
-    if (additionalBytes <= 0) {
-      return;
-    }
-    const { maxStorageGb } = await this.quotasForOrganization(orgId);
-    if (maxStorageGb == null) {
-      return;
-    }
-    const maxBytes = BigInt(maxStorageGb) * 1024n ** 3n;
-    const org = await this.prisma.organization.findFirst({
-      where: { id: orgId, isDeleted: false },
-      select: { storageUsedBytes: true },
-    });
-    const used = org?.storageUsedBytes ?? 0n;
-    const add = BigInt(additionalBytes);
-    if (used + add > maxBytes) {
-      const limitGb = maxStorageGb;
-      const usedGb = Number(used) / (1024 * 1024 * 1024);
-      const usedRounded = Math.round(usedGb * 100) / 100;
-      throw new QuotaExceededException("maxStorageGb", limitGb, usedRounded);
+    await this.billingMeter.assertBillingNotHardBlocked(organizationId);
+    if (additionalBytes <= 0) return;
+    const gb = additionalBytes / 1024 ** 3;
+    if (gb > 0) {
+      await this.billingMeter.recordUsage(
+        organizationId,
+        "STORAGE_GB_MONTHLY",
+        Math.ceil(gb * 100) / 100,
+      );
     }
   }
 
-  async addStorageUsage(organizationId: string, deltaBytes: number): Promise<void> {
+  async assertInvoiceQuota(organizationId: string): Promise<void> {
+    await this.billingMeter.recordUsage(organizationId, "INVOICE_CREATED", 1);
+  }
+
+  async assertWhatsappQuota(organizationId: string, quantity = 1): Promise<void> {
     const orgId = resolveOrganizationUuid(organizationId);
-    if (!orgId || deltaBytes <= 0) {
-      return;
-    }
+    if (!orgId) return;
+    await this.billingMeter.recordUsage(
+      organizationId,
+      "WHATSAPP_ALERT",
+      quantity,
+    );
+    const periodKey = billingPeriodKeyBaku();
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { whatsappAlertsUsed: true },
+    });
+    const used = org?.whatsappAlertsUsed ?? 0;
     await this.prisma.organization.update({
       where: { id: orgId },
-      data: {
-        storageUsedBytes: { increment: BigInt(deltaBytes) },
-      },
+      data: { whatsappAlertsUsed: used + quantity, billingPeriodKey: periodKey },
     });
   }
 
-  async assertInvoiceMonthlyQuota(organizationId: string): Promise<void> {
+  async assertOcrQuota(organizationId: string, pages = 1): Promise<void> {
+    await this.billingMeter.recordUsage(organizationId, "OCR_PAGE", pages);
     const orgId = resolveOrganizationUuid(organizationId);
-    if (!orgId) {
-      return;
-    }
-    const { maxInvoicesPerMonth } = await this.quotasForOrganization(orgId);
-    if (maxInvoicesPerMonth == null) return;
-
-    const { from, to } = utcMonthBoundsUtc();
-    const current = await this.prisma.invoice.count({
-      where: {
-        organizationId: orgId,
-        createdAt: { gte: from, lte: to },
-      },
+    if (!orgId) return;
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { ocrPagesUsed: true },
     });
-    if (current >= maxInvoicesPerMonth) {
-      throw new QuotaExceededException(
-        "maxInvoicesPerMonth",
-        maxInvoicesPerMonth,
-        current,
-      );
-    }
-  }
-
-  /** Для UI: текущее число сотрудников и лимит по тиру (без исключения при достижении лимита). */
-  async getEmployeeQuotaSnapshot(organizationId: string): Promise<{
-    current: number;
-    max: number | null;
-    atLimit: boolean;
-  }> {
-    const orgId = resolveOrganizationUuid(organizationId);
-    if (!orgId) {
-      return { current: 0, max: null, atLimit: false };
-    }
-
-    let maxEmployees: number | null = null;
-    try {
-      const q = await this.quotasForOrganization(orgId);
-      maxEmployees = q.maxEmployees;
-    } catch (e) {
-      this.logger.warn(
-        `getEmployeeQuotaSnapshot: quotas failed for ${orgId}: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
-    let current = 0;
-    try {
-      current = await this.prisma.employee.count({
-        where: { organizationId: orgId },
-      });
-    } catch (e) {
-      this.logger.warn(
-        `getEmployeeQuotaSnapshot: employee count failed for ${orgId}: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
-    const atLimit = maxEmployees != null && current >= maxEmployees;
-    return { current, max: maxEmployees, atLimit };
-  }
-
-  /** Инвойсы за текущий UTC-месяц — для UI лимита. */
-  async getInvoiceMonthlyQuotaSnapshot(organizationId: string): Promise<{
-    current: number;
-    max: number | null;
-    atLimit: boolean;
-  }> {
-    const orgId = resolveOrganizationUuid(organizationId);
-    if (!orgId) {
-      return { current: 0, max: null, atLimit: false };
-    }
-
-    let maxInvoicesPerMonth: number | null = null;
-    try {
-      const q = await this.quotasForOrganization(orgId);
-      maxInvoicesPerMonth = q.maxInvoicesPerMonth;
-    } catch (e) {
-      this.logger.warn(
-        `getInvoiceMonthlyQuotaSnapshot: quotas failed for ${orgId}: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
-    const { from, to } = utcMonthBoundsUtc();
-    let current = 0;
-    try {
-      current = await this.prisma.invoice.count({
-        where: {
-          organizationId: orgId,
-          createdAt: { gte: from, lte: to },
-        },
-      });
-    } catch (e) {
-      this.logger.warn(
-        `getInvoiceMonthlyQuotaSnapshot: invoice count failed for ${orgId}: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
-    const atLimit =
-      maxInvoicesPerMonth != null && current >= maxInvoicesPerMonth;
-    return { current, max: maxInvoicesPerMonth, atLimit };
-  }
-
-  async getStorageQuotaSnapshot(organizationId: string): Promise<{
-    currentBytes: string;
-    maxGb: number | null;
-    atLimit: boolean;
-  }> {
-    const orgId = resolveOrganizationUuid(organizationId);
-    if (!orgId) {
-      return { currentBytes: "0", maxGb: null, atLimit: false };
-    }
-    let maxStorageGb: number | null = null;
-    try {
-      const q = await this.quotasForOrganization(orgId);
-      maxStorageGb = q.maxStorageGb;
-    } catch (e) {
-      this.logger.warn(
-        `getStorageQuotaSnapshot: quotas failed for ${orgId}: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
-    const org = await this.prisma.organization.findFirst({
-      where: { id: orgId, isDeleted: false },
-      select: { storageUsedBytes: true },
+    const used = org?.ocrPagesUsed ?? 0;
+    await this.prisma.organization.update({
+      where: { id: orgId },
+      data: { ocrPagesUsed: used + pages },
     });
-    const used = org?.storageUsedBytes ?? 0n;
-    const maxBytes =
-      maxStorageGb != null ? BigInt(maxStorageGb) * 1024n ** 3n : null;
-    const atLimit = maxBytes != null && used >= maxBytes;
+  }
+
+  async getQuotaSnapshot(organizationId: string) {
+    const orgId = resolveOrganizationUuid(organizationId);
+    if (!orgId) return null;
+    const tier = await this.getSubscriptionTier(orgId);
+    const limits = TARIFF_TIER_LIMITS[tier];
+    const meterUnitPricing = await this.systemConfig.getMeterUnitPricing();
+    const tierSpendCeilings = await this.billingMeter.getAllTierSpendCeilings();
+    const monthlySpendAzn = await this.billingMeter.getMonthlySpendAzn(orgId);
+
+    const periodKey = billingPeriodKeyBaku();
+    const { from, to } = bakuMonthBounds(periodKey);
+
+    const [employees, invoicesThisMonth] = await Promise.all([
+      this.prisma.organizationMembership.count({ where: { organizationId: orgId } }),
+      this.prisma.invoice.count({
+        where: { organizationId: orgId, createdAt: { gte: from, lte: to } },
+      }),
+    ]);
+
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { storageUsedBytes: true, whatsappAlertsUsed: true, ocrPagesUsed: true },
+    });
+
     return {
-      currentBytes: used.toString(),
-      maxGb: maxStorageGb,
-      atLimit,
+      tier,
+      limits,
+      meterUnitPricing,
+      tierSpendCeilings,
+      monthlySpendAzn,
+      usage: {
+        employees,
+        invoicesThisMonth,
+        storageBytes: Number(org?.storageUsedBytes ?? 0n),
+        whatsappAlertsUsed: org?.whatsappAlertsUsed ?? 0,
+        ocrPagesUsed: org?.ocrPagesUsed ?? 0,
+      },
+      billingPeriodKey: periodKey,
     };
   }
 
-  /**
-   * Trade Pro OCR uploads: per-org monthly cap from `SystemConfig` (`quota.ocr_jobs_per_org_month_v1`).
-   * ENTERPRISE is exempt.
-   */
+  async assertInvoiceMonthlyQuota(organizationId: string): Promise<void> {
+    return this.assertInvoiceQuota(organizationId);
+  }
+
   async assertOcrJobsPerMonth(organizationId: string): Promise<void> {
     const orgId = resolveOrganizationUuid(organizationId);
-    if (!orgId) {
-      return;
-    }
-    const tier = await this.getTier(organizationId);
-    if (tier === SubscriptionTier.ENTERPRISE) {
-      return;
-    }
+    if (!orgId) return;
     const limit = await this.systemConfig.getOcrJobsPerOrgMonthLimit();
-    const { from, to } = utcMonthBoundsUtc();
-    const current = await this.prisma.ocrJob.count({
+    const tier = await this.getSubscriptionTier(orgId);
+    if (tier === TariffTier.TIER_3) return;
+    const periodKey = billingPeriodKeyBaku();
+    const { from, to } = bakuMonthBounds(periodKey);
+    const count = await this.prisma.ocrJob.count({
       where: {
         organizationId: orgId,
         createdAt: { gte: from, lte: to },
       },
     });
-    if (current >= limit) {
-      throw new QuotaExceededException("maxOcrJobsPerMonth", limit, current);
+    if (count >= limit) {
+      throw new QuotaExceededException("maxOcrJobsPerMonth", limit, count);
     }
   }
 
-  /**
-   * Remaining prepaid outbound WhatsApp sends (organization balance, PRD §6.8).
-   */
-  async getWhatsappOutboundMessagesSnapshot(organizationId: string): Promise<{
-    balance: number;
-    atLimit: boolean;
-  }> {
+  async addStorageUsage(organizationId: string, additionalBytes: number): Promise<void> {
     const orgId = resolveOrganizationUuid(organizationId);
-    if (!orgId) {
-      return { balance: 0, atLimit: true };
-    }
-    const org = await this.prisma.organization.findFirst({
-      where: { id: orgId, isDeleted: false },
-      select: { whatsappOutboundMessagesBalance: true },
+    if (!orgId || additionalBytes <= 0) return;
+    await this.prisma.organization.update({
+      where: { id: orgId },
+      data: { storageUsedBytes: { increment: BigInt(additionalBytes) } },
     });
-    const balance = org?.whatsappOutboundMessagesBalance ?? 0;
-    return { balance, atLimit: balance <= 0 };
   }
 
-  /**
-   * Call before enqueueing a billable WhatsApp send; decrements are done by the sender after success.
-   */
-  async assertWhatsappOutboundMessagesRemaining(
-    organizationId: string,
-  ): Promise<void> {
+  async getEmployeeQuotaSnapshot(organizationId: string) {
     const orgId = resolveOrganizationUuid(organizationId);
-    if (!orgId) {
-      return;
-    }
-    const { balance } = await this.getWhatsappOutboundMessagesSnapshot(
-      organizationId,
-    );
-    if (balance <= 0) {
-      throw new QuotaExceededException("whatsappOutboundMessages", 1, 0);
-    }
+    if (!orgId) return { used: 0, limit: null, remaining: null };
+    const used = await this.prisma.organizationMembership.count({
+      where: { organizationId: orgId },
+    });
+    return { used, limit: null, remaining: null };
+  }
+
+  async getInvoiceMonthlyQuotaSnapshot(organizationId: string) {
+    const orgId = resolveOrganizationUuid(organizationId);
+    if (!orgId) return { used: 0, limit: null, remaining: null };
+    const periodKey = billingPeriodKeyBaku();
+    const { from, to } = bakuMonthBounds(periodKey);
+    const used = await this.prisma.invoice.count({
+      where: { organizationId: orgId, createdAt: { gte: from, lte: to } },
+    });
+    return { used, limit: null, remaining: null };
+  }
+
+  async getStorageQuotaSnapshot(organizationId: string) {
+    const orgId = resolveOrganizationUuid(organizationId);
+    if (!orgId) return { used: 0, limit: null, remaining: null };
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { storageUsedBytes: true },
+    });
+    const usedGb = Number(org?.storageUsedBytes ?? 0n) / 1024 ** 3;
+    const usedRounded = Math.round(usedGb * 100) / 100;
+    return { used: usedRounded, limit: null, remaining: null };
   }
 }

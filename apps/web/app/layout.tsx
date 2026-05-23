@@ -4,8 +4,11 @@ import "./globals.css";
 import { cookies, headers } from "next/headers";
 import { Providers } from "./providers";
 import { AppShell } from "./app-shell";
-import LoginPage from "./login/page";
 import { ExtensionBridge } from "../components/extension-bridge";
+import { isBarePublicWebPath, isPublicWebPath } from "../lib/public-routes";
+
+/** Auth and pathname come from middleware; avoid stale static layout without `x-erafinance-pathname`. */
+export const dynamic = "force-dynamic";
 
 /** SSR fallback; locale-specific title/description are applied in `SeoHeadSync` (Providers). */
 export const metadata: Metadata = {
@@ -21,35 +24,15 @@ export default async function RootLayout({
   const headerStore = await headers();
   const token = cookieStore.get("erafinance_access_token")?.value;
   const pathname = headerStore.get("x-erafinance-pathname") ?? "";
-  const portalPath = pathname.startsWith("/portal");
-  const publicPath =
-    pathname === "/" ||
-    pathname === "/home" ||
-    pathname === "/login" ||
-    pathname === "/register" ||
-    pathname === "/register-org" ||
-    pathname === "/help" ||
-    pathname === "/pricing" ||
-    pathname.startsWith("/verify/") ||
-    pathname.startsWith("/dispute/") ||
-    portalPath;
-  /** Portal, email verify, dispute, help, pricing, marketing landing — no `AppShell` chrome. */
-  const barePublicLayout =
-    portalPath ||
-    pathname.startsWith("/verify/") ||
-    pathname.startsWith("/dispute/") ||
-    pathname === "/help" ||
-    pathname === "/pricing" ||
-    pathname === "/";
+  const publicPath = isPublicWebPath(pathname);
+  const barePublicLayout = isBarePublicWebPath(pathname);
 
   return (
     <html lang="az" suppressHydrationWarning>
       <body style={{ fontFamily: "system-ui", margin: 0 }}>
         <ExtensionBridge />
         <Providers>
-          {!token && !publicPath ? (
-            <LoginPage />
-          ) : barePublicLayout ? (
+          {barePublicLayout || (publicPath && !token) ? (
             children
           ) : (
             <Suspense fallback={<div className="min-h-screen bg-[#EBEDF0]" />}>

@@ -64,7 +64,7 @@ export default function LoginPage() {
       router.replace("/companies");
       return;
     }
-    router.replace("/");
+    router.replace("/home");
   }, [ready, token, user, router]);
 
   if (ready && token) return null;

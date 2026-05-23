@@ -17,6 +17,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS "landing_module_marketing_module_slug_key"
 
 ALTER TABLE "pricing_bundles" ADD COLUMN IF NOT EXISTS "slug" TEXT;
 
+-- Full unique index (not partial): Prisma upsert on `slug` requires ON CONFLICT (slug).
 CREATE UNIQUE INDEX IF NOT EXISTS "pricing_bundles_slug_key"
-  ON "pricing_bundles" ("slug")
-  WHERE "slug" IS NOT NULL;
+  ON "pricing_bundles" ("slug");

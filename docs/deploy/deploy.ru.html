@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>--- 1) ОС + Docker (см. раздел 2) ---</title>
+  <style>
+
+:root {
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --accent: #1d4ed8;
+  --accent-soft: #eff6ff;
+  --sidebar-w: 280px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg);
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--accent);
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 100;
+}
+.skip-link:focus { left: 8px; top: 8px; }
+
+.doc-header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  box-shadow: 0 1px 0 rgba(15,23,42,.04);
+}
+.doc-header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.doc-header h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 650;
+}
+.doc-header-meta { font-size: 0.85rem; color: var(--muted); }
+
+.doc-layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+.doc-layout--single {
+  grid-template-columns: 1fr;
+}
+
+.toc-sidebar {
+  position: sticky;
+  top: 5.5rem;
+  max-height: calc(100vh - 6rem);
+  overflow: auto;
+}
+.toc-sidebar-inner {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1rem 0.75rem;
+  font-size: 0.875rem;
+}
+.toc-sidebar-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.toc-sidebar-nav .toc {
+  margin: 0;
+  padding: 0;
+}
+.toc-sidebar-nav .toc > ul {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+.toc-sidebar-nav ul ul { margin-top: 0.25em; }
+.toc-sidebar-nav li { margin: 0.35em 0; }
+.toc-sidebar-nav a { display: inline; line-height: 1.35; }
+.toc-sidebar-foot {
+  margin: 0.75rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+
+.doc-main {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem 2.25rem 3rem;
+  min-width: 0;
+}
+
+/* Markdown body */
+.doc-main h1 { font-size: 1.75rem; margin-top: 0; scroll-margin-top: 5rem; }
+.doc-main h2 {
+  font-size: 1.2rem;
+  margin-top: 2rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 5rem;
+}
+.doc-main h3 { font-size: 1.05rem; margin-top: 1.25rem; scroll-margin-top: 5rem; }
+.doc-main p { margin: 0.75em 0; }
+.doc-main ul, .doc-main ol { margin: 0.5em 0; padding-left: 1.5rem; }
+.doc-main li { margin: 0.25em 0; }
+
+/* Inline [toc] in document */
+.doc-main div.toc {
+  background: var(--accent-soft);
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 1rem 1rem 1rem 1.25rem;
+  margin: 1rem 0 1.5rem;
+}
+.doc-main div.toc ul { margin: 0.25em 0; }
+.doc-main div.toc a { font-weight: 500; }
+
+.doc-main blockquote {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--accent);
+  background: #f1f5f9;
+  color: #334155;
+}
+.doc-main code {
+  font-size: 0.9em;
+  background: #f1f5f9;
+  padding: 0.12em 0.35em;
+  border-radius: 4px;
+}
+.doc-main pre {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: 8px;
+  overflow: auto;
+  font-size: 0.85rem;
+}
+.doc-main pre code { background: none; padding: 0; color: inherit; }
+.doc-main table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  margin: 1rem 0;
+}
+.doc-main th, .doc-main td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+.doc-main th { background: #f1f5f9; font-weight: 600; }
+.doc-main img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin: 0.75rem 0;
+}
+
+[id] { scroll-margin-top: 5.5rem; }
+
+@media (max-width: 900px) {
+  .doc-layout {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+  }
+  .toc-sidebar {
+    position: relative;
+    top: auto;
+    max-height: none;
+    order: -1;
+  }
+}
+
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <header class="doc-header">
+    <div class="doc-header-inner">
+      <h1><a href="#main-content" style="color:inherit">--- 1) ОС + Docker (см. раздел 2) ---</a></h1>
+      <span class="doc-header-meta">Markdown → HTML</span>
+    </div>
+  </header>
+
+  <div class="doc-layout">
+    
+<aside class="toc-sidebar" aria-label="Table of contents">
+  <div class="toc-sidebar-inner">
+    <p class="toc-sidebar-title">Contents</p>
+    <nav class="toc-sidebar-nav">
+<div class="toc">
+<ul>
+<li><a href="#0-быстрый-чек-лист-перед-стартом">0. Быстрый чек-лист перед стартом</a></li>
+<li><a href="#01-переезд-на-digitalocean-greenfield-бд-с-нуля">0.1. Переезд на DigitalOcean (greenfield — БД с нуля)</a><ul>
+<li><a href="#011-целевая-архитектура-на-digitalocean">0.1.1. Целевая архитектура на DigitalOcean</a></li>
+<li><a href="#012-имя-бд-и-учётная-запись-erafinance">0.1.2. Имя БД и учётная запись: erafinance</a></li>
+<li><a href="#013-чеклист-перед-переездом-со-старого-хоста">0.1.3. Чеклист перед переездом (со старого хоста)</a></li>
+<li><a href="#014-создание-ресурсов-в-digitalocean">0.1.4. Создание ресурсов в DigitalOcean</a></li>
+<li><a href="#015-порядок-команд-на-новом-дроплете-greenfield">0.1.5. Порядок команд на новом дроплете (greenfield)</a></li>
+<li><a href="#016-digitalocean-spaces-хранилище-файлов">0.1.6. DigitalOcean Spaces (хранилище файлов)</a></li>
+<li><a href="#017-обновления-после-запуска">0.1.7. Обновления после запуска</a></li>
+<li><a href="#018-связанные-документы">0.1.8. Связанные документы</a></li>
+</ul>
+</li>
+<li><a href="#1-ssh">1. SSH</a></li>
+<li><a href="#2-docker-ubuntu-2404">2. Docker (Ubuntu 24.04)</a></li>
+<li><a href="#3-git">3. Git</a></li>
+<li><a href="#4-клонирование-репозитория">4. Клонирование репозитория</a></li>
+<li><a href="#5-production-env-корень-репозитория">5. Production .env (корень репозитория)</a><ul>
+<li><a href="#минимально-обязательные-переменные">Минимально обязательные переменные</a></li>
+<li><a href="#часто-нужные-опции-рекомендуется-настроить-до-публичного-запуска">Часто нужные опции (рекомендуется настроить до публичного запуска)</a></li>
+<li><a href="#важно-про-next_public_">Важно про NEXT_PUBLIC_*</a></li>
+</ul>
+</li>
+<li><a href="#6-первый-запуск-стека">6. Первый запуск стека</a></li>
+<li><a href="#7-prisma-7-миграции-и-первичная-инициализация">7. Prisma 7: миграции и первичная инициализация</a><ul>
+<li><a href="#70-maintenance-mode-перед-миграциями-рекомендуется">7.0. Maintenance mode перед миграциями (рекомендуется)</a><ul>
+<li><a href="#вариант-a-одна-настройка-в-env-проще-всего-при-типовом-деплое">Вариант A — одна настройка в .env (проще всего при типовом деплое)</a></li>
+<li><a href="#вариант-b-nginx-или-другой-reverse-proxy-перед-приложением">Вариант B — Nginx (или другой reverse proxy) перед приложением</a></li>
+</ul>
+</li>
+<li><a href="#701-одна-squashed-миграция-и-сценарии-базы">7.0.1. Одна squashed-миграция и сценарии базы</a><ul>
+<li><a href="#a-прод-снос-бд-и-установка-с-нуля-осознанно-без-переноса-данных">A) Прод: снос БД и установка с нуля (осознанно, без переноса данных)</a></li>
+<li><a href="#b-новая-пустая-база-первый-запуск-схемы-ещё-не-было">B) Новая пустая база (первый запуск, схемы ещё не было)</a></li>
+<li><a href="#c-существующая-база-со-схемой-от-старых-миграций-данные-сохраняем">C) Существующая база со схемой от старых миграций (данные сохраняем)</a></li>
+</ul>
+</li>
+<li><a href="#71-миграции-обязательно">7.1. Миграции (обязательно)</a></li>
+<li><a href="#72-идемпотентная-доводка-платформенных-данных-рекомендуется">7.2. Идемпотентная “доводка” платформенных данных (рекомендуется)</a></li>
+<li><a href="#73-синхронизация-переводов-i18n-в-postgres-не-пропускать-на-проде">7.3. Синхронизация переводов (i18n) в Postgres — не пропускать на проде</a></li>
+<li><a href="#74-локально-windows-dev-тот-же-порядок-что-migrate-prune-bump">7.4. Локально (Windows / dev): тот же порядок, что «migrate + prune + bump»</a></li>
+</ul>
+</li>
+<li><a href="#8-https-обязательно-для-production">8. HTTPS (обязательно для production)</a><ul>
+<li><a href="#81-рекомендуемый-путь-caddy-быстрее-всего">8.1. Рекомендуемый путь: Caddy (быстрее всего)</a></li>
+<li><a href="#82-альтернатива-nginx">8.2. Альтернатива: Nginx</a></li>
+</ul>
+</li>
+<li><a href="#9-проверки-после-деплоя">9. Проверки после деплоя</a></li>
+<li><a href="#10-типовые-проблемы">10. Типовые проблемы</a></li>
+<li><a href="#11-runbook-снести-дроплет-и-поднять-заново-без-данных">11. Runbook: «снести дроплет и поднять заново» (без данных)</a><ul>
+<li><a href="#111-на-новой-машине-ubuntu-2404">11.1. На новой машине (Ubuntu 24.04)</a></li>
+<li><a href="#112-поднять-стек-миграции">11.2. Поднять стек + миграции</a></li>
+<li><a href="#113-проверки">11.3. Проверки</a></li>
+<li><a href="#114-если-нужно-повторить-с-нуля">11.4. Если нужно повторить «с нуля»</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+    </nav>
+    <p class="toc-sidebar-foot">
+      <a href="#main-content">Top of document ↑</a>
+    </p>
+  </div>
+</aside>
+
+    <article id="main-content" class="doc-main">
+<p>﻿# ERA Finance — развёртывание в production (Ubuntu 24.04 + Docker Compose)</p>
+<p>Цель: поднять стек из <code>docker-compose.prod.yml</code>:<br />
+- Postgres <strong>16</strong> (<code>db</code>)<br />
+- Redis <strong>7</strong> (<code>redis</code>)<br />
+- NestJS API (<code>api</code>)<br />
+- Next.js Web (<code>web</code>)</p>
+<p>Документ обновлён под:<br />
+- <strong>Node.js 22</strong> (образы <code>apps/api/Dockerfile</code>, <code>apps/web/Dockerfile</code>)<br />
+- <strong>Prisma ORM 7</strong> + <strong><code>prisma.config.ts</code></strong> + <strong>driver adapter</strong> (<code>@prisma/adapter-pg</code>)<br />
+- Требование <strong>HTTPS</strong> для production web-origin (см. <code>TZ.md</code> §1)</p>
+<hr />
+<h2 id="0-быстрый-чек-лист-перед-стартом">0. Быстрый чек-лист перед стартом</h2>
+<ul>
+<li>Есть домен и будет настроен HTTPS (Caddy/nginx/Traefik) → трафик на <code>web:3000</code>.</li>
+<li>В корне репозитория будет <code>.env</code> (шаблон: <code>env.production.example</code>).</li>
+<li>Вы понимаете, что <code>NEXT_PUBLIC_*</code> переменные <strong>вшиваются в клиентский бандл на этапе build</strong>.</li>
+<li>На сервере открыт только нужный внешний порт (обычно 80/443); Postgres/Redis наружу не публикуем.</li>
+<li>После <strong>каждого</strong> деплоя с новым кодом фронта: не забыть шаг <strong>синхронизации переводов в БД</strong> (§7.3) — иначе <strong><code>GET /api/public/translations</code></strong> и кэш i18n могут расходиться с бандлом <strong><code>resources.ts</code></strong> (на клиенте язык UI — только <strong>ru</strong> / <strong>az</strong>, при неопределённом коде — <strong>az</strong>; см. PRD §7.6.1, TZ §17).</li>
+<li>Если <strong>прод</strong> — <strong>greenfield со сносом БД</strong> (пустая база / новый том, данных переносить не нужно), используйте <strong>п. 7.0.1 (A)</strong> — без baseline/<code>migrate resolve</code>; далее миграции + i18n + <code>db:prod-init</code> как обычно.</li>
+<li><strong>Переезд на DigitalOcean с пустой БД</strong> (без восстановления дампа со старого сервера): начните с <strong>п. 0.1</strong>, затем разделы 1–9.</li>
+</ul>
+<hr />
+<h2 id="01-переезд-на-digitalocean-greenfield-бд-с-нуля">0.1. Переезд на DigitalOcean (greenfield — БД с нуля)</h2>
+<p>Этот раздел — для сценария, когда вы <strong>намеренно не переносите</strong> бизнес-данные со старого хоста: новый инстанс Postgres (или новый Docker-том) и <strong>пустая</strong> база с именем <strong><code>erafinance</code></strong> (как в <code>env.production.example</code>, <code>.env.example</code> и дефолтах <code>docker-compose.prod.yml</code>). Данные со старого сервера с другим именем БД или старой историей миграций в новый инстанс <strong>не заливаем</strong>.</p>
+<p><strong>Не восстанавливайте</strong> старый <code>pg_dump</code> в новую базу, если не идёте по п. <strong>7.0.1 (C)</strong> (сохранение данных + baseline). Дамп со старой схемой/историей миграций конфликтует с единственной squashed-миграцией <code>20260520120000_squashed_schema</code>.</p>
+<h3 id="011-целевая-архитектура-на-digitalocean">0.1.1. Целевая архитектура на DigitalOcean</h3>
+<table>
+<thead>
+<tr>
+<th>Компонент</th>
+<th>Рекомендация (MVP)</th>
+<th>Усиление (позже)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Регион</td>
+<td><strong>FRA1</strong> или <strong>AMS3</strong> (EU; TZ §1.4, §1.6)</td>
+<td>Тот же</td>
+</tr>
+<tr>
+<td>API + Web + воркеры BullMQ</td>
+<td><strong>Droplet</strong> Ubuntu 24.04, Docker Compose (<code>docker-compose.prod.yml</code>)</td>
+<td>Отдельный worker-droplet при росте нагрузки</td>
+</tr>
+<tr>
+<td>PostgreSQL 16</td>
+<td>Контейнер <code>db</code>, том <code>pgdata</code></td>
+<td><strong>Managed Database for PostgreSQL</strong> (приватный hostname в VPC)</td>
+</tr>
+<tr>
+<td>Redis 7</td>
+<td>Контейнер <code>redis</code></td>
+<td><strong>Managed Redis</strong> (<code>noeviction</code>, только VPC)</td>
+</tr>
+<tr>
+<td>Файлы</td>
+<td><code>STORAGE_DRIVER=local</code></td>
+<td><strong>Spaces</strong> (S3-совместимое; п. 0.1.6)</td>
+</tr>
+<tr>
+<td>HTTPS</td>
+<td><strong>Caddy</strong> или Nginx на дроплете → <code>127.0.0.1:3000</code></td>
+<td>По желанию <strong>Cloudflare</strong> спереди</td>
+</tr>
+<tr>
+<td>DNS</td>
+<td><strong>A</strong> на публичный IPv4 дроплета (или Floating IP)</td>
+<td>То же</td>
+</tr>
+</tbody>
+</table>
+<p>Сеть (TZ §1.6): Postgres и Redis <strong>не</strong> публикуются в интернет. На дроплете не открывайте <strong>5432</strong> / <strong>6379</strong> наружу (не задавайте <code>POSTGRES_PUBLISH_PORT</code> / <code>REDIS_PUBLISH_PORT</code> без файрвола; используйте <strong>Cloud Firewall</strong> DO + <code>ufw</code>).</p>
+<h3 id="012-имя-бд-и-учётная-запись-erafinance">0.1.2. Имя БД и учётная запись: <code>erafinance</code></h3>
+<p>Стандарт для prod и локальной разработки (шаблоны в репозитории):</p>
+<pre><code class="language-bash">POSTGRES_USER=erafinance
+POSTGRES_DB=erafinance
+</code></pre>
+<p><code>DATABASE_URL</code> в <code>.env</code> на дроплете должен совпадать с этими значениями (Compose собирает URL для <code>api</code> из <code>POSTGRES_*</code> автоматически).</p>
+<p>Если на дроплете уже есть <strong>старый том</strong> Postgres, созданный с <strong>другим</strong> <code>POSTGRES_DB</code>, внутри тома останется прежняя база — смена только переменных в <code>.env</code> <strong>не переименует</strong> данные. Для greenfield: <strong><code>docker compose … down -v</code></strong> (удаление тома <code>pgdata</code>) или новый пустой Managed DB с именем <strong><code>erafinance</code></strong>.</p>
+<h3 id="013-чеклист-перед-переездом-со-старого-хоста">0.1.3. Чеклист перед переездом (со старого хоста)</h3>
+<table>
+<thead>
+<tr>
+<th>Шаг</th>
+<th>Действие</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Согласовать <strong>окно обслуживания</strong> (maintenance, п. 7.0).</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Сохранить <strong>секреты</strong>, которые нужны на новом месте: SMTP, Spaces/S3, ключи интеграций; JWT — лучше <strong>новые</strong> на greenfield.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Зафиксировать <strong>публичный URL</strong> для <code>CORS_ORIGINS</code> и DNS.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>На коммите релиза: <code>npm run build</code> (<code>i18n:audit</code>). При правках <code>resources.ts</code>: <code>npm run i18n:catalog</code> + коммит <code>i18n-default-catalog-data.json</code>.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>По желанию: финальный бэкап на старом хосте (<code>scripts/backup-db.sh</code>) <strong>только в архив</strong>, не для заливки в новую пустую БД.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="014-создание-ресурсов-в-digitalocean">0.1.4. Создание ресурсов в DigitalOcean</h3>
+<ol>
+<li><strong>Project</strong> (по желанию): дроплет, БД, bucket.</li>
+<li><strong>VPC</strong> в <strong>FRA1</strong> или <strong>AMS3</strong>.</li>
+<li><strong>Droplet</strong>: Ubuntu <strong>24.04</strong>, для пилота часто хватает <strong>2 vCPU / 4 GB</strong>, SSH-ключ, мониторинг.</li>
+<li><strong>Cloud Firewall</strong>: вход <strong>22</strong> (с вашего IP), <strong>80</strong>, <strong>443</strong>; <strong>запрет</strong> <strong>5432</strong>, <strong>6379</strong>, <strong>4000</strong> с <code>0.0.0.0/0</code>.</li>
+<li><strong>Floating IP</strong> (опционально) — до переключения DNS.</li>
+<li><strong>DNS</strong>: TTL <strong>300</strong> за сутки до cutover; <strong>A</strong> на IP дроплета.</li>
+<li><strong>Spaces</strong> (если S3): bucket рядом с регионом; access keys; endpoint вида <code>https://fra1.digitaloceanspaces.com</code>.</li>
+</ol>
+<p>Managed Postgres/Redis вместо контейнеров — тот же VPC, trusted source = дроплет. Подключение внешнего <code>DATABASE_URL</code> потребует override Compose (в стандартном <code>docker-compose.prod.yml</code> БД — сервис <code>db</code>). Ниже — путь MVP с контейнером <code>db</code>.</p>
+<h3 id="015-порядок-команд-на-новом-дроплете-greenfield">0.1.5. Порядок команд на новом дроплете (greenfield)</h3>
+<p>Подставьте: <code>YOUR_GIT_URL</code>, <code>your-domain.tld</code>, секреты.</p>
+<pre><code class="language-bash"># --- 1) ОС + Docker (см. раздел 2) ---
+ssh root@IP_ДРОПЛЕТА
+# ... установка Docker по разделу 2 ...
+
+# --- 2) Каталог приложения ---
+sudo mkdir -p /opt/erafinance_erp
+sudo chown &quot;$USER&quot;:&quot;$USER&quot; /opt/erafinance_erp
+cd /opt/erafinance_erp
+git clone YOUR_GIT_URL .
+git checkout main   # или тег релиза
+
+# --- 3) Production .env ---
+cp env.production.example .env
+nano .env
+</code></pre>
+<p><strong>Минимум в <code>.env</code>:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Переменная</th>
+<th>Примечание</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>COMPOSE_PROJECT_NAME</code></td>
+<td><code>erafinance_prod</code></td>
+</tr>
+<tr>
+<td><code>POSTGRES_USER</code></td>
+<td><code>erafinance</code></td>
+</tr>
+<tr>
+<td><code>POSTGRES_DB</code></td>
+<td><code>erafinance</code></td>
+</tr>
+<tr>
+<td><code>POSTGRES_PASSWORD</code></td>
+<td>надёжный пароль</td>
+</tr>
+<tr>
+<td><code>REDIS_URL</code></td>
+<td><code>redis://redis:6379</code></td>
+</tr>
+<tr>
+<td><code>JWT_SECRET</code>, <code>JWT_REFRESH_SECRET</code></td>
+<td>новые длинные значения</td>
+</tr>
+<tr>
+<td><code>CORS_ORIGINS</code></td>
+<td><code>https://your-domain.tld</code></td>
+</tr>
+<tr>
+<td><code>NEXT_PUBLIC_API_URL</code></td>
+<td><code>http://api:4000</code> (внутри Compose)</td>
+</tr>
+<tr>
+<td><code>STORAGE_DRIVER</code></td>
+<td><code>s3</code> + Spaces или <code>local</code></td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-bash"># --- 4) Каталог файлов (если local storage) ---
+sudo mkdir -p /var/lib/erafinance/storage
+sudo chown 1001:1001 /var/lib/erafinance/storage
+
+# --- 5) Maintenance + пустой том Postgres ---
+# В .env: MAINTENANCE_MODE=1
+docker compose -f docker-compose.prod.yml up -d --build
+
+# Первый запуск ИЛИ смена имени БД — пустой том:
+# ВНИМАНИЕ: удаляет все данные в томе pgdata
+docker compose -f docker-compose.prod.yml down
+docker volume rm erafinance_prod_pgdata 2&gt;/dev/null || docker volume ls | grep pgdata
+
+docker compose -f docker-compose.prod.yml up -d db redis
+docker compose -f docker-compose.prod.yml up -d --build
+
+# --- 6) Схема + платформа (п. 7.0.1 A) ---
+docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
+docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune
+docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
+
+# --- 7) HTTPS (раздел 8) ---
+# --- 8) Проверки (раздел 9) ---
+# Убрать MAINTENANCE_MODE из .env:
+docker compose -f docker-compose.prod.yml up -d web
+</code></pre>
+<p>Платформенные пользователи создаются через <code>db:seed</code> / <code>db:prod-init</code> по правилам репозитория. Отдельный хеш super-admin: <code>npm run docker-init:super-admin-hash</code> из корня (с корректным <code>DATABASE_URL</code>).</p>
+<h3 id="016-digitalocean-spaces-хранилище-файлов">0.1.6. DigitalOcean Spaces (хранилище файлов)</h3>
+<p>В <code>.env</code> для <code>api</code>:</p>
+<pre><code class="language-bash">STORAGE_DRIVER=s3
+S3_ENDPOINT=https://fra1.digitaloceanspaces.com
+S3_REGION=fra1
+S3_BUCKET=имя-bucket
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+</code></pre>
+<p>Пересборка образа <strong>не</strong> нужна — после правки <code>.env</code>:</p>
+<pre><code class="language-bash">docker compose -f docker-compose.prod.yml up -d api
+</code></pre>
+<h3 id="017-обновления-после-запуска">0.1.7. Обновления после запуска</h3>
+<table>
+<thead>
+<tr>
+<th>Тип изменения</th>
+<th>Команда</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Только код/образы</td>
+<td><code>bash scripts/deploy-prod-code.sh</code></td>
+</tr>
+<tr>
+<td>Новые миграции Prisma</td>
+<td><code>bash scripts/deploy-prod-db-migrate.sh</code> (с бэкапом)</td>
+</tr>
+<tr>
+<td>Только i18n</td>
+<td><code>docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune</code></td>
+</tr>
+</tbody>
+</table>
+<p>Настройте cron для <code>scripts/backup-db.sh</code>, копии храните вне дроплета. См. <code>DR_RUNBOOK.md</code>.</p>
+<h3 id="018-связанные-документы">0.1.8. Связанные документы</h3>
+<table>
+<thead>
+<tr>
+<th>Документ</th>
+<th>Назначение</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PRE-RELEASE-CHECKLIST.md</code></td>
+<td>Сборка, i18n, smoke перед релизом</td>
+</tr>
+<tr>
+<td><code>DR_RUNBOOK.md</code></td>
+<td>Бэкапы и восстановление</td>
+</tr>
+<tr>
+<td><code>../launch/STAGE_B_INFRASTRUCTURE.md</code></td>
+<td>Инфра, шаги 34–65</td>
+</tr>
+<tr>
+<td><code>TZ.md</code> §1.4–1.7, §1.6</td>
+<td>VPC, Redis, регион</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="1-ssh">1. SSH</h2>
+<pre><code class="language-bash">ssh deploy@YOUR_SERVER_IP
+</code></pre>
+<hr />
+<h2 id="2-docker-ubuntu-2404">2. Docker (Ubuntu 24.04)</h2>
+<pre><code class="language-bash">sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo &quot;deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release &amp;&amp; echo \&quot;${VERSION_CODENAME:-noble}\&quot;) stable&quot; | sudo tee /etc/apt/sources.list.d/docker.list &gt; /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo usermod -aG docker &quot;$USER&quot;
+</code></pre>
+<p>Перезайди в SSH или выполни <code>newgrp docker</code>, затем:</p>
+<pre><code class="language-bash">docker version
+docker compose version
+</code></pre>
+<hr />
+<h2 id="3-git">3. Git</h2>
+<pre><code class="language-bash">sudo apt-get install -y git
+</code></pre>
+<hr />
+<h2 id="4-клонирование-репозитория">4. Клонирование репозитория</h2>
+<pre><code class="language-bash">sudo mkdir -p /opt/erafinance_erp
+sudo chown &quot;$USER&quot;:&quot;$USER&quot; /opt/erafinance_erp
+cd /opt/erafinance_erp
+git clone YOUR_GIT_URL .
+</code></pre>
+<p><code>YOUR_GIT_URL</code> — любой URL удалённого репозитория (после переименования на GitHub достаточно обновить <code>git remote</code> или использовать новый URL при клоне). Имя каталога на сервере (<code>/opt/erafinance_erp</code>) в документации условное: если клонируете в другой путь, подставьте его во всех командах ниже.</p>
+<hr />
+<h2 id="5-production-env-корень-репозитория">5. Production <code>.env</code> (корень репозитория)</h2>
+<pre><code class="language-bash">cp env.production.example .env
+nano .env
+</code></pre>
+<h3 id="минимально-обязательные-переменные">Минимально обязательные переменные</h3>
+<ul>
+<li><strong>Postgres</strong>:</li>
+<li><code>POSTGRES_PASSWORD</code> (обязательна)</li>
+<li>опционально <code>POSTGRES_USER</code>, <code>POSTGRES_DB</code></li>
+<li><strong>API</strong>:</li>
+<li><code>REDIS_URL=redis://redis:6379</code></li>
+<li><code>JWT_SECRET</code>, <code>JWT_REFRESH_SECRET</code></li>
+<li><code>AUDIT_HASH_SECRET</code> (рекомендуется)</li>
+<li><code>CORS_ORIGINS=https://your-domain.tld</code> (можно несколько через запятую)</li>
+<li><strong>Web</strong>:</li>
+<li><code>NEXT_PUBLIC_API_URL=http://api:4000</code> (для сборки/SSR внутри сети Compose)</li>
+</ul>
+<h3 id="часто-нужные-опции-рекомендуется-настроить-до-публичного-запуска">Часто нужные опции (рекомендуется настроить до публичного запуска)</h3>
+<ul>
+<li><strong>Storage (логотипы, PDF)</strong>:</li>
+<li>production: <code>STORAGE_DRIVER=s3</code> + <code>S3_*</code></li>
+<li>альтернативно: <code>STORAGE_DRIVER=local</code> + <code>STORAGE_LOCAL_ROOT</code></li>
+<li><strong>SMTP</strong>:</li>
+<li><code>SMTP_HOST</code> + <code>SMTP_*</code> — без этого письма не отправляются</li>
+<li><strong>Sentry</strong>:</li>
+<li>API: <code>SENTRY_DSN_API</code></li>
+<li>Web client: <code>NEXT_PUBLIC_SENTRY_DSN</code></li>
+<li>sourcemaps upload для web build: <code>SENTRY_UPLOAD_SOURCEMAPS=1</code> + <code>SENTRY_AUTH_TOKEN</code> + <code>SENTRY_ORG</code> + <code>SENTRY_PROJECT_WEB</code></li>
+</ul>
+<h3 id="важно-про-next_public_">Важно про <code>NEXT_PUBLIC_*</code></h3>
+<p><code>NEXT_PUBLIC_*</code> попадают в Next.js bundle <strong>во время</strong> <code>docker build</code> (см. <code>apps/web/Dockerfile</code>). Если меняете эти значения — нужно <strong>пересобрать образ web</strong>.</p>
+<hr />
+<h2 id="6-первый-запуск-стека">6. Первый запуск стека</h2>
+<p>Из корня (где лежит <code>docker-compose.prod.yml</code>):</p>
+<pre><code class="language-bash">docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml ps
+</code></pre>
+<p>Логи:</p>
+<pre><code class="language-bash">docker compose -f docker-compose.prod.yml logs -f api web
+</code></pre>
+<hr />
+<h2 id="7-prisma-7-миграции-и-первичная-инициализация">7. Prisma 7: миграции и первичная инициализация</h2>
+<p>В этом репозитории Prisma настроена через <code>packages/database/prisma.config.ts</code>.<br />
+В production миграции применяем <strong>только</strong> командой <code>prisma migrate deploy</code> (никаких <code>migrate dev</code>).</p>
+<h3 id="70-maintenance-mode-перед-миграциями-рекомендуется">7.0. Maintenance mode перед миграциями (рекомендуется)</h3>
+<p>Перед <code>db:migrate:deploy</code> включайте maintenance mode, чтобы пользователи не работали в момент изменения схемы.</p>
+<h4 id="вариант-a-одна-настройка-в-env-проще-всего-при-типовом-деплое">Вариант A — одна настройка в <code>.env</code> (проще всего при типовом деплое)</h4>
+<p>В корневом <code>.env</code> задайте для сервиса <code>web</code>:</p>
+<pre><code class="language-bash">MAINTENANCE_MODE=1
+</code></pre>
+<p>Поддерживаемые значения: <code>1</code>, <code>true</code>, <code>yes</code>, <code>on</code> (без учёта регистра). Выключение: удалите переменную, <code>0</code> или <code>false</code>.</p>
+<p>Пересборка образа <code>web</code> <strong>не нужна</strong>; Compose уже пробрасывает переменную в контейнер. Нужен <strong>перезапуск</strong> процесса Next:</p>
+<pre><code class="language-bash">docker compose -f docker-compose.prod.yml up -d web
+</code></pre>
+<p>Дальше миграции и инициализация (как в п. 7.1–7.2), затем снимите <code>MAINTENANCE_MODE</code> и снова <code>up -d web</code>.</p>
+<p><strong>Ограничение:</strong> ответ 503 отдаёт только контейнер <strong>Next (<code>web</code>)</strong>. Запросы, которые не проходят через него (например, отдельно опубликованный порт API на хосте), этой настройкой не отключаются. В таких схемах используйте вариант B.</p>
+<h4 id="вариант-b-nginx-или-другой-reverse-proxy-перед-приложением">Вариант B — Nginx (или другой reverse proxy) перед приложением</h4>
+<p>503 на границе HTTPS, до Node/Docker — надёжнее при нестандартной публикации портов.</p>
+<ul>
+<li><code>docs/maintenance.html</code> — страница обслуживания (AZ/RU); для варианта A дублируется в коде (<code>apps/web/lib/maintenance-page-html.ts</code>, держите визуально в согласовании при правках).</li>
+<li><code>docs/nginx-maintenance.conf</code> — сниппет: 503, если существует файл-флаг <code>/var/www/html/maintenance.enable</code>.</li>
+</ul>
+<p>Пример последовательности на сервере:</p>
+<pre><code class="language-bash"># 1) разово: положить maintenance.html и подключить nginx-сниппет
+sudo cp /opt/erafinance_erp/docs/maintenance.html /var/www/html/maintenance.html
+# include /opt/erafinance_erp/docs/nginx-maintenance.conf; внутри server { ... }
+
+# 2) включить maintenance
+sudo touch /var/www/html/maintenance.enable
+sudo nginx -t &amp;&amp; sudo systemctl reload nginx
+
+# 3) миграции / i18n / инициализация
+docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
+docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune
+docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
+
+# 4) выключить maintenance
+sudo rm -f /var/www/html/maintenance.enable
+sudo nginx -t &amp;&amp; sudo systemctl reload nginx
+</code></pre>
+<h3 id="701-одна-squashed-миграция-и-сценарии-базы">7.0.1. Одна squashed-миграция и сценарии базы</h3>
+<p>В репозитории <strong>одна</strong> папка Prisma Migrate: <strong><code>20260520120000_squashed_schema</code></strong>. Выберите сценарий по вашему стенду.</p>
+<h4 id="a-прод-снос-бд-и-установка-с-нуля-осознанно-без-переноса-данных">A) Прод: снос БД и установка с нуля (осознанно, без переноса данных)</h4>
+<p>Если на целевом Postgres <strong>допустимо полное удаление бизнес-данных</strong> (первый выход в прод без миграции со старой схемы, пересборка staging, жёсткий cutover), <strong>baseline не нужен</strong> и <strong><code>migrate resolve</code> не нужен</strong>. Нужна <strong>пустая</strong> база приложения (нет таблиц/enum из старого деплоя), затем обычный порядок из п. 7.1–7.2.</p>
+<ol>
+<li>Включите maintenance mode (п. 7.0).</li>
+<li>Остановите обращения к БД, затем <strong>удалите базу приложения</strong> (или том Postgres в Docker / новый пустой инстанс). Создайте <strong>пустую</strong> базу с тем же именем <code>POSTGRES_DB</code> и учётными данными, что в <code>.env</code> / <code>DATABASE_URL</code>.</li>
+<li>Поднимите <code>db</code> и <code>redis</code>, затем из контейнера <code>api</code>, как в п. 7.1–7.2, например:</li>
+</ol>
+<pre><code class="language-bash">docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
+docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune
+docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
+</code></pre>
+<ol start="4">
+<li>Снимите maintenance mode.</li>
+</ol>
+<p><strong>Без отката:</strong> без бэкапа восстановить удалённые данные нельзя. Не применяйте этот путь к продакшену, где нужно сохранить организации, проводки и т.д.</p>
+<h4 id="b-новая-пустая-база-первый-запуск-схемы-ещё-не-было">B) Новая пустая база (первый запуск, схемы ещё не было)</h4>
+<p>Это конечное состояние после п. A: достаточно <code>npm run db:migrate:deploy</code> в <code>api</code> (или <code>prisma migrate deploy</code> с корректным <code>DATABASE_URL</code>) — Prisma применит <code>migration.sql</code> и заполнит <code>_prisma_migrations</code>.</p>
+<h4 id="c-существующая-база-со-схемой-от-старых-миграций-данные-сохраняем">C) Существующая база со схемой от старых миграций (данные сохраняем)</h4>
+<p><strong>Нельзя</strong> просто запустить <code>migrate deploy</code> поверх уже созданной схемы из удалённой истории миграций — будут ошибки вида «relation already exists». Либо переходите на п. <strong>A</strong> (со сносом), либо baseline:</p>
+<ol>
+<li>Резервная копия Postgres.</li>
+<li>Очистка <strong>только</strong> служебной таблицы миграций:</li>
+</ol>
+<pre><code class="language-sql">DELETE FROM &quot;_prisma_migrations&quot;;
+</code></pre>
+<ol start="3">
+<li>Пометить squashed-миграцию как применённую <strong>без выполнения SQL</strong> (схема уже должна соответствовать ожиданиям приложения):</li>
+</ol>
+<pre><code class="language-bash">npx prisma migrate resolve --applied 20260520120000_squashed_schema
+</code></pre>
+<ol start="4">
+<li>Затем:</li>
+</ol>
+<pre><code class="language-bash">npx prisma migrate deploy
+</code></pre>
+<p>В Docker Compose из корня репозитория:</p>
+<pre><code class="language-bash">docker compose -f docker-compose.prod.yml exec api npx prisma migrate resolve --applied 20260520120000_squashed_schema
+docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
+</code></pre>
+<p><strong>Для разработчиков:</strong> актуальный <code>migration.sql</code> в репозитории собирается, например, командой Prisma 7 <code>npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script</code> из каталога <code>packages/database</code> (см. документацию Prisma Migrate: <em>Baselining</em>, <em>drift</em>). Папка в репо: <strong><code>20260520120000_squashed_schema</code></strong>.</p>
+<h3 id="71-миграции-обязательно">7.1. Миграции (обязательно)</h3>
+<pre><code class="language-bash">docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
+</code></pre>
+<p><code>DATABASE_URL</code> и остальные переменные из <code>.env</code> на хосте попадают в контейнер через <code>env_file</code> в <code>docker-compose.prod.yml</code>; отдельный <code>dotenv-cli</code> в образе для этих команд не требуется.</p>
+<h3 id="72-идемпотентная-доводка-платформенных-данных-рекомендуется">7.2. Идемпотентная “доводка” платформенных данных (рекомендуется)</h3>
+<pre><code class="language-bash">docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
+</code></pre>
+<p>Примечание: <code>db:prod-init</code> должен быть идемпотентным; это не “reset”. Корневой <strong><code>npm run db:prod-init</code></strong> (так его вызывают из <code>docker compose … exec api</code>) уже включает <strong><code>db:migrate:deploy</code></strong>, <strong><code>db:seed</code></strong>, <strong><code>db:sync-i18n:prune</code></strong> и скрипт <strong><code>db:prod-init</code></strong> в workspace <code>@erafinance/database</code> — отдельный §7.3 в этом случае дублирует синхронизацию, но не вредит. Если хотите <strong>явный</strong> порядок без повторного <code>migrate</code>/<code>seed</code> из корня: выполните §7.1 и §7.3, затем только <strong><code>npm run db:prod-init -w @erafinance/database</code></strong> (доводка платформы без полной цепочки корня).</p>
+<h3 id="73-синхронизация-переводов-i18n-в-postgres-не-пропускать-на-проде">7.3. Синхронизация переводов (i18n) в Postgres — <strong>не пропускать на проде</strong></h3>
+<p>Строки <strong>RU/AZ</strong> для UI лежат в <strong><code>apps/web/lib/i18n/resources.ts</code></strong> (в образ <code>api</code> файл копируется при сборке). Таблица <strong><code>translation_overrides</code></strong> и ответ <strong><code>GET /api/public/translations?locale=ru|az</code></strong> должны соответствовать этому словарю: иначе после релиза на проде возможны «старые» подписи или лишние ключи в БД.</p>
+<p><strong>Клиент (web):</strong> в браузере поддерживаются только <strong><code>ru</code></strong> и <strong><code>az</code></strong>; при нераспознанном языке (localStorage, браузер) действует <strong><code>az</code></strong>. Подмешивание оверрайдов из ответа API выполняется с нормализацией плоских ключей и <strong>глубоким merge с перезаписью</strong> совпадающих путей в бандле — иначе правки из БД по ключам, уже есть в <code>resources.ts</code>, не будут видны. Подробности реализации — <strong><code>apps/web/lib/i18n/apply-db-overrides.ts</code></strong>, <strong><code>apps/web/lib/i18n/ui-lang.ts</code></strong> (PRD §7.6.1, TZ §17).</p>
+<p><strong>Рекомендуемый шаг после <code>db:migrate:deploy</code> на каждом релизе</strong> (идемпотентно, из контейнера <code>api</code>, <code>WORKDIR</code> = корень монорепо в образе):</p>
+<pre><code class="language-bash">docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune
+</code></pre>
+<p>Что делает команда:</p>
+<ul>
+<li>upsert всех плоских ключей <strong>ru</strong> и <strong>az</strong> из <code>resources.ts</code> в <strong><code>translation_overrides</code></strong>;</li>
+<li>удаляет из <strong>ru/az</strong> строки, ключей которых <strong>больше нет</strong> в <code>resources.ts</code> (актуализация после переименований);</li>
+<li>обновляет <strong><code>system_config</code></strong> ключ <strong><code>i18n.cacheVersion</code></strong> — клиенты перезапрашивают оверрайды.</li>
+</ul>
+<p><strong>Альтернатива одной строкой</strong> (миграции + синхронизация i18n с prune; без seed):</p>
+<pre><code class="language-bash">docker compose -f docker-compose.prod.yml exec api npm run db:deploy
+</code></pre>
+<p>Если нужен только upsert <strong>без</strong> удаления устаревших ключей (редко на проде): <code>npm run db:sync-i18n</code> — см. <a href="../TZ.md">TZ.md</a> §17.</p>
+<p>Связь с CI: перед сборкой образов выполняйте <strong><code>npm run i18n:audit</code></strong> (сканирует <strong><code>apps/web/app</code></strong>, <strong><code>apps/web/components</code></strong>, <strong><code>apps/web/lib</code></strong>) и при изменении <code>resources.ts</code> — <strong><code>npm run i18n:catalog</code></strong> (обновление <code>apps/api/src/admin/i18n-default-catalog-data.json</code>); подробности — <strong>PRD §7.6.1</strong>, <strong>TZ §17</strong>.</p>
+<h3 id="74-локально-windows-dev-тот-же-порядок-что-migrate-prune-bump">7.4. Локально (Windows / dev): тот же порядок, что «migrate + prune + bump»</h3>
+<p>Из <strong>корня</strong> монорепо, с <strong><code>DATABASE_URL</code></strong> в корневом <strong><code>.env</code></strong> (как в <a href="../.cursor/rules/erafinance-local-dev.mdc">erafinance-local-dev</a>):</p>
+<pre><code class="language-bash">npx dotenv-cli -e .env -- npm run db:deploy
+</code></pre>
+<p>Это <strong><code>prisma migrate deploy</code></strong> + <strong><code>db:sync-i18n:prune</code></strong> (upsert всех ключей <strong>ru/az</strong> из <code>resources.ts</code> в <strong><code>translation_overrides</code></strong>, prune устаревших, инкремент <strong><code>i18n.cacheVersion</code></strong>).</p>
+<p>Проверка согласованности БД с клиентским пайплайном оверрайдов (dry-run):</p>
+<pre><code class="language-bash">npx dotenv-cli -e .env -- npm run db:audit-i18n-overrides -w @erafinance/database
+</code></pre>
+<p>Ожидаемо: <code>dropped normalized keys=0</code>, <code>invalid raw keys=0</code>. Подробности — <strong>TZ §17</strong>.</p>
+<hr />
+<h2 id="8-https-обязательно-для-production">8. HTTPS (обязательно для production)</h2>
+<p>Production web-origin должен быть <strong>HTTPS</strong>.</p>
+<h3 id="81-рекомендуемый-путь-caddy-быстрее-всего">8.1. Рекомендуемый путь: Caddy (быстрее всего)</h3>
+<pre><code class="language-bash">sudo apt-get update
+sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt-get update
+sudo apt-get install -y caddy
+</code></pre>
+<p>Создайте <code>/etc/caddy/Caddyfile</code>:</p>
+<pre><code class="language-caddy">your-domain.tld {
+  reverse_proxy 127.0.0.1:3000
+}
+</code></pre>
+<p>Применение:</p>
+<pre><code class="language-bash">sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+sudo systemctl status caddy --no-pager
+</code></pre>
+<p>Caddy автоматически выпустит/обновит Let's Encrypt сертификат.</p>
+<h3 id="82-альтернатива-nginx">8.2. Альтернатива: Nginx</h3>
+<p>Остаётся валидным: <code>https://your-domain.tld</code> → <code>http://127.0.0.1:3000</code> (контейнер <code>web</code>).</p>
+<p>API можно не публиковать отдельно: браузер ходит через тот же origin <code>/api/*</code> (Next rewrites).</p>
+<hr />
+<h2 id="9-проверки-после-деплоя">9. Проверки после деплоя</h2>
+<ul>
+<li><code>GET /api/health</code> через публичный web-origin (например <code>https://your-domain.tld/api/health</code>)</li>
+<li>Логин/регистрация в UI</li>
+<li>Проверка, что переводы подгружаются (нет ошибок <code>Failed to fetch</code>/<code>Unexpected end of JSON input</code>)</li>
+<li>После шага §7.3: <strong><code>GET /api/public/translations?locale=ru</code></strong> и <strong><code>?locale=az</code></strong> — при полном зеркале из <code>resources.ts</code> в ответе большой объект оверрайдов; переключатель языка в UI (<strong>ru</strong> / <strong>az</strong>) должен показывать ожидаемые строки (при расхождении повторите <code>db:sync-i18n:prune</code>, сбросьте кэш браузера и проверьте <code>erafinance_i18n_lang</code> в localStorage)</li>
+</ul>
+<hr />
+<h2 id="10-типовые-проблемы">10. Типовые проблемы</h2>
+<ul>
+<li><strong><code>npm install</code> / <code>prisma generate</code> падает из-за <code>DATABASE_URL</code></strong>: убедитесь, что <code>.env</code> в корне и <code>DATABASE_URL</code>/<code>POSTGRES_*</code> заданы корректно (в compose <code>DATABASE_URL</code> для <code>api</code> собирается автоматически).</li>
+<li><strong>Windows локально: ENOTEMPTY/EPERM в <code>.next</code></strong>: остановить <code>next dev</code>, запустить <code>npm run clean -w @erafinance/web</code>, повторить build; добавить исключение антивируса для <code>apps/web/.next</code>.</li>
+<li><strong>На проде «старые» подписи или сырые ключи i18n после деплоя</strong>: не выполнен §7.3 — запустите <code>docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune</code> (или <code>db:deploy</code> сразу после миграций). Локально: из корня репозитория <code>npx dotenv-cli -e .env -o -- npm run db:sync-i18n</code> (без prune) или <code>… db:sync-i18n:prune</code>.</li>
+</ul>
+<hr />
+<h2 id="11-runbook-снести-дроплет-и-поднять-заново-без-данных">11. Runbook: «снести дроплет и поднять заново» (без данных)</h2>
+<p>Сценарий подходит, если в production нет бизнес-данных и можно безболезненно пересоздать сервер.</p>
+<h3 id="111-на-новой-машине-ubuntu-2404">11.1. На новой машине (Ubuntu 24.04)</h3>
+<p>1) Установи Docker и Git (см. разделы 2–3).<br />
+2) Клонируй репозиторий в <code>/opt/erafinance_erp</code>.<br />
+3) Подготовь <code>.env</code>:</p>
+<pre><code class="language-bash">cd /opt/erafinance_erp
+cp env.production.example .env
+nano .env
+</code></pre>
+<p>Минимум: <code>POSTGRES_PASSWORD</code>, <code>REDIS_URL</code>, <code>JWT_SECRET</code>, <code>JWT_REFRESH_SECRET</code>, <code>CORS_ORIGINS</code>, <code>NEXT_PUBLIC_API_URL</code>.</p>
+<h3 id="112-поднять-стек-миграции">11.2. Поднять стек + миграции</h3>
+<pre><code class="language-bash">cd /opt/erafinance_erp
+docker compose -f docker-compose.prod.yml up -d --build
+
+docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
+docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune
+docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
+</code></pre>
+<p>Команда <code>db:prod-init</code> из корня в <code>package.json</code> уже включает migrate + seed + <strong>prune-синк i18n</strong>; здесь шаг <strong><code>db:sync-i18n:prune</code></strong> перед <code>db:prod-init</code> даёт явный порядок «схема → словарь → остальная инициализация» и совпадает с типовым деплоем из §7.</p>
+<h3 id="113-проверки">11.3. Проверки</h3>
+<ul>
+<li>Web открывается по HTTPS.</li>
+<li><code>GET https://your-domain.tld/api/health</code> отдаёт 200.</li>
+<li>Логин/регистрация работают.</li>
+</ul>
+<h3 id="114-если-нужно-повторить-с-нуля">11.4. Если нужно повторить «с нуля»</h3>
+<p>Остановить и удалить контейнеры и данные:</p>
+<pre><code class="language-bash">cd /opt/erafinance_erp
+docker compose -f docker-compose.prod.yml down -v
+</code></pre>
+<p>Затем снова выполнить шаги из 11.2.</p>
+    </article>
+  </div>
+</body>
+</html>

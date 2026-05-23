@@ -30,7 +30,7 @@ export function ComplianceRiskIndicator() {
   const moduleOn =
     subReady &&
     snapshot &&
-    (tier === "ENTERPRISE" || snapshot.modules.compliancePro === true);
+    (tier === "TIER_3" || snapshot.modules.compliancePro === true);
 
   const load = useCallback(async () => {
     if (!moduleOn) return;
@@ -86,3 +86,4 @@ export function ComplianceRiskIndicator() {
     </Link>
   );
 }
+

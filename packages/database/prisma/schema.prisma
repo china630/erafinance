@@ -1,3 +1,5 @@
+// Finance data plane schema. Control-plane models (billing, subscription, RBAC)
+// are owned by era-365-orchestrator (@era365/database). See CONTROL_PLANE_BOUNDARY.md.
 generator client {
   provider = "prisma-client-js"
 }
@@ -53,8 +55,18 @@ model Organization {
   /// *
   ///    * Bytes stored in object storage for this org (logos, PDFs); quota STORAGE (v23.0).
   storageUsedBytes             BigInt                        @default(0) @map("storage_used_bytes")
-  /// Prepaid successful outbound WhatsApp (Business API) sends remaining for this org (PRD §6.8).
+  /// @deprecated Phase 16 — prepaid WhatsApp packs; use whatsappAlertsUsed + BillingTrustGuard.
   whatsappOutboundMessagesBalance Int                         @default(0) @map("whatsapp_outbound_messages_balance")
+  /// @deprecated Legacy post-paid meter — use subscription TariffTier limits.
+  currentCreditTier              TariffTier?                   @map("current_credit_tier")
+  /// @deprecated Legacy post-paid balance.
+  accumulatedBalance             Decimal                       @default(0) @map("accumulated_balance") @db.Decimal(12, 2)
+  /// @deprecated Org-level period key — use OrganizationSubscription.billingPeriodKey.
+  billingPeriodKey               String?                       @map("billing_period_key") @db.VarChar(7)
+  /// @deprecated Use subscription-tier limits + monthly counters in application layer.
+  whatsappAlertsUsed             Int                           @default(0) @map("whatsapp_alerts_used")
+  ocrPagesUsed                   Int                           @default(0) @map("ocr_pages_used")
+  usageMeterEvents               UsageMeterEvent[]
   deletedAt                    DateTime?                     @map("deleted_at") @db.Timestamptz(6)
   holdingId                    String?                       @map("holding_id") @db.Uuid
   /// NAS plan / organization type: commercial, budget (government), or non-commercial (NGO).
@@ -97,6 +109,7 @@ model Organization {
   invites                      OrganizationInvite[]
   memberships                  OrganizationMembership[]
   organizationModules          OrganizationModule[]
+  organizationBundles          OrganizationBundle[]
   subscription                 OrganizationSubscription?
   holding                      Holding?                      @relation(fields: [holdingId], references: [id])
   owner                        User?                         @relation("OrganizationOwner", fields: [ownerId], references: [id])
@@ -329,6 +342,23 @@ model OrganizationModule {
 }
 
 /// *
+///  * Подключённый пакет модулей (pricing_bundles) по организации; биллинг с дедупликацией пересечений с à la carte.
+model OrganizationBundle {
+  organizationId      String        @map("organization_id") @db.Uuid
+  bundleId            String        @map("bundle_id") @db.Uuid
+  priceSnapshot       Decimal       @map("price_snapshot") @db.Decimal(12, 2)
+  activatedAt         DateTime      @default(now()) @map("activated_at")
+  pendingDeactivation Boolean       @default(false) @map("pending_deactivation")
+  cancelledAt         DateTime?     @map("cancelled_at")
+  accessUntil         DateTime?     @map("access_until") @db.Timestamptz(6)
+  organization        Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bundle              PricingBundle @relation(fields: [bundleId], references: [id], onDelete: Restrict)
+
+  @@id([organizationId, bundleId])
+  @@map("organization_bundles")
+}
+
+/// *
 ///  * Актуальные цены конструктора: база, модули, квоты (v10.2). Сидируется по умолчанию.
 model Pricing {
   id        String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
@@ -550,14 +580,17 @@ model PaymentOrder {
 /// *
 ///  * Подписка организации (1:1). Slugs модулей: production, ifrs, banking_pro и др.; v8.1 — customConfig.modules (конструктор).
 model OrganizationSubscription {
-  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organizationId String           @unique @map("organization_id") @db.Uuid
-  tier           SubscriptionTier
-  expiresAt      DateTime?        @map("expires_at")
-  activeModules  String[]         @default([]) @map("active_modules")
-  isTrial        Boolean          @default(false) @map("is_trial")
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  id                      String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId          String     @unique @map("organization_id") @db.Uuid
+  currentTier             TariffTier @default(TIER_0) @map("current_tier")
+  isTrial                 Boolean    @default(true) @map("is_trial")
+  trialExpiresAt          DateTime?  @map("trial_expires_at") @db.Timestamptz(6)
+  activatedPremiumModules String[]   @default([]) @map("activated_premium_modules")
+  billingPeriodKey        String?    @map("billing_period_key") @db.VarChar(7)
+  expiresAt               DateTime?  @map("expires_at") @db.Timestamptz(6)
+  activeModules           String[]   @default([]) @map("active_modules")
+  createdAt               DateTime   @default(now()) @map("created_at")
+  updatedAt               DateTime   @updatedAt @map("updated_at")
   /// *
   ///    * Принудительная блокировка доступа (супер-админ).
   isBlocked      Boolean          @default(false) @map("is_blocked")
@@ -830,6 +863,7 @@ model PricingModule {
   key           String   @unique
   name          String
   pricePerMonth Decimal  @map("price_per_month") @db.Decimal(12, 2)
+  isPremium     Boolean  @default(false) @map("is_premium")
   sortOrder     Int      @default(0) @map("sort_order")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -851,6 +885,7 @@ model PricingBundle {
   trialQuotas       Json?    @map("trial_quotas")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
+  organizationBundles OrganizationBundle[]
 
   @@index([isTrialDefault])
   @@map("pricing_bundles")
@@ -3649,12 +3684,27 @@ enum LedgerType {
   IFRS
 }
 
-/// *
-///  * Коммерческий тариф SaaS (v4.0).
-enum SubscriptionTier {
-  STARTER
-  BUSINESS
-  ENTERPRISE
+/// Resource-limit tariff ladder (hybrid billing). Replaces CreditTier / SubscriptionTier.
+enum TariffTier {
+  TIER_0
+  TIER_1
+  TIER_2
+  TIER_3
+}
+
+/// Usage meter audit row (Phase 16).
+model UsageMeterEvent {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  actionType     String   @map("action_type") @db.VarChar(64)
+  quantity       Int      @default(1)
+  unitCostAzn    Decimal  @map("unit_cost_azn") @db.Decimal(12, 4)
+  balanceAfter   Decimal  @map("balance_after") @db.Decimal(12, 2)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@map("usage_meter_events")
 }
 
 /// *

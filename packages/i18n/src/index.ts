@@ -3,6 +3,16 @@ import { resources } from "./resources";
 
 export { resources } from "./resources";
 export { extensionResources } from "./extension";
+export {
+  getLandingMarketingCopy,
+  getLandingPageCopy,
+  landingMarketingCopyByLocale,
+  landingPageCopyByLocale,
+  type LandingFeatureCopy,
+  type LandingMarketingCopy,
+  type LandingPageCopy,
+  type LandingPremiumItemCopy,
+} from "./landing-copy";
 
 type LocaleTree = Record<string, unknown>;
 

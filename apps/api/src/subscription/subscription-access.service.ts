@@ -4,12 +4,18 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, SubscriptionTier } from "@erafinance/database";
+import { Prisma, TariffTier } from "@erafinance/database";
 import {
   isOrganizationUuid,
   parseOrganizationId,
 } from "../common/organization-id.util";
+import {
+  hasCashBankModuleInList,
+  normalizeCashBankActiveModules,
+  PRICING_MODULE_CASH_BANK_PRO,
+} from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
+import { PricingService } from "../admin/pricing.service";
 import { type ModuleEntitlementKey } from "./subscription.constants";
 
 /**
@@ -32,15 +38,16 @@ export function isEmergencyModuleAccessEmail(
   return email.trim().toLowerCase() === EMERGENCY_MODULE_ACCESS_EMAIL_DEV;
 }
 
-const TIER_ORDER: Record<SubscriptionTier, number> = {
-  STARTER: 0,
-  BUSINESS: 1,
-  ENTERPRISE: 2,
+const TIER_ORDER: Record<TariffTier, number> = {
+  TIER_0: 0,
+  TIER_1: 1,
+  TIER_2: 2,
+  TIER_3: 3,
 };
 
 function tierGte(
-  tier: SubscriptionTier,
-  min: SubscriptionTier,
+  tier: TariffTier,
+  min: TariffTier,
 ): boolean {
   return TIER_ORDER[tier] >= TIER_ORDER[min];
 }
@@ -88,8 +95,8 @@ function parseCustomModules(raw: unknown): string[] | null {
   if (Array.isArray(m) && m.length > 0) {
     list = m.map((x) => String(x).trim()).filter(Boolean);
   }
-  if (o.kassaPro === true && !list.includes("kassa_pro")) {
-    list = [...list, "kassa_pro"];
+  if (o.kassaPro === true && !hasCashBankModuleInList(list)) {
+    list = normalizeCashBankActiveModules([...list, PRICING_MODULE_CASH_BANK_PRO]);
   }
   if (list.length === 0) return null;
   return list;
@@ -104,7 +111,7 @@ function entitlementsFromConstructorModules(
     manufacturing: has("manufacturing") || has("production"),
     fixedAssets: has("fixed_assets"),
     ifrsMapping: has("ifrs") || has("ifrs_mapping"),
-    bankingPro: has("banking_pro") || has("kassa") || has("kassa_pro"),
+    bankingPro: hasCashBankModuleInList(modules),
     hrFull: has("hr_full"),
     taxPro: has("tax_pro"),
     tradePro: has("trade_pro"),
@@ -122,17 +129,17 @@ function normalizeActiveModules(m: unknown): string[] {
   return m.map((x) => String(x).trim()).filter(Boolean);
 }
 
-function isSubscriptionTier(v: unknown): v is SubscriptionTier {
+function isTariffTier(v: unknown): v is TariffTier {
   return (
-    v === SubscriptionTier.STARTER ||
-    v === SubscriptionTier.BUSINESS ||
-    v === SubscriptionTier.ENTERPRISE
+    v === TariffTier.TIER_1 ||
+    v === TariffTier.TIER_2 ||
+    v === TariffTier.TIER_3
   );
 }
 
 /** Минимальный снимок без строки подписки (в схеме нет tier FREE — STARTER = базовый доступ). */
 function emptyOrganizationSnapshot(): {
-  tier: SubscriptionTier;
+  tier: TariffTier;
   activeModules: string[];
   customConfig: unknown | null;
   modules: OrganizationModuleEntitlements;
@@ -140,7 +147,7 @@ function emptyOrganizationSnapshot(): {
   isTrial: boolean;
 } {
   return {
-    tier: SubscriptionTier.STARTER,
+    tier: TariffTier.TIER_1,
     activeModules: [],
     customConfig: null,
     modules: {
@@ -164,26 +171,24 @@ function emptyOrganizationSnapshot(): {
 }
 
 function computeEntitlementsLegacy(sub: {
-  tier: SubscriptionTier;
+  tier: TariffTier;
   activeModules: string[];
 }): OrganizationModuleEntitlements {
   const modules = new Set(normalizeActiveModules(sub.activeModules));
   const has = (slug: string) => modules.has(slug);
   return {
     manufacturing:
-      tierGte(sub.tier, "BUSINESS") ||
+      tierGte(sub.tier, TariffTier.TIER_2) ||
       has("production") ||
       has("manufacturing"),
     fixedAssets:
-      tierGte(sub.tier, "BUSINESS") ||
+      tierGte(sub.tier, TariffTier.TIER_2) ||
       has("production") ||
       has("fixed_assets"),
-    ifrsMapping: tierGte(sub.tier, "ENTERPRISE") || has("ifrs"),
+    ifrsMapping: tierGte(sub.tier, TariffTier.TIER_3) || has("ifrs"),
     bankingPro:
-      tierGte(sub.tier, "ENTERPRISE") ||
-      has("banking_pro") ||
-      has("kassa") ||
-      has("kassa_pro"),
+      tierGte(sub.tier, TariffTier.TIER_3) ||
+      hasCashBankModuleInList([...modules]),
     /** Legacy: расширенный HR не блокировался отдельно — оставляем открытым. */
     hrFull: true,
     taxPro: has("tax_pro"),
@@ -198,19 +203,19 @@ function computeEntitlementsLegacy(sub: {
 }
 
 function computeEntitlements(sub: {
-  tier: SubscriptionTier;
+  tier: TariffTier;
   activeModules: string[];
   customConfig: unknown | null;
 }): OrganizationModuleEntitlements {
-  const tier = isSubscriptionTier(sub.tier)
+  const tier = isTariffTier(sub.tier)
     ? sub.tier
-    : SubscriptionTier.STARTER;
+    : TariffTier.TIER_1;
   const safe = {
     tier,
     activeModules: normalizeActiveModules(sub.activeModules),
     customConfig: sub.customConfig ?? null,
   };
-  if (safe.tier === SubscriptionTier.ENTERPRISE) {
+  if (safe.tier === TariffTier.TIER_3) {
     return {
       manufacturing: true,
       fixedAssets: true,
@@ -253,9 +258,9 @@ function isAllowedByConstructorModules(
     case "ifrs_mapping":
       return has("ifrs") || has("ifrs_mapping");
     case "banking_pro":
-      return has("banking_pro") || has("kassa") || has("kassa_pro");
     case "kassa_pro":
-      return has("kassa_pro") || has("banking_pro") || has("kassa");
+    case PRICING_MODULE_CASH_BANK_PRO:
+      return hasCashBankModuleInList(modules);
     case "hr_full":
       return has("hr_full");
     case "tax_pro":
@@ -285,7 +290,10 @@ function isAllowedByConstructorModules(
 export class SubscriptionAccessService {
   private readonly logger = new Logger(SubscriptionAccessService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pricing: PricingService,
+  ) {}
 
   /**
    * Доступ к модулю по подписке. Для `ENTERPRISE` всегда `true` (в т.ч. kassa_pro).
@@ -306,7 +314,7 @@ export class SubscriptionAccessService {
       where: { organizationId },
     });
     if (!sub) return false;
-    if (sub.tier === SubscriptionTier.ENTERPRISE) return true;
+    if (sub.currentTier === TariffTier.TIER_3) return true;
     try {
       await this.assertModuleAccess(organizationId, moduleKey, { userEmail });
       return true;
@@ -337,6 +345,34 @@ export class SubscriptionAccessService {
       });
     }
 
+    const moduleSlug = String(moduleKey);
+    if (
+      sub.currentTier === TariffTier.TIER_0 &&
+      this.pricing.isPremiumModuleKey(moduleSlug)
+    ) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: "PREMIUM_TIER0_LOCKED",
+        message:
+          "Premium modules require commercial status (Tier 1 or higher). Upgrade your resource tier first.",
+        module: moduleSlug,
+      });
+    }
+    if (sub.isTrial && this.pricing.isPremiumModuleKey(moduleSlug)) {
+      const trialEnd = sub.trialExpiresAt ?? sub.expiresAt;
+      const trialActive = trialEnd != null && trialEnd.getTime() > Date.now();
+      const activated = sub.activatedPremiumModules ?? [];
+      if (trialActive && !activated.includes(moduleSlug)) {
+        throw new ForbiddenException({
+          statusCode: 403,
+          code: "PREMIUM_TRIAL_LOCKED",
+          message:
+            "Премиум-модули недоступны в триал-периоде. Для активации перейдите на коммерческий платный тариф.",
+          module: moduleSlug,
+        });
+      }
+    }
+
     const om = await this.prisma.organizationModule.findUnique({
       where: {
         organizationId_moduleKey: {
@@ -356,11 +392,11 @@ export class SubscriptionAccessService {
         message:
           "This module subscription has ended; renew or enable it again.",
         module: moduleKey,
-        tier: sub.tier,
+        tier: sub.currentTier,
       });
     }
 
-    if (sub.tier === SubscriptionTier.ENTERPRISE) {
+    if (sub.currentTier === TariffTier.TIER_3) {
       return;
     }
 
@@ -382,12 +418,12 @@ export class SubscriptionAccessService {
         message:
           "This feature is not included in the current plan or add-ons.",
         module: moduleKey,
-        tier: sub.tier,
+        tier: sub.currentTier,
       });
     }
 
     const ent = computeEntitlements({
-      tier: sub.tier,
+      tier: sub.currentTier,
       activeModules: normalizeActiveModules(sub.activeModules),
       customConfig: entitlementCustomConfig,
     });
@@ -404,6 +440,7 @@ export class SubscriptionAccessService {
         break;
       case "banking_pro":
       case "kassa_pro":
+      case PRICING_MODULE_CASH_BANK_PRO:
         allowed = ent.bankingPro;
         break;
       case "hr_full":
@@ -436,13 +473,13 @@ export class SubscriptionAccessService {
         message:
           "This feature is not included in the current plan or add-ons.",
         module: moduleKey,
-        tier: sub.tier,
+        tier: sub.currentTier,
       });
     }
   }
 
   async getOrganizationSnapshot(organizationId: string): Promise<{
-    tier: SubscriptionTier;
+    tier: TariffTier;
     activeModules: string[];
     customConfig: unknown | null;
     modules: OrganizationModuleEntitlements;
@@ -506,9 +543,9 @@ export class SubscriptionAccessService {
         sub = refreshed;
       }
 
-      const tier = isSubscriptionTier(sub.tier)
-        ? sub.tier
-        : SubscriptionTier.STARTER;
+      const tier = isTariffTier(sub.currentTier)
+        ? sub.currentTier
+        : TariffTier.TIER_1;
       const activeModules = normalizeActiveModules(sub.activeModules);
       const customConfig = sub.customConfig ?? null;
 
@@ -534,11 +571,11 @@ export class SubscriptionAccessService {
 
   async updateTier(
     organizationId: string,
-    tier: SubscriptionTier,
+    tier: TariffTier,
   ): Promise<void> {
     await this.prisma.organizationSubscription.update({
       where: { organizationId },
-      data: { tier },
+      data: { currentTier: tier },
     });
   }
 
@@ -547,7 +584,10 @@ export class SubscriptionAccessService {
     patch: {
       production?: boolean;
       ifrs?: boolean;
+      cash_bank_pro?: boolean;
+      /** @deprecated — maps to `cash_bank_pro` */
       kassa_pro?: boolean;
+      /** @deprecated — maps to `cash_bank_pro` */
       banking_pro?: boolean;
       inventory?: boolean;
       manufacturing?: boolean;
@@ -555,6 +595,7 @@ export class SubscriptionAccessService {
       tax_pro?: boolean;
       trade_pro?: boolean;
       audit_hub?: boolean;
+      compliance_pro?: boolean;
       recovery_pro?: boolean;
       ifrs_mapping?: boolean;
     },
@@ -575,14 +616,31 @@ export class SubscriptionAccessService {
       else set.delete(slug);
     };
 
-    apply("kassa_pro", patch.kassa_pro);
-    apply("banking_pro", patch.banking_pro);
+    const cashBankPatch =
+      patch.cash_bank_pro ??
+      (patch.kassa_pro === true || patch.banking_pro === true
+        ? true
+        : patch.kassa_pro === false && patch.banking_pro === false
+          ? false
+          : undefined);
+    if (cashBankPatch === true) {
+      set.add(PRICING_MODULE_CASH_BANK_PRO);
+      set.delete("kassa_pro");
+      set.delete("banking_pro");
+      set.delete("kassa");
+    } else if (cashBankPatch === false) {
+      set.delete(PRICING_MODULE_CASH_BANK_PRO);
+      set.delete("kassa_pro");
+      set.delete("banking_pro");
+      set.delete("kassa");
+    }
     apply("inventory", patch.inventory);
     apply("manufacturing", patch.manufacturing);
     apply("hr_full", patch.hr_full);
     apply("tax_pro", patch.tax_pro);
     apply("trade_pro", patch.trade_pro);
     apply("audit_hub", patch.audit_hub);
+    apply("compliance_pro", patch.compliance_pro);
     apply("recovery_pro", patch.recovery_pro);
     apply("ifrs_mapping", patch.ifrs_mapping);
 
@@ -608,7 +666,7 @@ export class SubscriptionAccessService {
       set.delete("ifrs");
     }
 
-    const activeModules = Array.from(set);
+    const activeModules = normalizeCashBankActiveModules(Array.from(set));
 
     const customList = parseCustomModules(sub.customConfig);
     let customConfigData: Prisma.InputJsonValue | undefined;
@@ -634,3 +692,4 @@ export class SubscriptionAccessService {
     return { activeModules };
   }
 }
+

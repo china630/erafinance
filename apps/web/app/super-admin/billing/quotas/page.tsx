@@ -3,23 +3,48 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { X } from "lucide-react";
 import { EmptyState } from "../../../../components/empty-state";
 import { apiFetch } from "../../../../lib/api-client";
-import type { TierKey } from "../../../../lib/super-admin/billing-types";
+import type {
+  BillingPayload,
+  TierKey,
+} from "../../../../lib/super-admin/billing-types";
 import {
-  MODAL_CLOSE_BUTTON_CLASS,
-  MODAL_DIALOG_CONTENT_CLASS,
-  MODAL_FOOTER_ACTIONS_CLASS,
-  MODAL_FOOTER_BUTTON_CLASS,
-  PRIMARY_BUTTON_CLASS,
-  SECONDARY_BUTTON_CLASS,
-} from "../../../../lib/design-system";
-import { Button } from "../../../../components/ui/button";
-import { Dialog, DialogContent, DialogHeader } from "@erafinance/ui";
+  DEFAULT_METER_UNIT_PRICING,
+  DEFAULT_TIER_SPEND_CEILINGS,
+} from "../../../../lib/super-admin/spend-tier-defaults";
+import { QUOTA_MATRIX_TIERS } from "../../../../lib/super-admin/quota-matrix";
+import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "../../../../lib/design-system";
 import { useBilling } from "../billing-context";
 
-const TIERS: TierKey[] = ["STARTER", "BUSINESS", "ENTERPRISE"];
+function parseMoney(s: string): number {
+  return Number.parseFloat(s.trim().replace(",", "."));
+}
+
+function meterFromBilling(
+  m: BillingPayload["meterUnitPricing"] | undefined,
+): Record<keyof typeof DEFAULT_METER_UNIT_PRICING, string> {
+  const src = m ?? DEFAULT_METER_UNIT_PRICING;
+  return {
+    pricePerUserMonthAzn: String(src.pricePerUserMonthAzn),
+    pricePerGbMonthAzn: String(src.pricePerGbMonthAzn),
+    pricePerWhatsappAlertAzn: String(src.pricePerWhatsappAlertAzn),
+    pricePerInvoiceAzn: String(src.pricePerInvoiceAzn),
+    pricePerOcrPageAzn: String(src.pricePerOcrPageAzn),
+  };
+}
+
+function ceilingsFromBilling(
+  c: BillingPayload["tierSpendCeilings"] | undefined,
+): Record<TierKey, string> {
+  const src = { ...DEFAULT_TIER_SPEND_CEILINGS, ...c };
+  return {
+    TIER_0: String(src.TIER_0),
+    TIER_1: String(src.TIER_1),
+    TIER_2: String(src.TIER_2),
+    TIER_3: String(src.TIER_3),
+  };
+}
 
 export default function SuperAdminBillingQuotasPage() {
   const { t } = useTranslation();
@@ -32,99 +57,27 @@ export default function SuperAdminBillingQuotasPage() {
     resetPricingCatalog,
   } = useBilling();
 
-  const [yearlyDiscStr, setYearlyDiscStr] = useState("");
-  const [ocrJobsPerMonthStr, setOcrJobsPerMonthStr] = useState("");
-  const [quotaStr, setQuotaStr] = useState({
-    employeeBlockSize: "",
-    pricePerEmployeeBlockAzn: "",
-    documentPackSize: "",
-    pricePerDocumentPackAzn: "",
-  });
-  const [tierBillingPriceStr, setTierBillingPriceStr] = useState<
-    Record<TierKey, string>
-  >({
-    STARTER: "",
-    BUSINESS: "",
-    ENTERPRISE: "",
-  });
-  const [tierQuotaDraft, setTierQuotaDraft] = useState<
-    Record<
-      TierKey,
-      { maxEmployees: string; maxInvoicesPerMonth: string; maxStorageGb: string }
-    >
-  >({
-    STARTER: { maxEmployees: "", maxInvoicesPerMonth: "", maxStorageGb: "" },
-    BUSINESS: { maxEmployees: "", maxInvoicesPerMonth: "", maxStorageGb: "" },
-    ENTERPRISE: { maxEmployees: "", maxInvoicesPerMonth: "", maxStorageGb: "" },
-  });
-
-  const [editTier, setEditTier] = useState<TierKey | null>(null);
-  const [modalTierPrice, setModalTierPrice] = useState("");
-  const [modalQuotas, setModalQuotas] = useState({
-    maxEmployees: "",
-    maxInvoicesPerMonth: "",
-    maxStorageGb: "",
-  });
+  const [saving, setSaving] = useState(false);
+  const [yearlyDiscStr, setYearlyDiscStr] = useState("20");
+  const [ocrJobsPerMonthStr, setOcrJobsPerMonthStr] = useState("200");
+  const [meterStr, setMeterStr] = useState(meterFromBilling(undefined));
+  const [ceilingStr, setCeilingStr] = useState(ceilingsFromBilling(undefined));
 
   useEffect(() => {
     if (!billing) return;
-    setYearlyDiscStr(String(billing.yearlyDiscountPercent ?? ""));
-    setOcrJobsPerMonthStr(String(billing.ocrJobsPerOrgMonth ?? ""));
-    const qp = billing.quotaPricing;
-    setQuotaStr({
-      employeeBlockSize: String(qp?.employeeBlockSize ?? ""),
-      pricePerEmployeeBlockAzn: String(qp?.pricePerEmployeeBlockAzn ?? ""),
-      documentPackSize: String(qp?.documentPackSize ?? ""),
-      pricePerDocumentPackAzn: String(qp?.pricePerDocumentPackAzn ?? ""),
-    });
-    const prices = billing.prices ?? {};
-    setTierBillingPriceStr({
-      STARTER: String(prices.STARTER ?? ""),
-      BUSINESS: String(prices.BUSINESS ?? ""),
-      ENTERPRISE: String(prices.ENTERPRISE ?? ""),
-    });
-    const rawQuotas = billing.quotas as Record<string, Record<string, unknown>>;
-    const tq = {
-      STARTER: { maxEmployees: "", maxInvoicesPerMonth: "", maxStorageGb: "" },
-      BUSINESS: { maxEmployees: "", maxInvoicesPerMonth: "", maxStorageGb: "" },
-      ENTERPRISE: { maxEmployees: "", maxInvoicesPerMonth: "", maxStorageGb: "" },
-    };
-    for (const tier of TIERS) {
-      const q = rawQuotas?.[tier] ?? {};
-      tq[tier] = {
-        maxEmployees: String(q.maxEmployees ?? ""),
-        maxInvoicesPerMonth: String(q.maxInvoicesPerMonth ?? ""),
-        maxStorageGb: String(q.maxStorageGb ?? ""),
-      };
-    }
-    setTierQuotaDraft(tq);
+    setYearlyDiscStr(String(billing.yearlyDiscountPercent ?? 20));
+    setOcrJobsPerMonthStr(String(billing.ocrJobsPerOrgMonth ?? 200));
+    setMeterStr(meterFromBilling(billing.meterUnitPricing));
+    setCeilingStr(ceilingsFromBilling(billing.tierSpendCeilings));
   }, [billing]);
 
-  const openTierModal = (tier: TierKey) => {
-    setEditTier(tier);
-    setModalTierPrice(tierBillingPriceStr[tier]);
-    setModalQuotas({ ...tierQuotaDraft[tier] });
-  };
-
-  const saveGlobalLimits = async () => {
-    const y = Number.parseFloat(yearlyDiscStr.trim().replace(",", "."));
+  const saveAll = async () => {
+    const y = parseMoney(yearlyDiscStr);
     if (!Number.isFinite(y) || y < 0 || y > 100) {
       toast.error(t("common.saveErr"), {
         description: t("superAdmin.billingInvalidYearlyDiscount"),
       });
       return;
-    }
-    const parseMoney = (s: string) => Number.parseFloat(s.trim().replace(",", "."));
-    const tierPrices = {} as Record<TierKey, number>;
-    for (const tier of TIERS) {
-      const p = parseMoney(tierBillingPriceStr[tier]);
-      if (!Number.isFinite(p) || p < 0.01) {
-        toast.error(t("common.saveErr"), {
-          description: t("superAdmin.billingInvalidTierPrice", { tier }),
-        });
-        return;
-      }
-      tierPrices[tier] = p;
     }
     const ocrN = Number.parseInt(ocrJobsPerMonthStr.trim().replace(/\s/g, ""), 10);
     if (!Number.isFinite(ocrN) || ocrN < 1) {
@@ -133,88 +86,68 @@ export default function SuperAdminBillingQuotasPage() {
       });
       return;
     }
-    const patch = {
-      employeeBlockSize: Number.parseInt(quotaStr.employeeBlockSize.trim(), 10),
-      pricePerEmployeeBlockAzn: parseMoney(quotaStr.pricePerEmployeeBlockAzn),
-      documentPackSize: Number.parseInt(quotaStr.documentPackSize.trim(), 10),
-      pricePerDocumentPackAzn: parseMoney(quotaStr.pricePerDocumentPackAzn),
+    const meter = {
+      pricePerUserMonthAzn: parseMoney(meterStr.pricePerUserMonthAzn),
+      pricePerGbMonthAzn: parseMoney(meterStr.pricePerGbMonthAzn),
+      pricePerWhatsappAlertAzn: parseMoney(meterStr.pricePerWhatsappAlertAzn),
+      pricePerInvoiceAzn: parseMoney(meterStr.pricePerInvoiceAzn),
+      pricePerOcrPageAzn: parseMoney(meterStr.pricePerOcrPageAzn),
     };
-    if (
-      !Number.isFinite(patch.employeeBlockSize) ||
-      !Number.isFinite(patch.pricePerEmployeeBlockAzn) ||
-      !Number.isFinite(patch.documentPackSize) ||
-      !Number.isFinite(patch.pricePerDocumentPackAzn)
-    ) {
-      toast.error(t("common.saveErr"));
+    if (Object.values(meter).some((v) => !Number.isFinite(v) || v < 0)) {
+      toast.error(t("common.saveErr"), {
+        description: t("superAdmin.spendTierInvalidMeter"),
+      });
       return;
     }
-    const res = await apiFetch("/api/admin/config/billing/global-limits", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        yearlyDiscountPercent: y,
-        ocrJobsPerOrgMonth: ocrN,
-        quotaPricing: patch,
-        tierPrices,
-      }),
-    });
-    if (!res.ok) {
-      toast.error(t("common.saveErr"), { description: `${res.status}` });
-      return;
+    const ceilings = {} as Record<TierKey, number>;
+    for (const tier of QUOTA_MATRIX_TIERS) {
+      const v = parseMoney(ceilingStr[tier]);
+      if (!Number.isFinite(v) || v < 0) {
+        toast.error(t("common.saveErr"), {
+          description: t("superAdmin.spendTierInvalidCeiling"),
+        });
+        return;
+      }
+      ceilings[tier] = v;
     }
-    toast.success(t("common.save"));
-    void loadBilling();
-  };
 
-  const saveTierModal = async () => {
-    if (!editTier) return;
-    const parseTierQuotaInt = (s: string): number | null | undefined => {
-      const x = s.trim();
-      if (x === "") return null;
-      const v = Number.parseInt(x, 10);
-      if (!Number.isFinite(v) || v < 0) return undefined;
-      return v;
-    };
-    const maxEmployees = parseTierQuotaInt(modalQuotas.maxEmployees);
-    const maxInvoicesPerMonth = parseTierQuotaInt(modalQuotas.maxInvoicesPerMonth);
-    const maxStorageGb = parseTierQuotaInt(modalQuotas.maxStorageGb);
-    if (
-      maxEmployees === undefined ||
-      maxInvoicesPerMonth === undefined ||
-      maxStorageGb === undefined
-    ) {
-      toast.error(t("common.fillRequired"));
-      return;
+    setSaving(true);
+    try {
+      const [yRes, oRes, mRes, cRes] = await Promise.all([
+        apiFetch("/api/admin/config/billing/yearly-discount", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ percent: y }),
+        }),
+        apiFetch("/api/admin/config/billing/ocr-jobs-per-org-month", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: ocrN }),
+        }),
+        apiFetch("/api/admin/config/billing/meter-unit-pricing", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(meter),
+        }),
+        apiFetch("/api/admin/config/billing/tier-spend-ceilings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(ceilings),
+        }),
+      ]);
+      if (!yRes.ok || !oRes.ok || !mRes.ok || !cRes.ok) {
+        const status = [yRes, oRes, mRes, cRes]
+          .filter((r) => !r.ok)
+          .map((r) => r.status)
+          .join(", ");
+        toast.error(t("common.saveErr"), { description: `HTTP ${status}` });
+        return;
+      }
+      toast.success(t("common.save"));
+      await loadBilling();
+    } finally {
+      setSaving(false);
     }
-    const p = Number.parseFloat(modalTierPrice.trim().replace(",", "."));
-    if (!Number.isFinite(p) || p < 0.01) {
-      toast.error(t("common.saveErr"));
-      return;
-    }
-    const pRes = await apiFetch("/api/admin/config/billing/price", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tier: editTier, amountAzn: p }),
-    });
-    if (!pRes.ok) {
-      toast.error(t("common.saveErr"), { description: `${pRes.status}` });
-      return;
-    }
-    const qRes = await apiFetch("/api/admin/config/billing/quotas", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tier: editTier,
-        quotas: { maxEmployees, maxInvoicesPerMonth, maxStorageGb },
-      }),
-    });
-    if (!qRes.ok) {
-      toast.error(t("common.saveErr"), { description: `${qRes.status}` });
-      return;
-    }
-    toast.success(t("common.save"));
-    setEditTier(null);
-    void loadBilling();
   };
 
   if (billingLoadError && !billing) {
@@ -255,225 +188,100 @@ export default function SuperAdminBillingQuotasPage() {
 
   if (!billing) return null;
 
+  const meterFields = [
+    ["pricePerUserMonthAzn", "meterUserMonth"],
+    ["pricePerInvoiceAzn", "meterInvoiceMonth"],
+    ["pricePerGbMonthAzn", "meterGbMonth"],
+    ["pricePerWhatsappAlertAzn", "meterWhatsapp"],
+    ["pricePerOcrPageAzn", "meterOcrPage"],
+  ] as const;
+
   return (
     <div className="space-y-6">
       <div className="space-y-4 rounded-2xl border border-[#D5DADF] bg-white p-6">
         <h2 className="text-sm font-bold uppercase tracking-wide text-[#34495E]">
           {t("superAdmin.billingQuotasSectionsTitle")}
         </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {TIERS.map((tier) => (
-            <label key={tier} className="block text-[13px] font-medium text-[#34495E]">
-              {tier}
+        <p className="m-0 text-[13px] text-[#7F8C8D]">
+          {t("superAdmin.billingQuotasGlobalHint")}
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="block text-[13px] font-medium text-[#34495E]">
+            {t("superAdmin.billingYearlyDiscountLabel")}
+            <input
+              className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px] focus:outline-none focus:ring-1 focus:ring-[#2980B9]"
+              inputMode="decimal"
+              value={yearlyDiscStr}
+              onChange={(e) => setYearlyDiscStr(e.target.value)}
+            />
+          </label>
+          <label className="block text-[13px] font-medium text-[#34495E]">
+            {t("superAdmin.billingOcrJobsLimit")}
+            <input
+              className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px] focus:outline-none focus:ring-1 focus:ring-[#2980B9]"
+              inputMode="numeric"
+              value={ocrJobsPerMonthStr}
+              onChange={(e) => setOcrJobsPerMonthStr(e.target.value)}
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className="space-y-4 rounded-2xl border border-[#D5DADF] bg-white p-6">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-[#34495E]">
+          {t("superAdmin.tierQuotasTitle")}
+        </h2>
+        <p className="m-0 text-[13px] text-[#7F8C8D]">{t("superAdmin.tierQuotasHint")}</p>
+
+        <h3 className="m-0 pt-2 text-[12px] font-bold uppercase tracking-wide text-[#7F8C8D]">
+          {t("superAdmin.spendTierUnitPricesTitle")}
+        </h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {meterFields.map(([key, labelKey]) => (
+            <label key={key} className="block text-[13px] text-[#34495E]">
+              {t(`superAdmin.${labelKey}`)}
               <input
-                className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] bg-white px-3 text-[13px] focus:outline-none focus:ring-1 focus:ring-[#2980B9]"
+                className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px]"
                 inputMode="decimal"
-                value={tierBillingPriceStr[tier]}
+                value={meterStr[key]}
                 onChange={(e) =>
-                  setTierBillingPriceStr((s) => ({ ...s, [tier]: e.target.value }))
+                  setMeterStr((s) => ({ ...s, [key]: e.target.value }))
                 }
               />
             </label>
           ))}
         </div>
-        <label className="block text-[13px] font-medium text-[#34495E]">
-          {t("superAdmin.billingOcrJobsLimit")}
-          <input
-            className="mt-1.5 box-border h-9 w-full max-w-xs rounded-lg border border-[#D5DADF] px-3 text-[13px] focus:outline-none focus:ring-1 focus:ring-[#2980B9]"
-            inputMode="numeric"
-            value={ocrJobsPerMonthStr}
-            onChange={(e) => setOcrJobsPerMonthStr(e.target.value)}
-          />
-        </label>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="block text-[13px] text-[#34495E]">
-            {t("superAdmin.billingQuotaEmployeeBlock")}
-            <input
-              className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px]"
-              value={quotaStr.employeeBlockSize}
-              onChange={(e) =>
-                setQuotaStr((s) => ({ ...s, employeeBlockSize: e.target.value }))
-              }
-            />
-          </label>
-          <label className="block text-[13px] text-[#34495E]">
-            {t("superAdmin.billingQuotaEmployeePrice")}
-            <input
-              className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px]"
-              value={quotaStr.pricePerEmployeeBlockAzn}
-              onChange={(e) =>
-                setQuotaStr((s) => ({
-                  ...s,
-                  pricePerEmployeeBlockAzn: e.target.value,
-                }))
-              }
-            />
-          </label>
-          <label className="block text-[13px] text-[#34495E]">
-            {t("superAdmin.billingQuotaDocBlock")}
-            <input
-              className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px]"
-              value={quotaStr.documentPackSize}
-              onChange={(e) =>
-                setQuotaStr((s) => ({ ...s, documentPackSize: e.target.value }))
-              }
-            />
-          </label>
-          <label className="block text-[13px] text-[#34495E]">
-            {t("superAdmin.billingQuotaDocPrice")}
-            <input
-              className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px]"
-              value={quotaStr.pricePerDocumentPackAzn}
-              onChange={(e) =>
-                setQuotaStr((s) => ({
-                  ...s,
-                  pricePerDocumentPackAzn: e.target.value,
-                }))
-              }
-            />
-          </label>
+
+        <h3 className="m-0 pt-2 text-[12px] font-bold uppercase tracking-wide text-[#7F8C8D]">
+          {t("superAdmin.spendTierCeilingsTitle")}
+        </h3>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {QUOTA_MATRIX_TIERS.map((tier) => (
+            <label key={tier} className="block text-[13px] text-[#34495E]">
+              {t("superAdmin.spendTierCeilingTier", { tier })}
+              <input
+                className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px]"
+                inputMode="decimal"
+                value={ceilingStr[tier]}
+                onChange={(e) =>
+                  setCeilingStr((s) => ({ ...s, [tier]: e.target.value }))
+                }
+              />
+            </label>
+          ))}
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="block min-w-[200px] flex-1 text-[13px] text-[#34495E]">
-            {t("superAdmin.billingYearlyDiscountLabel")}
-            <input
-              className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px]"
-              value={yearlyDiscStr}
-              onChange={(e) => setYearlyDiscStr(e.target.value)}
-            />
-          </label>
+
+        <div className="flex flex-wrap gap-2 pt-2">
           <button
             type="button"
             className={PRIMARY_BUTTON_CLASS}
-            disabled={billingLoading}
-            onClick={() => void saveGlobalLimits()}
+            disabled={billingLoading || saving}
+            onClick={() => void saveAll()}
           >
-            {t("superAdmin.billingSaveGlobalLimits")}
+            {saving ? t("superAdmin.billingSaving") : t("superAdmin.billingSaveQuotasPage")}
           </button>
         </div>
       </div>
-
-      <div className="space-y-4">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-[#34495E]">
-          {t("superAdmin.tierQuotasTitle")}
-        </h2>
-        <p className="text-[13px] text-[#7F8C8D]">{t("superAdmin.tierQuotasHint")}</p>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {TIERS.map((tier) => {
-            const d = tierQuotaDraft[tier];
-            return (
-              <div
-                key={tier}
-                className="flex flex-col rounded-2xl border border-[#D5DADF] bg-white p-5 shadow-sm"
-              >
-                <div className="text-[13px] font-bold text-[#34495E]">{tier}</div>
-                <dl className="mt-3 space-y-2 text-[13px] text-[#34495E]">
-                  <div>
-                    <dt className="text-[#7F8C8D]">{t("superAdmin.tierQuotaFieldEmployees")}</dt>
-                    <dd className="font-medium tabular-nums">{d.maxEmployees || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[#7F8C8D]">
-                      {t("superAdmin.tierQuotaFieldInvoicesMonthShort")}
-                    </dt>
-                    <dd className="font-medium tabular-nums">
-                      {d.maxInvoicesPerMonth || "—"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[#7F8C8D]">{t("superAdmin.tierQuotaFieldStorageGb")}</dt>
-                    <dd className="font-medium tabular-nums">{d.maxStorageGb || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[#7F8C8D]">{t("superAdmin.billingTierLegacyPriceShort")}</dt>
-                    <dd className="font-medium tabular-nums">
-                      {tierBillingPriceStr[tier] || "—"} AZN
-                    </dd>
-                  </div>
-                </dl>
-                <button
-                  type="button"
-                  className={`${SECONDARY_BUTTON_CLASS} mt-4 w-full`}
-                  onClick={() => openTierModal(tier)}
-                >
-                  {t("superAdmin.billingEditTier")}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <Dialog open={editTier !== null} onOpenChange={(o) => !o && setEditTier(null)}>
-        <DialogContent className={`${MODAL_DIALOG_CONTENT_CLASS} max-w-md`}>
-          <DialogHeader className="flex flex-row items-start justify-between gap-2 pr-8">
-            <div>
-              <h2 className="text-lg font-semibold text-[#34495E]">
-                {editTier ? `${t("superAdmin.billingEditTier")} · ${editTier}` : ""}
-              </h2>
-            </div>
-            <button
-              type="button"
-              className={MODAL_CLOSE_BUTTON_CLASS}
-              aria-label={t("common.close")}
-              onClick={() => setEditTier(null)}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </DialogHeader>
-          <div className="space-y-4 p-6 pt-0">
-            <label className="block text-[13px] text-[#34495E]">
-              {t("superAdmin.billingTierLegacyPrice")}
-              <input
-                className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px]"
-                value={modalTierPrice}
-                onChange={(e) => setModalTierPrice(e.target.value)}
-              />
-            </label>
-            <label className="block text-[13px] text-[#34495E]">
-              {t("superAdmin.tierQuotaFieldEmployees")}
-              <input
-                className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px]"
-                value={modalQuotas.maxEmployees}
-                onChange={(e) =>
-                  setModalQuotas((q) => ({ ...q, maxEmployees: e.target.value }))
-                }
-              />
-            </label>
-            <label className="block text-[13px] text-[#34495E]">
-              {t("superAdmin.tierQuotaFieldInvoicesMonthShort")}
-              <input
-                className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px]"
-                value={modalQuotas.maxInvoicesPerMonth}
-                onChange={(e) =>
-                  setModalQuotas((q) => ({
-                    ...q,
-                    maxInvoicesPerMonth: e.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="block text-[13px] text-[#34495E]">
-              {t("superAdmin.tierQuotaFieldStorageGb")}
-              <input
-                className="mt-1.5 box-border h-9 w-full rounded-lg border border-[#D5DADF] px-3 text-[13px]"
-                value={modalQuotas.maxStorageGb}
-                onChange={(e) =>
-                  setModalQuotas((q) => ({ ...q, maxStorageGb: e.target.value }))
-                }
-              />
-            </label>
-          </div>
-          <div className={`${MODAL_FOOTER_ACTIONS_CLASS} mt-6 px-6 pb-6`}>
-            <Button variant="outline" className={MODAL_FOOTER_BUTTON_CLASS} onClick={() => setEditTier(null)}>
-              {t("common.close")}
-            </Button>
-            <Button className={MODAL_FOOTER_BUTTON_CLASS} onClick={() => void saveTierModal()}>
-              {t("common.save")}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

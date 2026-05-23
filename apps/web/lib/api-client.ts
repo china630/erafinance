@@ -1,4 +1,5 @@
 import { ACCESS_TOKEN_KEY, ORGS_KEY, USER_KEY } from "./session-keys";
+import { isPublicWebPath } from "./public-routes";
 
 /**
  * В браузере — относительный origin (`/api/...`), чтобы запросы шли через Next rewrites на бэкенд.
@@ -103,7 +104,10 @@ export function apiFetch(path: string, init: RequestInit = {}): Promise<Response
         sessionStorage.removeItem(ACCESS_TOKEN_KEY);
         sessionStorage.removeItem(USER_KEY);
         sessionStorage.removeItem(ORGS_KEY);
-        window.location.replace("/login");
+        const currentPath = window.location.pathname;
+        if (!isPublicWebPath(currentPath)) {
+          window.location.replace("/login");
+        }
       }
     }
     let skipApiErrorToast = false;
@@ -140,11 +144,14 @@ export function apiFetch(path: string, init: RequestInit = {}): Promise<Response
       const clone = res.clone();
       try {
         const data: unknown = await clone.json();
+        const code =
+          data && typeof data === "object" && "code" in data
+            ? (data as { code?: string }).code
+            : undefined;
         if (
-          data &&
-          typeof data === "object" &&
-          "code" in data &&
-          (data as { code?: string }).code === "QUOTA_EXCEEDED"
+          code === "QUOTA_EXCEEDED" ||
+          code === "CREDIT_HARD_LOCK" ||
+          code === "USAGE_CAP_EXCEEDED"
         ) {
           skipApiErrorToast = true;
           window.dispatchEvent(

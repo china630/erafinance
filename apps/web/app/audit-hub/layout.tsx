@@ -25,7 +25,7 @@ export default function AuditHubLayout({
     ? String(effectiveSnapshot.tier).toUpperCase()
     : "";
   const moduleLocked =
-    tier !== "ENTERPRISE" && !effectiveSnapshot?.modules.auditHub;
+    tier !== "TIER_3" && !effectiveSnapshot?.modules.auditHub;
   const guestUnlocked = engagement.phase === "active";
   const hasKeys =
     typeof window !== "undefined" &&
@@ -107,3 +107,4 @@ export default function AuditHubLayout({
     </div>
   );
 }
+

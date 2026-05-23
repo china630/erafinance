@@ -1,4 +1,12 @@
-/** Response shape of `GET /api/public/pricing` (read-only marketing). */
+/** Response shape of `GET /api/public/pricing` (read-only marketing storefront). */
+
+export type MeterUnitPricing = {
+  pricePerUserMonthAzn: number;
+  pricePerGbMonthAzn: number;
+  pricePerWhatsappAlertAzn: number;
+  pricePerInvoiceAzn: number;
+  pricePerOcrPageAzn: number;
+};
 
 export type PublicPricingModule = {
   key: string;
@@ -15,10 +23,28 @@ export type PublicPricingBundle = {
   trialDurationDays: number | null;
 };
 
-export type PublicTierQuotas = {
-  maxEmployees: number | null;
-  maxInvoicesPerMonth: number | null;
-  maxStorageGb: number | null;
+export type PublicStandardModule = {
+  id: string;
+  moduleKeys: string[];
+  pricePerMonthAzn: number;
+};
+
+export type PublicBundleStorefront = PublicPricingBundle & {
+  marketingId: string;
+  listPriceAzn: number;
+  discountedPriceAzn: number;
+};
+
+export type PublicPremiumModule = {
+  key: string;
+  name: string;
+  pricePerMonth: number;
+  sortOrder: number;
+};
+
+export type PublicTierStorefront = {
+  id: "TIER_0" | "TIER_1" | "TIER_2" | "TIER_3";
+  spendCeilingAzn: number;
 };
 
 export type PublicPricingResponse = {
@@ -27,9 +53,12 @@ export type PublicPricingResponse = {
   yearlyDiscountPercent: number;
   pricingModules: PublicPricingModule[];
   pricingBundles: PublicPricingBundle[];
-  tierLegacyPricePerMonthAzn: Partial<Record<string, number>>;
-  tierQuotasIncluded: Record<string, PublicTierQuotas>;
-  quotaUnitPricing: unknown;
+  meterUnitPricing: MeterUnitPricing;
+  tierSpendCeilings: Partial<Record<string, number>>;
   ocrJobsPerOrgMonth: number | null;
+  standardModules?: PublicStandardModule[];
+  premiumModules?: PublicPremiumModule[];
+  bundles?: PublicBundleStorefront[];
+  tiers?: PublicTierStorefront[];
   unavailable?: true;
 };

@@ -18,7 +18,7 @@
 | **Технологический стек** | Next.js, NestJS, Prisma, PostgreSQL, Redis, BullMQ, Docker Compose |
 | **Репозиторий** | Monorepo: `apps/web`, `apps/api`, `packages/database` |
 | **Связанные документы** | [TZ.md](./TZ.md) |
-| **Карта разделов** | §1–2 — видение и цели; §3 — архитектура; §4 — модули продукта **1–9** и **§4.12** — зафиксированные доработки по плану улучшения ERP (**§4.4.2** — международные продажи/закупки); §5–7 — дорожная карта (v2–v4), в т.ч. **§5.1** — системные шаблоны и онбординг (v1.1 / v2.0); **§6.1.1** — Integrations: DVX (**поэтапная стратегия**: файлы → RPA → S2S); **§6.8** — Integrations: WhatsApp Business API; §8 — рамки текущей редакции; §9 — модель данных; §10–11 — NFR и приёмка; §12 — зафиксированные решения; **§13** — Integrations: **ƏMAS** (в т.ч. **§13.0** поэтапная стратегия DOST RIM); **§14** — **Phase 14.1: Risk & Compliance (ERM)** (платный модуль **`compliance_pro`**, см. **§14.1–§14.2**); **§15** — **Phase 15: Zero-Knowledge & State Identity Escrow** (**`FEAT-SEC-CRYPTO-001`**, PLANNED) |
+| **Карта разделов** | §1–2 — видение и цели; §3 — архитектура; §4 — модули продукта **1–9** и **§4.12** — зафиксированные доработки по плану улучшения ERP (**§4.4.2** — международные продажи/закупки); §5–7 — дорожная карта (v2–v4), в т.ч. **§5.1** — системные шаблоны и онбординг (v1.1 / v2.0); **§6.1.1** — Integrations: DVX (**поэтапная стратегия**: файлы → RPA → S2S); **§6.8** — Integrations: WhatsApp Business API; §8 — рамки текущей редакции; §9 — модель данных; §10–11 — NFR и приёмка; §12 — зафиксированные решения; **§13** — Integrations: **ƏMAS** (в т.ч. **§13.0** поэтапная стратегия DOST RIM); **§14** — **Phase 14.1: Risk & Compliance (ERM)** (платный модуль **`compliance_pro`**, см. **§14.1–§14.2**); **§15** — **Phase 15: Zero-Knowledge & State Identity Escrow** (**`FEAT-SEC-CRYPTO-001`**, PLANNED); **§16** — **Phase 16: Hybrid Limits Tier + Premium Trial Gate** (**`FEAT-BIL-POSTPAID-001`**, PARTIAL); **§17** — история версий PRD |
 
 ---
 
@@ -263,7 +263,7 @@ At **data model and UX** level, sales and purchase documents must carry an expli
 | **Автоматизация** | Прямая связь с модулями **продаж / закупок**: оплата **наличными (Nəqd)** автоматически создаёт **черновик** соответствующего ордера в кассе (см. [TZ.md](./TZ.md) §6.2). |
 | **Авансовые отчёты** | Закрытие задолженности подотчётного лица по счёту **244** на основании предоставленных расходов (чеков). |
 | **Инкассация** | Отдельный тип **MXO** для передачи наличных в банк (корреспонденция с расчётным счётом **221** и т.п. по ТЗ). |
-| **Доступ** | Модуль **Kassa Pro** (`kassa_pro` в конструкторе) или полный доступ **ENTERPRISE** (напр. TiVi Media). |
+| **Доступ** | Коммерческий модуль **`cash_bank_pro`** (касса + банк, единый slug в `pricing_modules`) или полный доступ **ENTERPRISE** (напр. TiVi Media). |
 
 #### 4.5.2. Контроль учётных периодов и защита от «заднего числа»
 
@@ -323,6 +323,7 @@ At **data model and UX** level, sales and purchase documents must carry an expli
 #### 4.8.1. Add-on «Audit Hub» (платное расширение к модулю 8)
 
 - **Подписка:** отдельный entitlement **`audit_hub`** (`OrganizationSubscription.activeModules`, строка в **`pricing_modules`**); UI-флаг **`modules.auditHub`** в `GET /api/subscription/me`; веб-раздел **`/audit-hub`** для ролей **OWNER / ADMIN / ACCOUNTANT / AUDITOR**.
+- **Premium Trial Shield (Phase 16):** модуль **`compliance_pro`** (Audit Hub / ERM в маркетинге) входит в семейство **premium add-ons** вместе с **`tax_pro`** и **`trade_pro`**. Premium **заблокирован** на **`TIER_0`** (**403** `PREMIUM_TIER0_LOCKED`) и в активном trial (**403** `PREMIUM_TRIAL_LOCKED`). Разблокировка — **`POST /api/billing/activate-premium`** после перехода на **Tier 1+** (верификация карты); **срок 90-дневного trial базового ERP не сокращается**. См. **§16**, [TZ.md](./TZ.md) §24.
 - **Навигация (web):** сворачиваемая секция **«Audit»** в корне сайдбара (сразу над **«Администрирование»**): подпункт **Audit Hub** → **`/audit-hub`** (те же роли; без модуля — **locked** / paywall) и подпункт **Приглашения аудита** → **`/audit-invitations`** (доступ с активной сессией; inbox приглашений в Audit Engagement).
 - **`/audit-invitations`:** страница **входящих приглашений** в **Audit Engagement** (внешний аудитор приглашает организацию): список из **`GET /api/audit-hub/me/audit-invites/inbox`**, принятие / отклонение по **`inviteId`** и секретному **token** в теле запроса, **consent** при принятии; опционально ручной старт **guest-сессии** (запись **`inviteId` / token`** в `sessionStorage` и переход в **`/audit-hub`**) — см. `apps/web/app/audit-invitations/page.tsx`.
 - **MVP:** объединённый таймлайн **AuditLog + EntityActivity** по сущности (или org-wide **AuditLog**); **выборка** с сохранением **`AuditSample`** (random / materiality, **seed**); отчёт **«задние числа»** (дата документа vs дата внесения в систему); **ZIP bulk-export** по выборке (manifest + вложения customs/OCR при наличии ключей в хранилище).
@@ -545,6 +546,12 @@ If `ProjectedBalance` drops below zero on a date, UI marks it as **cash-gap risk
 
 - [x] **COMPLETED (entitlement gate, v2026.06):** slugs **`industry_*`** в `customConfig.modules` / Super-Admin; при включении — shell **`/industry/*`**, иначе painted-door модалка (waitlist). Полноценные вертикальные продукты — roadmap.
 
+### 5.0.2. Phase 16 — Spend-tier metering + marketplace (актуальная модель)
+
+**[ ~ ] PARTIAL.** Актуальная продуктовая модель — **§16** и [TZ.md](./TZ.md) **§24**: metered unit prices, **`TariffTier` как потолок расхода**, **`Organization.accumulatedBalance`**, month-start + intraday tier invoice, premium shield, **marketplace** (модули + пакеты с дедупликацией). Устаревшее описание «hybrid limits / QUOTA_EXCEEDED matrix» — только legacy в старых строках changelog.
+
+Маркетинг: **`/pricing`** (**§7.6.5**) — unit prices, spend-tier ladder, **каталог модулей с ценами**, пакеты. Покупка после регистрации: **`/settings/subscription`** (**§16.9**).
+
 ### 5.1. Системные шаблоны плана счетов и онбординг организации (v1.1 / v2.0)
 
 **[x] COMPLETED.** Эталон NAS/IFRS в **`TemplateAccount`** / **`TemplateIFRSMapping`**, атомарный онбординг через **`provisionChartOfAccountsFromTemplate`**, Super-Admin **`/api/admin/chart-template`**, импорт каталога NAS в UI **`/accounting/chart`** (ранее **`/settings/chart`**; постоянный редирект сохранён) — в продукте. Исторические таблицы «проблема as-is» и длинные чек-листы миграций **убраны как устаревшие**; обратная совместимость для старых тенантов — без автоматического массового перезаписывания `Account`.
@@ -734,12 +741,13 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 **Business value:** **Automatic outbound delivery** from the ERP UI of **sales invoices**, **reconciliation statements**, **payment links**, and **accounts-receivable reminders** to counterparties (or internal approvers where policy allows) over **WhatsApp**, using the **official WhatsApp Business Platform** (no consumer-automation workarounds).
 
-**Monetization — internal message packages (add-on / upsell):** The capability is sold as **prepaid message bundles** (organization-scoped **quota** of successful template/session sends). **`Organization.whatsappOutboundMessagesBalance`** (integer, default 0) holds the **remaining sends** per org; **`GET /api/subscription/me`** exposes **`quotas.whatsappOutbound`** (`balance`, `atLimit`) for **Settings → Subscription** (Owner). **`402` / `QUOTA_EXCEEDED` / `whatsappOutboundMessages`** applies when a send is attempted with zero balance (same UX family as other quotas, TZ §14.8.7). **Purchasing top-ups** remains product backlog until checkout is wired; **Super-Admin** does not edit per-org balance in MVP (seed/support/SQL until a PATCH exists).
+**Monetization (Phase 16 — hybrid limits):** исходящие WhatsApp-алерты учитываются в **`Organization.whatsappAlertsUsed`**; месячный потолок задаётся **`TariffTier`** (`TIER_1`…`TIER_3`, см. **§16**). **`Organization.whatsappOutboundMessagesBalance`** — **deprecated** (legacy prepaid). Превышение лимита tier → **402** `QUOTA_EXCEEDED` ([TZ.md](./TZ.md) §24.3).
 
-**Architecture requirements (future scope):**
+**Architecture requirements:**
 
-- **Single corporate BSP path:** Under the hood, ERA Finance uses **one platform-level Business Solution Provider (BSP) account** with an official vendor (**Meta Cloud API** and/or **Infobip** / **Twilio** — final vendor is a **deployment choice**, not a per-tenant integration). Tenant traffic is **logically isolated** (organizationId, templates, audit); **phone numbers / WABA** may be customer-linked per compliance rules at rollout.
-- **Internal billing in Settings → Subscription:** Implement **message-pack purchase**, **balance tracking**, and **hard block** of send actions when the **message balance is zero** (API returns predictable **402** / dedicated code consistent with quota patterns in [TZ.md](./TZ.md) §14.5–14.8 — exact code at implementation).
+- **Single corporate BSP path:** Platform-level BSP (**Meta Cloud API** / Infobip / Twilio). **TIER_2+:** shared channel **«ERA Finance Alerts»** with injected client company name. **TIER_3+:** optional **custom branded WABA** via Meta Cloud API.
+- **Anti-spam:** alerts only from **Invoice / Act** context to **verified counterparty** profiles — no arbitrary numbers.
+- **Billing:** лимиты tier + месячный split-invoice (1-е число **Asia/Baku**); premium add-ons тарифицируются отдельно (TZ §24.5).
 
 ---
 
@@ -749,7 +757,7 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 ### 7.1. Модель подписки: Конструктор тарифов (v8.1, расширение v8.8) и **Hybrid LEGO (v10.0)**
 
-**Тарифы квот (`tier`):** единственные именованные **тарифы** в смысле лимитов — это значения **`SubscriptionTier`**: **STARTER**, **BUSINESS**, **ENTERPRISE**. Они задают **включённые потолки квот** по умолчанию для организации (см. `quotas.ts` / TZ §14.5), до применения **`customConfig.quotas`**, trial-override и **докупки единицами**. Дублирующих маркетинговых названий для квот **нет**. Отдельно: **`ENTERPRISE`** сохраняет продуктовое правило **полного доступа ко всем модулям** без перечисления slug (детали — [TZ.md](./TZ.md) §14.1–14.2).
+**Tariff tiers (`TariffTier`, Phase 16):** **`SubscriptionTier` (STARTER/BUSINESS/ENTERPRISE) и micro-debt отменены.** Лимиты — **`TIER_0`…`TIER_3`**; default **`TIER_0`** (2 users, 20 invoices, 1 GB). **90-дневный trial:** **`currentTier = TIER_1`**, база ERP **0 AZN**; premium — **заблокированы** на **TIER_0** и в trial до **`activate-premium`**. См. **§16**, [TZ.md](./TZ.md) §24.
 
 **Источник правды по деньгам за модули и базу** — **конструктор в БД** (`PricingModules`, Foundation, `billing.quota_unit_pricing_v1`, пакеты модулей); **`tier` не несёт отдельной «коробочной» цены продукта** для новых клиентов.
 
@@ -759,7 +767,7 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 |------|----------|
 | **Foundation / ERA Core** | Ежемесячная **базовая цена за активную организацию** (ориентир **29 AZN/мес.**) — доступ к **базовому учёту** (Ledger, CRM, дашборд) и **1 пользователь** (сид) в рамках этой организации; задаётся в Super-Admin (`SystemConfig`, ключ `billing.foundation_monthly_azn`). В веб-клиенте карточка базы подписана как **ERA Core** (i18n). Дополнительные пользователи — через **квоты** (§7.12.3). |
 | **Quota tier (`tier`)** | **STARTER / BUSINESS / ENTERPRISE** — **тариф включённых квот** (потолки по осям: сотрудники, инвойсы, диск и т.д.); хранится в **`OrganizationSubscription.tier`**. Смена тарифа квот — смена сидовых лимитов (и аналитика по сегменту); **модульный доступ** по-прежнему из **`customConfig.modules`** / **`organization_modules`**, кроме правила **`ENTERPRISE`** (все модули). |
-| **Module Marketplace (LEGO)** | Модули включаются **по организации** независимо; цена в месяц — в **`PricingModules`**. Ориентир цен (AZN/мес., v10.0): **Kassa Pro 15**, **Banking Pro 19**, **Warehouse 25**, **Manufacturing 39**, **HR 19**, **IFRS 29** (ключи slug — как в каталоге, например `kassa_pro`, `banking_pro`, …). |
+| **Module Marketplace (LEGO)** | Модули включаются **по организации** независимо; цена в месяц — в **`pricing_modules`**. Флаг **`is_premium`** задаётся в Super-Admin (секция Premium) и управляет trial shield / `activate-premium`. Ориентир (AZN/мес.): **`cash_bank_pro` 38** (касса+банк), **Warehouse / Manufacturing / HR / IFRS ~19**, premium **`tax_pro` / `trade_pro` ~19**, **`audit_hub` / `compliance_pro` ~99**. Legacy slugs `kassa_pro` / `banking_pro` сняты с каталога. |
 | **Quota scaling (докупка)** | Расширение **сверх** потолков тарифа квот (+ overrides): **цена за единицу надбавки** — блок сотрудников, пакет документов и т.п.; `SystemConfig` **`billing.quota_unit_pricing_v1`**, фактические купленные надбавки — в **`customConfig.quotas`** (см. §7.12.3). |
 | **Пакеты (bundles)** | Именованные наборы **модулей** с **скидкой пакета** (%) — таблица **`PricingBundles`**, Super-Admin (**Paket yaradıcısı**); для клиента — **предпросмотр** суммы. |
 | **Период оплаты** | При оплате **за год** — **автоматическая скидка** (по умолчанию **20%**) к итогу; процент хранится в `SystemConfig` (`billing.yearly_discount_percent`). |
@@ -773,7 +781,7 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 ### 7.2. Продуктовые механизмы
 
 - **Feature gating:** блокировка UI и API при неоплаченном модуле; 403 + код причины на API.
-- **Subscription management:** текущий план, дата окончания, модули и квоты по организации — только для роли **Owner** (§7.12.1); привязка карты и просмотр истории платформенных платежей — также только **Owner**.
+- **Subscription management:** текущий план, дата окончания, **пакеты и модули** (marketplace с дедупликацией, §16.9) — только для роли **Owner** (**`/settings/subscription`**); привязка карты и просмотр истории платформенных платежей — также только **Owner**.
 - **Quota enforcement:** блокировка создания записей при исчерпании лимита (политика: жёсткий стоп vs предупреждение).
 - **Billing MVP:** платёжный шлюз (ориентиры: Pasha Bank, E-Pul); **единый месячный счёт** на владельца по портфелю org; идемпотентность webhooks; аудит смены плана.
 
@@ -868,12 +876,48 @@ Product-approved **phased integration strategy** for the **State Tax Service (DV
 
 | Элемент | Описание |
 |---------|----------|
-| **API (прайс)** | **`GET /api/public/pricing`** — без JWT; ответ JSON: **`currency: "AZN"`**, **`foundationMonthlyAzn`**, **`yearlyDiscountPercent`**, массив модулей (**`key`**, **`name`**, **`pricePerMonth`**, **`sortOrder`**; без внутренних UUID строк каталога), массив пакетов (**`name`**, **`discountPercent`**, **`moduleKeys`**, **`isTrialDefault`**, **`trialDurationDays`**; без **`trialQuotas`** и без id пакета), **`tierLegacyPricePerMonthAzn`**, **`tierQuotasIncluded`**, **`quotaUnitPricing`**, **`ocrJobsPerOrgMonth`**. При сбое чтения БД API возвращает пустые массивы и флаг **`unavailable: true`**. Реализация: `PublicPricingController`, `AdminService.getPublicPricingSnapshot()` — см. [TZ.md](./TZ.md) §15.3.1. |
+| **API (прайс)** | **`GET /api/public/pricing`** — без JWT; ответ JSON: **`currency: "AZN"`**, **`foundationMonthlyAzn`**, **`yearlyDiscountPercent`**, **`pricingModules[]`** (`key`, `name`, `pricePerMonth`, `sortOrder`), **`pricingBundles[]`** (без trial-only пакетов в витрине покупки; без UUID), **`meterUnitPricing`**, **`tierSpendCeilings`**, обогащённые **`standardModules`**, **`bundles`** (list/discounted price), **`tiers[]`**, **`premiumModules`**, **`ocrJobsPerOrgMonth`**. При сбое — **`unavailable: true`**. Реализация: `PublicPricingController`, `AdminService.getPublicPricingSnapshot()` — [TZ.md](./TZ.md) §15.3.1. |
 | **API (лендинг)** | **`GET /api/public/landing-modules`** — без JWT; ответ `{ items: [{ moduleSlug, sortOrder, names, descriptions, tasks }] }` (JSON AZ/RU). Таблица **`landing_module_marketing`**; сид и fallback — `packages/database/prisma/lib/config/landing-modules.ts`. Super-Admin: **`GET/PATCH /api/admin/landing-modules/:moduleSlug`** (аудит на PATCH). См. [TZ.md](./TZ.md) §15.3.2. |
-| **Веб: лендинг `/`** | Async RSC `apps/web/app/page.tsx`: locale из cookie **`erafinance_i18n_lang`** → `Accept-Language` → **`az`**; server `fetch` с **`revalidate: 300`**; Hero «3 ay tam pulsuz / 3 месяца… 0 AZN» + disclaimer (AI/гос. add-ons платные); карточки Finance / Manufacturing WIP / Fixed Assets / Industry; CTA **`/register-org`**. **`middleware`**: гость на **`/`** — лендинг; с токеном на **`/`** → редирект **`/home`**. **`layout`**: **`/`** в `publicPath` и `barePublicLayout`. |
+| **Веб: лендинг `/`** | RSC `apps/web/app/page.tsx` → клиент **`LandingPageView`** (`apps/web/components/landing/*`): locale из cookie **`erafinance_i18n_lang`** → **`az`** по умолчанию; маркетинговые строки — **`packages/i18n/src/landing-copy.ts`** (`getLandingMarketingCopy`, shim `apps/web/lib/i18n/landing-marketing-copy.ts`). Секции: Hero, trial banner, ecosystem, Zero-Knowledge, **Head-to-Head vs 1C**, feature splits, bottom CTA. **`GET /api/public/landing-modules`** и Super-Admin PATCH — для редактируемых карточек экосистемы (опционально); UX-полировка — **§7.6.5**. **`middleware`**: гость **`/`** — лендинг; с токеном **`/`** → **`/home`**. |
 | **Веб: дашборд `/home`** | `apps/web/app/home/page.tsx` — прежний дашборд организации; сайдбар «Главная» → **`/home`**. |
-| **Веб: прайс `/pricing`** | `apps/web/app/pricing/page.tsx`: публичная страница без `AppShell`; **`publicApiFetch`**. i18n — **`pricingPage.*`**, **`pricingModule.*`**, **`landing.*`**, **`auth.viewPricing`**. |
+| **Веб: прайс `/pricing`** | `apps/web/app/pricing/page.tsx` → **`PricingPageView`**: публичная **маркетинговая витрина** (Light Tech Canvas, **§7.6.5**), без `AppShell`; copy **`packages/i18n/src/pricing-storefront-copy.ts`** (RU/AZ). **`GET /api/public/pricing`** — цены модулей и пакетов из БД; секция **«Цены модулей (à la carte)»** (`pricing-module-catalog-section`) + пакеты со скидкой; spend-tier matrix и premium grid. |
 | **Внешний маркетинг** | Отдельный домен: **`GET {API}/api/public/pricing`** и **`GET {API}/api/public/landing-modules`** при **Origin** в **`CORS_ORIGINS`**; типы — `apps/web/lib/public-pricing-types.ts`, `apps/web/lib/config/landing-modules.ts`. |
+
+#### 7.6.5. Маркетинговый UX: лендинг и витрина тарифов (v2026.05)
+
+**Статус пакета:** [x] **COMPLETED (marketing UI scope)** — визуальная и копирайт-полировка публичных **`/`** и **`/pricing`**; бэкенд Phase 16 (квоты, trial shield, split invoice) — по-прежнему **§16** / [TZ.md](./TZ.md) **§24**.
+
+**Дизайн-контур:** светлая подложка **Light Tech Canvas** (`bg-[#EBEDF0]`, `text-slate-800`, `subpixel-antialiased`); карточки — премиальное стекло `bg-white/70 backdrop-blur-md border-slate-300/70`; hover — `PRICING_CARD_HOVER_CLASS` (`apps/web/lib/landing-motion.ts`).
+
+##### A. Задачи лендинга (Landing Page workspace)
+
+| # | Задача | Статус | Реализация (веб) |
+|---|--------|--------|------------------|
+| L1 | **SEO-иерархия:** Hero — строго **`<h1>`**; ключевые блоки (модули, сравнение, Zero-Knowledge, bottom CTA) — **`<h2>`**; заголовки карточек экосистемы / premium — **`<h3>`** | [x] COMPLETED | `landing-hero.tsx`, `landing-ecosystem-grid.tsx`, `landing-legacy-compare.tsx`, `landing-zero-knowledge.tsx`, `landing-bottom-cta.tsx`, `landing-feature-splits.tsx` |
+| L2 | **Локальный комплаенс в Hero:** увеличенный контраст подзаголовка (MMUS/MHBS, «Azərbaycan biznesi üçün…») | [x] COMPLETED | `landing-hero.tsx` (`text-lg md:text-xl`, `text-slate-700`); AZ/RU — `landing-copy.ts` → `hero.subtitle` |
+| L3 | **CTA «3 месяца бесплатно»:** единый призыв на кнопках + микротекст «Kredit kartı tələb olunmur • İstənilən vaxt ləğv et» / RU-эквивалент | [x] COMPLETED | `hero.ctaPrimary`, `bottomCta.cta`, `ctaMicrocopy` в `landing-copy.ts`; `landing-hero.tsx`, `landing-bottom-cta.tsx` |
+| L4 | **Arena сравнения 1C:** бренды **один раз** в шапке блока; в строках — только факты; справа **«ERA Finance»** без суффикса PRO | [x] COMPLETED | `landing-legacy-compare.tsx`; `legacyCompare.eraBrand` |
+| L5 | **Читаемость колонки 1C:** `text-slate-300`, красные маркеры боли (❌) | [x] COMPLETED | `landing-legacy-compare.tsx` |
+| L6 | **Сквозной раунд «Кадры и ƏMAS»:** ручной ввод/штрафы в 1C vs синхронизация договоров из ERP в 1 клик | [x] COMPLETED | 8-я строка `legacyCompare.rows[]` (`id: emas`); AZ/RU в `landing-copy.ts` |
+| L7 | **Zero-Knowledge:** короткие тезисы (шифрование в браузере, нулевой доступ платформы, ASAN İmza / SİMA escrow) | [x] COMPLETED | `landing-zero-knowledge.tsx`; `zeroKnowledge.claims[]` |
+| L8 | **Контраст «Daxil ol»** в подвале/нижнем CTA на тёмном баннере | [x] COMPLETED | `landing-bottom-cta.tsx` — вторичная кнопка `bg-slate-900 border-slate-700/80 text-slate-100` |
+
+##### B. Задачи витрины тарифов (Pricing storefront `/pricing`)
+
+| # | Задача | Статус | Реализация (веб) |
+|---|--------|--------|------------------|
+| P1 | **Светлая схема как у лендинга:** `bg-[#EBEDF0]`, карточки `bg-white/80 backdrop-blur-md`, текст `text-slate-800`; отказ от тёмного «космического» фона | [x] COMPLETED | `pricing-page-shell.tsx`, `pricing-page-view.tsx` |
+| P2 | **Удаление временных баннеров** «Əməliyyat nüvəsi» / «Trial Shield» из вёрстки витрины | [x] COMPLETED | Компонент `pricing-trust-ladder.tsx` снят; баннеры не рендерятся |
+| P3 | **5-колоночная матрица** (`grid-cols-5`): метрика + **Tier 0–3**, вертикальное выравнивание, CTA checkout | [x] COMPLETED | `pricing-resource-matrix.tsx`; `limitsSection.matrixTiers[]` |
+| P3a | **Tier 0 (Free Forever):** 2 users · 20 invoices · **1 GB** · 20 WhatsApp · 10 OCR — **0 AZN** | [x] COMPLETED | Prisma **`TIER_0`**, `tariff-limits.ts`, **§16.2** |
+| P3b | Tier 1–3: users **5/15/50**, invoices **100/500/5000**, storage **5/20/100 GB**, WhatsApp/OCR по лестнице | [x] COMPLETED | `pricing-postpaid-copy.ts` |
+| P4 | **ERA Core:** **0 AZN** первые **3 месяца** на Tier 1–3 | [x] COMPLETED | `pricing-core-suite-banner.tsx` |
+| P5 | **Premium:** прозрачные цены (+29/+49/+59 AZN), frosted Lock, «TIER 1+», CTA upgrade tier | [x] COMPLETED | `pricing-premium-panel.tsx`; API **`PREMIUM_TIER0_LOCKED`** — **§16.3**, **§14** |
+| P6 | **Checkout CTA:** «Bu səviyyəni seç» → `/register-org?tier=TIER_*` | [x] COMPLETED | `TierHeaderCell` в matrix |
+| P11 | **Каталог модулей с ценами:** таблица/сетка по **`pricingModules`** из API (`pricePerMonth` AZN/мес.) | [x] COMPLETED | `pricing-module-catalog-section.tsx`; hero-карточки ERA Core — цена на модуль |
+| P12 | **Дедуп в калькуляторе:** пакет + premium + Foundation без двойного учёта модулей пакета | [x] COMPLETED | `compute-pricing-totals.ts`, `pricing-public-dedup.ts` |
+
+**i18n (маркетинг):** лендинг и витрина — **отдельные** TS-модули в `packages/i18n` (не `resources.ts`); для Super-Admin дефолтов каталога модулей по-прежнему **`pricingModule.*`** в `resources.ts` при отображении имён из API.
 
 ### 7.7. Платформа (v5.6): гарантированная изоляция тенантов (Data Safety)
 
@@ -1282,7 +1326,7 @@ ERA Finance **не навязывает** обязательную синхро�
 
 Модуль помогает **SMB в Азербайджане** видеть **операционные, налоговые и compliance-риски** в одном месте: автоматические **сигналы** из учёта, кассы/банка, CRM и неизменяемого журнала аудита.
 
-**Платный tier (конструктор тарифов):** доступ к UI и API модуля включается только при активном entitlement **`compliance_pro`** в подписке организации (или при **ENTERPRISE** по правилам полного пакета модулей — см. PRD §7.1 / §7.12, **TZ §14.2** и **TZ §22**). В каталоге **`PricingModules`** модуль позиционируется как **Risk & Compliance Pro** (ключ slug в коде: **`compliance_pro`**).
+**Платный tier (конструктор тарифов):** доступ к UI и API модуля включается только при активном entitlement **`compliance_pro`** в подписке организации (ключ в **`activatedPremiumModules`** / `organization_modules`). **Premium Trial Shield:** при **`isTrial === true`** модуль **недоступен** до коммерческой активации (**§16**, **§4.8.1**). В каталоге **`PricingModules`** модуль позиционируется как **Risk & Compliance Pro** (slug: **`compliance_pro`**). Техконтракты — **TZ §14.2**, **TZ §22**, **TZ §24**.
 
 **Формальная фаза продукта — Phase 14.1:** первая зафиксированная поставка ERM — **rule-based** сканеры, журнал **`RiskAudit`**, дашборд **`/compliance`** и индикатор в шапке (см. **§14.1**). Идентификаторы задач для трассировки PRD ↔ TZ ↔ roadmap — **§14.2**.
 
@@ -1326,6 +1370,7 @@ ERA Finance **не навязывает** обязательную синхро�
 | **FEAT-INT-MON-001** | Фича | Assistant Monitoring (AI-watcher порталов госуслуг) | §7.6.3 | [ ] PLANNED |
 | **MOD-LAND-001** | Модуль | Marketing landing `/` + DB `LandingModuleMarketing` + trial `TRIAL_3_MONTHS` | §7.3, §7.6.4 | [x] COMPLETED |
 | **FEAT-SEC-CRYPTO-001** | Фича (платформа) | Zero-Knowledge multi-tenant encryption + 3-tier recovery + ASAN/SİMA state escrow | §15 | [ ] PLANNED |
+| **FEAT-BIL-POSTPAID-001** | Фича (платформа) | Hybrid limits tiers (T1–T3), 90-day trial, premium trial shield, split monthly invoice (Asia/Baku) | §16 | [~] PARTIAL |
 
 ### 14.2.1. Идентификаторы строк отчётов `modules-roadmap*.html`
 
@@ -1361,6 +1406,7 @@ ERA Finance **не навязывает** обязательную синхро�
 | **MOD-REF-001** | Referral &amp; Partner (PRD §7.14) | [x] COMPLETED |
 | **MOD-PLT-OPS-001** | Платформа (multi-tenant, i18n, billing reconcile) | [x] COMPLETED |
 | **FEAT-SEC-CRYPTO-001** | Zero-Knowledge encryption + ASAN/SİMA state escrow (Phase 15) | [ ] PLANNED |
+| **FEAT-BIL-POSTPAID-001** | Hybrid limits + premium trial gate (Phase 16) | [~] PARTIAL |
 
 Идентификаторы **§14.2** (`MOD-ERM-*`, `FEAT-ERM-*`, `MOD-MFG-*`, `MOD-PLT-DSP-001`, `MOD-PLT-DR-001`, `FEAT-INT-MON-001`, **`FEAT-SEC-CRYPTO-001`**) дополняют эту таблицу для детализированных строк (ERM-подфичи, WIP-роадмап, Assistant, криптоконтур Phase 15).
 
@@ -1479,7 +1525,83 @@ ERA Finance **не навязывает** обязательную синхро�
 
 ---
 
-## 16. История версий документа PRD
+## 16. Spend-tier metering + debt ceilings (Phase 16)
+
+**Статус Phase 16:** [~] **PARTIAL** — pivot на **metered unit prices** + **`TariffTier` как потолок накопленного расхода** за Baku-месяц; **`Organization.accumulatedBalance`**; intraday tier-invoice (антифрод); month-start catch-up; premium shield; **`GET /api/public/pricing`**. Техспека — **[TZ.md](./TZ.md) §24**. Task: **`FEAT-BIL-POSTPAID-001`**.
+
+### 16.1. Принципы
+
+| Принцип | Описание |
+|---------|----------|
+| **Регистрация** | **`currentTier = TIER_0`**, **`isTrial = true`**, **`trialExpiresAt`** = **+3 календарных месяца** от даты signup (**Asia/Baku**), не 90 суток. |
+| **Trial (вариант B)** | Meter и tier-потолки **работают в trial**. «3 месяца бесплатно» в маркетинге = **нет абонплаты Foundation (ERA Core)** на trial, **не** нулевой metered-расход. При расходе без достижения потолка tier — **счёт 1-го числа**; при достижении потолка — **intraday** (§16.4). |
+| **Premium вне trial** | **`tax_pro`**, **`trade_pro`**, **`compliance_pro`** **не входят** в trial bundle; активация — **`POST /api/billing/activate-premium`** после solvency. |
+| **Metered usage** | Цены за единицу (Super-Admin `billing.meter_unit_pricing_v1`): user/mo, GB/mo, WhatsApp alert, invoice (Baku month), OCR page. Операции **не режутся** жёстким `maxEmployees` → **402**; накапливается **`accumulatedBalance`** за `billingPeriodKey`. |
+| **Tier = потолок расхода** | **`currentTier`** задаёт **потолок накопленного расхода** за текущий Baku-месяц (старт: TIER_0 **0**, TIER_1 **10**, TIER_2 **50**, TIER_3 **200** AZN — editable). |
+| **Блокировка** | Только при **неоплаченном долге** — **`BillingStatus.HARD_BLOCK`** (+ **402** `CREDIT_HARD_LOCK` / `USAGE_CAP_EXCEEDED`). |
+| **Foundation после trial** | С **`isTrial = false`**: строка Foundation в **month-start** счёте, если `foundationMonthlyAzn > 0`. |
+
+### 16.2. Unit price catalog (meter)
+
+| Ось | Единица |
+|-----|---------|
+| Seats | 1 active user / month (начисление в month-close и/или при billable seat events) |
+| Storage | 1 GB / month (прирост usage) |
+| WhatsApp | 1 contextual alert |
+| Invoices | 1 invoice / Baku month |
+| OCR | 1 page |
+
+Источник: **`SystemConfig`** `billing.meter_unit_pricing_v1`; публичный снимок — **`GET /api/public/pricing`**.
+
+### 16.3. Tier spend ceilings
+
+| Tier | Потолок накопленного расхода за месяц (AZN, старт) |
+|------|--------------------------------------------------|
+| **TIER_0** | 0 |
+| **TIER_1** | 10 |
+| **TIER_2** | 50 |
+| **TIER_3** | 200 |
+
+Конфиг: **`billing.tier_spend_ceiling.{TIER_*}`** (Super-Admin). Оплата intraday tier-счёта → **`currentTier++`** (до TIER_3).
+
+### 16.4. Billing rhythm (Asia/Baku)
+
+1. **Month-start (основной):** 1-го числа — счёт за **metered usage** прошлого месяца (+ Foundation если не trial, + premium lines), если **не было** intraday tier-счёта за тот период. Оплата → tier **без изменения**.
+2. **Intraday (антифрод):** если **до конца месяца** `accumulatedBalance` **достиг потолка** tier (дешёвые GB/WhatsApp) — **счёт в тот же день**, **SOFT_BLOCK** → при просрочке **HARD_BLOCK**. Оплата → разблокировка + **следующий tier**.
+3. **Cron:** `BillingMonthlyService` @ `0 0 1 * *` `{ timeZone: "Asia/Baku" }`.
+
+### 16.5. Premium add-ons
+
+Фиксированная **AZN/мес.** из **`PricingModules`**; строки в month-start счёте; **не смешивать** с tier ceiling meter.
+
+### 16.6. Anti-spam (WhatsApp)
+
+Alerts only from Invoice/Act workflows to verified counterparty profiles.
+
+### 16.7. Deprecations
+
+- **Hard cap matrix** (`maxEmployees`, `maxInvoicesPerMonth`, …) как enforcement — **снято**; `quota.tier.*` — legacy/optional display only.
+- **`maxWorkspaces`** — удалено.
+- **`QUOTA_EXCEEDED`** по жёстким потолкам — legacy; runtime — **`CreditExceededException`** (`CREDIT_HARD_LOCK`, `USAGE_CAP_EXCEEDED`).
+- Prepaid **`whatsappOutboundMessagesBalance`** — deprecated.
+
+### 16.8. Публичная витрина (§7.6.5)
+
+**`/pricing`:** unit prices + tier spend ladder (не cap-grid); ERA Core — 0 AZN Foundation waiver × 3 calendar months; premium lock CTA; **каталог `pricing_modules` с `pricePerMonth`** (à la carte) и пакеты со скидкой.
+
+### 16.9. Marketplace: модули и пакеты (Owner)
+
+| Элемент | Описание |
+|---------|----------|
+| **UI** | **`/settings/subscription`** (Owner): секции **Пакеты**, **Модули**, **Премиум**; итог без дублей |
+| **API** | **`GET /api/billing/marketplace`** — каталог + состояние org + `allocation` + `monthlyTotalAzn`; **`POST /api/billing/toggle-module`**; **`POST /api/billing/toggle-bundle`**; **`POST /api/billing/activate-premium`** |
+| **Дедуп** | Каждый `moduleKey` тарифицируется **не более одного раза**: приоритет — активные пакеты по `activatedAt`, затем à la carte (`organization_modules`); пересечение пакетов — только **незанятые** slug в более позднем пакете |
+| **БД** | **`organization_bundles`** (пакет org) + **`organization_modules`** (модуль à la carte); при включении пакета строки модулей пакета удаляются из `organization_modules` |
+| **Счёт** | Month-start: строки **Package …** и **Module …** через `BillingEntitlementService.computeInvoiceModuleLines` |
+
+---
+
+## 17. История версий документа PRD
 
 | Версия документа | Статус | Что зафиксировано |
 |------------------|--------|-------------------|
@@ -1550,6 +1672,11 @@ ERA Finance **не навязывает** обязательную синхро�
 | **2026.06.14** | Текущая | **Биллинг UI / i18n:** подписи строк **`pricing_modules`** по ключам **`pricingModule.<key>`** (RU/AZ) с fallback на **`name`** в БД; метка базы **ERA Core**; навигация **Audit Hub** — корень сайдбара над «Администрирование»; зафиксирован смысл **`/audit-invitations`** (§4.8.1); **§7.6**, **§7.6.4** — [TZ.md](./TZ.md) §11.1, §15.2–15.3. |
 | **2026.06.15** | Текущая | **Навигация Audit / настройки org:** сайдбар — секция **«Audit»** (`/audit-hub` + `/audit-invitations`); **`/settings/organization`** — без вкладки банков (реестр **`/settings/bank-accounts`**); подсказки по амортизации ОС — ссылка на **`/fixed-assets`**; **§4.8.1**, **§10** — [TZ.md](./TZ.md) §11.1. |
 | **2026.06.19** | Текущая | **Phase 15 (PLANNED):** Zero-Knowledge multi-tenant encryption — DEK/KEK envelope, таблица **`UserOrganizationKey`**, трёхуровневое recovery (BIP-39 seed, Owner OMRK, ASAN İmza/SİMA state escrow); **§15**, Task ID **`FEAT-SEC-CRYPTO-001`**; техспека — [TZ.md](./TZ.md) **§23**. |
+| **2026.06.23** | Текущая | **Spend-tier billing pivot:** metered unit prices + tier spend ceilings (0/10/50/200 AZN); trial B (meter в trial); регистрация **`TIER_0`**; **`BillingMeterService`**; month-start + intraday rhythm — **§16**, [TZ.md](./TZ.md) **§24**. |
+| **2026.05.28** | Текущая | **Marketplace:** `organization_bundles`, API marketplace/toggle-bundle, дедуп в month-start счёте; UI **`/settings/subscription`**; публичный **`/pricing`** — каталог модулей с ценами — **§16.9**, **§7.6.5** (P11–P12); [TZ.md](./TZ.md) §14.8.3a, §24.7. |
+| **2026.06.22** | Архив | **Pricing matrix v2 + TIER_0:** 5-колоночная витрина (заменена spend-tier в **2026.06.23**). |
+| **2026.06.21** | Текущая | **Маркетинговый UX (лендинг + витрина):** SEO **h1/h2/h3**, CTA «3 ay pulsuz», Arena 1C (8 раундов, ƏMAS), Zero-Knowledge тезисы; **`/pricing`** — Light Tech Canvas, LEGO tier matrix, ERA Core **0 AZN×3 мес.**, premium grid + Lock — **§7.6.5**, **§16.6**; [TZ.md](./TZ.md) **§15.3.3**, **§24.8**. |
+| **2026.06.20** | Текущая | **Phase 16 pivot (hybrid billing):** отмена micro-debt / **Credit Tier T4**; **`TariffTier` T1–T3** — лимиты ресурсов; **90-дневный trial** (база ERP **0 AZN**); **Premium Trial Shield** для **`tax_pro` / `trade_pro` / `compliance_pro`**; split-invoice **1-го числа Asia/Baku**; **`POST /api/billing/activate-premium`**; **§5.0.2**, **§16**, [TZ.md](./TZ.md) **§24**. |
 | **2026.06.18** | Текущая | **Лендинг и trial:** маркетинговый **`/`** (RSC, AZ/RU), ERP-дашборд **`/home`**, **`GET /api/public/landing-modules`**, таблица **`landing_module_marketing`**, Super-Admin редактор; trial-пакет **`TRIAL_3_MONTHS`** (`PricingBundle.slug`), срок **+3 мес. Asia/Baku**, исключение **`compliance_pro`** с **`tax_pro`/`trade_pro`** — **§7.3**, **§7.6.4**; [TZ.md](./TZ.md) §14.3, §15.3.2. |
 | **2026.06.17** | Текущая | **ERM / roadmap sync:** Phase **14.1** formalized as paid **`compliance_pro`** + **§14.2** task IDs (`MOD-*` / `FEAT-*`); **§1.4** в TZ — локальность данных (AZ-first / EU DC); **§21.2.1** — целевые SLA по ключевым модулям (Customs / Tax / Treasury); manufacturing deep-dive **TZ §10.2.0** (BOM, WIP target vs `ManufacturingRelease`, overhead); отчёты **`docs/modules-roadmap*.html`** — колонки Task ID / Owner / Priority и правило согласования Facts ↔ PRD. |
 | **2026.06.16** | Текущая | **Risk & Compliance (ERM), phase 1:** продуктовые **§14–§14.1** — модуль **`compliance_pro`**, дашборд **`/compliance`**, индикатор риска в шапке, порог **200 000 AZN** (ориентир по НДС), записи **`RiskAudit`** (статусы **PENDING / MITIGATED / IGNORED**), rule-based сканеры и BullMQ по расписанию; техспека — [TZ.md](./TZ.md) **§22**; миграция **`20260210120000_risk_audits_erm`**. |

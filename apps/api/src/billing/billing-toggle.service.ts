@@ -2,7 +2,7 @@ import {
   BadRequestException,
   Injectable,
 } from "@nestjs/common";
-import { SubscriptionTier } from "@erafinance/database";
+import { TariffTier } from "@erafinance/database";
 import { AccessControlService } from "../access/access-control.service";
 import { PricingService } from "../admin/pricing.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -13,6 +13,11 @@ import {
   hasConstructorModulesInCustomConfig,
   isCatalogModuleActive,
 } from "./billing-module-toggle.helpers";
+import { BillingPremiumActivationService } from "./billing-premium-activation.service";
+import {
+  asStringArray,
+  isBundleActiveNow,
+} from "./billing-entitlement.util";
 import type { ToggleModuleDto } from "./dto/toggle-module.dto";
 
 @Injectable()
@@ -23,6 +28,7 @@ export class BillingToggleService {
     private readonly subscriptionAccess: SubscriptionAccessService,
     private readonly pricing: PricingService,
     private readonly orgModules: OrganizationModuleService,
+    private readonly premiumActivation: BillingPremiumActivationService,
   ) {}
 
   async toggle(
@@ -59,7 +65,7 @@ export class BillingToggleService {
       organizationId,
     );
 
-    if (snap.tier === SubscriptionTier.ENTERPRISE) {
+    if (snap.tier === TariffTier.TIER_3) {
       throw new BadRequestException({
         code: "ENTERPRISE_ALL_MODULES",
         message: "Enterprise includes all modules; toggle is not applicable.",
@@ -92,7 +98,32 @@ export class BillingToggleService {
     const fullyActive =
       inCatalog && (om == null || om.cancelledAt == null);
 
+    const subRow = await this.prisma.organizationSubscription.findUnique({
+      where: { organizationId },
+    });
+    if (!subRow) {
+      throw new BadRequestException("Organization subscription not found");
+    }
+
     if (dto.enabled) {
+      const coveredByBundle = await this.isModuleCoveredByActiveBundle(
+        organizationId,
+        dto.moduleKey,
+        now,
+      );
+      if (coveredByBundle) {
+        throw new BadRequestException({
+          code: "MODULE_IN_ACTIVE_BUNDLE",
+          message:
+            "This module is already included in an active package; disable the package first or use the package toggle only.",
+          bundleName: coveredByBundle,
+        });
+      }
+
+      if (this.pricing.isPremiumModuleKey(dto.moduleKey)) {
+        this.premiumActivation.assertNotTrialLockedPremium(subRow, dto.moduleKey);
+      }
+
       if (fullyActive) {
         return {
           organizationId,
@@ -225,4 +256,33 @@ export class BillingToggleService {
       };
     }
   }
+
+  private async isModuleCoveredByActiveBundle(
+    organizationId: string,
+    moduleKey: string,
+    now: Date,
+  ): Promise<string | null> {
+    const rows = await this.prisma.organizationBundle.findMany({
+      where: { organizationId },
+      include: { bundle: true },
+    });
+    for (const row of rows) {
+      if (
+        !isBundleActiveNow(
+          {
+            cancelledAt: row.cancelledAt,
+            accessUntil: row.accessUntil,
+            pendingDeactivation: row.pendingDeactivation,
+          },
+          now,
+        )
+      ) {
+        continue;
+      }
+      const keys = asStringArray(row.bundle.moduleKeys);
+      if (keys.includes(moduleKey)) return row.bundle.name;
+    }
+    return null;
+  }
 }
+

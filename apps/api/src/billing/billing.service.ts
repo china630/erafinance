@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma, SubscriptionTier } from "@erafinance/database";
+import { Prisma, TariffTier } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { SystemConfigService } from "../system-config/system-config.service";
 
@@ -66,17 +66,17 @@ export class BillingService {
    */
   async calculateUpgradePrice(
     organizationId: string,
-    newTier: SubscriptionTier,
+    newTier: TariffTier,
   ): Promise<{
     amountAzn: number;
     daysRemaining: number;
     daysInPeriod: number;
-    currentTier: SubscriptionTier;
-    newTier: SubscriptionTier;
+    currentTier: TariffTier;
+    newTier: TariffTier;
   }> {
     const sub = await this.prisma.organizationSubscription.findUnique({
       where: { organizationId },
-      select: { tier: true, expiresAt: true },
+      select: { currentTier: true, expiresAt: true },
     });
     if (!sub) {
       throw new NotFoundException("Organization subscription not found");
@@ -92,7 +92,7 @@ export class BillingService {
     const daysRemaining = Math.max(1, Math.ceil((periodEnd.getTime() - now.getTime()) / dayMs));
     const daysInPeriod = Math.max(1, Math.ceil((periodEnd.getTime() - periodStart.getTime()) / dayMs));
 
-    const currentPrice = await this.systemConfig.getBillingPriceAzn(sub.tier);
+    const currentPrice = await this.systemConfig.getBillingPriceAzn(sub.currentTier);
     const newPrice = await this.systemConfig.getBillingPriceAzn(newTier);
     const diff = Math.max(0, newPrice - currentPrice);
     const amountAzn = Math.round((diff * (daysRemaining / daysInPeriod)) * 100) / 100;
@@ -101,8 +101,9 @@ export class BillingService {
       amountAzn,
       daysRemaining,
       daysInPeriod,
-      currentTier: sub.tier,
+      currentTier: sub.currentTier,
       newTier,
     };
   }
 }
+

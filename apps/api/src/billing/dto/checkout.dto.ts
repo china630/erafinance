@@ -9,7 +9,7 @@ import {
   MinLength,
   IsOptional,
 } from "class-validator";
-import { SubscriptionTier } from "@erafinance/database";
+import { TariffTier } from "@erafinance/database";
 
 export class CheckoutDto {
   /** Default: PAŞA Bank redirect / mock. Use `drakaris` for yığım integration. */
@@ -19,8 +19,8 @@ export class CheckoutDto {
 
   /** Если задан — сумма заказа берётся из SystemConfig для тарифа. */
   @IsOptional()
-  @IsEnum(SubscriptionTier)
-  tier?: SubscriptionTier;
+  @IsEnum(TariffTier)
+  tier?: TariffTier;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -38,3 +38,4 @@ export class CheckoutDto {
   @MinLength(8)
   idempotencyKey?: string;
 }
+

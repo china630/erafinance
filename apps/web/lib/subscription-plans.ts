@@ -1,10 +1,8 @@
 import type { SubscriptionTier } from "./subscription-context";
 
-export const SUBSCRIPTION_PLANS: {
-  tier: SubscriptionTier;
-  priceAzn: number;
-}[] = [
-  { tier: "STARTER", priceAzn: 49 },
-  { tier: "BUSINESS", priceAzn: 149 },
-  { tier: "ENTERPRISE", priceAzn: 499 },
+export const SUBSCRIPTION_PLANS: { tier: SubscriptionTier; priceAzn: number }[] = [
+  { tier: "TIER_1", priceAzn: 0 },
+  { tier: "TIER_2", priceAzn: 0 },
+  { tier: "TIER_3", priceAzn: 0 },
+  { tier: "TIER_3", priceAzn: 0 },
 ];

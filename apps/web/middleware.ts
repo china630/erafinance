@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import {
+  ACCESS_TOKEN_COOKIE_KEY,
+  clearAccessTokenCookie,
+  getAccessTokenEdgeState,
+} from "./lib/access-token-edge";
 import { ERAFINANCE_MAINTENANCE_HTML } from "./lib/maintenance-page-html";
-
-const ACCESS_TOKEN_COOKIE_KEY = "erafinance_access_token";
+import { isPublicWebPath } from "./lib/public-routes";
 
 /** Bracket access: improves chance the value is read at runtime (not inlined at build) under `next start`. */
 function maintenanceModeEnabled(): boolean {
@@ -20,30 +24,21 @@ function isSkippableAssetPath(pathname: string): boolean {
   );
 }
 
-function isPublicPath(pathname: string): boolean {
-  if (pathname === "/") return true;
-  if (pathname === "/home") return true;
-  if (pathname === "/login") return true;
-  if (pathname === "/register") return true;
-  if (pathname === "/register-org") return true;
-  if (pathname === "/help") return true;
-  if (pathname === "/pricing") return true;
-  if (pathname.startsWith("/dispute/")) return true;
-  if (pathname.startsWith("/verify/")) return true;
-  if (pathname.startsWith("/billing/")) return true; // success/cancel pages
-  if (pathname.startsWith("/portal")) return true; // guest invoice portal (PRD §4.4.1)
-  if (pathname.startsWith("/api/")) return true; // Next rewrites & route handlers
-  return false;
+function redirectToLogin(req: NextRequest, pathname: string, clearCookie: boolean): NextResponse {
+  const url = req.nextUrl.clone();
+  url.pathname = "/login";
+  url.searchParams.set("next", pathname);
+  const res = NextResponse.redirect(url);
+  if (clearCookie) clearAccessTokenCookie(res);
+  return res;
 }
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Expose pathname to RSC/layout for auth-only rendering decisions.
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-erafinance-pathname", pathname);
 
-  // Allow static assets early.
   if (isSkippableAssetPath(pathname)) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
@@ -59,55 +54,28 @@ export function middleware(req: NextRequest) {
     });
   }
 
-  const token = req.cookies.get(ACCESS_TOKEN_COOKIE_KEY)?.value;
+  const rawToken = req.cookies.get(ACCESS_TOKEN_COOKIE_KEY)?.value;
+  const tokenState = getAccessTokenEdgeState(rawToken);
 
-  if (token && pathname === "/") {
-    const url = req.nextUrl.clone();
-    url.pathname = "/home";
-    return NextResponse.redirect(url);
-  }
-
-  if (isPublicPath(pathname)) {
-    return NextResponse.next({ request: { headers: requestHeaders } });
-  }
-
-  if (!token) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
-  }
-
-  // Basic JWT shape check (avoid treating garbage as a token).
-  const parts = token.split(".");
-  if (parts.length !== 3) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
-  }
-
-  // Lightweight JWT payload validation (no signature verification at the edge):
-  // reject clearly expired tokens so we don't render protected UI.
-  try {
-    const payloadB64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const padded =
-      payloadB64.length % 4 === 0
-        ? payloadB64
-        : payloadB64 + "=".repeat(4 - (payloadB64.length % 4));
-    const json = JSON.parse(atob(padded)) as { exp?: unknown };
-    const exp = typeof json.exp === "number" ? json.exp : null;
-    if (exp && Date.now() >= exp * 1000) {
+  if (pathname === "/") {
+    if (tokenState === "valid") {
       const url = req.nextUrl.clone();
-      url.pathname = "/login";
-      url.searchParams.set("next", pathname);
+      url.pathname = "/home";
       return NextResponse.redirect(url);
     }
-  } catch {
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
+    const res = NextResponse.next({ request: { headers: requestHeaders } });
+    if (tokenState === "invalid") clearAccessTokenCookie(res);
+    return res;
+  }
+
+  if (isPublicWebPath(pathname)) {
+    const res = NextResponse.next({ request: { headers: requestHeaders } });
+    if (tokenState === "invalid") clearAccessTokenCookie(res);
+    return res;
+  }
+
+  if (tokenState !== "valid") {
+    return redirectToLogin(req, pathname, tokenState === "invalid");
   }
 
   return NextResponse.next({ request: { headers: requestHeaders } });
@@ -116,4 +84,3 @@ export function middleware(req: NextRequest) {
 export const config = {
   matcher: ["/((?!_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|css|js|map)$).*)"],
 };
-

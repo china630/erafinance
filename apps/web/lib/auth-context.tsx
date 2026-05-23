@@ -18,6 +18,7 @@ import {
 } from "./session-keys";
 import { apiFetch } from "./api-client";
 import { FALLBACK_CURRENCY_CODES } from "./currencies";
+import { isPublicWebPath } from "./public-routes";
 
 export type OrgSummary = {
   id: string;
@@ -89,6 +90,21 @@ function clearAccessTokenCookie() {
   document.cookie = `${ACCESS_TOKEN_COOKIE_KEY}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax${secure}`;
 }
 
+function readAccessTokenFromCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const parts = document.cookie.split("; ");
+  for (const part of parts) {
+    if (!part.startsWith(`${ACCESS_TOKEN_COOKIE_KEY}=`)) continue;
+    const raw = part.slice(ACCESS_TOKEN_COOKIE_KEY.length + 1);
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }
+  return null;
+}
+
 async function fetchCurrencyCodesFromApi(): Promise<string[]> {
   try {
     const res = await apiFetch("/api/system/currencies");
@@ -119,7 +135,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** Гидратация из sessionStorage — мгновенный UI; полный список орг подтягивается ниже с сервера. */
   useEffect(() => {
     try {
-      const t = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+      let t = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+      if (!t) {
+        t = readAccessTokenFromCookie();
+        if (t) sessionStorage.setItem(ACCESS_TOKEN_KEY, t);
+      }
       const u = sessionStorage.getItem(USER_KEY);
       const o = sessionStorage.getItem(ORGS_KEY);
       const a = sessionStorage.getItem(ACCESS_FLAGS_KEY);
@@ -156,6 +176,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   useEffect(() => {
     if (!ready || !token) return;
+    if (typeof window !== "undefined" && isPublicWebPath(window.location.pathname)) {
+      return;
+    }
     let cancelled = false;
     void (async () => {
       const res = await apiFetch("/api/auth/me");

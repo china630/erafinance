@@ -10,8 +10,17 @@ import { runWithTenantContextAsync } from "../prisma/tenant-context";
 import { BillingPlatformService } from "./billing-platform.service";
 import { BillingNotificationService } from "./billing-notification.service";
 import { OrganizationModuleService } from "./organization-module.service";
+import { OrganizationBundleService } from "./organization-bundle.service";
+import { BillingEntitlementService } from "./billing-entitlement.service";
+import { SystemConfigService } from "../system-config/system-config.service";
 import { decodeOrganizationTaxId } from "../security/pii-crypto.util";
 import { ReferralsService } from "../referrals/referrals.service";
+import {
+  bakuMonthBounds,
+  billingPeriodKeyBaku,
+  previousBillingPeriodKeyBaku,
+} from "./baku-billing.util";
+import { PREMIUM_MODULE_MONTHLY_AZN } from "./tariff-limits";
 
 const Decimal = Prisma.Decimal;
 
@@ -50,23 +59,25 @@ export class BillingMonthlyService {
     private readonly billingPlatform: BillingPlatformService,
     private readonly billingNotifications: BillingNotificationService,
     private readonly orgModules: OrganizationModuleService,
+    private readonly orgBundles: OrganizationBundleService,
+    private readonly entitlements: BillingEntitlementService,
     private readonly referrals: ReferralsService,
+    private readonly systemConfig: SystemConfigService,
   ) {}
 
   /**
-   * Ежемесячное начисление (post-paid): один счёт (ISSUED) на владельца, строки по организациям.
-   * Идемпотентность: не создаём второй счёт с тем же userId + billingPeriod.
+   * Hybrid monthly billing (Asia/Baku): base ERP tariff + premium add-ons per organization.
+   * Base line is 0 AZN while trial is active; premium modules bill even during trial.
    */
   async runMonthlyBilling(now = new Date()): Promise<void> {
-    const previousMonth = previousMonthAnchorUtc(now);
-    const periodStart = startOfMonthUtc(previousMonth);
-    const periodEnd = endOfMonthUtc(previousMonth);
-    const billingPeriod = billingPeriodLabelUtc(previousMonth);
+    const billingPeriod = previousBillingPeriodKeyBaku(now);
+    const { from: periodStart, to: periodEnd } = bakuMonthBounds(billingPeriod);
     const dateOnly = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
     );
 
     await this.orgModules.finalizeExpiredModuleCancellations(now);
+    await this.orgBundles.finalizeExpiredBundleCancellations(now);
 
     await runWithTenantContextAsync(
       { organizationId: null, skipTenantFilter: true },
@@ -97,15 +108,10 @@ export class BillingMonthlyService {
           }
         }
 
-        /** Post-paid orgs are billable month-by-month for the completed calendar period.
-         *  Org transitioned from demo on this very run is excluded, so free entry month is never invoiced.
-         */
         const orgs = await this.prisma.organization.findMany({
           where: {
             id: { notIn: Array.from(transitionedFromDemoOrgIds) },
-            subscription: {
-              is: { isTrial: false },
-            },
+            subscription: { isNot: null },
           },
           include: { subscription: true },
         });
@@ -122,6 +128,7 @@ export class BillingMonthlyService {
         }
 
         let created = 0;
+        const billedOrgIds: string[] = [];
         for (const [ownerUserId, list] of byOwner) {
           const dup = await this.prisma.subscriptionInvoice.findFirst({
             where: {
@@ -145,20 +152,28 @@ export class BillingMonthlyService {
             amount: Prisma.Decimal;
           }> = [];
 
-          const billedOrgIds: string[] = [];
           for (const o of list) {
-            const m = await this.estimatePostpaidMonthlyAznForOrganization(
+            const sub = o.subscription;
+            if (!sub) continue;
+            const meteredSpendAzn = Number(o.accumulatedBalance ?? 0);
+            const lines = await this.hybridInvoiceLinesForOrg(
               o.id,
+              o.name,
+              decodeOrganizationTaxId(o),
+              sub,
               periodStart,
               periodEnd,
+              meteredSpendAzn,
             );
-            if (m <= 0) continue;
-            items.push({
-              organizationId: o.id,
-              description: `Post-paid monthly modules — ${o.name} (VÖEN ${decodeOrganizationTaxId(o)})`,
-              amount: new Decimal(roundMoney2(m)),
-            });
-            billedOrgIds.push(o.id);
+            for (const line of lines) {
+              if (line.amountAzn <= 0) continue;
+              items.push({
+                organizationId: o.id,
+                description: line.description,
+                amount: new Decimal(roundMoney2(line.amountAzn)),
+              });
+              if (!billedOrgIds.includes(o.id)) billedOrgIds.push(o.id);
+            }
           }
 
           if (items.length === 0) continue;
@@ -202,13 +217,19 @@ export class BillingMonthlyService {
             },
             data: {
               billingStatus: BillingStatus.SOFT_BLOCK,
+              accumulatedBalance: new Decimal(0),
             },
           });
           created++;
         }
 
+        await this.prisma.organizationSubscription.updateMany({
+          where: { organizationId: { in: billedOrgIds } },
+          data: { billingPeriodKey: billingPeriodKeyBaku(now) },
+        });
+
         this.logger.log(
-          `Post-paid billing: period ${billingPeriod} — ${created} owner invoice(s), ${orgs.length} org(s) scanned`,
+          `Hybrid billing: period ${billingPeriod} (Baku) — ${created} owner invoice(s), ${orgs.length} org(s) scanned`,
         );
 
         const deactivated = await this.orgModules.finalizePendingDeactivations();
@@ -221,9 +242,72 @@ export class BillingMonthlyService {
     );
   }
 
-  @Cron("0 0 1 * *")
+  @Cron("0 0 1 * *", { timeZone: "Asia/Baku" })
   async runMonthlyBillingCron(): Promise<void> {
     await this.runMonthlyBilling(new Date());
+  }
+
+  private async hybridInvoiceLinesForOrg(
+    organizationId: string,
+    orgName: string,
+    taxId: string,
+    sub: {
+      currentTier: import("@erafinance/database").TariffTier;
+      isTrial: boolean;
+      trialExpiresAt: Date | null;
+      expiresAt: Date | null;
+      activatedPremiumModules: string[];
+    },
+    periodStart: Date,
+    periodEnd: Date,
+    meteredSpendAzn: number,
+  ): Promise<Array<{ description: string; amountAzn: number }>> {
+    const lines: Array<{ description: string; amountAzn: number }> = [];
+    const trialEnd = sub.trialExpiresAt ?? sub.expiresAt;
+    const trialCoversPeriod =
+      sub.isTrial && trialEnd != null && trialEnd.getTime() > periodEnd.getTime();
+
+    const foundationAzn = trialCoversPeriod
+      ? 0
+      : await this.systemConfig.getFoundationMonthlyAzn();
+    if (foundationAzn > 0) {
+      lines.push({
+        description: `ERA Core (Foundation) — ${orgName} (VÖEN ${taxId})`,
+        amountAzn: foundationAzn,
+      });
+    }
+
+    if (meteredSpendAzn > 0) {
+      lines.push({
+        description: `Metered usage — ${orgName} (VÖEN ${taxId})`,
+        amountAzn: roundMoney2(meteredSpendAzn),
+      });
+    }
+
+    const moduleLines = await this.entitlements.computeInvoiceModuleLines(
+      organizationId,
+      periodStart,
+      periodEnd,
+    );
+    for (const ml of moduleLines) {
+      lines.push({
+        description: `${ml.description} — ${orgName} (VÖEN ${taxId})`,
+        amountAzn: ml.amountAzn,
+      });
+    }
+
+    for (const slug of sub.activatedPremiumModules ?? []) {
+      const fee =
+        PREMIUM_MODULE_MONTHLY_AZN[
+          slug as keyof typeof PREMIUM_MODULE_MONTHLY_AZN
+        ] ?? 0;
+      if (fee <= 0) continue;
+      lines.push({
+        description: `Premium module ${slug} — ${orgName} (VÖEN ${taxId})`,
+        amountAzn: fee,
+      });
+    }
+    return lines;
   }
 
   @Cron("0 10 25 * *")
@@ -290,24 +374,11 @@ export class BillingMonthlyService {
     periodStart: Date,
     periodEnd: Date,
   ): Promise<number> {
-    const billableModules = await this.prisma.organizationModule.findMany({
-      where: {
-        organizationId,
-        activatedAt: { lt: periodStart }, // First month after activation is free.
-        OR: [
-          { cancelledAt: null },
-          { pendingDeactivation: true },
-          { accessUntil: { gte: periodEnd } },
-        ],
-      },
-      select: { moduleKey: true },
-    });
-    const active = billableModules.map((m) => m.moduleKey);
-    if (active.length === 0) return 0;
-    const modules = await this.prisma.pricingModule.findMany({
-      where: { key: { in: active } },
-      select: { pricePerMonth: true },
-    });
-    return modules.reduce((sum, m) => sum + Number(m.pricePerMonth), 0);
+    const lines = await this.entitlements.computeInvoiceModuleLines(
+      organizationId,
+      periodStart,
+      periodEnd,
+    );
+    return lines.reduce((s, l) => s + l.amountAzn, 0);
   }
 }

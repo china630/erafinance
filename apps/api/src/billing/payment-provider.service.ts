@@ -10,7 +10,7 @@ import {
   PaymentOrderStatus,
   Prisma,
   SubscriptionInvoiceStatus,
-  SubscriptionTier,
+  TariffTier,
 } from "@erafinance/database";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -28,6 +28,7 @@ import {
   TOGGLE_MODULE_META_PURPOSE,
 } from "./billing-module-toggle.helpers";
 import { OrganizationModuleService } from "./organization-module.service";
+import { BillingSettlementService } from "./billing-settlement.service";
 
 @Injectable()
 export class PaymentProviderService {
@@ -44,6 +45,7 @@ export class PaymentProviderService {
     private readonly config: ConfigService,
     private readonly systemConfig: SystemConfigService,
     private readonly audit: AuditService,
+    private readonly billingSettlement: BillingSettlementService,
   ) {}
 
   /**
@@ -56,10 +58,10 @@ export class PaymentProviderService {
     const months = dto.months ?? 1;
     let amountAzn = dto.amountAzn;
     if (dto.tier != null) {
-      const newTier = dto.tier as SubscriptionTier;
-      if (months === 1 && newTier === SubscriptionTier.ENTERPRISE) {
+      const newTier = dto.tier as TariffTier;
+      if (months === 1 && newTier === TariffTier.TIER_3) {
         const pr = await this.billing.calculateUpgradePrice(organizationId, newTier);
-        amountAzn = pr.currentTier === SubscriptionTier.STARTER ? pr.amountAzn : await this.systemConfig.getBillingPriceAzn(newTier);
+        amountAzn = pr.currentTier === TariffTier.TIER_1 ? pr.amountAzn : await this.systemConfig.getBillingPriceAzn(newTier);
       } else {
         amountAzn = await this.systemConfig.getBillingPriceAzn(newTier);
       }
@@ -359,6 +361,14 @@ export class PaymentProviderService {
         });
       }
     });
+
+    const invoice = await this.prisma.subscriptionInvoice.findUnique({
+      where: { id: subscriptionInvoiceId },
+      select: { userId: true },
+    });
+    if (invoice?.userId) {
+      await this.billingSettlement.settleOrganizationsForOwner(invoice.userId, {});
+    }
   }
 
   /**
@@ -451,6 +461,39 @@ export class PaymentProviderService {
       });
 
       await this.billingPlatform.recordPaidOrderInvoice(tx, orderId);
+
+      const meta =
+        current.metadata != null && typeof current.metadata === "object"
+          ? (current.metadata as Record<string, unknown>)
+          : {};
+      const tierIntradyUnlock = meta.tierIntradyUnlock === true;
+      await this.billingSettlement.settleOrganizationsForOwner(ownerUserId, {
+        tierBumpOrganizationIds: tierIntradyUnlock
+          ? [current.organizationId]
+          : undefined,
+      });
     });
   }
+
+  /** Intraday tier-ceiling unlock: pay → bump tier (metadata.tierIntradyUnlock). */
+  async createTierCeilingUnlockOrder(
+    organizationId: string,
+    amountAzn: number,
+  ): Promise<{ orderId: string; paymentUrl: string; providerMode: string }> {
+    const session = await this.createOrder(organizationId, {
+      amountAzn,
+      provider: "pasha_bank",
+    });
+    await this.prisma.paymentOrder.update({
+      where: { id: session.orderId },
+      data: {
+        description: "Tier spend ceiling unlock",
+        metadata: {
+          tierIntradyUnlock: true,
+        } as Prisma.InputJsonValue,
+      },
+    });
+    return session;
+  }
 }
+

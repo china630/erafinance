@@ -1,7 +1,7 @@
 import { ConfigService } from "@nestjs/config";
 import {
   PaymentOrderStatus,
-  SubscriptionTier,
+  TariffTier,
 } from "@erafinance/database";
 import { PaymentProviderService } from "../../../billing/payment-provider.service";
 import { PrismaService } from "../../../prisma/prisma.service";
@@ -89,7 +89,7 @@ describe("DrakarisService", () => {
         firstNameCipher: null,
         lastNameCipher: null,
       },
-      subscription: { tier: SubscriptionTier.STARTER },
+      subscription: { tier: TariffTier.TIER_1 },
     } as never);
     prisma.paymentOrder.aggregate.mockResolvedValue({
       _sum: { amountAzn: null },
@@ -113,7 +113,7 @@ describe("DrakarisService", () => {
       settings: {},
       drakarisClientId: "ABC123",
       owner: null,
-      subscription: { tier: SubscriptionTier.STARTER },
+      subscription: { tier: TariffTier.TIER_1 },
     } as never);
 
     const res = await service.topUpBalance("ABC123", {
@@ -136,7 +136,7 @@ describe("DrakarisService", () => {
       settings: {},
       drakarisClientId: "ABC123",
       owner: null,
-      subscription: { tier: SubscriptionTier.STARTER },
+      subscription: { tier: TariffTier.TIER_1 },
     } as never);
     prisma.paymentOrder.findUnique.mockResolvedValue({
       id: "order-1",
@@ -163,7 +163,7 @@ describe("DrakarisService", () => {
       settings: {},
       drakarisClientId: "ABC123",
       owner: null,
-      subscription: { tier: SubscriptionTier.STARTER },
+      subscription: { tier: TariffTier.TIER_1 },
     } as never);
     prisma.paymentOrder.findUnique.mockResolvedValue(null);
     systemConfig.getBillingPriceAzn.mockResolvedValue(50);
@@ -196,7 +196,7 @@ describe("DrakarisService", () => {
       settings: {},
       drakarisClientId: "ABC123",
       owner: null,
-      subscription: { tier: SubscriptionTier.STARTER },
+      subscription: { tier: TariffTier.TIER_1 },
     } as never);
 
     const res = await service.topUpBalance("ABC123", {
@@ -208,3 +208,4 @@ describe("DrakarisService", () => {
     expect(res.status).toBe(DrakarisStatus.VALIDATION_ERROR);
   });
 });
+

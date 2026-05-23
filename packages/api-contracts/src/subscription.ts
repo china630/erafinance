@@ -1,10 +1,17 @@
 import { z } from "zod";
 
-export const SubscriptionTierSchema = z.enum([
-  "STARTER",
-  "BUSINESS",
-  "ENTERPRISE",
+export const TariffTierSchema = z.enum([
+  "TIER_0",
+  "TIER_1",
+  "TIER_2",
+  "TIER_3",
 ]);
+
+/** @deprecated Use TariffTierSchema */
+export const CreditTierSchema = TariffTierSchema;
+
+/** @deprecated Use TariffTierSchema */
+export const SubscriptionTierSchema = TariffTierSchema;
 
 /** Entitlement flags returned by GET /api/subscription/me `modules`. */
 export const OrganizationModuleEntitlementsSchema = z.object({
@@ -30,12 +37,14 @@ export const QuotaSnapshotSchema = z.object({
 });
 
 export const SubscriptionSnapshotSchema = z.object({
-  tier: SubscriptionTierSchema,
+  tier: TariffTierSchema,
   activeModules: z.array(z.string()),
   customConfig: z.record(z.string(), z.unknown()).nullable().optional(),
   modules: OrganizationModuleEntitlementsSchema,
   expiresAt: z.string().nullable(),
+  trialExpiresAt: z.string().nullable().optional(),
   isTrial: z.boolean(),
+  activatedPremiumModules: z.array(z.string()).optional(),
   billingStatus: z.string().optional(),
   readOnly: z.boolean().optional(),
   trialDaysLeft: z.number().nullable().optional(),
@@ -58,6 +67,7 @@ export const ModuleEntitlementKeySchema = z.enum([
   "manufacturing",
   "fixed_assets",
   "ifrs_mapping",
+  "cash_bank_pro",
   "banking_pro",
   "kassa_pro",
   "hr_full",

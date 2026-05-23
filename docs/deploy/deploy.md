@@ -23,6 +23,170 @@ This guide is aligned with:
 - Only required external ports are open (typically 80/443); do not publicly expose Postgres/Redis.
 - After **every** release with frontend code changes, do not skip i18n DB sync (section 7.3), otherwise `GET /api/public/translations` and i18n cache may diverge from bundled `resources.ts`.
 - If **production** is a **greenfield wipe** (drop DB / empty volume, no data to keep), follow **section 7.0.1 (A)** — no baselining; then migrate + i18n + `db:prod-init` as usual.
+- **Moving to DigitalOcean with an empty database** (no restore from the old host): start with **section 0.1** below, then sections 1–9.
+
+---
+
+## 0.1. DigitalOcean migration playbook (greenfield database)
+
+Use this section when you **deliberately do not migrate** business data from the old server (new Postgres instance or new Docker volume). You provision an **empty** database named **`erafinance`** (same as `env.production.example`, `.env.example`, and `docker-compose.prod.yml` defaults), then apply the single squashed migration. Do not restore dumps from an old server that used a different DB name or migration history.
+
+**Do not** restore an old `pg_dump` into the new database unless you are following **section 7.0.1 (C)** (keep data + baseline). A dump from the old DB name or old migration history will conflict with the squashed migration.
+
+### 0.1.1. Target architecture on DigitalOcean
+
+| Component | Recommended (MVP) | Hardened (later) |
+|-----------|-------------------|------------------|
+| Region | **FRA1** or **AMS3** (EU; align with TZ §1.4 / §1.6) | Same |
+| App (API + Web + workers) | **Droplet** Ubuntu 24.04, Docker Compose (`docker-compose.prod.yml`) | Same droplet or separate worker droplet |
+| PostgreSQL 16 | Container `db` on the droplet (volume `pgdata`) | **Managed Database for PostgreSQL** (VPC private hostname) |
+| Redis 7 | Container `redis` on the droplet | **Managed Redis** (`noeviction`, VPC only) |
+| Files (logos, PDF) | `STORAGE_DRIVER=local` + host path | **Spaces** (S3-compatible; see §0.1.6) |
+| HTTPS | **Caddy** or Nginx on the droplet → `127.0.0.1:3000` | Optional **Cloudflare** in front (TZ §1, WAF) |
+| DNS | **A record** → droplet public IPv4 (or floating IP) | Same |
+
+Network rules (TZ §1.6): Postgres and Redis must be reachable only from the **VPC / private interface** or localhost. On the droplet, **do not** expose `5432` / `6379` on the public interface (leave `POSTGRES_PUBLISH_PORT` / `REDIS_PUBLISH_PORT` unset or block with **DigitalOcean Cloud Firewall** + `ufw`).
+
+### 0.1.2. Database name and credentials: `erafinance`
+
+Standard for production and local dev (repository templates):
+
+```bash
+POSTGRES_USER=erafinance
+POSTGRES_DB=erafinance
+```
+
+Set **`POSTGRES_USER`**, **`POSTGRES_DB`**, and **`POSTGRES_PASSWORD`** in production `.env` **before** the first `docker compose up`. `docker-compose.prod.yml` builds `DATABASE_URL` for the `api` service from these variables.
+
+If a Postgres data volume was already initialized with a **different** `POSTGRES_DB`, changing `.env` alone does not rename the database. For greenfield: remove the volume (`docker compose … down -v`) or create a new empty Managed DB named **`erafinance`**.
+
+### 0.1.3. Pre-migration checklist (old host → DO)
+
+| Step | Action |
+|------|--------|
+| 1 | Agree **cutover window** (users see maintenance page). |
+| 2 | Export **secrets** you still need: JWT secrets (or plan to rotate), SMTP, S3/Spaces keys, integration keys — **not** the old Postgres dump if you wipe. |
+| 3 | Note **public URL** (`https://erp.example.com`) for `CORS_ORIGINS` and DNS. |
+| 4 | On the **release commit**, run locally: `npm run build` (includes `i18n:audit`). If `resources.ts` changed: `npm run i18n:catalog` and commit `i18n-default-catalog-data.json`. |
+| 5 | Optional: take a final backup on the old host (`scripts/backup-db.sh`) and store off-site **only for archival**, not for restore into greenfield DO. |
+
+### 0.1.4. Create DigitalOcean resources
+
+1. **Project** (optional): group droplet, DB, Spaces bucket.
+2. **VPC** in **FRA1** or **AMS3** (default VPC is fine for a single droplet).
+3. **Droplet**: Ubuntu **24.04**, size per load (start **2 vCPU / 4 GB** for pilot), region = VPC region, **SSH key**, enable **monitoring** if desired.
+4. **Cloud Firewall** (recommended): inbound **22** (your IP), **80**, **443** → droplet; **deny** inbound to **5432**, **6379**, **4000** from `0.0.0.0/0`.
+5. **Floating IP** (optional): attach before DNS cutover for stable IP.
+6. **DNS**: lower TTL to **300** s a day before cutover; create **A** record to droplet (or floating IP).
+7. **Spaces** (when using S3 storage): bucket in a region close to the droplet; create **Spaces access keys**; note endpoint like `https://fra1.digitaloceanspaces.com`.
+
+Managed Postgres / Redis (optional instead of containers): create in the **same VPC**, enable **trusted sources** = droplet only, copy **private connection string** / URI. Wiring an external `DATABASE_URL` requires a compose override (not in default `docker-compose.prod.yml`); MVP path below uses the bundled `db` service.
+
+### 0.1.5. Ordered steps on the new droplet (greenfield)
+
+Replace placeholders: `YOUR_GIT_URL`, `your-domain.tld`, secrets.
+
+```bash
+# --- 1) OS + Docker (see also section 2) ---
+ssh root@DROPLET_IP   # or deploy@ after user setup
+# ... install Docker per section 2 ...
+
+# --- 2) App directory ---
+sudo mkdir -p /opt/erafinance_erp
+sudo chown "$USER":"$USER" /opt/erafinance_erp
+cd /opt/erafinance_erp
+git clone YOUR_GIT_URL .
+git checkout main   # or your release tag
+
+# --- 3) Production .env ---
+cp env.production.example .env
+nano .env
+```
+
+**Minimum in `.env` for first boot:**
+
+| Variable | Example / note |
+|----------|----------------|
+| `COMPOSE_PROJECT_NAME` | `erafinance_prod` |
+| `POSTGRES_USER` | `erafinance` |
+| `POSTGRES_DB` | `erafinance` |
+| `POSTGRES_PASSWORD` | strong random |
+| `REDIS_URL` | `redis://redis:6379` |
+| `JWT_SECRET`, `JWT_REFRESH_SECRET` | new long random strings (rotate if old host compromised) |
+| `CORS_ORIGINS` | `https://your-domain.tld` |
+| `NEXT_PUBLIC_API_URL` | `http://api:4000` (Compose internal; do not change for default stack) |
+| `STORAGE_DRIVER` | `s3` + `S3_*` for Spaces, or `local` + `ERAFINANCE_STORAGE_HOST_PATH` |
+
+```bash
+# --- 4) Local storage dir (if STORAGE_DRIVER=local) ---
+sudo mkdir -p /var/lib/erafinance/storage
+sudo chown 1001:1001 /var/lib/erafinance/storage
+
+# --- 5) Maintenance + empty database volume ---
+# In .env: MAINTENANCE_MODE=1
+docker compose -f docker-compose.prod.yml up -d --build
+
+# First install OR after DB rename: ensure empty Postgres data
+# WARNING: destroys all data in compose volume pgdata
+docker compose -f docker-compose.prod.yml down
+docker volume rm erafinance_prod_pgdata 2>/dev/null || docker volume rm $(docker volume ls -q | grep pgdata) 
+# If unsure of volume name: docker volume ls | grep pgdata
+
+docker compose -f docker-compose.prod.yml up -d db redis
+# Wait until db healthy, then api+web:
+docker compose -f docker-compose.prod.yml up -d --build
+
+# --- 6) Schema + platform seed (greenfield, section 7.0.1 A) ---
+docker compose -f docker-compose.prod.yml exec api npm run db:migrate:deploy
+docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune
+docker compose -f docker-compose.prod.yml exec api npm run db:prod-init
+
+# --- 7) HTTPS (section 8) — Caddy → 127.0.0.1:3000 ---
+# --- 8) Smoke (section 9) ---
+# Remove MAINTENANCE_MODE from .env, then:
+docker compose -f docker-compose.prod.yml up -d web
+```
+
+**Super-admin:** platform users from `db:seed` / `db:prod-init` follow repository seed rules. For a custom bootstrap password hash, see `npm run docker-init:super-admin-hash` in root `package.json` (run once with correct `DATABASE_URL`).
+
+### 0.1.6. DigitalOcean Spaces (S3-compatible storage)
+
+In `.env` for the `api` service:
+
+```bash
+STORAGE_DRIVER=s3
+S3_ENDPOINT=https://fra1.digitaloceanspaces.com
+S3_REGION=fra1
+S3_BUCKET=your-bucket-name
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+# S3_PUBLIC_BASE_URL=https://your-bucket-name.fra1.cdn.digitaloceanspaces.com
+```
+
+Rebuild is **not** required for storage env changes — restart `api` after editing `.env`:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d api
+```
+
+### 0.1.7. Release updates after go-live
+
+| Change type | Command |
+|-------------|---------|
+| Code / images only (no migration) | `bash scripts/deploy-prod-code.sh` |
+| New Prisma migrations | `bash scripts/deploy-prod-db-migrate.sh` (backs up DB first) |
+| i18n-only after `resources.ts` change | `docker compose -f docker-compose.prod.yml exec api npm run db:sync-i18n:prune` |
+
+Schedule **`scripts/backup-db.sh`** via cron on the droplet; store copies off-droplet (Spaces or another region). Details: `DR_RUNBOOK.md`.
+
+### 0.1.8. Related documents
+
+| Document | Purpose |
+|----------|---------|
+| `PRE-RELEASE-CHECKLIST.md` | Build, i18n catalog, smoke before tag |
+| `DR_RUNBOOK.md` | Backups, restore, RPO/RTO |
+| `../launch/STAGE_B_INFRASTRUCTURE.md` | Infra steps 34–65 |
+| `TZ.md` §1.4–1.7, §1.6 | VPC, Redis `noeviction`, AZ/EU hosting |
 
 ---
 

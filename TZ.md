@@ -2,7 +2,7 @@
 
 Единый документ для разработки: объединяет ядро Core MVP, расширения v2, интеграции v3 и слой монетизации v4. Сводные продуктовые решения — **[PRD.md](./PRD.md)** (§12 и др.). Детализация REST — **§0.0** ниже и Swagger API.
 
-**Оглавление (верхний уровень):** **§0.0** — реестр ключевых REST; §0 — статус синхронизации; §1 — инфраструктура (**§1.4** — локальность данных AZ); §2–§10 — модули **1–9**; **§6.0** — Treasury + касса/банк; **§7.0** — HR, табель, payroll, ЦФО; §11 — паттерн разработки (**§11.1** — web: `PageHeader`, сайдбар-only); §12–§14 — дорожные карты; **§13.6** — Browser Extension RPA (ERA Finance Assistant); §15 — Super-Admin; §16–§17 — hardening; **§21** — Dispute & Recovery (платформа); **§22** — Risk & Compliance (ERM); **§23** — Zero-Knowledge encryption & State Identity Escrow (**`FEAT-SEC-CRYPTO-001`**, PLANNED).
+**Оглавление (верхний уровень):** **§0.0** — реестр ключевых REST; §0 — статус синхронизации; §1 — инфраструктура (**§1.4** — локальность данных AZ); §2–§10 — модули **1–9**; **§6.0** — Treasury + касса/банк; **§7.0** — HR, табель, payroll, ЦФО; §11 — паттерн разработки (**§11.1** — web: `PageHeader`, сайдбар-only); §12–§14 — дорожные карты; **§13.6** — Browser Extension RPA (ERA Finance Assistant); §15 — Super-Admin; §16–§17 — hardening; **§21** — Dispute & Recovery (платформа); **§22** — Risk & Compliance (ERM); **§23** — Zero-Knowledge encryption & State Identity Escrow (**`FEAT-SEC-CRYPTO-001`**, PLANNED); **§24** — Hybrid limits tier + premium trial gate (**`FEAT-BIL-POSTPAID-001`**, PARTIAL).
 
 **Стандарт статусов (глобально для PRD/TZ):**
 - [x] **COMPLETED (scope):** задача реализована и зафиксирована.
@@ -45,7 +45,7 @@
 | GET / POST | `/api/integrations/drakaris/v1/client/:id`, `/payments` | Drakaris/yığım inbound API: Basic Auth, конверт `{status,description,data}`, status-коды 200/401/402/404/405/406/407/408 (см. §14.8.14) |
 | GET / PATCH | `/api/users/me` | Self-service профиль текущего пользователя: PII (cipher), `phone` (E.164 +994), `locale` (`AZ`\|`RU`), смена пароля (см. §2.2) |
 | GET | `/api/reports/cash-flow` | ДДС прямой метод (`CashFlowService.getDirectCashFlow`), query: `dateFrom`, `dateTo`, опц. `cashDeskId`, `bankName` |
-| GET / PATCH | `/api/banking/direct-settings` | Просмотр (masked) и обновление REST/Open Banking direct sync в `Organization.settings.bankingDirect`; веб-UI — блок **`DirectBankingPanel`** на **`/settings/bank-accounts`** (модуль **`banking_pro`**; см. **§6.0**). |
+| GET / PATCH | `/api/banking/direct-settings` | Просмотр (masked) и обновление REST/Open Banking direct sync в `Organization.settings.bankingDirect`; веб-UI — блок **`DirectBankingPanel`** на **`/settings/bank-accounts`** (модуль **`cash_bank_pro`**; см. **§6.0**). |
 | GET | `/api/hr/payroll/jobs/:jobId` | Статус фоновой задачи расчёта ЗП (BullMQ) |
 | GET | `/api/notifications` | Список in-app уведомлений текущего пользователя: пагинация (`page`, `pageSize`), фильтр `unreadOnly` |
 | GET | `/api/notifications/unread-count` | Количество непрочитанных (бейдж в шапке) |
@@ -801,7 +801,7 @@
 ### Reconciliation (сверка)
 
 - Загрузка выписки: MVP — **CSV / Excel**; импорт тяжёлых файлов — через **очередь**. Прямые API банков (Pasha, ABB и др.) — дорожная карта (см. §13).
-- **Настройки Direct Banking (REST):** для владельца/админа — **`GET` / `PATCH /api/banking/direct-settings`** (masked просмотр, обновление URL/токенов по банкам); веб-блок **`DirectBankingPanel`** на странице **`/settings/bank-accounts`** (в составе реестра банковских счетов организации; модуль **`banking_pro`**).
+- **Настройки Direct Banking (REST):** для владельца/админа — **`GET` / `PATCH /api/banking/direct-settings`** (masked просмотр, обновление URL/токенов по банкам); веб-блок **`DirectBankingPanel`** на странице **`/settings/bank-accounts`** (в составе реестра банковских счетов организации; модуль **`cash_bank_pro`**).
 - Инструмент **Match (Invoicing match):** сопоставление строки выписки с существующим инвойсом или создание новой транзакции расхода (например, аренда или налоги).
 
 ### Подраздел Kassa (касса, v8.2)
@@ -825,8 +825,8 @@
 
 **Gating (v8.2)**
 
-- API кассы (`/api/banking/cash/*`) требует модуль **`kassa_pro`** (алиас к полномочиям кассы/реестра) или **`banking_pro`** / **`kassa`** в `customConfig.modules`; **ENTERPRISE** — полный доступ.
-- Slug **`kassa_pro`** может входить в базовый пресет конструктора; для отдельных клиентов (напр. **TiVi Media**) — выдача **ENTERPRISE** или явный список модулей.
+- API кассы (`/api/banking/cash/*`) и банковский контур — единый коммерческий slug **`cash_bank_pro`** в `pricing_modules` / `activeModules` (legacy **`kassa_pro`**, **`banking_pro`**, **`kassa`** нормализуются миграцией и `normalizeCashBankActiveModules`). **ENTERPRISE** — полный доступ.
+- **`cash_bank_pro`** входит в trial bundle и стандартные пакеты; для отдельных клиентов (напр. **TiVi Media**) — **ENTERPRISE** или явный список модулей.
 
 ---
 
@@ -1927,7 +1927,8 @@ enum SubscriptionTier {
 | Поле | Тип | Описание |
 |------|-----|----------|
 | `id` | UUID | PK |
-| `key` | String, unique | Slug модуля (`banking_pro`, `kassa_pro`, …) |
+| `key` | String, unique | Slug модуля (`cash_bank_pro`, `inventory`, `tax_pro`, …) |
+| `is_premium` | Boolean | **Premium add-on** (Super-Admin): trial shield, `activate-premium`; витрина `/pricing` и marketplace читают флаг из БД |
 | `name` | String | Отображаемое имя |
 | `pricePerMonth` | Decimal | Цена в AZN за месяц |
 
@@ -2010,6 +2011,16 @@ enum SubscriptionTier {
 
 До внедрения строки модулей могут дублироваться из `OrganizationSubscription.activeModules` / `customConfig.modules` — при внедрении — **одна** точка правды (политика: синхронизировать в транзакции при `toggle-module`).
 
+#### 14.8.3a. Таблица `organization_bundles` (пакеты модулей)
+
+| Поле | Описание |
+|------|----------|
+| `organizationId`, `bundleId` | Составной PK → `pricing_bundles.id` |
+| `priceSnapshot` | Скидочная цена пакета (AZN/мес.) на момент включения |
+| `activatedAt`, `pendingDeactivation`, `cancelledAt`, `accessUntil` | Та же политика отложенного отключения, что у `organization_modules` |
+
+**Дедупликация биллинга:** `BillingEntitlementService.allocateBillableEntitlements` — каждый `moduleKey` не более одного раза: сначала пакеты по `activatedAt`, в пакете только slug, ещё не занятые; оставшиеся — à la carte из `organization_modules`. При **`toggle-bundle` enabled** строки `organization_modules` для slug пакета **удаляются**. Миграция: `20260527120000_organization_bundles`.
+
 #### 14.8.4. Счета платформы (не Sales)
 
 **`billing_invoices`**
@@ -2043,8 +2054,11 @@ enum SubscriptionTier {
 | GET | `/billing/invoices` | **Billing History:** список счетов платформы (`billing_invoices`) для `currentUser` как владельца — дата, период, сумма, статус, ссылка на **PDF** (`pdfLink`); пагинация. |
 | GET | `/billing/invoices/:id/pdf` | Опционально: отдача PDF по id счёта (если не используется прямой URL из `pdfLink`). |
 | GET | `/billing/upgrade-preview?newTier=ENTERPRISE` | Превью стоимости апгрейда тарифа: `amountToPay`, `daysRemaining`, `currentTier` до перехода к оплате. |
-| POST | `/billing/toggle-module` | Тело: `{ organizationId, moduleKey, enabled }`. **Guard:** только **OWNER** для этой org; идемпотентность по `(org, module)`; обновление `organization_modules` и `OrganizationSubscription`; включение модуля — **без мгновенной оплаты** (post-paid). |
-| GET | `/billing/module-states` | Возвращает состояние модулей текущей организации (`moduleKey`, `activatedAt`, `pendingDeactivation`) для визуализации badge/consent UX в Marketplace. |
+| GET | `/billing/marketplace` | Каталог модулей и пакетов (без trial-default bundle), состояние org, `allocation` (дедуп), `monthlyTotalAzn`, premium flags. **Guard:** OWNER. |
+| POST | `/billing/toggle-module` | Тело: `{ moduleKey, enabled }`. **Guard:** OWNER; **`MODULE_IN_ACTIVE_BUNDLE`** если slug уже в активном пакете; premium — `assertNotTrialLockedPremium` / `activate-premium`. Post-paid, без мгновенной оплаты. |
+| POST | `/billing/toggle-bundle` | Тело: `{ bundleId, enabled }`. Включение пакета → `organization_bundles` + `activeModules`; удаление à la carte строк для slug пакета. |
+| POST | `/billing/activate-premium` | Тело: `{ modules[], confirmCommercialStatus }`. Разблокировка premium в trial / на TIER_0+. |
+| GET | `/billing/module-states` | Состояние `organization_modules` (`pendingDeactivation` badge). |
 | POST | `/billing/transfer` | Смена владельца: **double opt-in**; в одной `prisma.$transaction`: `organizations.ownerId`, роли membership. |
 
 Ответы **403** при отсутствии роли **OWNER** или попытке доступа к чужой организации; **404** для чужой `organizationId`.
@@ -2052,7 +2066,7 @@ enum SubscriptionTier {
 #### 14.8.6. Платёжный цикл Post-paid
 
 - **Месячный цикл:** `@Cron('0 0 1 * *')` формирует неоплаченные `SubscriptionInvoice` за **прошедший** месяц.
-- **База расчёта:** сумма только по активным модулям организации (`organization_modules` + `pricing_modules.price_per_month`), без pro-rata и мгновенных списаний в момент toggle.
+- **База расчёта (модули/пакеты):** `BillingEntitlementService.computeInvoiceModuleLines` — строки пакетов (скидка на незанятые slug) + à la carte модули **без пересечения**; Foundation, metered usage, premium — отдельные строки (§24.3). Без pro-rata в момент toggle.
 - **Free first month:** модуль с `activatedAt` внутри выставляемого месяца в счёт не включается (первый календарный месяц бесплатный).
 - **Идемпотентность:** один счёт на owner+`billingPeriod` (`YYYY-MM`) за месяц; повторный запуск cron не создаёт дубль.
 - **Billing status:** после генерации счёта организация переводится в `billingStatus = SOFT_BLOCK`.
@@ -2223,7 +2237,7 @@ enum SubscriptionTier {
 | PATCH | `/admin/organizations/:id/subscription` | Принудительное продление, блокировка, смена тарифа. |
 | GET/PATCH | `/admin/config/billing` | Чтение цен, квот, Foundation, каталога `PricingModules`, `PricingBundles` (через `SystemConfig` + Prisma). |
 | PATCH | `/admin/config/billing/foundation`, `/yearly-discount`, `/quota-pricing` | База, годовая скидка, единицы квот (по отдельности при необходимости). |
-| PATCH | `/admin/config/billing/pricing-catalog` | **Атомарно:** Foundation + цены **всех** строк **`pricing_modules`** из тела запроса (`prisma.$transaction`). |
+| PATCH | `/admin/config/billing/pricing-catalog` | **Атомарно:** Foundation + для **каждого** модуля `pricePerMonth` и **`isPremium`** (`prisma.$transaction`). Кэш premium-slugs в `PricingService` обновляется после save. |
 | PATCH | `/admin/config/billing/global-limits` | **Атомарно:** `billing.yearly_discount_percent`, `quota.ocr_jobs_per_org_month_v1`, `billing.quota_unit_pricing_v1`, legacy **`billing.price.*`** для трёх tier (`prisma.$transaction`). |
 | PATCH | `/admin/pricing-modules/:id` | Цена одного модуля (legacy; предпочтительно bulk **`pricing-catalog`**). |
 | POST/PATCH/DELETE | `/admin/pricing-bundles`, `/admin/pricing-bundles/:id` | Пакеты (Paket yaradıcısı). |
@@ -2246,7 +2260,7 @@ enum SubscriptionTier {
 
 | Элемент | Описание |
 |---------|----------|
-| **Прайс-лист** | Маршрут **`/super-admin/billing/pricing`**: секция **Foundation** (в UI — метка **ERA Core**, i18n **`superAdmin.billingFoundationTitle`** / **`pricingPage.foundationTitle`**), таблица **`PricingModules`**; **одна** кнопка сохранения вызывает **`PATCH /admin/config/billing/pricing-catalog`** (Foundation + все цены модулей в **`$transaction`**). Секции докупки квот / годовой скидки при необходимости остаются на **Квотах** или дублируются по продуктовому решению. **Подписи модулей** в веб-клиенте: i18n **`pricingModule.<key>`** в **`packages/i18n/src/resources.ts`** (RU/AZ), **fallback** на поле **`name`** из БД (`apps/web/lib/pricing-module-label.ts`); то же для **`/pricing`** и **Settings → Subscription**. |
+| **Прайс-лист** | Маршрут **`/super-admin/billing/pricing`**: **(1) ERA Core / Foundation**, **(2) основные модули** (`is_premium = false`), **(3) premium-модули** (`is_premium = true`, badge Premium); переключатель Premium в таблице основных модулей переносит строку между секциями. Сохранение — **`PATCH /admin/config/billing/pricing-catalog`** (Foundation + `pricePerMonth` + `isPremium` для всех slug). Каталог: единый slug **`cash_bank_pro`** (вместо legacy `kassa_pro` + `banking_pro`). Подписи: **`pricingModule.<key>`** + fallback **`name`**. |
 | **Квоты** | Маршрут **`/super-admin/billing/quotas`**: **без** блока Foundation (Foundation только на **Прайс-листе**). Карточки по tier с заголовками **`STARTER` / `BUSINESS` / `ENTERPRISE`** (литералы enum, **не** i18n); модалка **редактирования** tier (legacy **`billing.price.*`** + **`maxEmployees`**, **`maxInvoicesPerMonth`**, **`maxStorageGb`**). Глобальные лимиты (OCR, unit pricing, годовая скидка, три legacy tier price) — **`PATCH /admin/config/billing/global-limits`** в одной транзакции. Квоты tier — по-прежнему **`PATCH /admin/config/billing/quotas`** (или расширение bulk позже). |
 | **Paket yaradıcısı** | Маршрут **`/super-admin/billing/packages`**: список пакетов; создание и редактирование — **модалка** (модули switch с подписями **`pricingModule.<key>`** / fallback на **`name`**, имя пакета, скидка %, предпросмотр). **Trial-пакет:** `isTrialDefault`, `trialDurationDays`, `trialQuotas` — в **той же** модалке; сохранение через **`PATCH /admin/pricing-bundles/:id`** с опциональным телом **`trial`** (атомарно с полями пакета в **`$transaction`**) и/или существующий контракт trial-config, объединённый в сервисе. Визуально: **badge/рамка** для пакета с `isTrialDefault`. |
 | **Стиль** | Карточки: `CARD_CONTAINER_CLASS`, палитра **#34495E** / **#2980B9** (см. DESIGN.md). |
@@ -2264,10 +2278,10 @@ enum SubscriptionTier {
 |--------|------------|
 | **HTTP** | **`GET /api/public/pricing`** (префикс приложения Nest: **`/api`**). Класс **`PublicPricingController`** (`apps/api/src/admin/public-pricing.controller.ts`), декоратор **`@Public()`**, **`@SkipThrottle()`**; глобальные guards пропускают маршрут по **`IS_PUBLIC_KEY`** (см. `JwtAuthGuard`, `SubscriptionReadOnlyGuard`). |
 | **Источник данных** | **`AdminService.getPublicPricingSnapshot()`** — внутри используется тот же снимок, что и для **`GET /admin/config/billing`**, с **санитизацией**: из модулей убраны UUID; из пакетов убраны **`id`** и JSON **`trialQuotas`** (остаются **`isTrialDefault`**, **`trialDurationDays`** для маркетинга trial). |
-| **Тело ответа (JSON)** | **`currency`**: `"AZN"`; **`foundationMonthlyAzn`**, **`yearlyDiscountPercent`**; **`pricingModules[]`**: `{ key, name, pricePerMonth, sortOrder }`; **`pricingBundles[]`**: `{ name, discountPercent, moduleKeys, isTrialDefault, trialDurationDays }`; **`tierLegacyPricePerMonthAzn`** (ключи tier → число); **`tierQuotasIncluded`** (ключи tier → `{ maxEmployees, maxInvoicesPerMonth, maxStorageGb }` с `null` как безлимит); **`quotaUnitPricing`**, **`ocrJobsPerOrgMonth`**. При ошибке чтения БД — пустые массивы / объекты и **`unavailable: true`** (HTTP **200**), лог предупреждения. |
+| **Тело ответа (JSON)** | **`currency`**: `"AZN"`; **`foundationMonthlyAzn`**, **`yearlyDiscountPercent`**; **`pricingModules[]`**: `{ key, name, pricePerMonth, sortOrder }`; **`pricingBundles[]`**: `{ name, discountPercent, moduleKeys, isTrialDefault, trialDurationDays }` (без UUID); **`meterUnitPricing`**; **`tierSpendCeilings`**; обогащение **`standardModules`**, **`bundles`** (list/discounted), **`tiers[]`**, **`premiumModules`**, **`ocrJobsPerOrgMonth`**. При ошибке — **`unavailable: true`**. |
 | **CORS (внешний лендинг)** | В **production** браузерный `fetch` с другого Origin требует, чтобы Origin был в **`CORS_ORIGINS`** API (переменная окружения, см. **`apps/api/src/main.ts`**, **`.env.example`**). |
-| **Веб (монорепо)** | **`/pricing`** — `apps/web/app/pricing/page.tsx`; публичный маршрут в **`apps/web/middleware.ts`**; в **`apps/web/app/layout.tsx`** — **`publicPath`** и **`barePublicLayout`**, чтобы страница рендерилась **без** принудительного редиректа на логин и **без** `AppShell`. Клиент: **`publicApiFetch("/api/public/pricing")`**; тип **`PublicPricingResponse`** — `apps/web/lib/public-pricing-types.ts`. |
-| **i18n** | Ключи **`pricingPage.*`**, **`pricingModule.*`** (подписи модулей по **`pricing_modules.key`**, fallback на **`name`** из снимка API), **`auth.viewPricing`** в **`packages/i18n/src/resources.ts`** (RU/AZ); каталог Super-Admin: **`npm run i18n:catalog`**. |
+| **Веб (монорепо)** | **`/pricing`** — `apps/web/app/pricing/page.tsx` → **`PricingPageView`** (`apps/web/components/pricing/*`): публичный маршрут в **`middleware.ts`**; **`layout.tsx`** — **`publicPath`** / **`barePublicLayout`** (без `AppShell`). **Маркетинговая витрина (v2026.05):** статический copy **`@erafinance/i18n/pricing-postpaid-copy`** (shim `apps/web/lib/i18n/pricing-postpaid-copy.ts`), Light Tech Canvas **`bg-[#EBEDF0]`**, секции **`pricing-core-suite-banner`**, **`pricing-resource-matrix`**, **`pricing-premium-panel`** — см. **§15.3.3**. **`publicApiFetch("/api/public/pricing")`** — опционально для merge цен; тип **`PublicPricingResponse`** — `apps/web/lib/public-pricing-types.ts`. |
+| **i18n** | Витрина: **`pricing-postpaid-copy.ts`** (RU/AZ, subpath `@erafinance/i18n`). ERP/Settings: **`pricingPage.*`**, **`pricingModule.*`** (подписи по **`pricing_modules.key`**, fallback **`name`**), **`auth.viewPricing`** в **`resources.ts`**; каталог Super-Admin: **`npm run i18n:catalog`**. |
 
 Таблица **§15.1** также содержит краткую строку для **`/public/pricing`** (канонический путь относительно префикса **`/api`** на балансировщике — **`/api/public/pricing`**).
 
@@ -2278,10 +2292,53 @@ enum SubscriptionTier {
 | **HTTP** | **`GET /api/public/landing-modules`** — `PublicLandingController` (`apps/api/src/admin/public-landing.controller.ts`), **`@Public()`**, **`@SkipThrottle()`**. |
 | **Данные** | Prisma **`LandingModuleMarketing`** (`landing_module_marketing`): `moduleSlug`, `sortOrder`, `names`, `descriptions`, `tasks` (JSON AZ/RU). Сид/upsert — `seedLandingModuleMarketing` из `packages/database/prisma/lib/config/landing-modules.ts`. |
 | **Admin** | **`GET /api/admin/landing-modules`**, **`PATCH /api/admin/landing-modules/:moduleSlug`** — Super-Admin + `AuditMutationInterceptor` на PATCH; DTO `PatchLandingModuleMarketingDto`. |
-| **Веб `/`** | `apps/web/app/page.tsx` (RSC): server fetch + `revalidate: 300`; fallback `apps/web/lib/config/landing-modules.ts`. Locale: cookie `erafinance_i18n_lang` → `Accept-Language` → `az`. |
+| **Веб `/`** | `apps/web/app/page.tsx` (RSC) → **`LandingPageView`** (client): locale cookie `erafinance_i18n_lang` → **`az`**; маркетинговый copy — **`packages/i18n/src/landing-copy.ts`** (`getLandingMarketingCopy`). API **`landing-modules`** — для редактируемых карточек экосистемы (server fetch / fallback `apps/web/lib/config/landing-modules.ts` при необходимости). UX-полировка — **§15.3.3**. |
 | **Маршруты web** | **`/`** — лендинг; **`/home`** — дашборд; **`middleware.ts`**: `/` и `/home` public; с токеном **`/`** → redirect **`/home`**; `layout.tsx` — `/` в `barePublicLayout`. |
 
 **Prisma:** модель `LandingModuleMarketing`; миграция `20260522120000_landing_module_marketing` (идемпотентный SQL).
+
+#### 15.3.3. Маркетинговый UX: лендинг и витрина `/pricing` (v2026.05)
+
+**Статус:** [x] **COMPLETED (web scope)**. Продуктовые таблицы — [PRD.md](./PRD.md) **§7.6.5**; биллинг Phase 16 (API, cron, shield) — **§24**.
+
+**Общий layout:** `LandingPageShell` / `PricingPageShell` — `bg-[#EBEDF0]`; hover — `apps/web/lib/landing-motion.ts` (`PRICING_CARD_HOVER_CLASS`).
+
+##### Лендинг (`apps/web/components/landing/`)
+
+| Компонент | Назначение |
+|-----------|------------|
+| `landing-page-view.tsx` | Сборка секций, locale toggle |
+| `landing-hero.tsx` | `<h1>`, усиленный subtitle, CTA + `ctaMicrocopy` |
+| `landing-ecosystem-grid.tsx` | Модули: `<h2>` + карточки `<h3>` |
+| `landing-legacy-compare.tsx` | Head-to-Head vs 1C: шапка брендов, 8 строк (вкл. ƏMAS), `text-slate-300` / ❌ |
+| `landing-zero-knowledge.tsx` | Список `claims[]` (3 тезиса) |
+| `landing-bottom-cta.tsx` | CTA + контрастная кнопка входа `bg-slate-900` |
+
+**Copy:** `packages/i18n/src/landing-copy.ts` — типы `LandingMarketingCopy`, экспорт `getLandingMarketingCopy(locale)`.
+
+##### Витрина тарифов (`apps/web/components/pricing/`)
+
+| Компонент | Назначение |
+|-----------|------------|
+| `pricing-page-view.tsx` | Header, login `bg-white border-slate-300`, compose sections |
+| `pricing-core-suite-banner.tsx` | `<h1>`, ERA Core **0 AZN** × 3 мес., bullets MMUS/FIFO/HR/203 |
+| `pricing-resource-matrix.tsx` | **5-column** matrix (`grid-cols-5`): metric + **Tier 0–3**; rows users/invoices/**storage**/WhatsApp/OCR; CTA → `/register-org?tier=TIER_*` |
+| `pricing-premium-panel.tsx` | Grid + **frosted lock** overlay, visible **+29/+49/+59 AZN**, CTA Tier 1+ |
+| `pricing-module-catalog-section.tsx` | Сетка **`pricingModules`** с **`pricePerMonth`** (à la carte); RU/AZ через `pricingModule.*` |
+
+**Copy:** `packages/i18n/src/pricing-postpaid-copy.ts` — `catalogModulesTitle`, `matrixTiers[]`, `premiumLockedTitle`.
+
+**Glass / hover:** `PRICING_GLASS_CARD_CLASS`, `PRICING_CARD_HOVER_CLASS` in `apps/web/lib/landing-motion.ts`.
+
+**Снято с витрины:** компонент **`pricing-trust-ladder.tsx`** (три вертикальные «коробки» + баннеры «Əməliyyat nüvəsi» / «Trial Shield»).
+
+##### Трекинг задач (синхрон с PRD §7.6.5)
+
+| ID | Задача | Статус |
+|----|--------|--------|
+| L1–L8 | Лендинг: SEO, Hero, CTA 3 мес., Arena 1C, ZK, login contrast | [x] COMPLETED |
+| P1–P6 | Pricing: light theme, без баннеров-заглушек, ERA Core, premium grid, hover | [x] COMPLETED |
+| P7–P10 | **5-col matrix**, Tier 0, storage row, checkout CTA, premium frosted lock | [x] COMPLETED |
 
 ---
 
@@ -2516,6 +2573,9 @@ enum SubscriptionTier {
 | **2026.06.14** | Текущая | **§11.1 / §15.2–15.3:** подписи **`pricing_modules`** в вебе — **`pricingModule.<key>`** + fallback на **`name`**; Foundation в UI — **ERA Core**; **Audit Hub** в корне сайдбара над «Администрирование»; **`/audit-invitations`** — inbox приглашений в Audit Engagement (см. PRD §4.8.1). |
 | **2026.06.15** | Текущая | **§11.1:** сайдбар — секция **Audit** (`/audit-hub`, `/audit-invitations`); разграничение **`/settings/audit`** vs **`/admin/audit-log`**; **`/settings/organization`** — банки только через **`/settings/bank-accounts`**; см. PRD §4.8.1, §14. |
 | **2026.06.19** | Текущая | **§23 Zero-Knowledge (PLANNED):** DEK/KEK envelope, `UserOrganizationKey`, Tier 1–3 recovery, ASAN/SİMA state escrow contract; Task **`FEAT-SEC-CRYPTO-001`**; PRD §15. |
+| **2026.06.22** | Текущая | **Pricing v2 + TIER_0:** 5-col matrix, storage GB, checkout CTA, premium frosted pricing; Prisma enum/migration **`20260526120000_tariff_tier_0`**; **`PREMIUM_TIER0_LOCKED`** — **§15.3.3**, **§24.1–24.8**; PRD **§16.2**. |
+| **2026.05.28** | Текущая | **Marketplace + dedup:** `organization_bundles` (**§14.8.3a**), `GET/POST /billing/marketplace|toggle-bundle|activate-premium`; month-start lines via **`BillingEntitlementService`**; web subscription + **`pricing-module-catalog-section`** — **§24.7**; PRD **§16.9**. |
+| **2026.06.21** | Текущая | **Маркетинговый UX:** лендинг (SEO h1–h3, CTA 3 мес., Arena 1C + ƏMAS, ZK тезисы) и витрина **`/pricing`** (Light Tech Canvas, LEGO tier matrix, ERA Core, premium Lock) — **§15.3.3**, PRD **§7.6.5**; **§24.8** расширен. |
 | **2026.06.18** | Текущая | **Лендинг / trial / маршруты:** **`GET /api/public/landing-modules`**, admin PATCH landing; веб **`/`** (RSC) и **`/home`** (дашборд); **`TRIAL_3_MONTHS`**, `computeTrialExpiresAtBaku`, исключение **`compliance_pro`** — **§14.3**, **§15.3.2**; Prisma `LandingModuleMarketing`, `PricingBundle.slug`; см. PRD §7.3, §7.6.4. |
 | **2026.06.17** | Текущая | **Док-синхронизация ERM / roadmap:** PRD **§14.2** task IDs; TZ **§1.4** (локальность данных AZ/EU), **§10.2.0** (manufacturing BOM / WIP target vs release / overhead), **§21.2.1** (SLA Customs / Tax / Treasury), **§22.0**; реестр **§0.0** — **`/api/compliance/*`** (v25.2); **нумерация §1:** добавлен новый **§1.4** (локальность), прежние **§1.4–§1.6** сдвинуты на **§1.5–§1.7** (очереди/BullMQ — **§1.5**). |
 | **2026.06.16** | Текущая | **§22 Risk & Compliance (ERM):** Prisma **`RiskAudit`** / таблица **`risk_audits`**, tenant API **`/api/compliance/*`** с **`@RequiresModule('compliance_pro')`**, **`ComplianceService`** и rule-based сканеры, очередь **`compliance-risk-scan`** (cron UTC, env **`COMPLIANCE_RISK_SCAN_DISABLED`**), веб **`/compliance`** и индикатор posture в шапке; миграция **`20260210120000_risk_audits_erm`**; см. [PRD.md](./PRD.md) §14–§14.1. |
@@ -2892,6 +2952,71 @@ Active org context = O_k:
 - [ ] Integration: два org, один user — decrypt isolation.
 - [ ] State sandbox E2E для Tier 3.
 - [ ] PRD §14.2: `FEAT-SEC-CRYPTO-001` → **[x] COMPLETED**.
+
+---
+
+## 24. Spend-tier metering + debt ceilings (Phase 16)
+
+### 24.0. Статус
+
+| Поле | Значение |
+|------|----------|
+| **Статус** | [~] **PARTIAL** — `BillingMeterService`, `accumulatedBalance`, intraday SOFT_BLOCK, month-start invoice, premium shield |
+| **Task ID** | **`FEAT-BIL-POSTPAID-001`** |
+| **PRD** | **[PRD.md](./PRD.md) §16** |
+
+### 24.1. Prisma / runtime fields
+
+| Поле | Назначение |
+|------|------------|
+| **`Organization.accumulatedBalance`** | Накопленный metered-расход за текущий Baku-месяц (AZN) |
+| **`Organization.billingPeriodKey`** | `YYYY-MM` (Baku), синхрон с subscription |
+| **`OrganizationSubscription.currentTier`** | Потолок расхода: TIER_0=0, TIER_1=10, TIER_2=50, TIER_3=200 AZN (defaults, Super-Admin) |
+| **`OrganizationSubscription.isTrial`** | **3 календарных месяца** Baku; signup **`TIER_0`** |
+| **`UsageMeterEvent`** | Аудит meter (actionType, unitCostAzn, balanceAfter) |
+| **`BillingStatus.HARD_BLOCK`** | Неоплаченный долг |
+
+**Config:** `billing.meter_unit_pricing_v1`, `billing.tier_spend_ceiling.TIER_*`.
+
+### 24.2. `BillingMeterService`
+
+- `recordUsage(orgId, kind, qty)` — цены из `getMeterUnitPricing()`, инкремент `accumulatedBalance`, событие `UsageMeterEvent`.
+- При достижении потолка tier → **SOFT_BLOCK** + **402** `USAGE_CAP_EXCEEDED`.
+- `assertBillingNotHardBlocked` → **402** `CREDIT_HARD_LOCK`.
+
+### 24.3. Billing rhythm (Asia/Baku)
+
+1. **Month-start:** `BillingMonthlyService` @ `0 0 1 * *` `{ timeZone: "Asia/Baku" }` — строки Foundation (если не trial), **Metered usage** (`accumulatedBalance`), premium; сброс balance при выставлении.
+2. **Intraday:** потолок tier до конца месяца → SOFT_BLOCK; оплата `PaymentOrder.metadata.tierIntradyUnlock` → `BillingSettlementService` + **tier++** (только intraday).
+3. **Settlement:** month-start pay → ACTIVE, reset counters, **без** auto tier++.
+
+### 24.4. API (Super-Admin)
+
+- `PATCH /api/admin/config/billing/meter-unit-pricing`
+- `PATCH /api/admin/config/billing/tier-spend-ceilings`
+- `GET /api/public/pricing` — `meterUnitPricing`, `tiers[].spendCeilingAzn`
+
+### 24.5. Premium trial shield
+
+Без изменений: `tax_pro`, `trade_pro`, `compliance_pro` вне trial; `POST /api/billing/activate-premium`.
+
+### 24.6. Deprecations
+
+- Hard cap matrix enforcement (`QUOTA_EXCEEDED` на maxEmployees и т.д.) — снято.
+- **`maxWorkspaces`** — удалено.
+- Legacy `quota.tier.*`, `billing.price.*` — display / compat only.
+
+### 24.7. Marketplace modules + bundles (dedup)
+
+| Компонент | Путь |
+|-----------|------|
+| Аллокатор | `apps/api/src/billing/billing-entitlement.util.ts` (`allocateBillableEntitlements`) |
+| Сервис | `billing-entitlement.service.ts` — `getMarketplaceSnapshot`, `computeInvoiceModuleLines` |
+| Toggle bundle | `billing-bundle-toggle.service.ts` → `organization_bundles` |
+| Web (Owner) | `apps/web/app/settings/subscription/page.tsx` — пакеты, модули, premium modal |
+| Web (public) | `pricing-module-catalog-section.tsx` — цены из `GET /api/public/pricing` |
+
+**Правило:** один `moduleKey` — одна billing-строка в месяце; пакет + тот же модуль à la carte → только пакет.
 
 ---
 

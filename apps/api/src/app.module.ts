@@ -14,9 +14,11 @@ import { AuditHubModule } from "./audit-hub/audit-hub.module";
 import { AuditEngagementResolveGuard } from "./audit-hub/audit-engagement-resolve.guard";
 import { AuthModule } from "./auth/auth.module";
 import { JwtAuthGuard } from "./auth/guards/jwt-auth.guard";
+import { ControlPlaneAuthGuard } from "./common/guards/control-plane-auth.guard";
 import { AuditorMutationGuard } from "./auth/guards/auditor-mutation.guard";
 import { SubscriptionReadOnlyGuard } from "./subscription/subscription-read-only.guard";
-import { BillingAccessGuard } from "./billing/billing-access.guard";
+import { ControlPlaneEntitlementGuard } from "./control-plane/control-plane-entitlement.guard";
+import { ControlPlaneModule } from "./control-plane/control-plane.module";
 import { BankingModule } from "./banking/banking.module";
 import { ComplianceModule } from "./compliance/compliance.module";
 import { CounterpartiesModule } from "./counterparties/counterparties.module";
@@ -55,8 +57,11 @@ import { SystemCatalogModule } from "./system-catalog/system-catalog.module";
 import { EarlyAccessModule } from "./early-access/early-access.module";
 import { PlatformRecoveryModule } from "./platform-recovery/platform-recovery.module";
 import { DisputeFreezeGuard } from "./platform-recovery/dispute/dispute-freeze.guard";
+import { SatelliteIntegrationModule } from "./integration/integration.module";
 
 const apiEnvFiles = apiEnvFilePaths();
+const useControlPlaneAuth =
+  (process.env.ERA_AUTH_MODE ?? "legacy").toLowerCase() === "control-plane";
 
 @Module({
   imports: [
@@ -72,6 +77,7 @@ const apiEnvFiles = apiEnvFilePaths();
     AuthModule,
     MailModule,
     PrismaModule,
+    ControlPlaneModule,
     SubscriptionModule,
     BillingModule,
     ReferralsModule,
@@ -109,10 +115,12 @@ const apiEnvFiles = apiEnvFilePaths();
     SystemCatalogModule,
     EarlyAccessModule,
     PlatformRecoveryModule,
+    SatelliteIntegrationModule,
   ],
   controllers: [AppController],
   providers: [
     VoenIntegrityGuard,
+    ControlPlaneAuthGuard,
     {
       provide: APP_FILTER,
       useClass: SentryGlobalFilter,
@@ -123,7 +131,7 @@ const apiEnvFiles = apiEnvFilePaths();
     },
     {
       provide: APP_GUARD,
-      useClass: JwtAuthGuard,
+      useClass: useControlPlaneAuth ? ControlPlaneAuthGuard : JwtAuthGuard,
     },
     {
       provide: APP_GUARD,
@@ -139,7 +147,7 @@ const apiEnvFiles = apiEnvFilePaths();
     },
     {
       provide: APP_GUARD,
-      useClass: BillingAccessGuard,
+      useClass: ControlPlaneEntitlementGuard,
     },
     {
       provide: APP_GUARD,

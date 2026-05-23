@@ -1,4 +1,9 @@
 import { BadRequestException } from "@nestjs/common";
+import {
+  hasCashBankModuleInList,
+  isLegacyCashBankModuleKey,
+  PRICING_MODULE_CASH_BANK_PRO,
+} from "@erafinance/database";
 
 export const TOGGLE_MODULE_META_PURPOSE = "toggle_module" as const;
 
@@ -32,8 +37,7 @@ export function catalogModuleKeyToPatch(
 ): {
   production?: boolean;
   ifrs?: boolean;
-  kassa_pro?: boolean;
-  banking_pro?: boolean;
+  cash_bank_pro?: boolean;
   inventory?: boolean;
   manufacturing?: boolean;
   hr_full?: boolean;
@@ -42,12 +46,12 @@ export function catalogModuleKeyToPatch(
   recovery_pro?: boolean;
   ifrs_mapping?: boolean;
   audit_hub?: boolean;
+  compliance_pro?: boolean;
 } {
+  if (moduleKey === PRICING_MODULE_CASH_BANK_PRO || isLegacyCashBankModuleKey(moduleKey)) {
+    return { cash_bank_pro: enabled };
+  }
   switch (moduleKey) {
-    case "kassa_pro":
-      return { kassa_pro: enabled };
-    case "banking_pro":
-      return { banking_pro: enabled };
     case "inventory":
       return { inventory: enabled };
     case "manufacturing":
@@ -64,6 +68,8 @@ export function catalogModuleKeyToPatch(
       return { ifrs_mapping: enabled, ifrs: enabled };
     case "audit_hub":
       return { audit_hub: enabled };
+    case "compliance_pro":
+      return { compliance_pro: enabled };
     default:
       throw new BadRequestException({
         code: "UNKNOWN_MODULE",
@@ -77,6 +83,9 @@ export function isCatalogModuleActive(
   moduleKey: string,
 ): boolean {
   const set = new Set(activeModules);
+  if (moduleKey === PRICING_MODULE_CASH_BANK_PRO || isLegacyCashBankModuleKey(moduleKey)) {
+    return hasCashBankModuleInList(activeModules);
+  }
   switch (moduleKey) {
     case "manufacturing":
       return set.has("manufacturing") || set.has("production");

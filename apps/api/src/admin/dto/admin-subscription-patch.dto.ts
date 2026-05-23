@@ -8,7 +8,7 @@ import {
   IsString,
   Min,
 } from "class-validator";
-import { SubscriptionTier } from "@erafinance/database";
+import { TariffTier } from "@erafinance/database";
 
 export class AdminSubscriptionPatchDto {
   @IsOptional()
@@ -16,8 +16,8 @@ export class AdminSubscriptionPatchDto {
   isBlocked?: boolean;
 
   @IsOptional()
-  @IsEnum(SubscriptionTier)
-  tier?: SubscriptionTier;
+  @IsEnum(TariffTier)
+  tier?: TariffTier;
 
   /** ISO-8601 или null — сброс даты окончания. */
   @IsOptional()
@@ -40,3 +40,4 @@ export class AdminSubscriptionPatchDto {
   @IsBoolean()
   isTrial?: boolean;
 }
+

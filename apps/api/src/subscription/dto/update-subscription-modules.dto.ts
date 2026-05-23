@@ -15,8 +15,14 @@ export class UpdateSubscriptionModulesDto {
 
   @IsOptional()
   @IsBoolean()
+  cash_bank_pro?: boolean;
+
+  /** @deprecated Use `cash_bank_pro`. */
+  @IsOptional()
+  @IsBoolean()
   kassa_pro?: boolean;
 
+  /** @deprecated Use `cash_bank_pro`. */
   @IsOptional()
   @IsBoolean()
   banking_pro?: boolean;

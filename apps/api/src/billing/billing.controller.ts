@@ -26,7 +26,7 @@ import { OrganizationId } from "../common/org-id.decorator";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { UserRole } from "@erafinance/database";
-import { SubscriptionTier } from "@erafinance/database";
+import { TariffTier } from "@erafinance/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { SystemConfigService } from "../system-config/system-config.service";
 import { CheckoutDto } from "./dto/checkout.dto";
@@ -36,7 +36,12 @@ import { PricingService } from "../admin/pricing.service";
 import { BillingPaymentOrdersService } from "./billing-payment-orders.service";
 import { BillingPlatformService } from "./billing-platform.service";
 import { BillingToggleService } from "./billing-toggle.service";
+import { BillingBundleToggleService } from "./billing-bundle-toggle.service";
+import { BillingEntitlementService } from "./billing-entitlement.service";
 import { BillingService } from "./billing.service";
+import { BillingPremiumActivationService } from "./billing-premium-activation.service";
+import { ActivatePremiumDto } from "./dto/activate-premium.dto";
+import { ToggleBundleDto } from "./dto/toggle-bundle.dto";
 
 @ApiTags("billing")
 @ApiBearerAuth("bearer")
@@ -53,8 +58,25 @@ export class BillingController {
     private readonly paymentOrders: BillingPaymentOrdersService,
     private readonly billingPlatform: BillingPlatformService,
     private readonly billingToggle: BillingToggleService,
+    private readonly billingBundleToggle: BillingBundleToggleService,
+    private readonly billingEntitlements: BillingEntitlementService,
     private readonly billingService: BillingService,
+    private readonly premiumActivation: BillingPremiumActivationService,
   ) {}
+
+  @Post("activate-premium")
+  @ApiOperation({
+    summary:
+      "Unlock premium modules during trial after commercial status confirmation (solvency gate)",
+  })
+  async activatePremium(
+    @CurrentUser() user: AuthUser,
+    @OrganizationId() organizationId: string,
+    @Body() dto: ActivatePremiumDto,
+  ) {
+    await this.access.assertOwnerForBilling(user.userId, organizationId);
+    return this.premiumActivation.activatePremium(organizationId, dto);
+  }
 
   @Get("summary")
   @ApiOperation({
@@ -99,6 +121,19 @@ export class BillingController {
       `attachment; filename="subscription-invoice-${id.slice(0, 8)}.pdf"`,
     );
     res.send(buf);
+  }
+
+  @Get("marketplace")
+  @ApiOperation({
+    summary:
+      "Каталог модулей и пакетов с дедупликацией и превью итоговой суммы (Owner)",
+  })
+  async marketplace(
+    @CurrentUser() user: AuthUser,
+    @OrganizationId() organizationId: string,
+  ) {
+    await this.access.assertOwnerForBilling(user.userId, organizationId);
+    return this.billingEntitlements.getMarketplaceSnapshot(organizationId);
   }
 
   @Get("catalog")
@@ -177,15 +212,15 @@ export class BillingController {
   ) {
     const v = String(newTierRaw ?? "").trim().toUpperCase();
     if (
-      v !== SubscriptionTier.STARTER &&
-      v !== SubscriptionTier.BUSINESS &&
-      v !== SubscriptionTier.ENTERPRISE
+      v !== TariffTier.TIER_1 &&
+      v !== TariffTier.TIER_2 &&
+      v !== TariffTier.TIER_3
     ) {
       throw new BadRequestException("Unsupported tier");
     }
     const calc = await this.billingService.calculateUpgradePrice(
       organizationId,
-      v as SubscriptionTier,
+      v as TariffTier,
     );
     return {
       amountToPay: calc.amountAzn.toFixed(2),
@@ -209,6 +244,19 @@ export class BillingController {
     return this.billingToggle.toggle(user.userId, organizationId, dto);
   }
 
+  @Post("toggle-bundle")
+  @ApiOperation({
+    summary:
+      "Включить/выключить пакет модулей; пересечения с другими пакетами и à la carte не дублируются в счёте",
+  })
+  async toggleBundle(
+    @CurrentUser() user: AuthUser,
+    @OrganizationId() organizationId: string,
+    @Body() dto: ToggleBundleDto,
+  ) {
+    return this.billingBundleToggle.toggle(user.userId, organizationId, dto);
+  }
+
   @Post("checkout")
   @ApiOperation({
     summary: "Создать заказ и получить ссылку на оплату (шлюз или mock)",
@@ -220,6 +268,22 @@ export class BillingController {
   ) {
     await this.access.assertOwnerForBilling(user.userId, organizationId);
     return this.payment.createOrder(organizationId, dto);
+  }
+
+  @Post("tier-ceiling-unlock")
+  @ApiOperation({
+    summary: "Intraday tier spend-ceiling unlock payment (bumps tier on success)",
+  })
+  async tierCeilingUnlock(
+    @CurrentUser() user: AuthUser,
+    @OrganizationId() organizationId: string,
+    @Body() dto: CheckoutDto,
+  ) {
+    await this.access.assertOwnerForBilling(user.userId, organizationId);
+    return this.payment.createTierCeilingUnlockOrder(
+      organizationId,
+      dto.amountAzn,
+    );
   }
 
   @Get("orders/:id")
@@ -247,3 +311,4 @@ export class BillingController {
     };
   }
 }
+

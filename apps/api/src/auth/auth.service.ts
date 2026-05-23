@@ -14,7 +14,7 @@ import {
   HoldingAccessRole,
   InviteStatus,
   Prisma,
-  SubscriptionTier,
+  TariffTier,
   UserLocale,
   UserRole,
   legalFormToOrganizationKind,
@@ -27,6 +27,7 @@ import { OrgStructureService } from "../hr/org-structure.service";
 import { OrganizationsService } from "../organizations/organizations.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { DEFAULT_NEW_ORGANIZATION_ACTIVE_MODULES } from "../subscription/subscription.constants";
+import { billingPeriodKeyBaku } from "../billing/baku-billing.util";
 import { resolveNewOrganizationTrialSubscription } from "../subscription/trial-package.util";
 import { MailService } from "../mail/mail.service";
 import { PiiCryptoService } from "../security/pii-crypto.service";
@@ -317,10 +318,12 @@ export class AuthService {
         await tx.organizationSubscription.create({
           data: {
             organizationId: o.id,
-            tier: SubscriptionTier.BUSINESS,
+            currentTier: TariffTier.TIER_0,
             activeModules: trial.activeModules,
             isTrial: true,
+            trialExpiresAt: trial.expiresAt,
             expiresAt: trial.expiresAt,
+            billingPeriodKey: billingPeriodKeyBaku(o.createdAt),
             customConfig: trial.customConfig,
           },
         });
@@ -454,10 +457,12 @@ export class AuthService {
         await tx.organizationSubscription.create({
           data: {
             organizationId: o.id,
-            tier: SubscriptionTier.BUSINESS,
+            currentTier: TariffTier.TIER_0,
             activeModules: trial.activeModules,
             isTrial: true,
+            trialExpiresAt: trial.expiresAt,
             expiresAt: trial.expiresAt,
+            billingPeriodKey: billingPeriodKeyBaku(o.createdAt),
             customConfig: trial.customConfig,
           },
         });
@@ -1658,3 +1663,4 @@ export class AuthService {
     return { ok: true };
   }
 }
+

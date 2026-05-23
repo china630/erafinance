@@ -1,9 +1,16 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsArray, IsNumber, IsString, Min, ValidateNested } from "class-validator";
+import {
+  IsArray,
+  IsBoolean,
+  IsNumber,
+  IsString,
+  Min,
+  ValidateNested,
+} from "class-validator";
 
 export class BillingPricingCatalogModuleDto {
-  @ApiProperty({ example: "banking_pro" })
+  @ApiProperty({ example: "cash_bank_pro" })
   @IsString()
   key!: string;
 
@@ -12,6 +19,13 @@ export class BillingPricingCatalogModuleDto {
   @IsNumber()
   @Min(0)
   pricePerMonth!: number;
+
+  @ApiProperty({
+    example: false,
+    description: "Premium add-on (trial shield, Tier 1+ activation)",
+  })
+  @IsBoolean()
+  isPremium!: boolean;
 }
 
 export class PatchBillingPricingCatalogDto {

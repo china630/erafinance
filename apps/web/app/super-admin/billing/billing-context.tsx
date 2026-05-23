@@ -11,6 +11,10 @@ import {
 import { useAuth } from "../../../lib/auth-context";
 import { apiFetch } from "../../../lib/api-client";
 import type { BillingPayload } from "../../../lib/super-admin/billing-types";
+import {
+  DEFAULT_METER_UNIT_PRICING,
+  DEFAULT_TIER_SPEND_CEILINGS,
+} from "../../../lib/super-admin/spend-tier-defaults";
 
 type BillingContextValue = {
   billing: BillingPayload | null;
@@ -42,6 +46,14 @@ function normalizeBilling(raw: Partial<BillingPayload>): BillingPayload {
     },
     pricingModules: raw.pricingModules ?? [],
     pricingBundles: raw.pricingBundles ?? [],
+    meterUnitPricing: {
+      ...DEFAULT_METER_UNIT_PRICING,
+      ...raw.meterUnitPricing,
+    },
+    tierSpendCeilings: {
+      ...DEFAULT_TIER_SPEND_CEILINGS,
+      ...raw.tierSpendCeilings,
+    },
   };
 }
 

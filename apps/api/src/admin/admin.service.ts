@@ -9,7 +9,7 @@ import {
   OrganizationKind,
   PaymentOrderStatus,
   Prisma,
-  SubscriptionTier,
+  TariffTier,
 } from "@erafinance/database";
 import type { TierQuotas } from "../constants/quotas";
 import { PrismaService } from "../prisma/prisma.service";
@@ -34,11 +34,22 @@ import type { PatchPricingModulePriceDto } from "./dto/patch-pricing-module-pric
 import type { PatchQuotaUnitPricingDto } from "./dto/patch-quota-unit-pricing.dto";
 import type { PatchYearlyDiscountDto } from "./dto/patch-yearly-discount.dto";
 import type { SetBillingPriceDto } from "./dto/set-billing-price.dto";
+import type { PatchMeterUnitPricingDto } from "./dto/patch-meter-unit-pricing.dto";
+import type { PatchTierSpendCeilingsDto } from "./dto/patch-tier-spend-ceilings.dto";
 import type { SetTierQuotasDto } from "./dto/set-tier-quotas.dto";
+import {
+  DEFAULT_TIER_SPEND_CEILINGS_AZN,
+  TIER_SPEND_CEILING_KEYS,
+} from "../billing/tier-spend-ceiling";
+import {
+  quotasMatrixToRecord,
+  type SetBillingQuotasMatrixDto,
+} from "./dto/set-billing-quotas-matrix.dto";
 import type { TranslationUpsertDto } from "./dto/translation-upsert.dto";
 import type { PatchChartTemplateEntryDto } from "./dto/patch-chart-template-entry.dto";
 import type { UpsertChartTemplateEntryDto } from "./dto/upsert-chart-template-entry.dto";
 import { getDefaultFlatTranslations } from "./i18n-default-catalog";
+import { enrichPublicPricingStorefront } from "../billing/pricing-storefront-snapshot.util";
 import { PricingService } from "./pricing.service";
 
 const I18N_CACHE_KEY = "i18n.cacheVersion";
@@ -50,13 +61,14 @@ const BILLING_SYSTEM_KEYS = {
   ocrJobsPerOrgMonth: "quota.ocr_jobs_per_org_month_v1",
 } as const;
 
-const TIER_LEGACY_PRICE_KEYS: Record<SubscriptionTier, string> = {
-  STARTER: "billing.price.STARTER",
-  BUSINESS: "billing.price.BUSINESS",
-  ENTERPRISE: "billing.price.ENTERPRISE",
+const TIER_LEGACY_PRICE_KEYS: Record<TariffTier, string> = {
+  TIER_0: "billing.price.TIER_0",
+  TIER_1: "billing.price.TIER_1",
+  TIER_2: "billing.price.TIER_2",
+  TIER_3: "billing.price.TIER_3",
 };
 
-const tierQuotaConfigKey = (tier: SubscriptionTier) => `quota.tier.${tier}`;
+const tierQuotaConfigKey = (tier: TariffTier) => `quota.tier.${tier}`;
 
 function pricingBundleTrialPatch(
   trial: PatchPricingBundleTrialConfigDto | undefined,
@@ -226,7 +238,7 @@ export class AdminService {
         primaryUserId: o.memberships[0]?.userId ?? null,
         subscription: o.subscription
           ? {
-              tier: o.subscription.tier,
+              tier: o.subscription.currentTier,
               expiresAt: o.subscription.expiresAt?.toISOString() ?? null,
               isTrial: o.subscription.isTrial,
               isBlocked: o.subscription.isBlocked,
@@ -272,7 +284,7 @@ export class AdminService {
       data.isBlocked = dto.isBlocked;
     }
     if (dto.tier !== undefined) {
-      data.tier = dto.tier;
+      data.currentTier = dto.tier;
     }
     if (expiresAt !== undefined) {
       data.expiresAt = expiresAt;
@@ -300,7 +312,7 @@ export class AdminService {
     return this.prisma.organizationSubscription.create({
       data: {
         organizationId,
-        tier: dto.tier ?? "STARTER",
+        currentTier: dto.tier ?? TariffTier.TIER_1,
         isTrial: false,
         isBlocked: dto.isBlocked ?? false,
         expiresAt: expiresAt ?? null,
@@ -337,7 +349,7 @@ export class AdminService {
         joinedAt: m.joinedAt.toISOString(),
         subscription: m.organization.subscription
           ? {
-              tier: m.organization.subscription.tier,
+              tier: m.organization.subscription.currentTier,
               expiresAt:
                 m.organization.subscription.expiresAt?.toISOString() ?? null,
               isTrial: m.organization.subscription.isTrial,
@@ -351,19 +363,27 @@ export class AdminService {
 
   async getBillingConfig() {
     const prices = await this.systemConfig.getAllBillingPrices();
-    const tiers = Object.keys(prices) as SubscriptionTier[];
+    const tiers = Object.keys(prices) as TariffTier[];
     const quotas: Record<string, TierQuotas> = {};
     for (const t of tiers) {
       quotas[t] = await this.systemConfig.getTierQuotas(t);
     }
     const constructorData = await this.pricing.getConstructorData();
-    const [yearlyDiscountPercent, quotaPricing, pricingBundles, ocrJobsPerOrgMonth] =
-      await Promise.all([
-        this.systemConfig.getYearlyDiscountPercent(),
-        this.systemConfig.getQuotaUnitPricing(),
-        this.prisma.pricingBundle.findMany({ orderBy: { updatedAt: "desc" } }),
-        this.systemConfig.getOcrJobsPerOrgMonthLimit(),
-      ]);
+    const [
+      yearlyDiscountPercent,
+      quotaPricing,
+      meterUnitPricing,
+      tierSpendCeilings,
+      pricingBundles,
+      ocrJobsPerOrgMonth,
+    ] = await Promise.all([
+      this.systemConfig.getYearlyDiscountPercent(),
+      this.systemConfig.getQuotaUnitPricing(),
+      this.systemConfig.getMeterUnitPricing(),
+      this.getTierSpendCeilings(),
+      this.prisma.pricingBundle.findMany({ orderBy: { updatedAt: "desc" } }),
+      this.systemConfig.getOcrJobsPerOrgMonthLimit(),
+    ]);
     return {
       prices,
       quotas,
@@ -371,6 +391,8 @@ export class AdminService {
       foundationMonthlyAzn: constructorData.basePrice,
       yearlyDiscountPercent,
       quotaPricing,
+      meterUnitPricing,
+      tierSpendCeilings,
       basePrice: constructorData.basePrice,
       pricingModules: constructorData.modules.map((m) =>
         serializePricingModule({
@@ -379,6 +401,7 @@ export class AdminService {
           name: m.name,
           pricePerMonth: m.pricePerMonth,
           sortOrder: m.sortOrder,
+          isPremium: m.isPremium,
         }),
       ),
       pricingBundles: pricingBundles.map(serializePricingBundle),
@@ -391,28 +414,78 @@ export class AdminService {
    */
   async getPublicPricingSnapshot() {
     const config = await this.getBillingConfig();
+    const pricingModules = config.pricingModules.map((m) => ({
+      key: m.key,
+      name: m.name,
+      pricePerMonth: m.pricePerMonth,
+      sortOrder: m.sortOrder,
+      isPremium: m.isPremium,
+    }));
+    const pricingBundles = config.pricingBundles.map((b) => ({
+      name: b.name,
+      discountPercent: b.discountPercent,
+      moduleKeys: b.moduleKeys,
+      isTrialDefault: Boolean(b.isTrialDefault),
+      trialDurationDays: b.trialDurationDays ?? null,
+    }));
+    const storefront = enrichPublicPricingStorefront({
+      foundationMonthlyAzn: config.foundationMonthlyAzn,
+      pricingModules,
+      pricingBundles,
+      tierSpendCeilingsAzn: config.tierSpendCeilings,
+      meterUnitPricing: config.meterUnitPricing,
+    });
     return {
       currency: "AZN" as const,
       foundationMonthlyAzn: config.foundationMonthlyAzn,
       yearlyDiscountPercent: config.yearlyDiscountPercent,
-      pricingModules: config.pricingModules.map((m) => ({
-        key: m.key,
-        name: m.name,
-        pricePerMonth: m.pricePerMonth,
-        sortOrder: m.sortOrder,
-      })),
-      pricingBundles: config.pricingBundles.map((b) => ({
-        name: b.name,
-        discountPercent: b.discountPercent,
-        moduleKeys: b.moduleKeys,
-        isTrialDefault: Boolean(b.isTrialDefault),
-        trialDurationDays: b.trialDurationDays ?? null,
-      })),
-      tierLegacyPricePerMonthAzn: config.prices,
-      tierQuotasIncluded: config.quotas,
-      quotaUnitPricing: config.quotaPricing,
+      pricingModules,
+      pricingBundles,
+      meterUnitPricing: config.meterUnitPricing,
+      tierSpendCeilings: config.tierSpendCeilings,
       ocrJobsPerOrgMonth: config.ocrJobsPerOrgMonth,
+      standardModules: storefront.standardModules,
+      premiumModules: storefront.premiumModules,
+      bundles: storefront.bundles,
+      tiers: storefront.tiers,
     };
+  }
+
+  async getTierSpendCeilings(): Promise<Record<TariffTier, number>> {
+    const tiers = Object.keys(TIER_SPEND_CEILING_KEYS) as TariffTier[];
+    const out = { ...DEFAULT_TIER_SPEND_CEILINGS_AZN };
+    for (const tier of tiers) {
+      const raw = await this.systemConfig.getJson(TIER_SPEND_CEILING_KEYS[tier]);
+      if (typeof raw === "number" && Number.isFinite(raw)) out[tier] = raw;
+      else if (typeof raw === "string") {
+        const n = Number.parseFloat(raw);
+        if (Number.isFinite(n)) out[tier] = n;
+      }
+    }
+    return out;
+  }
+
+  async patchMeterUnitPricing(dto: PatchMeterUnitPricingDto) {
+    const meterUnitPricing = await this.systemConfig.setMeterUnitPricing(dto);
+    return { ok: true as const, meterUnitPricing };
+  }
+
+  async patchTierSpendCeilings(dto: PatchTierSpendCeilingsDto) {
+    const tiers: TariffTier[] = [
+      TariffTier.TIER_0,
+      TariffTier.TIER_1,
+      TariffTier.TIER_2,
+      TariffTier.TIER_3,
+    ];
+    for (const tier of tiers) {
+      const v = dto[tier];
+      await this.systemConfig.setJson(
+        TIER_SPEND_CEILING_KEYS[tier],
+        Math.max(0, v),
+      );
+    }
+    const tierSpendCeilings = await this.getTierSpendCeilings();
+    return { ok: true as const, tierSpendCeilings };
   }
 
   async seedPricingCatalogDefaults() {
@@ -426,6 +499,7 @@ export class AdminService {
           name: m.name,
           pricePerMonth: m.pricePerMonth,
           sortOrder: m.sortOrder,
+          isPremium: m.isPremium,
         }),
       ),
     };
@@ -459,10 +533,14 @@ export class AdminService {
       for (const m of dto.modules) {
         await tx.pricingModule.update({
           where: { key: m.key },
-          data: { pricePerMonth: m.pricePerMonth },
+          data: {
+            pricePerMonth: m.pricePerMonth,
+            isPremium: m.isPremium,
+          },
         });
       }
     });
+    await this.pricing.refreshPremiumModuleKeys();
     return { ok: true as const };
   }
 
@@ -483,7 +561,7 @@ export class AdminService {
         dto.ocrJobsPerOrgMonth,
       );
       await upsert(BILLING_SYSTEM_KEYS.quotaUnitPricing, dto.quotaPricing);
-      const tiers = Object.keys(TIER_LEGACY_PRICE_KEYS) as SubscriptionTier[];
+      const tiers = Object.keys(TIER_LEGACY_PRICE_KEYS) as TariffTier[];
       for (const tier of tiers) {
         await upsert(
           TIER_LEGACY_PRICE_KEYS[tier],
@@ -629,6 +707,18 @@ export class AdminService {
         dto.quotas.maxStorageGb !== undefined
           ? dto.quotas.maxStorageGb
           : current.maxStorageGb,
+      maxWhatsappAlertsPerMonth:
+        dto.quotas.maxWhatsappAlertsPerMonth !== undefined
+          ? dto.quotas.maxWhatsappAlertsPerMonth
+          : current.maxWhatsappAlertsPerMonth,
+      maxOcrPagesPerMonth:
+        dto.quotas.maxOcrPagesPerMonth !== undefined
+          ? dto.quotas.maxOcrPagesPerMonth
+          : current.maxOcrPagesPerMonth,
+      maxWorkspaces:
+        dto.quotas.maxWorkspaces !== undefined
+          ? dto.quotas.maxWorkspaces
+          : current.maxWorkspaces,
     };
     const key = tierQuotaConfigKey(dto.tier);
     await this.prisma.$transaction(async (tx) => {
@@ -639,6 +729,41 @@ export class AdminService {
       });
     });
     return { ok: true, tier: dto.tier, quotas: merged };
+  }
+
+  async setBillingQuotasMatrix(dto: SetBillingQuotasMatrixDto) {
+    const byTier = quotasMatrixToRecord(dto.quotas);
+    await this.prisma.$transaction(async (tx) => {
+      for (const tier of Object.keys(byTier) as TariffTier[]) {
+        const merged = this.mergeTierQuotasFromDto(byTier[tier]);
+        const key = tierQuotaConfigKey(tier);
+        await tx.systemConfig.upsert({
+          where: { key },
+          create: { key, value: merged as object },
+          update: { value: merged as object },
+        });
+      }
+    });
+    return { ok: true as const, quotas: byTier };
+  }
+
+  private mergeTierQuotasFromDto(dto: SetTierQuotasDto["quotas"]): TierQuotas {
+    const fields: (keyof TierQuotas)[] = [
+      "maxEmployees",
+      "maxInvoicesPerMonth",
+      "maxStorageGb",
+      "maxWhatsappAlertsPerMonth",
+      "maxOcrPagesPerMonth",
+      "maxWorkspaces",
+    ];
+    const out = {} as TierQuotas;
+    for (const field of fields) {
+      if (dto[field] === undefined) {
+        throw new BadRequestException(`Missing quota field: ${field}`);
+      }
+      out[field] = dto[field] ?? null;
+    }
+    return out;
   }
 
   async listTranslations(
@@ -992,6 +1117,7 @@ function serializePricingModule(m: {
   name: string;
   pricePerMonth: unknown;
   sortOrder: number;
+  isPremium: boolean;
 }) {
   return {
     id: m.id,
@@ -999,6 +1125,7 @@ function serializePricingModule(m: {
     name: m.name,
     pricePerMonth: Number(m.pricePerMonth),
     sortOrder: m.sortOrder,
+    isPremium: m.isPremium,
   };
 }
 
@@ -1045,3 +1172,4 @@ function serializeLandingModule(row: {
 export type AdminLandingModuleMarketingRow = ReturnType<
   typeof serializeLandingModule
 >;
+

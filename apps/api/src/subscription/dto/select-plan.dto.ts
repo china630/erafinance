@@ -1,7 +1,8 @@
-import { SubscriptionTier } from "@erafinance/database";
+import { TariffTier } from "@erafinance/database";
 import { IsEnum } from "class-validator";
 
 export class SelectPlanDto {
-  @IsEnum(SubscriptionTier)
-  tier!: SubscriptionTier;
+  @IsEnum(TariffTier)
+  tier!: TariffTier;
 }
+

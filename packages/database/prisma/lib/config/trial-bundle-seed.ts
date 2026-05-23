@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { PRICING_MODULE_CASH_BANK_PRO } from "../core/pricing-module-keys";
 
 export const TRIAL_3_MONTHS_SLUG = "TRIAL_3_MONTHS";
 
@@ -8,8 +9,7 @@ export const TRIAL_3_MONTHS_MODULE_KEYS: readonly string[] = [
   "ifrs",
   "ifrs_mapping",
   "inventory",
-  "banking_pro",
-  "kassa_pro",
+  PRICING_MODULE_CASH_BANK_PRO,
   "production",
   "manufacturing",
   "fixed_assets",

@@ -33,6 +33,7 @@ If you keep `*.bat` in the repo root (e.g. `START-ERP.bat`), verify each script:
 
 | Scenario | Start Here | Then |
 |---|---|---|
+| **DigitalOcean migration (greenfield DB, wipe)** | `deploy.ru.md` §0.1 / `deploy.md` §0.1 | `PRE-RELEASE-CHECKLIST.md`, sections 1–9 of deploy guide |
 | Production rollout (RU) | `deploy.ru.md` | `PRE-RELEASE-CHECKLIST.md` |
 | Production rollout (EN) | `deploy.md` | `PRE-RELEASE-CHECKLIST.md` |
 | Extension release (Assistant / DVX) | `EXTENSION_MVP_DEPLOY.md` | `deploy.ru.md` / `deploy.md` for shared infra steps |

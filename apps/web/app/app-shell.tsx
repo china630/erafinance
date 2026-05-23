@@ -462,45 +462,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   /**
    * Замки только после загрузки снимка подписки. Пока snapshot === null,
-   * пункты не блокируем — иначе при Enterprise всё «закрыто» до ответа /subscription/me.
-   * ENTERPRISE: без замков по тарифу; остальные — по modules.* из API.
+   * пункты не блокируем — иначе при TIER_3 всё «закрыто» до ответа /subscription/me.
+   * TIER_3: без замков по тарифу; остальные — по modules.* из API.
    */
   const lockedManufacturing = useMemo(() => {
     if (!token || !subReady) return false;
     if (!snapshot) return false;
-    if (String(snapshot.tier).toUpperCase() === "ENTERPRISE") return false;
+    if (String(snapshot.tier).toUpperCase() === "TIER_3") return false;
     return !snapshot.modules.manufacturing;
   }, [token, subReady, snapshot]);
   const lockedFixedAssets = useMemo(() => {
     if (!token || !subReady) return false;
     if (!snapshot) return false;
-    if (String(snapshot.tier).toUpperCase() === "ENTERPRISE") return false;
+    if (String(snapshot.tier).toUpperCase() === "TIER_3") return false;
     return !snapshot.modules.fixedAssets;
   }, [token, subReady, snapshot]);
   const lockedIfrsMapping = useMemo(() => {
     if (!token || !subReady) return false;
     if (!snapshot) return false;
-    if (String(snapshot.tier).toUpperCase() === "ENTERPRISE") return false;
+    if (String(snapshot.tier).toUpperCase() === "TIER_3") return false;
     return !snapshot.modules.ifrsMapping;
   }, [token, subReady, snapshot]);
   const lockedBankingPro = useMemo(() => {
     if (!token || !subReady) return false;
     if (!snapshot) return false;
-    if (String(snapshot.tier).toUpperCase() === "ENTERPRISE") return false;
+    if (String(snapshot.tier).toUpperCase() === "TIER_3") return false;
     return !snapshot.modules.bankingPro;
   }, [token, subReady, snapshot]);
 
   const lockedAuditHub = useMemo(() => {
     if (!token || !subReady) return false;
     if (!snapshot) return false;
-    if (String(snapshot.tier).toUpperCase() === "ENTERPRISE") return false;
+    if (String(snapshot.tier).toUpperCase() === "TIER_3") return false;
     return !snapshot.modules.auditHub;
   }, [token, subReady, snapshot]);
 
   const lockedCompliancePro = useMemo(() => {
     if (!token || !subReady) return false;
     if (!snapshot) return false;
-    if (String(snapshot.tier).toUpperCase() === "ENTERPRISE") return false;
+    if (String(snapshot.tier).toUpperCase() === "TIER_3") return false;
     return !snapshot.modules.compliancePro;
   }, [token, subReady, snapshot]);
 
@@ -784,4 +784,5 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </AuditEngagementSessionProvider>
   );
 }
+
 
